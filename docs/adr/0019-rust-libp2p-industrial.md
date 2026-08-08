@@ -41,10 +41,18 @@ feature `libp2p`), exposed to Python through the existing
 | Gate | `FEATURE_LIBP2P` / prod JSON `feature_libp2p=false` |
 | Security | Noise XX + Ed25519 PeerId (rust-libp2p standard) — **not** a drop-in for current mTLS peer-cert model |
 | Mux | Yamux |
-| Absolute wire | Phase-A: identify + ping + listen/dial. Phase-B: `/abs/wire/1.0.0` streams carrying ADR 0008 frames |
-| Gossipsub | Phase-B+ (announce); not required for Slice A |
+| Absolute wire | Slice A: identify + ping + listen/dial. Slice B: `/abs/wire/1.0.0` request-response (length-prefixed Absolute lab frames; full Borsh ADR 0008 may wrap at Python edge). Slice C: dial budgets / backpressure counters |
+| Gossipsub | Later announce; not required for Slices A–C |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
+
+### Slice status
+
+| Slice | Deliverable |
+|-------|-------------|
+| A | Listen/dial/Noise/Yamux; `libp2p_rust_two_node_lab.py` |
+| B | `/abs/wire/1.0.0` + `libp2p_peers` / `libp2p_dial_ok`; wire + 3-node rust labs |
+| C | `max_dials` budget + `libp2p_dial_refused_budget`; soak lab |
 
 ## Honesty
 
@@ -55,8 +63,9 @@ feature `libp2p`), exposed to Python through the existing
 ## Consequences
 
 - Module: `native/abs_native/src/libp2p_swarm.rs` + PyO3 (`libp2p_available`,
-  `Libp2pNode` / `libp2p_node_new`).
-- Labs: `scripts/libp2p_rust_two_node_lab.py`.
+  `Libp2pNode` / `libp2p_node_new`, `send_wire`, `metrics`).
+- Labs: `libp2p_rust_two_node_lab.py`, `libp2p_rust_wire_lab.py`,
+  `libp2p_rust_three_node_lab.py`, `libp2p_rust_soak_lab.py`.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.
 - CI: experimental-rd job `rd-libp2p-rust`; Hybrid Node Checks default path
   unchanged (no libp2p feature).

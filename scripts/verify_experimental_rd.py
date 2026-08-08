@@ -44,8 +44,12 @@ LABS = [
     "scripts/libp2p_relay_lab.py",
     "scripts/libp2p_discovery_lab.py",
     "scripts/libp2p_identify_lab.py",
-    # ADR 0019 rust lab is opt-in (needs maturin --features libp2p); run separately
-    # via scripts/libp2p_rust_two_node_lab.py or CI job rd-libp2p-rust.
+    # ADR 0019 rust labs are opt-in (needs maturin --features libp2p); run via
+    # CI job rd-libp2p-rust or:
+    #   scripts/libp2p_rust_two_node_lab.py
+    #   scripts/libp2p_rust_wire_lab.py
+    #   scripts/libp2p_rust_three_node_lab.py
+    #   scripts/libp2p_rust_soak_lab.py
 ]
 
 

@@ -86,5 +86,11 @@ jobs:
         run: cargo test --features libp2p --lib
       - name: rust-libp2p 2-node lab
         run: python scripts/libp2p_rust_two_node_lab.py
+      - name: rust-libp2p wire lab (Slice B)
+        run: python scripts/libp2p_rust_wire_lab.py
+      - name: rust-libp2p 3-node metrics lab (Slice B)
+        run: python scripts/libp2p_rust_three_node_lab.py
+      - name: rust-libp2p soak / dial budget lab (Slice C)
+        run: python scripts/libp2p_rust_soak_lab.py
       - name: adapter unit with rust backend
         run: pytest -q tests/unit/test_libp2p_adapter.py

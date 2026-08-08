@@ -1,8 +1,18 @@
 //! ADR 0019 — optional rust-libp2p swarm (FEATURE_LIBP2P / Cargo feature `libp2p`).
 //!
+//! Slice A: listen/dial/identify/ping.
+//! Slice B: `/abs/wire/1.0.0` request-response (Absolute wire bytes).
+//! Slice C: dial budgets / backpressure counters.
+//!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
 use pyo3::prelude::*;
+
+pub const ABS_WIRE_PROTOCOL: &str = "/abs/wire/1.0.0";
+/// Default max concurrent outbound dials (Slice C).
+pub const DEFAULT_MAX_DIALS: u32 = 32;
+/// Max wire payload bytes (lab bound).
+pub const MAX_WIRE_BYTES: usize = 1024 * 1024;
 
 #[pyfunction]
 fn libp2p_available() -> bool {
@@ -17,24 +27,125 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[cfg(feature = "libp2p")]
 mod enabled {
-    use super::libp2p_available;
-    use futures::StreamExt;
+    use super::{
+        libp2p_available, ABS_WIRE_PROTOCOL, DEFAULT_MAX_DIALS, MAX_WIRE_BYTES,
+    };
+    use async_trait::async_trait;
+    use futures::prelude::*;
     use libp2p::{
-        identify, noise, ping,
+        identify, noise, ping, request_response,
         swarm::{NetworkBehaviour, SwarmEvent},
-        tcp, yamux, Multiaddr, SwarmBuilder,
+        tcp, yamux, Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
     };
     use pyo3::exceptions::{PyRuntimeError, PyValueError};
     use pyo3::prelude::*;
-    use std::collections::HashSet;
+    use pyo3::types::PyBytes;
+    use std::collections::{HashMap, HashSet, VecDeque};
+    use std::io;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use tokio::sync::{mpsc, oneshot};
+
+    #[derive(Debug, Clone, Default)]
+    struct AbsWireCodec;
+
+    #[async_trait]
+    impl request_response::Codec for AbsWireCodec {
+        type Protocol = StreamProtocol;
+        type Request = Vec<u8>;
+        type Response = Vec<u8>;
+
+        async fn read_request<T>(
+            &mut self,
+            _: &Self::Protocol,
+            io: &mut T,
+        ) -> io::Result<Self::Request>
+        where
+            T: AsyncRead + Unpin + Send,
+        {
+            read_lp(io).await
+        }
+
+        async fn read_response<T>(
+            &mut self,
+            _: &Self::Protocol,
+            io: &mut T,
+        ) -> io::Result<Self::Response>
+        where
+            T: AsyncRead + Unpin + Send,
+        {
+            read_lp(io).await
+        }
+
+        async fn write_request<T>(
+            &mut self,
+            _: &Self::Protocol,
+            io: &mut T,
+            data: Self::Request,
+        ) -> io::Result<()>
+        where
+            T: AsyncWrite + Unpin + Send,
+        {
+            write_lp(io, &data).await
+        }
+
+        async fn write_response<T>(
+            &mut self,
+            _: &Self::Protocol,
+            io: &mut T,
+            data: Self::Response,
+        ) -> io::Result<()>
+        where
+            T: AsyncWrite + Unpin + Send,
+        {
+            write_lp(io, &data).await
+        }
+    }
+
+    async fn read_lp<T>(io: &mut T) -> io::Result<Vec<u8>>
+    where
+        T: AsyncRead + Unpin + Send,
+    {
+        let mut len_buf = [0u8; 4];
+        io.read_exact(&mut len_buf).await?;
+        let len = u32::from_be_bytes(len_buf) as usize;
+        if len > MAX_WIRE_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "wire payload too large",
+            ));
+        }
+        let mut buf = vec![0u8; len];
+        if len > 0 {
+            io.read_exact(&mut buf).await?;
+        }
+        Ok(buf)
+    }
+
+    async fn write_lp<T>(io: &mut T, data: &[u8]) -> io::Result<()>
+    where
+        T: AsyncWrite + Unpin + Send,
+    {
+        if data.len() > MAX_WIRE_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "wire payload too large",
+            ));
+        }
+        let len = (data.len() as u32).to_be_bytes();
+        io.write_all(&len).await?;
+        if !data.is_empty() {
+            io.write_all(data).await?;
+        }
+        io.flush().await?;
+        Ok(())
+    }
 
     #[derive(NetworkBehaviour)]
     struct AbsBehaviour {
         ping: ping::Behaviour,
         identify: identify::Behaviour,
+        wire: request_response::Behaviour<AbsWireCodec>,
     }
 
     enum Cmd {
@@ -46,6 +157,14 @@ mod enabled {
             addr: String,
             reply: oneshot::Sender<Result<String, String>>,
         },
+        SendWire {
+            peer_id: String,
+            data: Vec<u8>,
+            reply: oneshot::Sender<Result<Vec<u8>, String>>,
+        },
+        PollInbox {
+            reply: oneshot::Sender<Vec<(String, Vec<u8>)>>,
+        },
         Shutdown {
             reply: oneshot::Sender<()>,
         },
@@ -55,8 +174,17 @@ mod enabled {
     struct NodeState {
         listen_addrs: Vec<String>,
         connected: HashSet<String>,
+        /// PeerIds reached via outbound dial (Slice C budget accounting).
+        outbound_peers: HashSet<String>,
         dial_ok: u64,
+        dial_fail: u64,
+        dial_inflight: u32,
+        dial_refused_budget: u64,
+        wire_sent: u64,
+        wire_recv: u64,
+        max_dials: u32,
         last_error: String,
+        inbox: VecDeque<(String, Vec<u8>)>,
     }
 
     #[pyclass(name = "Libp2pNode")]
@@ -68,7 +196,7 @@ mod enabled {
     }
 
     impl Libp2pNode {
-        fn spawn() -> PyResult<Self> {
+        fn spawn(max_dials: u32) -> PyResult<Self> {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
                 .thread_name("abs-libp2p")
@@ -76,7 +204,10 @@ mod enabled {
                 .map_err(|e| PyRuntimeError::new_err(format!("tokio runtime: {e}")))?;
 
             let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel::<Cmd>();
-            let state = Arc::new(Mutex::new(NodeState::default()));
+            let state = Arc::new(Mutex::new(NodeState {
+                max_dials: max_dials.max(1),
+                ..NodeState::default()
+            }));
             let state_bg = Arc::clone(&state);
 
             let peer_id_cell = Arc::new(Mutex::new(String::new()));
@@ -101,12 +232,23 @@ mod enabled {
                     }
                 };
 
-                let mut swarm = match builder.with_behaviour(|key| AbsBehaviour {
-                    ping: ping::Behaviour::new(ping::Config::new()),
-                    identify: identify::Behaviour::new(identify::Config::new(
-                        "/absolute/1.0.0".into(),
-                        key.public(),
-                    )),
+                let mut swarm = match builder.with_behaviour(|key| {
+                    let wire = request_response::Behaviour::with_codec(
+                        AbsWireCodec,
+                        [(
+                            StreamProtocol::new(ABS_WIRE_PROTOCOL),
+                            request_response::ProtocolSupport::Full,
+                        )],
+                        request_response::Config::default(),
+                    );
+                    AbsBehaviour {
+                        ping: ping::Behaviour::new(ping::Config::new()),
+                        identify: identify::Behaviour::new(identify::Config::new(
+                            "/absolute/1.0.0".into(),
+                            key.public(),
+                        )),
+                        wire,
+                    }
                 }) {
                     Ok(b) => b
                         .with_swarm_config(|cfg| {
@@ -127,8 +269,11 @@ mod enabled {
                 }
 
                 let mut pending_listen: Option<oneshot::Sender<Result<Vec<String>, String>>> = None;
-                let mut pending_dial: Option<(String, oneshot::Sender<Result<String, String>>)> =
-                    None;
+                let mut pending_dial: Option<oneshot::Sender<Result<String, String>>> = None;
+                let mut pending_wire: HashMap<
+                    request_response::OutboundRequestId,
+                    oneshot::Sender<Result<Vec<u8>, String>>,
+                > = HashMap::new();
 
                 loop {
                     tokio::select! {
@@ -154,18 +299,73 @@ mod enabled {
                                     }
                                 }
                                 Some(Cmd::Dial { addr, reply }) => {
+                                    // Budget = outbound peers + inflight dials (Slice C).
+                                    let reserved = if let Ok(mut st) = state_bg.lock() {
+                                        let used = (st.outbound_peers.len() as u32)
+                                            .saturating_add(st.dial_inflight);
+                                        if used < st.max_dials {
+                                            st.dial_inflight =
+                                                st.dial_inflight.saturating_add(1);
+                                            true
+                                        } else {
+                                            st.dial_refused_budget =
+                                                st.dial_refused_budget.saturating_add(1);
+                                            st.last_error = "dial_budget_exceeded".into();
+                                            false
+                                        }
+                                    } else {
+                                        false
+                                    };
+                                    if !reserved {
+                                        let _ = reply.send(Err("dial_budget_exceeded".into()));
+                                        continue;
+                                    }
                                     match addr.parse::<Multiaddr>() {
                                         Ok(ma) => {
                                             if let Err(e) = swarm.dial(ma) {
+                                                if let Ok(mut st) = state_bg.lock() {
+                                                    st.dial_fail = st.dial_fail.saturating_add(1);
+                                                    st.dial_inflight =
+                                                        st.dial_inflight.saturating_sub(1);
+                                                }
                                                 let _ = reply.send(Err(format!("dial: {e}")));
                                             } else {
-                                                pending_dial = Some((addr, reply));
+                                                pending_dial = Some(reply);
                                             }
                                         }
                                         Err(e) => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.dial_inflight =
+                                                    st.dial_inflight.saturating_sub(1);
+                                            }
                                             let _ = reply.send(Err(format!("bad multiaddr: {e}")));
                                         }
                                     }
+                                }
+                                Some(Cmd::SendWire { peer_id, data, reply }) => {
+                                    match peer_id.parse::<PeerId>() {
+                                        Ok(pid) => {
+                                            let req_id = swarm.behaviour_mut().wire.send_request(
+                                                &pid,
+                                                data,
+                                            );
+                                            pending_wire.insert(req_id, reply);
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.wire_sent = st.wire_sent.saturating_add(1);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!("bad peer_id: {e}")));
+                                        }
+                                    }
+                                }
+                                Some(Cmd::PollInbox { reply }) => {
+                                    let items = if let Ok(mut st) = state_bg.lock() {
+                                        st.inbox.drain(..).collect()
+                                    } else {
+                                        Vec::new()
+                                    };
+                                    let _ = reply.send(items);
                                 }
                             }
                         }
@@ -186,27 +386,105 @@ mod enabled {
                                         let _ = reply.send(Ok(addrs));
                                     }
                                 }
-                                SwarmEvent::ConnectionEstablished { peer_id, .. } => {
+                                SwarmEvent::ConnectionEstablished {
+                                    peer_id,
+                                    endpoint,
+                                    ..
+                                } => {
                                     let pid = peer_id.to_string();
+                                    let is_dialer = endpoint.is_dialer();
                                     if let Ok(mut st) = state_bg.lock() {
                                         st.connected.insert(pid.clone());
-                                        st.dial_ok = st.dial_ok.saturating_add(1);
+                                        if is_dialer {
+                                            st.outbound_peers.insert(pid.clone());
+                                            st.dial_ok = st.dial_ok.saturating_add(1);
+                                            st.dial_inflight =
+                                                st.dial_inflight.saturating_sub(1);
+                                        }
                                     }
-                                    if let Some((_addr, reply)) = pending_dial.take() {
-                                        let _ = reply.send(Ok(pid));
+                                    if is_dialer {
+                                        if let Some(reply) = pending_dial.take() {
+                                            let _ = reply.send(Ok(pid));
+                                        }
                                     }
                                 }
                                 SwarmEvent::OutgoingConnectionError { error, .. } => {
                                     if let Ok(mut st) = state_bg.lock() {
                                         st.last_error = format!("outgoing: {error}");
+                                        st.dial_fail = st.dial_fail.saturating_add(1);
+                                        st.dial_inflight = st.dial_inflight.saturating_sub(1);
                                     }
-                                    if let Some((_addr, reply)) = pending_dial.take() {
+                                    if let Some(reply) = pending_dial.take() {
                                         let _ = reply.send(Err(format!("outgoing: {error}")));
                                     }
                                 }
-                                SwarmEvent::ConnectionClosed { peer_id, .. } => {
+                                SwarmEvent::ConnectionClosed { peer_id, endpoint, .. } => {
+                                    let pid = peer_id.to_string();
                                     if let Ok(mut st) = state_bg.lock() {
-                                        st.connected.remove(&peer_id.to_string());
+                                        st.connected.remove(&pid);
+                                        if endpoint.is_dialer() {
+                                            st.outbound_peers.remove(&pid);
+                                        }
+                                    }
+                                }
+                                SwarmEvent::Behaviour(AbsBehaviourEvent::Wire(ev)) => {
+                                    use request_response::{Event, Message};
+                                    match ev {
+                                        Event::Message { peer, message, .. } => match message {
+                                            Message::Request {
+                                                request,
+                                                channel,
+                                                ..
+                                            } => {
+                                                if let Ok(mut st) = state_bg.lock() {
+                                                    st.wire_recv =
+                                                        st.wire_recv.saturating_add(1);
+                                                    if st.inbox.len() < 1024 {
+                                                        st.inbox.push_back((
+                                                            peer.to_string(),
+                                                            request.clone(),
+                                                        ));
+                                                    }
+                                                }
+                                                // Echo ack: same payload prefix "OK:" + len
+                                                let mut ack = b"OK:".to_vec();
+                                                ack.extend_from_slice(
+                                                    &(request.len() as u32).to_be_bytes(),
+                                                );
+                                                let _ = swarm
+                                                    .behaviour_mut()
+                                                    .wire
+                                                    .send_response(channel, ack);
+                                            }
+                                            Message::Response {
+                                                request_id,
+                                                response,
+                                            } => {
+                                                if let Some(reply) =
+                                                    pending_wire.remove(&request_id)
+                                                {
+                                                    let _ = reply.send(Ok(response));
+                                                }
+                                            }
+                                        },
+                                        Event::OutboundFailure {
+                                            request_id,
+                                            error,
+                                            ..
+                                        } => {
+                                            if let Some(reply) = pending_wire.remove(&request_id)
+                                            {
+                                                let _ = reply
+                                                    .send(Err(format!("wire outbound: {error}")));
+                                            }
+                                        }
+                                        Event::InboundFailure { error, .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.last_error =
+                                                    format!("wire inbound: {error}");
+                                            }
+                                        }
+                                        Event::ResponseSent { .. } => {}
                                     }
                                 }
                                 _ => {}
@@ -216,7 +494,6 @@ mod enabled {
                 }
             });
 
-            // Wait briefly for peer id assignment from background task.
             let mut peer_id = String::new();
             for _ in 0..100 {
                 if let Ok(pid) = peer_id_cell.lock() {
@@ -249,8 +526,9 @@ mod enabled {
     #[pymethods]
     impl Libp2pNode {
         #[new]
-        fn new_py() -> PyResult<Self> {
-            Self::spawn()
+        #[pyo3(signature = (max_dials = DEFAULT_MAX_DIALS))]
+        fn new_py(max_dials: u32) -> PyResult<Self> {
+            Self::spawn(max_dials)
         }
 
         #[getter]
@@ -258,7 +536,6 @@ mod enabled {
             self.peer_id.clone()
         }
 
-        /// Listen on a multiaddr (e.g. `/ip4/127.0.0.1/tcp/0`). Returns listen addrs.
         fn listen(&self, multiaddr: &str) -> PyResult<Vec<String>> {
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
@@ -274,7 +551,6 @@ mod enabled {
             }
         }
 
-        /// Dial a multiaddr; returns remote peer id string on connection.
         fn dial(&self, multiaddr: &str) -> PyResult<String> {
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
@@ -288,6 +564,50 @@ mod enabled {
                 Ok(Err(e)) => Err(PyValueError::new_err(e)),
                 Err(_) => Err(PyRuntimeError::new_err("dial reply dropped")),
             }
+        }
+
+        /// Send Absolute wire bytes over `/abs/wire/1.0.0`; returns response ack bytes.
+        fn send_wire(&self, peer_id: &str, data: &[u8]) -> PyResult<PyObject> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::SendWire {
+                    peer_id: peer_id.to_string(),
+                    data: data.to_vec(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(resp)) => {
+                    Python::with_gil(|py| Ok(PyBytes::new_bound(py, &resp).into()))
+                }
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("send_wire reply dropped")),
+            }
+        }
+
+        /// Drain inbound wire messages as list of (peer_id, payload_bytes).
+        fn poll_inbox(&self) -> PyResult<PyObject> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::PollInbox { reply: tx })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            let items = rx
+                .blocking_recv()
+                .map_err(|_| PyRuntimeError::new_err("poll_inbox reply dropped"))?;
+            Python::with_gil(|py| {
+                let out = pyo3::types::PyList::empty_bound(py);
+                for (peer, data) in items {
+                    let tup = pyo3::types::PyTuple::new_bound(
+                        py,
+                        &[
+                            peer.into_py(py),
+                            PyBytes::new_bound(py, &data).into_py(py),
+                        ],
+                    );
+                    out.append(tup)?;
+                }
+                Ok(out.into())
+            })
         }
 
         fn listen_addrs(&self) -> Vec<String> {
@@ -308,6 +628,28 @@ mod enabled {
                 .unwrap_or_default()
         }
 
+        /// Metrics for /status / security status (ADR 0019 Slice B/C).
+        fn metrics(&self) -> PyResult<PyObject> {
+            Python::with_gil(|py| {
+                let st = self.state.lock().map_err(|e| {
+                    PyRuntimeError::new_err(format!("state lock poisoned: {e}"))
+                })?;
+                let d = pyo3::types::PyDict::new_bound(py);
+                d.set_item("libp2p_peers", st.connected.len())?;
+                d.set_item("libp2p_dial_ok", st.dial_ok)?;
+                d.set_item("libp2p_dial_fail", st.dial_fail)?;
+                d.set_item("libp2p_dial_inflight", st.dial_inflight)?;
+                d.set_item("libp2p_outbound_peers", st.outbound_peers.len())?;
+                d.set_item("libp2p_dial_refused_budget", st.dial_refused_budget)?;
+                d.set_item("libp2p_max_dials", st.max_dials)?;
+                d.set_item("libp2p_wire_sent", st.wire_sent)?;
+                d.set_item("libp2p_wire_recv", st.wire_recv)?;
+                d.set_item("libp2p_wire_protocol", ABS_WIRE_PROTOCOL)?;
+                d.set_item("peer_id", &self.peer_id)?;
+                Ok(d.into())
+            })
+        }
+
         fn capability_status(&self) -> PyResult<PyObject> {
             Python::with_gil(|py| {
                 let st = self.state.lock().map_err(|e| {
@@ -316,13 +658,18 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 3)?;
+                d.set_item("phase", 4)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
+                d.set_item("wire_protocol", ABS_WIRE_PROTOCOL)?;
                 d.set_item("peer_id", &self.peer_id)?;
                 d.set_item("listen_addrs", st.listen_addrs.clone())?;
                 d.set_item("connected", st.connected.len())?;
-                d.set_item("dial_ok", st.dial_ok)?;
+                d.set_item("libp2p_peers", st.connected.len())?;
+                d.set_item("libp2p_dial_ok", st.dial_ok)?;
+                d.set_item("libp2p_dial_fail", st.dial_fail)?;
+                d.set_item("libp2p_wire_sent", st.wire_sent)?;
+                d.set_item("libp2p_wire_recv", st.wire_recv)?;
                 d.set_item("default_mesh", false)?;
                 d.set_item("honesty", "ADR0019_rust_libp2p_lab_not_prod_mesh")?;
                 d.set_item("error", st.last_error.clone())?;
@@ -339,14 +686,42 @@ mod enabled {
     }
 
     #[pyfunction]
-    fn libp2p_node_new() -> PyResult<Libp2pNode> {
-        Libp2pNode::spawn()
+    #[pyo3(signature = (max_dials = DEFAULT_MAX_DIALS))]
+    fn libp2p_node_new(max_dials: u32) -> PyResult<Libp2pNode> {
+        Libp2pNode::spawn(max_dials)
+    }
+
+    /// Encode a minimal Absolute lab wire frame: msg_type\\0 + payload.
+    /// Slice B honesty: full ADR 0008 Borsh may wrap this at Python edge later.
+    #[pyfunction]
+    fn libp2p_pack_wire(msg_type: &str, payload: &[u8]) -> PyResult<PyObject> {
+        let mut out = Vec::with_capacity(msg_type.len() + 1 + payload.len());
+        out.extend_from_slice(msg_type.as_bytes());
+        out.push(0);
+        out.extend_from_slice(payload);
+        Python::with_gil(|py| Ok(PyBytes::new_bound(py, &out).into()))
+    }
+
+    #[pyfunction]
+    fn libp2p_unpack_wire(data: &[u8]) -> PyResult<(String, PyObject)> {
+        let pos = data
+            .iter()
+            .position(|b| *b == 0)
+            .ok_or_else(|| PyValueError::new_err("missing msg_type separator"))?;
+        let msg_type = std::str::from_utf8(&data[..pos])
+            .map_err(|e| PyValueError::new_err(format!("msg_type utf8: {e}")))?
+            .to_string();
+        let payload = &data[pos + 1..];
+        Python::with_gil(|py| Ok((msg_type, PyBytes::new_bound(py, payload).into())))
     }
 
     pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(libp2p_available, m)?)?;
         m.add_class::<Libp2pNode>()?;
         m.add_function(wrap_pyfunction!(libp2p_node_new, m)?)?;
+        m.add_function(wrap_pyfunction!(libp2p_pack_wire, m)?)?;
+        m.add_function(wrap_pyfunction!(libp2p_unpack_wire, m)?)?;
+        m.add("ABS_WIRE_PROTOCOL", ABS_WIRE_PROTOCOL)?;
         Ok(())
     }
 }

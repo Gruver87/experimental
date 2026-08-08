@@ -163,6 +163,32 @@ class Libp2pTransportAdapter:
             "note": "stub_handle_pending_rust_libp2p_swarm",
         }
 
+    def send_wire(self, peer_id: str, data: bytes) -> bytes:
+        """Send Absolute lab wire bytes over `/abs/wire/1.0.0` (rust backend)."""
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        return bytes(node.send_wire(str(peer_id), data))
+
+    def poll_inbox(self) -> list[tuple[str, bytes]]:
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            return []
+        return [(str(p), bytes(b)) for p, b in node.poll_inbox()]
+
+    def metrics(self) -> Mapping[str, Any]:
+        if self._node is None:
+            return {"rust_backend": bool(self._native_capable), "libp2p_peers": 0}
+        try:
+            st = dict(self._node.metrics())
+            st["rust_backend"] = True
+            st["feature_libp2p"] = self._enabled
+            return st
+        except Exception as exc:
+            return {"available": False, "error": str(exc)}
+
     def close(self) -> None:
         if self._node is not None:
             try:
