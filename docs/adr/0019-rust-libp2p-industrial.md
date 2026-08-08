@@ -57,6 +57,7 @@ feature `libp2p`), exposed to Python through the existing
 | Peer score | Slice Q: gossipsub peer scoring + app score hooks; `libp2p_rust_peer_score_lab.py` |
 | Ping / liveness | Slice R: ping RTT metrics + unhealthy disconnect policy; `libp2p_rust_ping_lab.py` |
 | Score autoblock | Slice S: gossip graylist score → native `block_peer`; `libp2p_rust_score_autoblock_lab.py` |
+| Learned peerstore | Slice T: persistent identify/connection peer book + warm `peerstore_dial`; `libp2p_rust_peerstore_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -83,6 +84,7 @@ feature `libp2p`), exposed to Python through the existing
 | Q | Gossipsub peer scoring + app score; `libp2p_rust_peer_score_lab.py` |
 | R | Ping RTT + unhealthy disconnect; `libp2p_rust_ping_lab.py` |
 | S | Gossip score auto-block; `libp2p_rust_score_autoblock_lab.py` |
+| T | Persistent learned peerstore + warm dial; `libp2p_rust_peerstore_lab.py` |
 
 ## Honesty
 
@@ -104,7 +106,7 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_abs_wire_lab.py`, `libp2p_rust_autonat_dcutr_lab.py`,
   `libp2p_rust_bootstrap_lab.py`,   `libp2p_rust_reconnect_lab.py`,
   `libp2p_rust_peer_score_lab.py`, `libp2p_rust_ping_lab.py`,
-  `libp2p_rust_score_autoblock_lab.py`;
+  `libp2p_rust_score_autoblock_lab.py`, `libp2p_rust_peerstore_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;

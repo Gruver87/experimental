@@ -35,6 +35,7 @@ class Libp2pTransportAdapter:
         wire_timeout_secs: Optional[int] = None,
         bootstrap_path: Optional[str] = None,
         enable_reconnect: Optional[bool] = None,
+        peerstore_path: Optional[str] = None,
     ) -> None:
         self._enabled = bool(enabled)
         self._dial_count = 0
@@ -49,6 +50,9 @@ class Libp2pTransportAdapter:
             str(bootstrap_path).strip() if bootstrap_path is not None else None
         )
         self._enable_reconnect = enable_reconnect
+        self._peerstore_path = (
+            str(peerstore_path).strip() if peerstore_path is not None else None
+        )
 
     def set_peer_policy(self, policy: Any) -> None:
         self._peer_policy = policy
@@ -84,6 +88,13 @@ class Libp2pTransportAdapter:
                 kwargs["bootstrap_path"] = str(boot)
             if self._enable_reconnect is not None:
                 kwargs["enable_reconnect"] = bool(self._enable_reconnect)
+            store = self._peerstore_path
+            if store is None:
+                store = (
+                    str(os.environ.get("ABS_LIBP2P_PEERSTORE_PATH", "") or "").strip() or None
+                )
+            if store:
+                kwargs["peerstore_path"] = str(store)
             self._node = abs_native.libp2p_node_new(**kwargs)
             if self._peer_policy is not None and hasattr(self._peer_policy, "attach_native"):
                 try:
@@ -234,6 +245,29 @@ class Libp2pTransportAdapter:
         if node is None:
             raise TransportCapabilityError("rust libp2p node not available")
         return [(str(p), str(s)) for p, s in node.bootstrap_dial()]
+
+    def peerstore_list(self) -> Mapping[str, list[str]]:
+        """Slice T: learned peerstore book."""
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            return {}
+        raw = dict(node.peerstore_list())
+        return {str(k): [str(a) for a in (v or [])] for k, v in raw.items()}
+
+    def peerstore_clear(self) -> None:
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        node.peerstore_clear()
+
+    def peerstore_dial(self) -> list[tuple[str, str]]:
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        return [(str(p), str(s)) for p, s in node.peerstore_dial()]
 
     def set_reconnect_enabled(self, enabled: bool) -> None:
         """Slice P: enable/disable bootstrap reconnect policy."""

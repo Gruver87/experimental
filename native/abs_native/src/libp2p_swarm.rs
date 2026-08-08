@@ -18,6 +18,7 @@
 //! Slice Q: gossipsub peer scoring + app score hooks + validation accept metrics.
 //! Slice R: ping RTT metrics + unhealthy peer disconnect policy.
 //! Slice S: low gossip peer-score auto-block (graylist bridge to allow/block-list).
+//! Slice T: persistent learned peerstore (identify/connection → JSON) + warm dial.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -224,8 +225,15 @@ mod enabled {
         out
     }
 
-    /// In-flight industrial bootstrap dial batch (Slice O).
+    /// In-flight industrial bootstrap/peerstore dial batch (Slices O/T).
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum BookDialKind {
+        Bootstrap,
+        Peerstore,
+    }
+
     struct BootstrapDialJob {
+        kind: BookDialKind,
         queue: VecDeque<(String, String)>,
         results: Vec<(String, String)>,
         /// Peer currently being dialed (awaiting settle).
@@ -234,6 +242,82 @@ mod enabled {
         per_dial_deadline: Option<tokio::time::Instant>,
         /// Peers already recorded after per-dial timeout (ignore late events for results).
         abandoned: HashSet<String>,
+    }
+
+    fn book_bump_attempted(st: &mut NodeState, kind: BookDialKind) {
+        match kind {
+            BookDialKind::Bootstrap => {
+                st.bootstrap_dials_attempted = st.bootstrap_dials_attempted.saturating_add(1);
+            }
+            BookDialKind::Peerstore => {
+                st.peerstore_dials_attempted = st.peerstore_dials_attempted.saturating_add(1);
+            }
+        }
+    }
+
+    fn book_bump_ok(st: &mut NodeState, kind: BookDialKind) {
+        match kind {
+            BookDialKind::Bootstrap => {
+                st.bootstrap_dials_ok = st.bootstrap_dials_ok.saturating_add(1);
+            }
+            BookDialKind::Peerstore => {
+                st.peerstore_dials_ok = st.peerstore_dials_ok.saturating_add(1);
+            }
+        }
+    }
+
+    fn book_bump_fail(st: &mut NodeState, kind: BookDialKind) {
+        match kind {
+            BookDialKind::Bootstrap => {
+                st.bootstrap_dials_fail = st.bootstrap_dials_fail.saturating_add(1);
+            }
+            BookDialKind::Peerstore => {
+                st.peerstore_dials_fail = st.peerstore_dials_fail.saturating_add(1);
+            }
+        }
+    }
+
+    fn book_bump_timeout(st: &mut NodeState, kind: BookDialKind) {
+        match kind {
+            BookDialKind::Bootstrap => {
+                st.bootstrap_dials_timeout = st.bootstrap_dials_timeout.saturating_add(1);
+                st.bootstrap_dials_fail = st.bootstrap_dials_fail.saturating_add(1);
+            }
+            BookDialKind::Peerstore => {
+                st.peerstore_dials_timeout = st.peerstore_dials_timeout.saturating_add(1);
+                st.peerstore_dials_fail = st.peerstore_dials_fail.saturating_add(1);
+            }
+        }
+    }
+
+    /// Persist a dialable address into the learned peerstore (Slice T).
+    fn peerstore_note_addr(state: &Arc<Mutex<NodeState>>, peer_id: &str, addr: &str) {
+        let mut ma = addr.trim().to_string();
+        if ma.is_empty() || peer_id.is_empty() {
+            return;
+        }
+        if !ma.contains("/p2p/") {
+            ma = format!("{ma}/p2p/{peer_id}");
+        }
+        // Prefer direct TCP; skip pure circuit listen addrs for warm dial book.
+        if ma.contains("/p2p-circuit") && !ma.contains("/tcp/") {
+            return;
+        }
+        let persist = if let Ok(mut st) = state.lock() {
+            if st.peerstore_path.is_empty() {
+                return;
+            }
+            let entry = st.peerstore.entry(peer_id.to_string()).or_default();
+            if entry.contains(&ma) {
+                return;
+            }
+            entry.push(ma);
+            st.peerstore_learned = st.peerstore_learned.saturating_add(1);
+            (st.peerstore_path.clone(), st.peerstore.clone())
+        } else {
+            return;
+        };
+        let _ = save_bootstrap_peers(Path::new(&persist.0), &persist.1);
     }
 
     /// Slice P: scheduled bootstrap reconnect with exponential backoff.
@@ -303,8 +387,8 @@ mod enabled {
                 .unwrap_or(false);
             if already {
                 if let Ok(mut st) = state.lock() {
-                    st.bootstrap_dials_attempted = st.bootstrap_dials_attempted.saturating_add(1);
-                    st.bootstrap_dials_ok = st.bootstrap_dials_ok.saturating_add(1);
+                    book_bump_attempted(&mut st, j.kind);
+                    book_bump_ok(&mut st, j.kind);
                 }
                 j.results.push((pid, "already_connected".into()));
                 continue;
@@ -316,8 +400,8 @@ mod enabled {
                 .unwrap_or(false)
             {
                 if let Ok(mut st) = state.lock() {
-                    st.bootstrap_dials_attempted = st.bootstrap_dials_attempted.saturating_add(1);
-                    st.bootstrap_dials_fail = st.bootstrap_dials_fail.saturating_add(1);
+                    book_bump_attempted(&mut st, j.kind);
+                    book_bump_fail(&mut st, j.kind);
                     st.block_denied = st.block_denied.saturating_add(1);
                 }
                 j.results.push((pid, "peer_blocked".into()));
@@ -328,12 +412,12 @@ mod enabled {
                 let used = (st.outbound_peers.len() as u32).saturating_add(st.dial_inflight);
                 if used < st.max_dials {
                     st.dial_inflight = st.dial_inflight.saturating_add(1);
-                    st.bootstrap_dials_attempted = st.bootstrap_dials_attempted.saturating_add(1);
+                    book_bump_attempted(&mut st, j.kind);
                     true
                 } else {
                     st.dial_refused_budget = st.dial_refused_budget.saturating_add(1);
-                    st.bootstrap_dials_attempted = st.bootstrap_dials_attempted.saturating_add(1);
-                    st.bootstrap_dials_fail = st.bootstrap_dials_fail.saturating_add(1);
+                    book_bump_attempted(&mut st, j.kind);
+                    book_bump_fail(&mut st, j.kind);
                     false
                 }
             } else {
@@ -349,7 +433,7 @@ mod enabled {
                 Err(e) => {
                     if let Ok(mut st) = state.lock() {
                         st.dial_inflight = st.dial_inflight.saturating_sub(1);
-                        st.bootstrap_dials_fail = st.bootstrap_dials_fail.saturating_add(1);
+                        book_bump_fail(&mut st, j.kind);
                     }
                     j.results.push((pid, format!("bad multiaddr: {e}")));
                     continue;
@@ -359,7 +443,7 @@ mod enabled {
             if let Err(e) = swarm.dial(ma) {
                 if let Ok(mut st) = state.lock() {
                     st.dial_inflight = st.dial_inflight.saturating_sub(1);
-                    st.bootstrap_dials_fail = st.bootstrap_dials_fail.saturating_add(1);
+                    book_bump_fail(&mut st, j.kind);
                     st.dial_fail = st.dial_fail.saturating_add(1);
                 }
                 j.results.push((pid, format!("dial: {e}")));
@@ -388,14 +472,12 @@ mod enabled {
         if j.current_peer.as_deref() != Some(peer_id) {
             return;
         }
+        let book = j.kind;
         if let Ok(mut st) = state.lock() {
             match kind {
-                "ok" => st.bootstrap_dials_ok = st.bootstrap_dials_ok.saturating_add(1),
-                "timeout" => {
-                    st.bootstrap_dials_timeout = st.bootstrap_dials_timeout.saturating_add(1);
-                    st.bootstrap_dials_fail = st.bootstrap_dials_fail.saturating_add(1);
-                }
-                _ => st.bootstrap_dials_fail = st.bootstrap_dials_fail.saturating_add(1),
+                "ok" => book_bump_ok(&mut st, book),
+                "timeout" => book_bump_timeout(&mut st, book),
+                _ => book_bump_fail(&mut st, book),
             }
         }
         j.results.push((peer_id.to_string(), status));
@@ -592,6 +674,16 @@ mod enabled {
         BootstrapDial {
             reply: oneshot::Sender<Result<Vec<(String, String)>, String>>,
         },
+        /// Slice T: learned peerstore book.
+        PeerstoreList {
+            reply: oneshot::Sender<HashMap<String, Vec<String>>>,
+        },
+        PeerstoreClear {
+            reply: oneshot::Sender<Result<(), String>>,
+        },
+        PeerstoreDial {
+            reply: oneshot::Sender<Result<Vec<(String, String)>, String>>,
+        },
         SetReconnectEnabled {
             enabled: bool,
             reply: oneshot::Sender<()>,
@@ -711,6 +803,14 @@ mod enabled {
         bootstrap_dials_timeout: u64,
         bootstrap_dials_attempted: u64,
         bootstrap_dial_timeout_secs: u64,
+        /// Slice T: learned peer multiaddrs (identify/connection), separate from bootstrap.
+        peerstore_path: String,
+        peerstore: HashMap<String, Vec<String>>,
+        peerstore_learned: u64,
+        peerstore_dials_ok: u64,
+        peerstore_dials_fail: u64,
+        peerstore_dials_timeout: u64,
+        peerstore_dials_attempted: u64,
         /// Slice P: auto-redial bootstrap peers after disconnect.
         enable_reconnect: bool,
         reconnect_base_ms: u64,
@@ -757,6 +857,7 @@ mod enabled {
             wire_timeout_secs: u64,
             bootstrap_path: Option<String>,
             enable_reconnect: bool,
+            peerstore_path: Option<String>,
         ) -> PyResult<Self> {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -766,11 +867,18 @@ mod enabled {
 
             let key_path_str = key_path.unwrap_or_default();
             let bootstrap_path_str = bootstrap_path.unwrap_or_default();
+            let peerstore_path_str = peerstore_path.unwrap_or_default();
             let bootstrap_peers = if bootstrap_path_str.is_empty() {
                 HashMap::new()
             } else {
                 load_bootstrap_peers(Path::new(&bootstrap_path_str))
                     .map_err(|e| PyRuntimeError::new_err(format!("bootstrap load: {e}")))?
+            };
+            let peerstore_peers = if peerstore_path_str.is_empty() {
+                HashMap::new()
+            } else {
+                load_bootstrap_peers(Path::new(&peerstore_path_str))
+                    .map_err(|e| PyRuntimeError::new_err(format!("peerstore load: {e}")))?
             };
             let wire_timeout_secs = wire_timeout_secs.max(1);
             let bootstrap_dial_timeout_secs = resolve_bootstrap_dial_timeout_secs(None);
@@ -785,6 +893,8 @@ mod enabled {
                 bootstrap_path: bootstrap_path_str.clone(),
                 bootstrap: bootstrap_peers,
                 bootstrap_dial_timeout_secs,
+                peerstore_path: peerstore_path_str.clone(),
+                peerstore: peerstore_peers,
                 enable_reconnect,
                 reconnect_base_ms: DEFAULT_RECONNECT_BASE_MS,
                 reconnect_max_ms: DEFAULT_RECONNECT_MAX_MS,
@@ -1075,14 +1185,12 @@ mod enabled {
                                 if let Some(pid) = j.current_peer.clone() {
                                     j.abandoned.insert(pid.clone());
                                     // Inflight will clear on late OutgoingConnectionError.
+                                    let book = j.kind;
                                     if let Ok(mut st) = state_bg.lock() {
                                         st.dial_inflight =
                                             st.dial_inflight.saturating_sub(1);
-                                        st.bootstrap_dials_timeout =
-                                            st.bootstrap_dials_timeout.saturating_add(1);
-                                        st.bootstrap_dials_fail =
-                                            st.bootstrap_dials_fail.saturating_add(1);
-                                        st.last_error = format!("bootstrap_dial timeout: {pid}");
+                                        book_bump_timeout(&mut st, book);
+                                        st.last_error = format!("book_dial timeout: {pid}");
                                     }
                                     j.results.push((pid, "timeout".into()));
                                     j.current_peer = None;
@@ -1699,6 +1807,61 @@ mod enabled {
                                         .map(|st| flatten_bootstrap_addrs(&st.bootstrap))
                                         .unwrap_or_default();
                                     bootstrap_job = Some(BootstrapDialJob {
+                                        kind: BookDialKind::Bootstrap,
+                                        queue: queue.into(),
+                                        results: Vec::new(),
+                                        current_peer: None,
+                                        reply,
+                                        per_dial_deadline: None,
+                                        abandoned: HashSet::new(),
+                                    });
+                                    let _ = bootstrap_advance(
+                                        &mut swarm,
+                                        &state_bg,
+                                        &mut bootstrap_job,
+                                    );
+                                }
+                                Some(Cmd::PeerstoreList { reply }) => {
+                                    let snap = state_bg
+                                        .lock()
+                                        .map(|st| st.peerstore.clone())
+                                        .unwrap_or_default();
+                                    let _ = reply.send(snap);
+                                }
+                                Some(Cmd::PeerstoreClear { reply }) => {
+                                    let persist = if let Ok(mut st) = state_bg.lock() {
+                                        st.peerstore.clear();
+                                        (st.peerstore_path.clone(), st.peerstore.clone())
+                                    } else {
+                                        let _ = reply.send(Err("state lock poisoned".into()));
+                                        continue;
+                                    };
+                                    let res = if persist.0.is_empty() {
+                                        Ok(())
+                                    } else {
+                                        save_bootstrap_peers(Path::new(&persist.0), &persist.1)
+                                    };
+                                    let _ = reply.send(res);
+                                }
+                                Some(Cmd::PeerstoreDial { reply }) => {
+                                    if bootstrap_job.is_some() {
+                                        let _ = reply.send(Err(
+                                            "book dial already in progress".into(),
+                                        ));
+                                        continue;
+                                    }
+                                    if pending_dial.is_some() {
+                                        let _ = reply.send(Err(
+                                            "peerstore_dial blocked: user dial in flight".into(),
+                                        ));
+                                        continue;
+                                    }
+                                    let queue = state_bg
+                                        .lock()
+                                        .map(|st| flatten_bootstrap_addrs(&st.peerstore))
+                                        .unwrap_or_default();
+                                    bootstrap_job = Some(BootstrapDialJob {
+                                        kind: BookDialKind::Peerstore,
                                         queue: queue.into(),
                                         results: Vec::new(),
                                         current_peer: None,
@@ -1925,7 +2088,7 @@ mod enabled {
                                             Some(send_back_addr.clone())
                                         }
                                     };
-                                    if let Some(addr) = kad_addr {
+                                    if let Some(addr) = kad_addr.clone() {
                                         swarm
                                             .behaviour_mut()
                                             .kademlia
@@ -1940,6 +2103,10 @@ mod enabled {
                                             st.dial_inflight =
                                                 st.dial_inflight.saturating_sub(1);
                                         }
+                                    }
+                                    // Slice T: remember connection endpoint in peerstore.
+                                    if let Some(addr) = kad_addr.as_ref() {
+                                        peerstore_note_addr(&state_bg, &pid, &addr.to_string());
                                     }
                                     // Slice P: any re-establish of a pending bootstrap peer counts ok
                                     // (covers dialer success and races where OutgoingConnectionError
@@ -2290,6 +2457,11 @@ mod enabled {
                                         }
                                         if let Ok(mut st) = state_bg.lock() {
                                             st.identify.insert(peer_id.to_string(), snap);
+                                        }
+                                        // Slice T: learn identify listen addrs into peerstore.
+                                        let pid = peer_id.to_string();
+                                        for a in info.listen_addrs.iter().map(|a| a.to_string()) {
+                                            peerstore_note_addr(&state_bg, &pid, &a);
                                         }
                                     }
                                 }
@@ -2645,7 +2817,8 @@ mod enabled {
             enable_mdns = None,
             wire_timeout_secs = None,
             bootstrap_path = None,
-            enable_reconnect = None
+            enable_reconnect = None,
+            peerstore_path = None
         ))]
         fn new_py(
             max_dials: u32,
@@ -2656,6 +2829,7 @@ mod enabled {
             wire_timeout_secs: Option<u64>,
             bootstrap_path: Option<String>,
             enable_reconnect: Option<bool>,
+            peerstore_path: Option<String>,
         ) -> PyResult<Self> {
             Self::spawn(
                 max_dials,
@@ -2666,6 +2840,7 @@ mod enabled {
                 resolve_wire_timeout_secs(wire_timeout_secs),
                 resolve_bootstrap_path(bootstrap_path),
                 resolve_enable_reconnect(enable_reconnect),
+                resolve_peerstore_path(peerstore_path),
             )
         }
 
@@ -2820,6 +2995,59 @@ mod enabled {
                 }),
                 Ok(Err(e)) => Err(PyValueError::new_err(e)),
                 Err(_) => Err(PyRuntimeError::new_err("bootstrap_dial reply dropped")),
+            }
+        }
+
+        /// Slice T: learned peerstore map peer_id → multiaddrs.
+        fn peerstore_list(&self) -> PyResult<PyObject> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::PeerstoreList { reply: tx })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            let snap = rx
+                .blocking_recv()
+                .map_err(|_| PyRuntimeError::new_err("peerstore_list reply dropped"))?;
+            Python::with_gil(|py| {
+                let d = pyo3::types::PyDict::new_bound(py);
+                for (pid, addrs) in snap {
+                    d.set_item(pid, addrs)?;
+                }
+                Ok(d.into())
+            })
+        }
+
+        fn peerstore_clear(&self) -> PyResult<()> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::PeerstoreClear { reply: tx })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("peerstore_clear reply dropped")),
+            }
+        }
+
+        /// Slice T: industrial sequential dial of learned peerstore entries.
+        fn peerstore_dial(&self) -> PyResult<PyObject> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::PeerstoreDial { reply: tx })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(items)) => Python::with_gil(|py| {
+                    let out = pyo3::types::PyList::empty_bound(py);
+                    for (pid, status) in items {
+                        let tup = pyo3::types::PyTuple::new_bound(
+                            py,
+                            &[pid.into_py(py), status.into_py(py)],
+                        );
+                        out.append(tup)?;
+                    }
+                    Ok(out.into())
+                }),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("peerstore_dial reply dropped")),
             }
         }
 
@@ -3258,6 +3486,16 @@ mod enabled {
                     "libp2p_bootstrap_dial_timeout_secs",
                     st.bootstrap_dial_timeout_secs,
                 )?;
+                d.set_item("libp2p_peerstore_peers", st.peerstore.len())?;
+                d.set_item("libp2p_peerstore_learned", st.peerstore_learned)?;
+                d.set_item("libp2p_peerstore_dials_ok", st.peerstore_dials_ok)?;
+                d.set_item("libp2p_peerstore_dials_fail", st.peerstore_dials_fail)?;
+                d.set_item("libp2p_peerstore_dials_timeout", st.peerstore_dials_timeout)?;
+                d.set_item(
+                    "libp2p_peerstore_dials_attempted",
+                    st.peerstore_dials_attempted,
+                )?;
+                d.set_item("libp2p_peerstore_path", &st.peerstore_path)?;
                 d.set_item("libp2p_reconnect_enabled", st.enable_reconnect)?;
                 d.set_item("libp2p_reconnect_scheduled", st.reconnect_scheduled)?;
                 d.set_item("libp2p_reconnect_ok", st.reconnect_ok)?;
@@ -3315,12 +3553,13 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 18)?;
+                d.set_item("phase", 19)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
                 d.set_item("peer_score", true)?;
                 d.set_item("score_autoblock", st.enable_score_autoblock)?;
+                d.set_item("peerstore", !st.peerstore_path.is_empty())?;
                 d.set_item("ping", true)?;
                 d.set_item(
                     "ping_unhealthy_disconnect",
@@ -3348,6 +3587,9 @@ mod enabled {
                 d.set_item("persistent_identity", !st.key_path.is_empty())?;
                 d.set_item("persistent_bootstrap", !st.bootstrap_path.is_empty())?;
                 d.set_item("bootstrap_path", &st.bootstrap_path)?;
+                d.set_item("persistent_peerstore", !st.peerstore_path.is_empty())?;
+                d.set_item("peerstore_path", &st.peerstore_path)?;
+                d.set_item("peerstore_peers", st.peerstore.len())?;
                 d.set_item("bootstrap_peers", st.bootstrap.len())?;
                 d.set_item("wire_protocol", ABS_WIRE_PROTOCOL)?;
                 d.set_item("gossip_blocks_topic", ABS_GOSSIP_BLOCKS_TOPIC)?;
@@ -3393,6 +3635,15 @@ mod enabled {
                 d.set_item(
                     "libp2p_bootstrap_dials_attempted",
                     st.bootstrap_dials_attempted,
+                )?;
+                d.set_item("libp2p_peerstore_peers", st.peerstore.len())?;
+                d.set_item("libp2p_peerstore_learned", st.peerstore_learned)?;
+                d.set_item("libp2p_peerstore_dials_ok", st.peerstore_dials_ok)?;
+                d.set_item("libp2p_peerstore_dials_fail", st.peerstore_dials_fail)?;
+                d.set_item("libp2p_peerstore_dials_timeout", st.peerstore_dials_timeout)?;
+                d.set_item(
+                    "libp2p_peerstore_dials_attempted",
+                    st.peerstore_dials_attempted,
                 )?;
                 d.set_item("libp2p_reconnect_enabled", st.enable_reconnect)?;
                 d.set_item("libp2p_reconnect_scheduled", st.reconnect_scheduled)?;
@@ -3474,6 +3725,26 @@ mod enabled {
             }
         }
         match std::env::var("ABS_LIBP2P_BOOTSTRAP_PATH") {
+            Ok(s) => {
+                let t = s.trim().to_string();
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t)
+                }
+            }
+            Err(_) => None,
+        }
+    }
+
+    fn resolve_peerstore_path(explicit: Option<String>) -> Option<String> {
+        if let Some(p) = explicit {
+            let t = p.trim().to_string();
+            if !t.is_empty() {
+                return Some(t);
+            }
+        }
+        match std::env::var("ABS_LIBP2P_PEERSTORE_PATH") {
             Ok(s) => {
                 let t = s.trim().to_string();
                 if t.is_empty() {
@@ -3620,7 +3891,8 @@ mod enabled {
         enable_mdns = None,
         wire_timeout_secs = None,
         bootstrap_path = None,
-        enable_reconnect = None
+        enable_reconnect = None,
+        peerstore_path = None
     ))]
     fn libp2p_node_new(
         max_dials: u32,
@@ -3631,6 +3903,7 @@ mod enabled {
         wire_timeout_secs: Option<u64>,
         bootstrap_path: Option<String>,
         enable_reconnect: Option<bool>,
+        peerstore_path: Option<String>,
     ) -> PyResult<Libp2pNode> {
         Libp2pNode::spawn(
             max_dials,
@@ -3641,6 +3914,7 @@ mod enabled {
             resolve_wire_timeout_secs(wire_timeout_secs),
             resolve_bootstrap_path(bootstrap_path),
             resolve_enable_reconnect(enable_reconnect),
+            resolve_peerstore_path(peerstore_path),
         )
     }
 
