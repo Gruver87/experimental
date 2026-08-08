@@ -99,7 +99,8 @@ def test_ripemd160_precompile() -> None:
 
 
 def test_unknown_address_none() -> None:
-    assert try_precompile("0x" + "0" * 39 + "9", "00") is None
+    # 0x0a is not implemented (bn254 range starts at 0x06; blake2f is 0x09).
+    assert try_precompile("0x" + "0" * 38 + "0a", "00") is None
     assert not is_precompile("0xdead")
 
 
