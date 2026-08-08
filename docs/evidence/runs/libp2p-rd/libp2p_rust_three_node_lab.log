@@ -1,5 +1,5 @@
 OK: libp2p_rust_three_node_lab PASS
-  peers: ['12D3KooWGM7y…', '12D3KooWMYDQ…', '12D3KooWCYAH…']
+  peers: ['12D3KooWLLxC…', '12D3KooWHc35…', '12D3KooWP5jL…']
   libp2p_peers: [2, 2, 2]
   libp2p_dial_ok: [0, 1, 2]
   honesty: FEATURE_LIBP2P lab; not prod TCP+TLS mesh

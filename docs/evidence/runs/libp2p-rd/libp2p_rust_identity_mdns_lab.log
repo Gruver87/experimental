@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Experimental\scripts\libp2p_rust_identity_mdns_lab.py", line 147, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Experimental\scripts\libp2p_rust_identity_mdns_lab.py", line 104, in main
+    remote = n1.dial(dial_addr)
+ValueError: outgoing: Failed to negotiate transport protocol(s): [(/ip4/192.168.0.119/tcp/53461: : Обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт). (os error 10048): Обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт). (os error 10048))]

@@ -5,6 +5,7 @@
 //! Slice C: dial budgets / backpressure counters.
 //! Slice D: status / ADR 0008 bridge / peer policy (Python edge).
 //! Slice E: gossipsub announce + identify Received snapshots.
+//! Slice F: persistent PeerId keystore + mDNS discovery.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -38,7 +39,7 @@ mod enabled {
     use async_trait::async_trait;
     use futures::prelude::*;
     use libp2p::{
-        gossipsub, identify, noise, ping, request_response,
+        gossipsub, identify, identity::Keypair, mdns, noise, ping, request_response,
         swarm::{NetworkBehaviour, SwarmEvent},
         tcp, yamux, Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
     };
@@ -49,9 +50,30 @@ mod enabled {
     use std::collections::{HashMap, HashSet, VecDeque};
     use std::hash::{Hash, Hasher};
     use std::io;
+    use std::path::Path;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use tokio::sync::{mpsc, oneshot};
+
+    fn load_or_create_keypair(path: &Path) -> Result<Keypair, String> {
+        if path.exists() {
+            let bytes = std::fs::read(path).map_err(|e| format!("read key: {e}"))?;
+            Keypair::from_protobuf_encoding(&bytes).map_err(|e| format!("decode key: {e}"))
+        } else {
+            if let Some(parent) = path.parent() {
+                if !parent.as_os_str().is_empty() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|e| format!("create key dir: {e}"))?;
+                }
+            }
+            let kp = Keypair::generate_ed25519();
+            let enc = kp
+                .to_protobuf_encoding()
+                .map_err(|e| format!("encode key: {e}"))?;
+            std::fs::write(path, enc).map_err(|e| format!("write key: {e}"))?;
+            Ok(kp)
+        }
+    }
 
     #[derive(Debug, Clone, Default)]
     struct AbsWireCodec;
@@ -154,6 +176,7 @@ mod enabled {
         identify: identify::Behaviour,
         wire: request_response::Behaviour<AbsWireCodec>,
         gossipsub: gossipsub::Behaviour,
+        mdns: mdns::tokio::Behaviour,
     }
 
     enum Cmd {
@@ -217,12 +240,16 @@ mod enabled {
         wire_recv: u64,
         gossip_pub: u64,
         gossip_recv: u64,
+        mdns_discovered: u64,
         max_dials: u32,
         last_error: String,
         inbox: VecDeque<(String, Vec<u8>)>,
         gossip_inbox: VecDeque<(String, String, Vec<u8>)>,
         subscribed: HashSet<String>,
         identify: HashMap<String, IdentifySnap>,
+        /// peer_id -> last advertised multiaddr from mDNS
+        discovered: HashMap<String, String>,
+        key_path: String,
     }
 
     #[pyclass(name = "Libp2pNode")]
@@ -234,16 +261,18 @@ mod enabled {
     }
 
     impl Libp2pNode {
-        fn spawn(max_dials: u32) -> PyResult<Self> {
+        fn spawn(max_dials: u32, key_path: Option<String>) -> PyResult<Self> {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
                 .thread_name("abs-libp2p")
                 .build()
                 .map_err(|e| PyRuntimeError::new_err(format!("tokio runtime: {e}")))?;
 
+            let key_path_str = key_path.unwrap_or_default();
             let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel::<Cmd>();
             let state = Arc::new(Mutex::new(NodeState {
                 max_dials: max_dials.max(1),
+                key_path: key_path_str.clone(),
                 ..NodeState::default()
             }));
             let state_bg = Arc::clone(&state);
@@ -252,7 +281,21 @@ mod enabled {
             let peer_id_bg = Arc::clone(&peer_id_cell);
 
             runtime.spawn(async move {
-                let built = SwarmBuilder::with_new_identity()
+                let keypair = if key_path_str.is_empty() {
+                    Keypair::generate_ed25519()
+                } else {
+                    match load_or_create_keypair(Path::new(&key_path_str)) {
+                        Ok(kp) => kp,
+                        Err(e) => {
+                            if let Ok(mut st) = state_bg.lock() {
+                                st.last_error = e;
+                            }
+                            return;
+                        }
+                    }
+                };
+
+                let built = SwarmBuilder::with_existing_identity(keypair)
                     .with_tokio()
                     .with_tcp(
                         tcp::Config::default(),
@@ -295,6 +338,15 @@ mod enabled {
                         gs_cfg,
                     )
                     .map_err(|e| format!("gossipsub: {e}"))?;
+                    let mdns = mdns::tokio::Behaviour::new(
+                        mdns::Config {
+                            ttl: Duration::from_secs(60),
+                            query_interval: Duration::from_secs(1),
+                            enable_ipv6: false,
+                        },
+                        key.public().to_peer_id(),
+                    )
+                    .map_err(|e| format!("mdns: {e}"))?;
                     Ok(AbsBehaviour {
                         ping: ping::Behaviour::new(ping::Config::new()),
                         identify: identify::Behaviour::new(identify::Config::new(
@@ -303,6 +355,7 @@ mod enabled {
                         )),
                         wire,
                         gossipsub,
+                        mdns,
                     })
                 }) {
                     Ok(b) => b
@@ -581,6 +634,33 @@ mod enabled {
                                         }
                                     }
                                 }
+                                SwarmEvent::Behaviour(AbsBehaviourEvent::Mdns(ev)) => match ev {
+                                    mdns::Event::Discovered(list) => {
+                                        for (peer, addr) in list {
+                                            swarm
+                                                .behaviour_mut()
+                                                .gossipsub
+                                                .add_explicit_peer(&peer);
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.mdns_discovered =
+                                                    st.mdns_discovered.saturating_add(1);
+                                                st.discovered
+                                                    .insert(peer.to_string(), addr.to_string());
+                                            }
+                                        }
+                                    }
+                                    mdns::Event::Expired(list) => {
+                                        for (peer, addr) in list {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                if st.discovered.get(&peer.to_string())
+                                                    == Some(&addr.to_string())
+                                                {
+                                                    st.discovered.remove(&peer.to_string());
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::Wire(ev)) => {
                                     use request_response::{Event, Message};
                                     match ev {
@@ -680,9 +760,9 @@ mod enabled {
     #[pymethods]
     impl Libp2pNode {
         #[new]
-        #[pyo3(signature = (max_dials = DEFAULT_MAX_DIALS))]
-        fn new_py(max_dials: u32) -> PyResult<Self> {
-            Self::spawn(max_dials)
+        #[pyo3(signature = (max_dials = DEFAULT_MAX_DIALS, key_path = None))]
+        fn new_py(max_dials: u32, key_path: Option<String>) -> PyResult<Self> {
+            Self::spawn(max_dials, key_path)
         }
 
         #[getter]
@@ -780,6 +860,20 @@ mod enabled {
                     v
                 })
                 .unwrap_or_default()
+        }
+
+        /// mDNS discoveries: dict peer_id -> multiaddr (Slice F).
+        fn discovered_peers(&self) -> PyResult<PyObject> {
+            Python::with_gil(|py| {
+                let st = self.state.lock().map_err(|e| {
+                    PyRuntimeError::new_err(format!("state lock poisoned: {e}"))
+                })?;
+                let d = pyo3::types::PyDict::new_bound(py);
+                for (peer, addr) in &st.discovered {
+                    d.set_item(peer, addr)?;
+                }
+                Ok(d.into())
+            })
         }
 
         /// Subscribe to a gossipsub topic (Slice E).
@@ -899,6 +993,9 @@ mod enabled {
                 d.set_item("libp2p_gossip_recv", st.gossip_recv)?;
                 d.set_item("libp2p_gossip_topics", st.subscribed.len())?;
                 d.set_item("libp2p_identify_peers", st.identify.len())?;
+                d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
+                d.set_item("libp2p_discovered_peers", st.discovered.len())?;
+                d.set_item("libp2p_key_path", &st.key_path)?;
                 d.set_item("libp2p_wire_protocol", ABS_WIRE_PROTOCOL)?;
                 d.set_item("libp2p_gossip_blocks_topic", ABS_GOSSIP_BLOCKS_TOPIC)?;
                 d.set_item("peer_id", &self.peer_id)?;
@@ -914,13 +1011,16 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 5)?;
+                d.set_item("phase", 6)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
+                d.set_item("mdns", true)?;
+                d.set_item("persistent_identity", !st.key_path.is_empty())?;
                 d.set_item("wire_protocol", ABS_WIRE_PROTOCOL)?;
                 d.set_item("gossip_blocks_topic", ABS_GOSSIP_BLOCKS_TOPIC)?;
                 d.set_item("peer_id", &self.peer_id)?;
+                d.set_item("key_path", &st.key_path)?;
                 d.set_item("listen_addrs", st.listen_addrs.clone())?;
                 d.set_item("connected", st.connected.len())?;
                 d.set_item("libp2p_peers", st.connected.len())?;
@@ -930,6 +1030,7 @@ mod enabled {
                 d.set_item("libp2p_wire_recv", st.wire_recv)?;
                 d.set_item("libp2p_gossip_pub", st.gossip_pub)?;
                 d.set_item("libp2p_gossip_recv", st.gossip_recv)?;
+                d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
                 d.set_item("default_mesh", false)?;
                 d.set_item("honesty", "ADR0019_rust_libp2p_lab_not_prod_mesh")?;
                 d.set_item("error", st.last_error.clone())?;
@@ -946,9 +1047,9 @@ mod enabled {
     }
 
     #[pyfunction]
-    #[pyo3(signature = (max_dials = DEFAULT_MAX_DIALS))]
-    fn libp2p_node_new(max_dials: u32) -> PyResult<Libp2pNode> {
-        Libp2pNode::spawn(max_dials)
+    #[pyo3(signature = (max_dials = DEFAULT_MAX_DIALS, key_path = None))]
+    fn libp2p_node_new(max_dials: u32, key_path: Option<String>) -> PyResult<Libp2pNode> {
+        Libp2pNode::spawn(max_dials, key_path)
     }
 
     /// Encode a minimal Absolute lab wire frame: msg_type\\0 + payload.

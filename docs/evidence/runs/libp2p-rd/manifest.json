@@ -1,7 +1,7 @@
 {
   "schema": "abs.libp2p_rd_evidence.v1",
-  "created_unix": 1786159926,
-  "commit": "5fedffd2a6800d126a8e4aac88cb02de924bbe4c",
+  "created_unix": 1786160787,
+  "commit": "0c0f57ab1ad0bfd9d9f1954669387104439401d0",
   "honesty": [
     "experimental_only",
     "not_prod_mesh_libp2p",
@@ -14,7 +14,7 @@
       "status": "pass",
       "exit_code": 0,
       "log": "docs\\evidence\\runs\\libp2p-rd\\libp2p_rust_two_node_lab.log",
-      "sha256": "bd9ab3299a519c216548a2eabd7a740cf4c2e907cc300ca140044ba76c7e4dfe",
+      "sha256": "5ad36160af07b6ac110b4f54e5464a4508d97d82e1705c44776faee9eac9f9c6",
       "bytes": 470
     },
     {
@@ -22,7 +22,7 @@
       "status": "pass",
       "exit_code": 0,
       "log": "docs\\evidence\\runs\\libp2p-rd\\libp2p_rust_wire_lab.log",
-      "sha256": "2fc282eecbfebd497aa0b17cd69932c34fa2ca105ae742bab10a4317073e98c4",
+      "sha256": "20a6bf8da3091d9b36c92cbd4aab26d8c3301e98e8aaecc3a8936781265754c6",
       "bytes": 302
     },
     {
@@ -30,7 +30,7 @@
       "status": "pass",
       "exit_code": 0,
       "log": "docs\\evidence\\runs\\libp2p-rd\\libp2p_rust_three_node_lab.log",
-      "sha256": "105cac768b7cedc3fec2d069c78e67fabb3e07f5c1ad0ec580b7ba7707cdc226",
+      "sha256": "02a426de765bcbb9054de956152228f08a5777f70b854a48d07733eca6797485",
       "bytes": 215
     },
     {
@@ -56,11 +56,19 @@
       "log": "docs\\evidence\\runs\\libp2p-rd\\libp2p_rust_gossip_lab.log",
       "sha256": "2eaf38851cd23bea363274fb81aeafac70e54b7bb6b02d3c2f0b89f380df294d",
       "bytes": 211
+    },
+    {
+      "lab": "scripts/libp2p_rust_identity_mdns_lab.py",
+      "status": "fail",
+      "exit_code": 1,
+      "log": "docs\\evidence\\runs\\libp2p-rd\\libp2p_rust_identity_mdns_lab.log",
+      "sha256": "57281a0765c5e3d0d96482712ade64eb98edc867547bb36310c1be0d27e4f17b",
+      "bytes": 853
     }
   ],
   "summary": {
     "pass": 6,
-    "fail": 0,
+    "fail": 1,
     "missing": 0,
     "error": 0
   }

@@ -57,7 +57,11 @@ class Libp2pTransportAdapter:
         try:
             import abs_native
 
-            self._node = abs_native.libp2p_node_new()
+            key_path = str(os.environ.get("ABS_LIBP2P_KEY_PATH", "") or "").strip() or None
+            if key_path:
+                self._node = abs_native.libp2p_node_new(32, key_path)
+            else:
+                self._node = abs_native.libp2p_node_new()
         except Exception as exc:
             raise TransportCapabilityError(f"libp2p node start failed: {exc}") from exc
         return self._node

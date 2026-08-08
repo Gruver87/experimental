@@ -40,6 +40,7 @@ libp2p = { version = "0.54", optional = true, default-features = false, features
     "identify",
     "request-response",
     "gossipsub",
+    "mdns",
     "macros",
 ] }
 tokio = { version = "1", optional = true, features = ["rt-multi-thread", "macros", "sync", "time"] }

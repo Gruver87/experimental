@@ -30,6 +30,7 @@ LABS = (
     "scripts/libp2p_rust_soak_lab.py",
     "scripts/libp2p_mixed_dual_stack_lab.py",
     "scripts/libp2p_rust_gossip_lab.py",
+    "scripts/libp2p_rust_identity_mdns_lab.py",
 )
 
 
