@@ -40,6 +40,7 @@ LABS = (
     "scripts/libp2p_rust_wire_timeout_lab.py",
     "scripts/libp2p_rust_abs_wire_lab.py",
     "scripts/libp2p_rust_autonat_dcutr_lab.py",
+    "scripts/libp2p_rust_bootstrap_lab.py",
 )
 
 

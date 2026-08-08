@@ -33,6 +33,7 @@ class Libp2pTransportAdapter:
         peer_policy: Optional[Any] = None,
         enable_mdns: Optional[bool] = None,
         wire_timeout_secs: Optional[int] = None,
+        bootstrap_path: Optional[str] = None,
     ) -> None:
         self._enabled = bool(enabled)
         self._dial_count = 0
@@ -42,6 +43,9 @@ class Libp2pTransportAdapter:
         self._enable_mdns = enable_mdns
         self._wire_timeout_secs = (
             int(wire_timeout_secs) if wire_timeout_secs is not None else None
+        )
+        self._bootstrap_path = (
+            str(bootstrap_path).strip() if bootstrap_path is not None else None
         )
 
     def set_peer_policy(self, policy: Any) -> None:
@@ -71,6 +75,11 @@ class Libp2pTransportAdapter:
                 kwargs["enable_mdns"] = bool(self._enable_mdns)
             if self._wire_timeout_secs is not None:
                 kwargs["wire_timeout_secs"] = int(self._wire_timeout_secs)
+            boot = self._bootstrap_path
+            if boot is None:
+                boot = str(os.environ.get("ABS_LIBP2P_BOOTSTRAP_PATH", "") or "").strip() or None
+            if boot:
+                kwargs["bootstrap_path"] = str(boot)
             self._node = abs_native.libp2p_node_new(**kwargs)
             if self._peer_policy is not None and hasattr(self._peer_policy, "attach_native"):
                 try:
@@ -191,6 +200,36 @@ class Libp2pTransportAdapter:
             node.autonat_add_server(str(peer_id))
         else:
             node.autonat_add_server(str(peer_id), str(multiaddr))
+
+    def bootstrap_add(self, peer_id: str, multiaddr: str) -> None:
+        """Slice O: persist bootstrap peer multiaddr."""
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        node.bootstrap_add(str(peer_id), str(multiaddr))
+
+    def bootstrap_remove(self, peer_id: str) -> None:
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        node.bootstrap_remove(str(peer_id))
+
+    def bootstrap_list(self) -> Mapping[str, list[str]]:
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            return {}
+        raw = dict(node.bootstrap_list())
+        return {str(k): [str(a) for a in (v or [])] for k, v in raw.items()}
+
+    def bootstrap_dial(self) -> list[tuple[str, str]]:
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        return [(str(p), str(s)) for p, s in node.bootstrap_dial()]
 
     @property
     def peer_id(self) -> str:

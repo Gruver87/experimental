@@ -13,6 +13,7 @@
 //! Slice L: Absolute wire request timeout + adapter API parity (Python edge).
 //! Slice M: ADR 0008 Absolute wire codecs (v1 NDJSON / v2 Borsh AB2) over `/abs/wire`.
 //! Slice N: AutoNAT + DCUtR (NAT status + hole-punch over relay).
+//! Slice O: persistent bootstrap peer list (JSON file) + dial-all.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -118,6 +119,82 @@ mod enabled {
             std::fs::write(path, enc).map_err(|e| format!("write key: {e}"))?;
             Ok(kp)
         }
+    }
+
+    /// Slice O: JSON bootstrap peer book.
+    ///
+    /// ```json
+    /// {"version":1,"peers":{"12D3KooW...":["/ip4/.../tcp/.../p2p/12D3KooW..."]}}
+    /// ```
+    fn load_bootstrap_peers(path: &Path) -> Result<HashMap<String, Vec<String>>, String> {
+        if !path.exists() {
+            return Ok(HashMap::new());
+        }
+        let raw = std::fs::read_to_string(path).map_err(|e| format!("read bootstrap: {e}"))?;
+        let v: serde_json::Value =
+            serde_json::from_str(&raw).map_err(|e| format!("bootstrap json: {e}"))?;
+        let mut out: HashMap<String, Vec<String>> = HashMap::new();
+        if let Some(peers) = v.get("peers").and_then(|p| p.as_object()) {
+            for (pid, addrs) in peers {
+                let list: Vec<String> = match addrs {
+                    serde_json::Value::Array(a) => a
+                        .iter()
+                        .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                        .collect(),
+                    serde_json::Value::String(s) => vec![s.clone()],
+                    _ => Vec::new(),
+                };
+                if !list.is_empty() {
+                    out.insert(pid.clone(), list);
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    fn save_bootstrap_peers(
+        path: &Path,
+        peers: &HashMap<String, Vec<String>>,
+    ) -> Result<(), String> {
+        if let Some(parent) = path.parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| format!("create bootstrap dir: {e}"))?;
+            }
+        }
+        let mut map = serde_json::Map::new();
+        for (pid, addrs) in peers {
+            map.insert(
+                pid.clone(),
+                serde_json::Value::Array(
+                    addrs
+                        .iter()
+                        .map(|a| serde_json::Value::String(a.clone()))
+                        .collect(),
+                ),
+            );
+        }
+        let doc = serde_json::json!({
+            "version": 1,
+            "peers": map,
+        });
+        let body =
+            serde_json::to_string_pretty(&doc).map_err(|e| format!("bootstrap encode: {e}"))?;
+        std::fs::write(path, body).map_err(|e| format!("write bootstrap: {e}"))
+    }
+
+    fn flatten_bootstrap_addrs(peers: &HashMap<String, Vec<String>>) -> Vec<(String, String)> {
+        let mut out = Vec::new();
+        let mut keys: Vec<&String> = peers.keys().collect();
+        keys.sort();
+        for pid in keys {
+            if let Some(addrs) = peers.get(pid) {
+                for a in addrs {
+                    out.push((pid.clone(), a.clone()));
+                }
+            }
+        }
+        out
     }
 
     #[derive(Debug, Clone, Default)]
@@ -292,6 +369,23 @@ mod enabled {
             addr: Option<String>,
             reply: oneshot::Sender<Result<(), String>>,
         },
+        /// Slice O: persist bootstrap peer + multiaddr.
+        BootstrapAdd {
+            peer_id: String,
+            multiaddr: String,
+            reply: oneshot::Sender<Result<(), String>>,
+        },
+        BootstrapRemove {
+            peer_id: String,
+            reply: oneshot::Sender<Result<(), String>>,
+        },
+        BootstrapList {
+            reply: oneshot::Sender<HashMap<String, Vec<String>>>,
+        },
+        /// Dial all persisted bootstrap multiaddrs (sequential).
+        BootstrapDial {
+            reply: oneshot::Sender<Result<Vec<(String, String)>, String>>,
+        },
         Shutdown {
             reply: oneshot::Sender<()>,
         },
@@ -355,6 +449,11 @@ mod enabled {
         key_path: String,
         /// Circuit listen addrs observed after reservation (Slice H).
         circuit_addrs: Vec<String>,
+        /// Persistent bootstrap book path (Slice O; empty = memory-only).
+        bootstrap_path: String,
+        bootstrap: HashMap<String, Vec<String>>,
+        bootstrap_dials_ok: u64,
+        bootstrap_dials_fail: u64,
     }
 
     #[pyclass(name = "Libp2pNode")]
@@ -373,6 +472,7 @@ mod enabled {
             max_established: Option<u32>,
             enable_mdns: bool,
             wire_timeout_secs: u64,
+            bootstrap_path: Option<String>,
         ) -> PyResult<Self> {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -381,6 +481,13 @@ mod enabled {
                 .map_err(|e| PyRuntimeError::new_err(format!("tokio runtime: {e}")))?;
 
             let key_path_str = key_path.unwrap_or_default();
+            let bootstrap_path_str = bootstrap_path.unwrap_or_default();
+            let bootstrap_peers = if bootstrap_path_str.is_empty() {
+                HashMap::new()
+            } else {
+                load_bootstrap_peers(Path::new(&bootstrap_path_str))
+                    .map_err(|e| PyRuntimeError::new_err(format!("bootstrap load: {e}")))?
+            };
             let wire_timeout_secs = wire_timeout_secs.max(1);
             let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel::<Cmd>();
             let state = Arc::new(Mutex::new(NodeState {
@@ -390,6 +497,8 @@ mod enabled {
                 enable_mdns,
                 wire_timeout_secs,
                 key_path: key_path_str.clone(),
+                bootstrap_path: bootstrap_path_str.clone(),
+                bootstrap: bootstrap_peers,
                 ..NodeState::default()
             }));
             let state_bg = Arc::clone(&state);
@@ -876,6 +985,109 @@ mod enabled {
                                         }
                                     }
                                 }
+                                Some(Cmd::BootstrapAdd {
+                                    peer_id,
+                                    multiaddr,
+                                    reply,
+                                }) => {
+                                    if peer_id.parse::<PeerId>().is_err() {
+                                        let _ = reply.send(Err("bad peer_id".into()));
+                                        continue;
+                                    }
+                                    if multiaddr.parse::<Multiaddr>().is_err() {
+                                        let _ = reply.send(Err("bad multiaddr".into()));
+                                        continue;
+                                    }
+                                    let persist = if let Ok(mut st) = state_bg.lock() {
+                                        let entry =
+                                            st.bootstrap.entry(peer_id.clone()).or_default();
+                                        if !entry.contains(&multiaddr) {
+                                            entry.push(multiaddr.clone());
+                                        }
+                                        if let Ok(ma) = multiaddr.parse::<Multiaddr>() {
+                                            if let Ok(pid) = peer_id.parse::<PeerId>() {
+                                                swarm
+                                                    .behaviour_mut()
+                                                    .kademlia
+                                                    .add_address(&pid, ma);
+                                            }
+                                        }
+                                        let path = st.bootstrap_path.clone();
+                                        let snap = st.bootstrap.clone();
+                                        (path, snap)
+                                    } else {
+                                        let _ = reply.send(Err("state lock poisoned".into()));
+                                        continue;
+                                    };
+                                    let res = if persist.0.is_empty() {
+                                        Ok(())
+                                    } else {
+                                        save_bootstrap_peers(Path::new(&persist.0), &persist.1)
+                                    };
+                                    let _ = reply.send(res);
+                                }
+                                Some(Cmd::BootstrapRemove { peer_id, reply }) => {
+                                    let persist = if let Ok(mut st) = state_bg.lock() {
+                                        st.bootstrap.remove(&peer_id);
+                                        let path = st.bootstrap_path.clone();
+                                        let snap = st.bootstrap.clone();
+                                        (path, snap)
+                                    } else {
+                                        let _ = reply.send(Err("state lock poisoned".into()));
+                                        continue;
+                                    };
+                                    let res = if persist.0.is_empty() {
+                                        Ok(())
+                                    } else {
+                                        save_bootstrap_peers(Path::new(&persist.0), &persist.1)
+                                    };
+                                    let _ = reply.send(res);
+                                }
+                                Some(Cmd::BootstrapList { reply }) => {
+                                    let snap = state_bg
+                                        .lock()
+                                        .map(|st| st.bootstrap.clone())
+                                        .unwrap_or_default();
+                                    let _ = reply.send(snap);
+                                }
+                                Some(Cmd::BootstrapDial { reply }) => {
+                                    let queue = state_bg
+                                        .lock()
+                                        .map(|st| flatten_bootstrap_addrs(&st.bootstrap))
+                                        .unwrap_or_default();
+                                    let mut results: Vec<(String, String)> = Vec::new();
+                                    for (pid, addr) in queue {
+                                        match addr.parse::<Multiaddr>() {
+                                            Ok(ma) => match swarm.dial(ma) {
+                                                Ok(()) => {
+                                                    if let Ok(mut st) = state_bg.lock() {
+                                                        st.dial_inflight =
+                                                            st.dial_inflight.saturating_add(1);
+                                                    }
+                                                    results.push((pid, "dialing".into()));
+                                                }
+                                                Err(e) => {
+                                                    if let Ok(mut st) = state_bg.lock() {
+                                                        st.bootstrap_dials_fail = st
+                                                            .bootstrap_dials_fail
+                                                            .saturating_add(1);
+                                                    }
+                                                    results.push((pid, format!("dial: {e}")));
+                                                }
+                                            },
+                                            Err(e) => {
+                                                if let Ok(mut st) = state_bg.lock() {
+                                                    st.bootstrap_dials_fail = st
+                                                        .bootstrap_dials_fail
+                                                        .saturating_add(1);
+                                                }
+                                                results
+                                                    .push((pid, format!("bad multiaddr: {e}")));
+                                            }
+                                        }
+                                    }
+                                    let _ = reply.send(Ok(results));
+                                }
                             }
                         }
                         event = swarm.select_next_some() => {
@@ -934,6 +1146,7 @@ mod enabled {
                                             .add_address(&peer_id, addr);
                                     }
                                     if let Ok(mut st) = state_bg.lock() {
+                                        let is_bootstrap = st.bootstrap.contains_key(&pid);
                                         st.connected.insert(pid.clone());
                                         st.kad_peers.insert(pid.clone());
                                         if is_dialer {
@@ -941,6 +1154,10 @@ mod enabled {
                                             st.dial_ok = st.dial_ok.saturating_add(1);
                                             st.dial_inflight =
                                                 st.dial_inflight.saturating_sub(1);
+                                            if is_bootstrap {
+                                                st.bootstrap_dials_ok =
+                                                    st.bootstrap_dials_ok.saturating_add(1);
+                                            }
                                         }
                                     }
                                     if is_dialer {
@@ -1388,7 +1605,8 @@ mod enabled {
             max_established_incoming = None,
             max_established = None,
             enable_mdns = None,
-            wire_timeout_secs = None
+            wire_timeout_secs = None,
+            bootstrap_path = None
         ))]
         fn new_py(
             max_dials: u32,
@@ -1397,6 +1615,7 @@ mod enabled {
             max_established: Option<u32>,
             enable_mdns: Option<bool>,
             wire_timeout_secs: Option<u64>,
+            bootstrap_path: Option<String>,
         ) -> PyResult<Self> {
             Self::spawn(
                 max_dials,
@@ -1405,6 +1624,7 @@ mod enabled {
                 max_established,
                 resolve_enable_mdns(enable_mdns),
                 resolve_wire_timeout_secs(wire_timeout_secs),
+                resolve_bootstrap_path(bootstrap_path),
             )
         }
 
@@ -1485,6 +1705,80 @@ mod enabled {
                 Ok(Ok(())) => Ok(()),
                 Ok(Err(e)) => Err(PyValueError::new_err(e)),
                 Err(_) => Err(PyRuntimeError::new_err("autonat_add_server reply dropped")),
+            }
+        }
+
+        /// Persist a bootstrap peer multiaddr (Slice O).
+        fn bootstrap_add(&self, peer_id: &str, multiaddr: &str) -> PyResult<()> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::BootstrapAdd {
+                    peer_id: peer_id.to_string(),
+                    multiaddr: multiaddr.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("bootstrap_add reply dropped")),
+            }
+        }
+
+        fn bootstrap_remove(&self, peer_id: &str) -> PyResult<()> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::BootstrapRemove {
+                    peer_id: peer_id.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("bootstrap_remove reply dropped")),
+            }
+        }
+
+        /// Return `{peer_id: [multiaddr, ...]}` from the bootstrap book.
+        fn bootstrap_list(&self) -> PyResult<PyObject> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::BootstrapList { reply: tx })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            let snap = rx
+                .blocking_recv()
+                .map_err(|_| PyRuntimeError::new_err("bootstrap_list reply dropped"))?;
+            Python::with_gil(|py| {
+                let d = pyo3::types::PyDict::new_bound(py);
+                for (pid, addrs) in snap {
+                    d.set_item(pid, addrs)?;
+                }
+                Ok(d.into())
+            })
+        }
+
+        /// Fire dials for all persisted bootstrap multiaddrs (Slice O).
+        /// Returns list of `(peer_id, status)` where status is `dialing` or an error.
+        fn bootstrap_dial(&self) -> PyResult<PyObject> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::BootstrapDial { reply: tx })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(items)) => Python::with_gil(|py| {
+                    let out = pyo3::types::PyList::empty_bound(py);
+                    for (pid, status) in items {
+                        let tup = pyo3::types::PyTuple::new_bound(
+                            py,
+                            &[pid.into_py(py), status.into_py(py)],
+                        );
+                        out.append(tup)?;
+                    }
+                    Ok(out.into())
+                }),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("bootstrap_dial reply dropped")),
             }
         }
 
@@ -1772,6 +2066,9 @@ mod enabled {
                 d.set_item("libp2p_autonat_status", st.autonat_status)?;
                 d.set_item("libp2p_dcutr_upgrade_success", st.dcutr_upgrade_success)?;
                 d.set_item("libp2p_dcutr_upgrade_fail", st.dcutr_upgrade_fail)?;
+                d.set_item("libp2p_bootstrap_peers", st.bootstrap.len())?;
+                d.set_item("libp2p_bootstrap_dials_ok", st.bootstrap_dials_ok)?;
+                d.set_item("libp2p_bootstrap_dials_fail", st.bootstrap_dials_fail)?;
                 d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
                 d.set_item("libp2p_block_denied", st.block_denied)?;
                 d.set_item("libp2p_blocked_peers", st.blocked.len())?;
@@ -1785,6 +2082,7 @@ mod enabled {
                     d.set_item("libp2p_max_established", n)?;
                 }
                 d.set_item("libp2p_key_path", &st.key_path)?;
+                d.set_item("libp2p_bootstrap_path", &st.bootstrap_path)?;
                 d.set_item("libp2p_wire_protocol", ABS_WIRE_PROTOCOL)?;
                 d.set_item("libp2p_gossip_blocks_topic", ABS_GOSSIP_BLOCKS_TOPIC)?;
                 d.set_item("libp2p_kad_protocol", ABS_KAD_PROTOCOL)?;
@@ -1802,7 +2100,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 13)?;
+                d.set_item("phase", 14)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -1811,6 +2109,7 @@ mod enabled {
                 d.set_item("relay", true)?;
                 d.set_item("autonat", true)?;
                 d.set_item("dcutr", true)?;
+                d.set_item("bootstrap", true)?;
                 d.set_item("connection_limits", true)?;
                 d.set_item("block_list", true)?;
                 d.set_item("abs_wire_codecs", true)?;
@@ -1824,6 +2123,9 @@ mod enabled {
                     },
                 )?;
                 d.set_item("persistent_identity", !st.key_path.is_empty())?;
+                d.set_item("persistent_bootstrap", !st.bootstrap_path.is_empty())?;
+                d.set_item("bootstrap_path", &st.bootstrap_path)?;
+                d.set_item("bootstrap_peers", st.bootstrap.len())?;
                 d.set_item("wire_protocol", ABS_WIRE_PROTOCOL)?;
                 d.set_item("gossip_blocks_topic", ABS_GOSSIP_BLOCKS_TOPIC)?;
                 d.set_item("kad_protocol", ABS_KAD_PROTOCOL)?;
@@ -1850,6 +2152,9 @@ mod enabled {
                 d.set_item("libp2p_autonat_status_changes", st.autonat_status_changes)?;
                 d.set_item("libp2p_dcutr_upgrade_success", st.dcutr_upgrade_success)?;
                 d.set_item("libp2p_dcutr_upgrade_fail", st.dcutr_upgrade_fail)?;
+                d.set_item("libp2p_bootstrap_peers", st.bootstrap.len())?;
+                d.set_item("libp2p_bootstrap_dials_ok", st.bootstrap_dials_ok)?;
+                d.set_item("libp2p_bootstrap_dials_fail", st.bootstrap_dials_fail)?;
                 d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
                 d.set_item("libp2p_block_denied", st.block_denied)?;
                 d.set_item("libp2p_blocked_peers", st.blocked.len())?;
@@ -1896,6 +2201,26 @@ mod enabled {
         }
     }
 
+    fn resolve_bootstrap_path(explicit: Option<String>) -> Option<String> {
+        if let Some(p) = explicit {
+            let t = p.trim().to_string();
+            if !t.is_empty() {
+                return Some(t);
+            }
+        }
+        match std::env::var("ABS_LIBP2P_BOOTSTRAP_PATH") {
+            Ok(s) => {
+                let t = s.trim().to_string();
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t)
+                }
+            }
+            Err(_) => None,
+        }
+    }
+
     #[pyfunction]
     #[pyo3(signature = (
         max_dials = DEFAULT_MAX_DIALS,
@@ -1903,7 +2228,8 @@ mod enabled {
         max_established_incoming = None,
         max_established = None,
         enable_mdns = None,
-        wire_timeout_secs = None
+        wire_timeout_secs = None,
+        bootstrap_path = None
     ))]
     fn libp2p_node_new(
         max_dials: u32,
@@ -1912,6 +2238,7 @@ mod enabled {
         max_established: Option<u32>,
         enable_mdns: Option<bool>,
         wire_timeout_secs: Option<u64>,
+        bootstrap_path: Option<String>,
     ) -> PyResult<Libp2pNode> {
         Libp2pNode::spawn(
             max_dials,
@@ -1920,6 +2247,7 @@ mod enabled {
             max_established,
             resolve_enable_mdns(enable_mdns),
             resolve_wire_timeout_secs(wire_timeout_secs),
+            resolve_bootstrap_path(bootstrap_path),
         )
     }
 

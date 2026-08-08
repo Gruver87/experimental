@@ -37,6 +37,9 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_autonat_status",
     "libp2p_dcutr_upgrade_success",
     "libp2p_dcutr_upgrade_fail",
+    "libp2p_bootstrap_peers",
+    "libp2p_bootstrap_dials_ok",
+    "libp2p_bootstrap_dials_fail",
 )
 
 
