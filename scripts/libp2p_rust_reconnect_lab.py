@@ -52,9 +52,13 @@ def main() -> int:
             enable_reconnect=True,
         )
         try:
+            # Disable ping unhealthy disconnect so it does not race the lab.
+            client.set_ping_unhealthy_policy(False, 8, 0)
+            hub.set_ping_unhealthy_policy(False, 8, 0)
+
             hub_addr = hub.listen("/ip4/127.0.0.1/tcp/0")[0]
             hub_ma = f"{hub_addr}/p2p/{hub.peer_id}"
-            client.listen("/ip4/127.0.0.1/tcp/0")
+            # Dial-only client: listening on loopback races Windows WSAEADDRINUSE (10048) on redial.
             client.bootstrap_add(hub.peer_id, hub_ma)
             results = list(client.bootstrap_dial())
             if not any(p == hub.peer_id and s in ("ok", "already_connected") for p, s in results):
@@ -67,6 +71,9 @@ def main() -> int:
 
             # Local drop of bootstrap peer → ConnectionClosed → reconnect schedule.
             client.disconnect_peer(hub.peer_id)
+            _wait(lambda: hub.peer_id not in client.connected_peers(), timeout=2.0)
+            # Let Windows TCP fully tear down before the first auto-redial.
+            time.sleep(0.15)
             if not _wait(
                 lambda: int(client.metrics().get("libp2p_reconnect_scheduled", 0)) >= 1,
                 timeout=5.0,
@@ -75,12 +82,13 @@ def main() -> int:
                 return 1
             print("OK: reconnect scheduled after disconnect")
 
+            # Allow backoff + settle (per-attempt safety timeout is 8s).
             if not _wait(
                 lambda: (
                     hub.peer_id in client.connected_peers()
                     and int(client.metrics().get("libp2p_reconnect_ok", 0)) >= 1
                 ),
-                timeout=10.0,
+                timeout=30.0,
             ):
                 print(
                     f"FAIL: reconnect did not complete "

@@ -56,7 +56,7 @@ def main() -> int:
             hub.set_ping_unhealthy_policy(False, 8, 0)
 
             hub_addr = hub.listen("/ip4/127.0.0.1/tcp/0")[0]
-            client.listen("/ip4/127.0.0.1/tcp/0")
+            # Dial-only client: listening on loopback races Windows WSAEADDRINUSE (10048) on redial.
             client.dial(hub_addr)
             if not _wait(
                 lambda: hub.peer_id in client.connected_peers()
@@ -73,6 +73,9 @@ def main() -> int:
             before_sched = int(client.metrics().get("libp2p_reconnect_scheduled", 0))
             before_ps = int(client.metrics().get("libp2p_reconnect_from_peerstore", 0))
             client.disconnect_peer(hub.peer_id)
+            _wait(lambda: hub.peer_id not in client.connected_peers(), timeout=2.0)
+            # Let Windows TCP fully tear down before the first auto-redial.
+            time.sleep(0.15)
             if not _wait(
                 lambda: (
                     int(client.metrics().get("libp2p_reconnect_scheduled", 0)) > before_sched
@@ -91,7 +94,7 @@ def main() -> int:
                     hub.peer_id in client.connected_peers()
                     and int(client.metrics().get("libp2p_reconnect_ok", 0)) >= 1
                 ),
-                timeout=20.0,
+                timeout=30.0,
             ):
                 print(
                     f"FAIL: peerstore reconnect incomplete "

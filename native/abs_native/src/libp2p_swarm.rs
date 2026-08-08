@@ -48,11 +48,14 @@ pub const DEFAULT_WIRE_TIMEOUT_SECS: u64 = 10;
 pub const DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS: u64 = 8;
 /// Slice P reconnect backoff base / cap / attempts.
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
-pub const DEFAULT_RECONNECT_BASE_MS: u64 = 350;
+pub const DEFAULT_RECONNECT_BASE_MS: u64 = 500;
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_RECONNECT_MAX_MS: u64 = 5_000;
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_RECONNECT_MAX_ATTEMPTS: u32 = 8;
+/// Per-attempt safety wait for reconnect (errors are watch-only; see OutgoingConnectionError).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub const DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS: u64 = 5;
 /// Slice R ping defaults (faster interval for lab observability).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_PING_INTERVAL_SECS: u64 = 2;
@@ -102,8 +105,9 @@ mod enabled {
         libp2p_available, ABS_GOSSIP_BLOCKS_TOPIC, ABS_KAD_PROTOCOL, ABS_WIRE_PROTOCOL,
         DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_PING_INTERVAL_SECS,
         DEFAULT_PING_MAX_FAILS, DEFAULT_PING_TIMEOUT_SECS, DEFAULT_RECONNECT_BASE_MS,
-        DEFAULT_RECONNECT_MAX_ATTEMPTS, DEFAULT_RECONNECT_MAX_MS, DEFAULT_SCORE_GRAYLIST_THRESHOLD,
-        DEFAULT_WIRE_TIMEOUT_SECS, MAX_WIRE_BYTES,
+        DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS, DEFAULT_RECONNECT_MAX_ATTEMPTS,
+        DEFAULT_RECONNECT_MAX_MS, DEFAULT_SCORE_GRAYLIST_THRESHOLD, DEFAULT_WIRE_TIMEOUT_SECS,
+        MAX_WIRE_BYTES,
     };
     use async_trait::async_trait;
     use futures::prelude::*;
@@ -1443,20 +1447,16 @@ mod enabled {
                                                             } else {
                                                                 reconnect_inflight =
                                                                     Some(pid.clone());
-                                                                let timeout_secs = state_bg
-                                                                    .lock()
-                                                                    .map(|st| {
-                                                                        st.bootstrap_dial_timeout_secs
-                                                                            .max(1)
-                                                                    })
-                                                                    .unwrap_or(
-                                                                        DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS,
-                                                                    );
+                                                                // Dedicated reconnect dial timeout
+                                                                // (not full bootstrap 8s): real
+                                                                // failures retry; twin error+ok
+                                                                // still settle via ConnectionEstablished.
                                                                 reconnect_inflight_deadline =
                                                                     Some(
                                                                         tokio::time::Instant::now()
                                                                             + Duration::from_secs(
-                                                                                timeout_secs,
+                                                                                DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS
+                                                                                    .max(1),
                                                                             ),
                                                                     );
                                                             }
@@ -2306,19 +2306,14 @@ mod enabled {
                                                     &mut reconnect_inflight_deadline,
                                                     &pid,
                                                 );
-                                            } else {
-                                                // Soft-fail: keep inflight briefly so a twin
-                                                // ConnectionEstablished can still win; do not
-                                                // rotate addrs on the first error event.
-                                                reconnect_inflight_deadline = Some(
-                                                    tokio::time::Instant::now()
-                                                        + Duration::from_millis(300),
+                                            } else if let Ok(mut st) = state_bg.lock() {
+                                                // Watch-only: libp2p often emits OutgoingConnectionError
+                                                // alongside a still-progressing dial / twin success.
+                                                // Clearing inflight here starts a second dial and
+                                                // storms Windows loopback. Hard-fail via deadline.
+                                                st.last_error = format!(
+                                                    "outgoing(reconnect watch): {error}"
                                                 );
-                                                if let Ok(mut st) = state_bg.lock() {
-                                                    st.last_error = format!(
-                                                        "outgoing(reconnect soft): {error}"
-                                                    );
-                                                }
                                             }
                                         }
                                     }
