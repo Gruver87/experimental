@@ -77,25 +77,18 @@ def main() -> int:
         while time.time() < deadline:
             disc = dict(n1.discovered_peers() or {})
             if n2.peer_id in disc:
-                dial_addr = _tcp_dial_addr(disc[n2.peer_id]) or disc[n2.peer_id]
-                # Strip /p2p/... for dial helper (swarm.dial wants tcp multiaddr)
-                if "/p2p/" in dial_addr:
-                    dial_addr = dial_addr.split("/p2p/")[0]
-                # If only loopback advertised, fall back to n2 listen addrs
-                if dial_addr.startswith("/ip4/127.") or "0.0.0.0" in dial_addr:
-                    for la in n2.listen_addrs():
-                        cand = _tcp_dial_addr(la.replace("0.0.0.0", "127.0.0.1"))
-                        if cand:
-                            dial_addr = cand
-                            break
-                    else:
-                        # force loopback dial from listen port
-                        for la in n2.listen_addrs():
-                            if "/tcp/" in la:
-                                port = la.rsplit("/tcp/", 1)[-1].split("/")[0]
-                                dial_addr = f"/ip4/127.0.0.1/tcp/{port}"
-                                break
                 found = True
+                # Prefer loopback + local listen port (avoids Win LAN bind races).
+                for la in n2.listen_addrs():
+                    if "/tcp/" not in la:
+                        continue
+                    port = la.rsplit("/tcp/", 1)[-1].split("/")[0]
+                    if port.isdigit():
+                        dial_addr = f"/ip4/127.0.0.1/tcp/{port}"
+                        break
+                if dial_addr is None:
+                    raw = disc[n2.peer_id]
+                    dial_addr = _tcp_dial_addr(raw) or raw.split("/p2p/")[0]
                 break
             time.sleep(0.25)
 
