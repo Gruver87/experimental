@@ -14,6 +14,7 @@
 //! Slice M: ADR 0008 Absolute wire codecs (v1 NDJSON / v2 Borsh AB2) over `/abs/wire`.
 //! Slice N: AutoNAT + DCUtR (NAT status + hole-punch over relay).
 //! Slice O: persistent bootstrap peer list (JSON file) + dial-all.
+//! Slice P: bootstrap reconnect policy (backoff) on ConnectionClosed.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -40,6 +41,13 @@ pub const DEFAULT_WIRE_TIMEOUT_SECS: u64 = 10;
 /// Per-entry bootstrap dial settle timeout (Slice O industrial).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS: u64 = 8;
+/// Slice P reconnect backoff base / cap / attempts.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub const DEFAULT_RECONNECT_BASE_MS: u64 = 200;
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub const DEFAULT_RECONNECT_MAX_MS: u64 = 5_000;
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub const DEFAULT_RECONNECT_MAX_ATTEMPTS: u32 = 8;
 
 /// Classify Absolute ADR 0008 payload on `/abs/wire` (Slice M).
 ///
@@ -77,7 +85,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 mod enabled {
     use super::{
         libp2p_available, ABS_GOSSIP_BLOCKS_TOPIC, ABS_KAD_PROTOCOL, ABS_WIRE_PROTOCOL,
-        DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_WIRE_TIMEOUT_SECS,
+        DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_RECONNECT_BASE_MS,
+        DEFAULT_RECONNECT_MAX_ATTEMPTS, DEFAULT_RECONNECT_MAX_MS, DEFAULT_WIRE_TIMEOUT_SECS,
         MAX_WIRE_BYTES,
     };
     use async_trait::async_trait;
@@ -211,6 +220,42 @@ mod enabled {
         per_dial_deadline: Option<tokio::time::Instant>,
         /// Peers already recorded after per-dial timeout (ignore late events for results).
         abandoned: HashSet<String>,
+    }
+
+    /// Slice P: scheduled bootstrap reconnect with exponential backoff.
+    #[derive(Clone)]
+    struct PendingReconnect {
+        attempts: u32,
+        next_at: tokio::time::Instant,
+        addrs: Vec<String>,
+        addr_idx: usize,
+    }
+
+    fn reconnect_backoff_ms(base_ms: u64, max_ms: u64, attempts: u32) -> u64 {
+        let shift = attempts.min(16);
+        let raw = base_ms.saturating_mul(1u64 << shift);
+        raw.min(max_ms.max(base_ms))
+    }
+
+    /// Clear pending/inflight reconnect for `pid` and count success.
+    fn reconnect_settle_ok(
+        state: &Arc<Mutex<NodeState>>,
+        pending_reconnects: &mut HashMap<String, PendingReconnect>,
+        reconnect_inflight: &mut Option<String>,
+        reconnect_inflight_deadline: &mut Option<tokio::time::Instant>,
+        pid: &str,
+    ) {
+        let was_pending = pending_reconnects.remove(pid).is_some();
+        let was_inflight = reconnect_inflight.as_deref() == Some(pid);
+        if was_inflight {
+            *reconnect_inflight = None;
+            *reconnect_inflight_deadline = None;
+        }
+        if was_pending || was_inflight {
+            if let Ok(mut st) = state.lock() {
+                st.reconnect_ok = st.reconnect_ok.saturating_add(1);
+            }
+        }
     }
 
     /// Try to start the next bootstrap dial entry. Returns `true` if job finished and reply sent.
@@ -533,6 +578,14 @@ mod enabled {
         BootstrapDial {
             reply: oneshot::Sender<Result<Vec<(String, String)>, String>>,
         },
+        SetReconnectEnabled {
+            enabled: bool,
+            reply: oneshot::Sender<()>,
+        },
+        DisconnectPeer {
+            peer_id: String,
+            reply: oneshot::Sender<Result<(), String>>,
+        },
         Shutdown {
             reply: oneshot::Sender<()>,
         },
@@ -604,6 +657,15 @@ mod enabled {
         bootstrap_dials_timeout: u64,
         bootstrap_dials_attempted: u64,
         bootstrap_dial_timeout_secs: u64,
+        /// Slice P: auto-redial bootstrap peers after disconnect.
+        enable_reconnect: bool,
+        reconnect_base_ms: u64,
+        reconnect_max_ms: u64,
+        reconnect_max_attempts: u32,
+        reconnect_scheduled: u64,
+        reconnect_ok: u64,
+        reconnect_fail: u64,
+        reconnect_give_up: u64,
     }
 
     #[pyclass(name = "Libp2pNode")]
@@ -623,6 +685,7 @@ mod enabled {
             enable_mdns: bool,
             wire_timeout_secs: u64,
             bootstrap_path: Option<String>,
+            enable_reconnect: bool,
         ) -> PyResult<Self> {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -651,6 +714,10 @@ mod enabled {
                 bootstrap_path: bootstrap_path_str.clone(),
                 bootstrap: bootstrap_peers,
                 bootstrap_dial_timeout_secs,
+                enable_reconnect,
+                reconnect_base_ms: DEFAULT_RECONNECT_BASE_MS,
+                reconnect_max_ms: DEFAULT_RECONNECT_MAX_MS,
+                reconnect_max_attempts: DEFAULT_RECONNECT_MAX_ATTEMPTS,
                 ..NodeState::default()
             }));
             let state_bg = Arc::clone(&state);
@@ -800,6 +867,9 @@ mod enabled {
                 let mut relay_listen_deadline: Option<tokio::time::Instant> = None;
                 let mut pending_dial: Option<oneshot::Sender<Result<String, String>>> = None;
                 let mut bootstrap_job: Option<BootstrapDialJob> = None;
+                let mut pending_reconnects: HashMap<String, PendingReconnect> = HashMap::new();
+                let mut reconnect_inflight: Option<String> = None;
+                let mut reconnect_inflight_deadline: Option<tokio::time::Instant> = None;
                 let mut pending_wire: HashMap<
                     request_response::OutboundRequestId,
                     oneshot::Sender<Result<Vec<u8>, String>>,
@@ -811,6 +881,16 @@ mod enabled {
 
                 loop {
                     let boot_deadline = bootstrap_job.as_ref().and_then(|j| j.per_dial_deadline);
+                    let reconnect_deadline = {
+                        let mut soonest: Option<tokio::time::Instant> = reconnect_inflight_deadline;
+                        for pr in pending_reconnects.values() {
+                            soonest = Some(match soonest {
+                                Some(s) if s <= pr.next_at => s,
+                                _ => pr.next_at,
+                            });
+                        }
+                        soonest
+                    };
                     tokio::select! {
                         _ = async {
                             if let Some(deadline) = relay_listen_deadline {
@@ -860,6 +940,226 @@ mod enabled {
                                 }
                             }
                             let _ = bootstrap_advance(&mut swarm, &state_bg, &mut bootstrap_job);
+                        }
+                        _ = async {
+                            if let Some(deadline) = reconnect_deadline {
+                                tokio::time::sleep_until(deadline).await;
+                            } else {
+                                futures::future::pending::<()>().await;
+                            }
+                        }, if reconnect_deadline.is_some() => {
+                            // Inflight reconnect timed out.
+                            if let Some(pid) = reconnect_inflight.take() {
+                                reconnect_inflight_deadline = None;
+                                if let Ok(mut st) = state_bg.lock() {
+                                    st.dial_inflight = st.dial_inflight.saturating_sub(1);
+                                    st.reconnect_fail = st.reconnect_fail.saturating_add(1);
+                                }
+                                let cfg = state_bg.lock().ok().map(|st| {
+                                    (
+                                        st.reconnect_base_ms,
+                                        st.reconnect_max_ms,
+                                        st.reconnect_max_attempts,
+                                    )
+                                });
+                                if let Some((base, max_ms, max_att)) = cfg {
+                                    if let Some(pr) = pending_reconnects.get_mut(&pid) {
+                                        pr.attempts = pr.attempts.saturating_add(1);
+                                        if pr.attempts >= max_att {
+                                            pending_reconnects.remove(&pid);
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.reconnect_give_up =
+                                                    st.reconnect_give_up.saturating_add(1);
+                                            }
+                                        } else {
+                                            let wait = reconnect_backoff_ms(
+                                                base,
+                                                max_ms,
+                                                pr.attempts,
+                                            );
+                                            pr.next_at = tokio::time::Instant::now()
+                                                + Duration::from_millis(wait);
+                                            pr.addr_idx = pr.addr_idx.saturating_add(1);
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Kick due reconnects (one at a time).
+                            if reconnect_inflight.is_none() && bootstrap_job.is_none() {
+                                let now = tokio::time::Instant::now();
+                                let due = pending_reconnects
+                                    .iter()
+                                    .filter(|(_, pr)| pr.next_at <= now)
+                                    .map(|(pid, _)| pid.clone())
+                                    .next();
+                                if let Some(pid) = due {
+                                    let peer_ok = pid.parse::<PeerId>().ok();
+                                    let already = match peer_ok {
+                                        Some(p) => swarm.is_connected(&p),
+                                        None => false,
+                                    } || state_bg
+                                        .lock()
+                                        .map(|st| st.connected.contains(&pid))
+                                        .unwrap_or(false);
+                                    if already || peer_ok.is_none() {
+                                        if already {
+                                            reconnect_settle_ok(
+                                                &state_bg,
+                                                &mut pending_reconnects,
+                                                &mut reconnect_inflight,
+                                                &mut reconnect_inflight_deadline,
+                                                &pid,
+                                            );
+                                        } else {
+                                            pending_reconnects.remove(&pid);
+                                        }
+                                    } else if let Some(pr) = pending_reconnects.get(&pid).cloned()
+                                    {
+                                        let blocked = state_bg
+                                            .lock()
+                                            .map(|st| st.blocked.contains(&pid))
+                                            .unwrap_or(false);
+                                        if blocked {
+                                            pending_reconnects.remove(&pid);
+                                        } else {
+                                            let addr = pr
+                                                .addrs
+                                                .get(pr.addr_idx % pr.addrs.len().max(1))
+                                                .cloned();
+                                            if let Some(addr) = addr {
+                                                let reserved = if let Ok(mut st) = state_bg.lock()
+                                                {
+                                                    let used = (st.outbound_peers.len() as u32)
+                                                        .saturating_add(st.dial_inflight);
+                                                    if used < st.max_dials {
+                                                        st.dial_inflight =
+                                                            st.dial_inflight.saturating_add(1);
+                                                        true
+                                                    } else {
+                                                        st.dial_refused_budget = st
+                                                            .dial_refused_budget
+                                                            .saturating_add(1);
+                                                        false
+                                                    }
+                                                } else {
+                                                    false
+                                                };
+                                                if !reserved {
+                                                    if let Some(pr) =
+                                                        pending_reconnects.get_mut(&pid)
+                                                    {
+                                                        pr.next_at = now
+                                                            + Duration::from_millis(200);
+                                                    }
+                                                } else {
+                                                    match addr.parse::<Multiaddr>() {
+                                                        Ok(ma) => {
+                                                            if let Err(e) = swarm.dial(ma) {
+                                                                if let Ok(mut st) =
+                                                                    state_bg.lock()
+                                                                {
+                                                                    st.dial_inflight = st
+                                                                        .dial_inflight
+                                                                        .saturating_sub(1);
+                                                                    st.reconnect_fail = st
+                                                                        .reconnect_fail
+                                                                        .saturating_add(1);
+                                                                    st.last_error = format!(
+                                                                        "reconnect dial: {e}"
+                                                                    );
+                                                                }
+                                                                if let Some(pr) =
+                                                                    pending_reconnects
+                                                                        .get_mut(&pid)
+                                                                {
+                                                                    pr.attempts = pr
+                                                                        .attempts
+                                                                        .saturating_add(1);
+                                                                    let (base, max_ms, max_att) =
+                                                                        state_bg
+                                                                            .lock()
+                                                                            .map(|st| {
+                                                                                (
+                                                                                    st.reconnect_base_ms,
+                                                                                    st.reconnect_max_ms,
+                                                                                    st.reconnect_max_attempts,
+                                                                                )
+                                                                            })
+                                                                            .unwrap_or((
+                                                                                DEFAULT_RECONNECT_BASE_MS,
+                                                                                DEFAULT_RECONNECT_MAX_MS,
+                                                                                DEFAULT_RECONNECT_MAX_ATTEMPTS,
+                                                                            ));
+                                                                    if pr.attempts >= max_att {
+                                                                        pending_reconnects
+                                                                            .remove(&pid);
+                                                                        if let Ok(mut st) =
+                                                                            state_bg.lock()
+                                                                        {
+                                                                            st.reconnect_give_up = st
+                                                                                .reconnect_give_up
+                                                                                .saturating_add(1);
+                                                                        }
+                                                                    } else {
+                                                                        let wait =
+                                                                            reconnect_backoff_ms(
+                                                                                base, max_ms,
+                                                                                pr.attempts,
+                                                                            );
+                                                                        pr.next_at = now
+                                                                            + Duration::from_millis(
+                                                                                wait,
+                                                                            );
+                                                                        pr.addr_idx = pr
+                                                                            .addr_idx
+                                                                            .saturating_add(1);
+                                                                    }
+                                                                }
+                                                            } else {
+                                                                reconnect_inflight =
+                                                                    Some(pid.clone());
+                                                                let timeout_secs = state_bg
+                                                                    .lock()
+                                                                    .map(|st| {
+                                                                        st.bootstrap_dial_timeout_secs
+                                                                            .max(1)
+                                                                    })
+                                                                    .unwrap_or(
+                                                                        DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS,
+                                                                    );
+                                                                reconnect_inflight_deadline =
+                                                                    Some(
+                                                                        tokio::time::Instant::now()
+                                                                            + Duration::from_secs(
+                                                                                timeout_secs,
+                                                                            ),
+                                                                    );
+                                                            }
+                                                        }
+                                                        Err(_) => {
+                                                            if let Ok(mut st) = state_bg.lock() {
+                                                                st.dial_inflight = st
+                                                                    .dial_inflight
+                                                                    .saturating_sub(1);
+                                                                st.reconnect_fail = st
+                                                                    .reconnect_fail
+                                                                    .saturating_add(1);
+                                                            }
+                                                            pending_reconnects.remove(&pid);
+                                                            if let Ok(mut st) = state_bg.lock() {
+                                                                st.reconnect_give_up = st
+                                                                    .reconnect_give_up
+                                                                    .saturating_add(1);
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                         cmd = cmd_rx.recv() => {
                             match cmd {
@@ -1262,6 +1562,28 @@ mod enabled {
                                         &mut bootstrap_job,
                                     );
                                 }
+                                Some(Cmd::SetReconnectEnabled { enabled, reply }) => {
+                                    if let Ok(mut st) = state_bg.lock() {
+                                        st.enable_reconnect = enabled;
+                                    }
+                                    if !enabled {
+                                        pending_reconnects.clear();
+                                        reconnect_inflight = None;
+                                        reconnect_inflight_deadline = None;
+                                    }
+                                    let _ = reply.send(());
+                                }
+                                Some(Cmd::DisconnectPeer { peer_id, reply }) => {
+                                    match peer_id.parse::<PeerId>() {
+                                        Ok(pid) => {
+                                            let _ = swarm.disconnect_peer_id(pid);
+                                            let _ = reply.send(Ok(()));
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!("bad peer_id: {e}")));
+                                        }
+                                    }
+                                }
                             }
                         }
                         event = swarm.select_next_some() => {
@@ -1329,6 +1651,16 @@ mod enabled {
                                                 st.dial_inflight.saturating_sub(1);
                                         }
                                     }
+                                    // Slice P: any re-establish of a pending bootstrap peer counts ok
+                                    // (covers dialer success and races where OutgoingConnectionError
+                                    // cleared inflight before ConnectionEstablished).
+                                    reconnect_settle_ok(
+                                        &state_bg,
+                                        &mut pending_reconnects,
+                                        &mut reconnect_inflight,
+                                        &mut reconnect_inflight_deadline,
+                                        &pid,
+                                    );
                                     if is_dialer {
                                         if let Some(reply) = pending_dial.take() {
                                             let _ = reply.send(Ok(pid.clone()));
@@ -1421,6 +1753,67 @@ mod enabled {
                                                 &mut bootstrap_job,
                                             );
                                         }
+                                        if reconnect_inflight.as_deref() == Some(pid.as_str()) {
+                                            // Ignore spurious dial errors if the peer is already up
+                                            // (libp2p may emit OutgoingConnectionError alongside success).
+                                            let still_up = pid
+                                                .parse::<PeerId>()
+                                                .ok()
+                                                .map(|p| swarm.is_connected(&p))
+                                                .unwrap_or(false)
+                                                || state_bg
+                                                    .lock()
+                                                    .map(|st| st.connected.contains(&pid))
+                                                    .unwrap_or(false);
+                                            if still_up {
+                                                reconnect_settle_ok(
+                                                    &state_bg,
+                                                    &mut pending_reconnects,
+                                                    &mut reconnect_inflight,
+                                                    &mut reconnect_inflight_deadline,
+                                                    &pid,
+                                                );
+                                            } else {
+                                                reconnect_inflight = None;
+                                                reconnect_inflight_deadline = None;
+                                                if let Ok(mut st) = state_bg.lock() {
+                                                    st.reconnect_fail =
+                                                        st.reconnect_fail.saturating_add(1);
+                                                }
+                                                let cfg = state_bg.lock().ok().map(|st| {
+                                                    (
+                                                        st.reconnect_base_ms,
+                                                        st.reconnect_max_ms,
+                                                        st.reconnect_max_attempts,
+                                                    )
+                                                });
+                                                if let Some((base, max_ms, max_att)) = cfg {
+                                                    if let Some(pr) =
+                                                        pending_reconnects.get_mut(&pid)
+                                                    {
+                                                        pr.attempts =
+                                                            pr.attempts.saturating_add(1);
+                                                        if pr.attempts >= max_att {
+                                                            pending_reconnects.remove(&pid);
+                                                            if let Ok(mut st) = state_bg.lock() {
+                                                                st.reconnect_give_up = st
+                                                                    .reconnect_give_up
+                                                                    .saturating_add(1);
+                                                            }
+                                                        } else {
+                                                            let wait = reconnect_backoff_ms(
+                                                                base, max_ms, pr.attempts,
+                                                            );
+                                                            pr.next_at =
+                                                                tokio::time::Instant::now()
+                                                                    + Duration::from_millis(wait);
+                                                            pr.addr_idx =
+                                                                pr.addr_idx.saturating_add(1);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                                 SwarmEvent::IncomingConnectionError { error, .. } => {
@@ -1470,13 +1863,55 @@ mod enabled {
                                         }
                                     }
                                 }
-                                SwarmEvent::ConnectionClosed { peer_id, endpoint, .. } => {
+                                SwarmEvent::ConnectionClosed { peer_id, .. } => {
                                     let pid = peer_id.to_string();
-                                    swarm.behaviour_mut().gossipsub.remove_explicit_peer(&peer_id);
+                                    let still = swarm.is_connected(&peer_id);
+                                    if !still {
+                                        swarm.behaviour_mut().gossipsub.remove_explicit_peer(&peer_id);
+                                    }
                                     if let Ok(mut st) = state_bg.lock() {
-                                        st.connected.remove(&pid);
-                                        if endpoint.is_dialer() {
+                                        if !still {
+                                            st.connected.remove(&pid);
                                             st.outbound_peers.remove(&pid);
+                                        }
+                                    }
+                                    // Slice P: schedule bootstrap reconnect after full disconnect.
+                                    if !still {
+                                        let schedule = state_bg.lock().ok().and_then(|st| {
+                                            if !st.enable_reconnect {
+                                                return None;
+                                            }
+                                            if st.blocked.contains(&pid) {
+                                                return None;
+                                            }
+                                            let addrs = st.bootstrap.get(&pid)?.clone();
+                                            if addrs.is_empty() {
+                                                return None;
+                                            }
+                                            Some((
+                                                addrs,
+                                                st.reconnect_base_ms,
+                                                pending_reconnects.contains_key(&pid),
+                                            ))
+                                        });
+                                        if let Some((addrs, base_ms, already)) = schedule {
+                                            if !already {
+                                                pending_reconnects.insert(
+                                                    pid.clone(),
+                                                    PendingReconnect {
+                                                        attempts: 0,
+                                                        next_at: tokio::time::Instant::now()
+                                                            + Duration::from_millis(base_ms.max(1)),
+                                                        addrs,
+                                                        addr_idx: 0,
+                                                    },
+                                                );
+                                                if let Ok(mut st) = state_bg.lock() {
+                                                    st.reconnect_scheduled = st
+                                                        .reconnect_scheduled
+                                                        .saturating_add(1);
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1827,7 +2262,8 @@ mod enabled {
             max_established = None,
             enable_mdns = None,
             wire_timeout_secs = None,
-            bootstrap_path = None
+            bootstrap_path = None,
+            enable_reconnect = None
         ))]
         fn new_py(
             max_dials: u32,
@@ -1837,6 +2273,7 @@ mod enabled {
             enable_mdns: Option<bool>,
             wire_timeout_secs: Option<u64>,
             bootstrap_path: Option<String>,
+            enable_reconnect: Option<bool>,
         ) -> PyResult<Self> {
             Self::spawn(
                 max_dials,
@@ -1846,6 +2283,7 @@ mod enabled {
                 resolve_enable_mdns(enable_mdns),
                 resolve_wire_timeout_secs(wire_timeout_secs),
                 resolve_bootstrap_path(bootstrap_path),
+                resolve_enable_reconnect(enable_reconnect),
             )
         }
 
@@ -2000,6 +2438,33 @@ mod enabled {
                 }),
                 Ok(Err(e)) => Err(PyValueError::new_err(e)),
                 Err(_) => Err(PyRuntimeError::new_err("bootstrap_dial reply dropped")),
+            }
+        }
+
+        /// Enable/disable Slice P bootstrap reconnect policy.
+        fn set_reconnect_enabled(&self, enabled: bool) -> PyResult<()> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::SetReconnectEnabled { enabled, reply: tx })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            rx.blocking_recv()
+                .map_err(|_| PyRuntimeError::new_err("set_reconnect_enabled reply dropped"))?;
+            Ok(())
+        }
+
+        /// Drop all connections to a peer (lab / policy testing).
+        fn disconnect_peer(&self, peer_id: &str) -> PyResult<()> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::DisconnectPeer {
+                    peer_id: peer_id.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("disconnect_peer reply dropped")),
             }
         }
 
@@ -2299,6 +2764,11 @@ mod enabled {
                     "libp2p_bootstrap_dial_timeout_secs",
                     st.bootstrap_dial_timeout_secs,
                 )?;
+                d.set_item("libp2p_reconnect_enabled", st.enable_reconnect)?;
+                d.set_item("libp2p_reconnect_scheduled", st.reconnect_scheduled)?;
+                d.set_item("libp2p_reconnect_ok", st.reconnect_ok)?;
+                d.set_item("libp2p_reconnect_fail", st.reconnect_fail)?;
+                d.set_item("libp2p_reconnect_give_up", st.reconnect_give_up)?;
                 d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
                 d.set_item("libp2p_block_denied", st.block_denied)?;
                 d.set_item("libp2p_blocked_peers", st.blocked.len())?;
@@ -2330,7 +2800,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 14)?;
+                d.set_item("phase", 15)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -2340,6 +2810,7 @@ mod enabled {
                 d.set_item("autonat", true)?;
                 d.set_item("dcutr", true)?;
                 d.set_item("bootstrap", true)?;
+                d.set_item("reconnect", st.enable_reconnect)?;
                 d.set_item("connection_limits", true)?;
                 d.set_item("block_list", true)?;
                 d.set_item("abs_wire_codecs", true)?;
@@ -2390,6 +2861,11 @@ mod enabled {
                     "libp2p_bootstrap_dials_attempted",
                     st.bootstrap_dials_attempted,
                 )?;
+                d.set_item("libp2p_reconnect_enabled", st.enable_reconnect)?;
+                d.set_item("libp2p_reconnect_scheduled", st.reconnect_scheduled)?;
+                d.set_item("libp2p_reconnect_ok", st.reconnect_ok)?;
+                d.set_item("libp2p_reconnect_fail", st.reconnect_fail)?;
+                d.set_item("libp2p_reconnect_give_up", st.reconnect_give_up)?;
                 d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
                 d.set_item("libp2p_block_denied", st.block_denied)?;
                 d.set_item("libp2p_blocked_peers", st.blocked.len())?;
@@ -2471,6 +2947,20 @@ mod enabled {
         }
     }
 
+    fn resolve_enable_reconnect(explicit: Option<bool>) -> bool {
+        if let Some(v) = explicit {
+            return v;
+        }
+        match std::env::var("ABS_LIBP2P_RECONNECT") {
+            Ok(s) => {
+                let t = s.trim().to_ascii_lowercase();
+                !matches!(t.as_str(), "0" | "false" | "off" | "no")
+            }
+            // Default on: industrial bootstrap mesh expects auto-redial.
+            Err(_) => true,
+        }
+    }
+
     #[pyfunction]
     #[pyo3(signature = (
         max_dials = DEFAULT_MAX_DIALS,
@@ -2479,7 +2969,8 @@ mod enabled {
         max_established = None,
         enable_mdns = None,
         wire_timeout_secs = None,
-        bootstrap_path = None
+        bootstrap_path = None,
+        enable_reconnect = None
     ))]
     fn libp2p_node_new(
         max_dials: u32,
@@ -2489,6 +2980,7 @@ mod enabled {
         enable_mdns: Option<bool>,
         wire_timeout_secs: Option<u64>,
         bootstrap_path: Option<String>,
+        enable_reconnect: Option<bool>,
     ) -> PyResult<Libp2pNode> {
         Libp2pNode::spawn(
             max_dials,
@@ -2498,6 +2990,7 @@ mod enabled {
             resolve_enable_mdns(enable_mdns),
             resolve_wire_timeout_secs(wire_timeout_secs),
             resolve_bootstrap_path(bootstrap_path),
+            resolve_enable_reconnect(enable_reconnect),
         )
     }
 

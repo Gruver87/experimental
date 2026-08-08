@@ -34,6 +34,7 @@ class Libp2pTransportAdapter:
         enable_mdns: Optional[bool] = None,
         wire_timeout_secs: Optional[int] = None,
         bootstrap_path: Optional[str] = None,
+        enable_reconnect: Optional[bool] = None,
     ) -> None:
         self._enabled = bool(enabled)
         self._dial_count = 0
@@ -47,6 +48,7 @@ class Libp2pTransportAdapter:
         self._bootstrap_path = (
             str(bootstrap_path).strip() if bootstrap_path is not None else None
         )
+        self._enable_reconnect = enable_reconnect
 
     def set_peer_policy(self, policy: Any) -> None:
         self._peer_policy = policy
@@ -80,6 +82,8 @@ class Libp2pTransportAdapter:
                 boot = str(os.environ.get("ABS_LIBP2P_BOOTSTRAP_PATH", "") or "").strip() or None
             if boot:
                 kwargs["bootstrap_path"] = str(boot)
+            if self._enable_reconnect is not None:
+                kwargs["enable_reconnect"] = bool(self._enable_reconnect)
             self._node = abs_native.libp2p_node_new(**kwargs)
             if self._peer_policy is not None and hasattr(self._peer_policy, "attach_native"):
                 try:
@@ -230,6 +234,22 @@ class Libp2pTransportAdapter:
         if node is None:
             raise TransportCapabilityError("rust libp2p node not available")
         return [(str(p), str(s)) for p, s in node.bootstrap_dial()]
+
+    def set_reconnect_enabled(self, enabled: bool) -> None:
+        """Slice P: enable/disable bootstrap reconnect policy."""
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        node.set_reconnect_enabled(bool(enabled))
+
+    def disconnect_peer(self, peer_id: str) -> None:
+        """Slice P: drop connections to peer (lab / policy control)."""
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        node.disconnect_peer(str(peer_id))
 
     @property
     def peer_id(self) -> str:

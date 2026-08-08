@@ -21,6 +21,7 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_dcutr_upgrade_success" in empty
     assert "libp2p_bootstrap_peers" in empty
     assert "libp2p_bootstrap_dials_attempted" in empty
+    assert "libp2p_reconnect_ok" in empty
 
 
 def test_merge_overwrites_present_keys_only() -> None:
