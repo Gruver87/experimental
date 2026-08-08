@@ -14,4 +14,16 @@ ignore = [
     # feature). cargo-audit still scans the lock entry. Clear when rust_decimal
     # drops unused optional lock edges or we migrate off decimal serialization paths.
     "RUSTSEC-2026-0235",
+    # --- ADR 0019 rust-libp2p opt-in (FEATURE_LIBP2P); prod mesh remains TCP+TLS ---
+    # hickory-proto via libp2p-mdns (Slice F LAN discovery). Fix needs hickory>=0.26
+    # which libp2p-mdns 0.46 has not adopted. Lab-only; not industrial default mesh.
+    "RUSTSEC-2026-0119",
+    # ring 0.16 / rustls-webpki 0.101 via stale optional libp2p-tls lock edges
+    # (we enable Noise+TCP only; tls/quic/websocket features OFF). Clear when
+    # Cargo.lock is regenerated without unused libp2p-tls / rcgen 0.11 edges or
+    # when upstream libp2p-tls bumps webpki.
+    "RUSTSEC-2025-0009",
+    "RUSTSEC-2026-0098",
+    "RUSTSEC-2026-0099",
+    "RUSTSEC-2026-0104",
 ]

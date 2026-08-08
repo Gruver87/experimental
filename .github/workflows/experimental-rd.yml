@@ -102,6 +102,8 @@ jobs:
         run: python scripts/libp2p_rust_kad_lab.py
       - name: Absolute gossip announce admit lab (Slice G)
         run: python scripts/libp2p_rust_abs_announce_lab.py
+      - name: rust-libp2p relay + connection limits lab (Slice H)
+        run: python scripts/libp2p_rust_relay_limits_lab.py
       - name: adapter + wire-bridge units
         run: pytest -q tests/unit/test_libp2p_adapter.py tests/unit/test_libp2p_wire_bridge.py
       - name: package ADR 0019 evidence pack

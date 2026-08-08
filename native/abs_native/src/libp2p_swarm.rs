@@ -7,6 +7,7 @@
 //! Slice E: gossipsub announce + identify Received snapshots.
 //! Slice F: persistent PeerId keystore + mDNS discovery.
 //! Slice G: Kademlia DHT (MemoryStore) + Absolute gossip announce edge.
+//! Slice H: circuit-relay-v2 + connection_limits.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -42,12 +43,13 @@ mod enabled {
     use async_trait::async_trait;
     use futures::prelude::*;
     use libp2p::core::ConnectedPoint;
+    use libp2p::multiaddr::Protocol;
     use libp2p::{
-        gossipsub, identify,
+        connection_limits, gossipsub, identify,
         identity::Keypair,
         kad::{self, store::MemoryStore},
-        mdns, noise, ping, request_response,
-        swarm::{NetworkBehaviour, SwarmEvent},
+        mdns, noise, ping, relay, request_response,
+        swarm::{DialError, ListenError, NetworkBehaviour, SwarmEvent},
         tcp, yamux, Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
     };
     use pyo3::exceptions::{PyRuntimeError, PyValueError};
@@ -184,11 +186,19 @@ mod enabled {
         gossipsub: gossipsub::Behaviour,
         mdns: mdns::tokio::Behaviour,
         kademlia: kad::Behaviour<MemoryStore>,
+        relay: relay::Behaviour,
+        relay_client: relay::client::Behaviour,
+        connection_limits: connection_limits::Behaviour,
     }
 
     enum Cmd {
         Listen {
             addr: String,
+            reply: oneshot::Sender<Result<Vec<String>, String>>,
+        },
+        /// Dial relay and listen on `/p2p-circuit` (Slice H reservation).
+        ListenRelay {
+            relay_addr: String,
             reply: oneshot::Sender<Result<Vec<String>, String>>,
         },
         Dial {
@@ -259,7 +269,12 @@ mod enabled {
         mdns_discovered: u64,
         kad_routing_updates: u64,
         kad_queries: u64,
+        relay_reservations: u64,
+        relay_circuits: u64,
+        conn_limit_denied: u64,
         max_dials: u32,
+        max_established_incoming: Option<u32>,
+        max_established: Option<u32>,
         last_error: String,
         inbox: VecDeque<(String, Vec<u8>)>,
         gossip_inbox: VecDeque<(String, String, Vec<u8>)>,
@@ -269,6 +284,8 @@ mod enabled {
         discovered: HashMap<String, String>,
         kad_peers: HashSet<String>,
         key_path: String,
+        /// Circuit listen addrs observed after reservation (Slice H).
+        circuit_addrs: Vec<String>,
     }
 
     #[pyclass(name = "Libp2pNode")]
@@ -280,7 +297,12 @@ mod enabled {
     }
 
     impl Libp2pNode {
-        fn spawn(max_dials: u32, key_path: Option<String>) -> PyResult<Self> {
+        fn spawn(
+            max_dials: u32,
+            key_path: Option<String>,
+            max_established_incoming: Option<u32>,
+            max_established: Option<u32>,
+        ) -> PyResult<Self> {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
                 .thread_name("abs-libp2p")
@@ -291,6 +313,8 @@ mod enabled {
             let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel::<Cmd>();
             let state = Arc::new(Mutex::new(NodeState {
                 max_dials: max_dials.max(1),
+                max_established_incoming,
+                max_established,
                 key_path: key_path_str.clone(),
                 ..NodeState::default()
             }));
@@ -298,6 +322,8 @@ mod enabled {
 
             let peer_id_cell = Arc::new(Mutex::new(String::new()));
             let peer_id_bg = Arc::clone(&peer_id_cell);
+            let limits_incoming = max_established_incoming;
+            let limits_total = max_established;
 
             runtime.spawn(async move {
                 let keypair = if key_path_str.is_empty() {
@@ -320,19 +346,20 @@ mod enabled {
                         tcp::Config::default(),
                         noise::Config::new,
                         yamux::Config::default,
-                    );
+                    )
+                    .and_then(|b| b.with_relay_client(noise::Config::new, yamux::Config::default));
 
                 let builder = match built {
                     Ok(b) => b,
                     Err(e) => {
                         if let Ok(mut st) = state_bg.lock() {
-                            st.last_error = format!("tcp transport: {e}");
+                            st.last_error = format!("tcp/relay transport: {e}");
                         }
                         return;
                     }
                 };
 
-                let mut swarm = match builder.with_behaviour(|key| {
+                let mut swarm = match builder.with_behaviour(|key, relay_client| {
                     let wire = request_response::Behaviour::with_codec(
                         AbsWireCodec,
                         [(
@@ -372,6 +399,13 @@ mod enabled {
                     let store = MemoryStore::new(local);
                     let mut kademlia = kad::Behaviour::with_config(local, store, kad_cfg);
                     kademlia.set_mode(Some(kad::Mode::Server));
+                    let mut limits = connection_limits::ConnectionLimits::default();
+                    if let Some(n) = limits_incoming {
+                        limits = limits.with_max_established_incoming(Some(n));
+                    }
+                    if let Some(n) = limits_total {
+                        limits = limits.with_max_established(Some(n));
+                    }
                     Ok(AbsBehaviour {
                         ping: ping::Behaviour::new(ping::Config::new()),
                         identify: identify::Behaviour::new(identify::Config::new(
@@ -382,6 +416,9 @@ mod enabled {
                         gossipsub,
                         mdns,
                         kademlia,
+                        relay: relay::Behaviour::new(local, relay::Config::default()),
+                        relay_client,
+                        connection_limits: connection_limits::Behaviour::new(limits),
                     })
                 }) {
                     Ok(b) => b
@@ -403,6 +440,9 @@ mod enabled {
                 }
 
                 let mut pending_listen: Option<oneshot::Sender<Result<Vec<String>, String>>> = None;
+                let mut pending_relay_listen:
+                    Option<oneshot::Sender<Result<Vec<String>, String>>> = None;
+                let mut relay_listen_deadline: Option<tokio::time::Instant> = None;
                 let mut pending_dial: Option<oneshot::Sender<Result<String, String>>> = None;
                 let mut pending_wire: HashMap<
                     request_response::OutboundRequestId,
@@ -415,6 +455,28 @@ mod enabled {
 
                 loop {
                     tokio::select! {
+                        _ = async {
+                            if let Some(deadline) = relay_listen_deadline {
+                                tokio::time::sleep_until(deadline).await;
+                            } else {
+                                futures::future::pending::<()>().await;
+                            }
+                        }, if relay_listen_deadline.is_some() => {
+                            relay_listen_deadline = None;
+                            if let Some(reply) = pending_relay_listen.take() {
+                                let addrs = state_bg
+                                    .lock()
+                                    .map(|st| st.circuit_addrs.clone())
+                                    .unwrap_or_default();
+                                if addrs.is_empty() {
+                                    let _ = reply.send(Err(
+                                        "listen_relay timeout (no circuit addr)".into(),
+                                    ));
+                                } else {
+                                    let _ = reply.send(Ok(addrs));
+                                }
+                            }
+                        }
                         cmd = cmd_rx.recv() => {
                             match cmd {
                                 None => break,
@@ -429,6 +491,40 @@ mod enabled {
                                                 let _ = reply.send(Err(format!("listen_on: {e}")));
                                             } else {
                                                 pending_listen = Some(reply);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!("bad multiaddr: {e}")));
+                                        }
+                                    }
+                                }
+                                Some(Cmd::ListenRelay { relay_addr, reply }) => {
+                                    match relay_addr.parse::<Multiaddr>() {
+                                        Ok(ma) => {
+                                            // Ensure /p2p/<relay> is present for circuit listen.
+                                            let has_p2p = ma
+                                                .iter()
+                                                .any(|p| matches!(p, Protocol::P2p(_)));
+                                            if !has_p2p {
+                                                let _ = reply.send(Err(
+                                                    "relay multiaddr must include /p2p/<peer_id>"
+                                                        .into(),
+                                                ));
+                                                continue;
+                                            }
+                                            // Circuit listen: transport will dial relay if needed
+                                            // and request a reservation (see libp2p-relay client).
+                                            let circuit = ma.with(Protocol::P2pCircuit);
+                                            if let Err(e) = swarm.listen_on(circuit) {
+                                                let _ = reply.send(Err(format!(
+                                                    "listen circuit: {e}"
+                                                )));
+                                            } else {
+                                                pending_relay_listen = Some(reply);
+                                                relay_listen_deadline = Some(
+                                                    tokio::time::Instant::now()
+                                                        + Duration::from_secs(12),
+                                                );
                                             }
                                         }
                                         Err(e) => {
@@ -603,12 +699,27 @@ mod enabled {
                             match event {
                                 SwarmEvent::NewListenAddr { address, .. } => {
                                     let s = address.to_string();
+                                    let is_circuit = address
+                                        .iter()
+                                        .any(|p| matches!(p, Protocol::P2pCircuit));
                                     if let Ok(mut st) = state_bg.lock() {
                                         if !st.listen_addrs.contains(&s) {
                                             st.listen_addrs.push(s.clone());
                                         }
+                                        if is_circuit && !st.circuit_addrs.contains(&s) {
+                                            st.circuit_addrs.push(s.clone());
+                                        }
                                     }
-                                    if let Some(reply) = pending_listen.take() {
+                                    if is_circuit {
+                                        if let Some(reply) = pending_relay_listen.take() {
+                                            relay_listen_deadline = None;
+                                            let addrs = state_bg
+                                                .lock()
+                                                .map(|st| st.circuit_addrs.clone())
+                                                .unwrap_or_else(|_| vec![s.clone()]);
+                                            let _ = reply.send(Ok(addrs));
+                                        }
+                                    } else if let Some(reply) = pending_listen.take() {
                                         let addrs = state_bg
                                             .lock()
                                             .map(|st| st.listen_addrs.clone())
@@ -656,13 +767,61 @@ mod enabled {
                                     }
                                 }
                                 SwarmEvent::OutgoingConnectionError { error, .. } => {
+                                    let limit_denied = matches!(
+                                        &error,
+                                        DialError::Denied { cause }
+                                            if cause
+                                                .downcast_ref::<connection_limits::Exceeded>()
+                                                .is_some()
+                                    );
                                     if let Ok(mut st) = state_bg.lock() {
                                         st.last_error = format!("outgoing: {error}");
                                         st.dial_fail = st.dial_fail.saturating_add(1);
                                         st.dial_inflight = st.dial_inflight.saturating_sub(1);
+                                        if limit_denied {
+                                            st.conn_limit_denied =
+                                                st.conn_limit_denied.saturating_add(1);
+                                        }
                                     }
                                     if let Some(reply) = pending_dial.take() {
                                         let _ = reply.send(Err(format!("outgoing: {error}")));
+                                    }
+                                }
+                                SwarmEvent::IncomingConnectionError { error, .. } => {
+                                    let limit_denied = matches!(
+                                        &error,
+                                        ListenError::Denied { cause }
+                                            if cause
+                                                .downcast_ref::<connection_limits::Exceeded>()
+                                                .is_some()
+                                    );
+                                    if let Ok(mut st) = state_bg.lock() {
+                                        st.last_error = format!("incoming: {error}");
+                                        if limit_denied {
+                                            st.conn_limit_denied =
+                                                st.conn_limit_denied.saturating_add(1);
+                                        }
+                                    }
+                                }
+                                SwarmEvent::ExternalAddrConfirmed { address } => {
+                                    let s = address.to_string();
+                                    if address.iter().any(|p| matches!(p, Protocol::P2pCircuit)) {
+                                        if let Ok(mut st) = state_bg.lock() {
+                                            if !st.circuit_addrs.contains(&s) {
+                                                st.circuit_addrs.push(s.clone());
+                                            }
+                                            if !st.listen_addrs.contains(&s) {
+                                                st.listen_addrs.push(s.clone());
+                                            }
+                                        }
+                                        if let Some(reply) = pending_relay_listen.take() {
+                                            relay_listen_deadline = None;
+                                            let addrs = state_bg
+                                                .lock()
+                                                .map(|st| st.circuit_addrs.clone())
+                                                .unwrap_or_else(|_| vec![s]);
+                                            let _ = reply.send(Ok(addrs));
+                                        }
                                     }
                                 }
                                 SwarmEvent::ConnectionClosed { peer_id, endpoint, .. } => {
@@ -785,6 +944,63 @@ mod enabled {
                                         _ => {}
                                     }
                                 }
+                                SwarmEvent::Behaviour(AbsBehaviourEvent::Relay(ev)) => {
+                                    match ev {
+                                        relay::Event::ReservationReqAccepted { .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.relay_reservations =
+                                                    st.relay_reservations.saturating_add(1);
+                                            }
+                                        }
+                                        relay::Event::ReservationReqDenied { .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.last_error = "relay reservation denied".into();
+                                            }
+                                        }
+                                        relay::Event::CircuitReqAccepted { .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.relay_circuits =
+                                                    st.relay_circuits.saturating_add(1);
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                                SwarmEvent::Behaviour(AbsBehaviourEvent::RelayClient(ev)) => {
+                                    match ev {
+                                        relay::client::Event::ReservationReqAccepted {
+                                            relay_peer_id,
+                                            ..
+                                        } => {
+                                            let local = *swarm.local_peer_id();
+                                            let addr = format!(
+                                                "/p2p/{relay_peer_id}/p2p-circuit/p2p/{local}"
+                                            );
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.relay_reservations =
+                                                    st.relay_reservations.saturating_add(1);
+                                                if !st.circuit_addrs.contains(&addr) {
+                                                    st.circuit_addrs.push(addr.clone());
+                                                }
+                                            }
+                                            if let Some(reply) = pending_relay_listen.take() {
+                                                relay_listen_deadline = None;
+                                                let _ = reply.send(Ok(vec![addr]));
+                                            }
+                                        }
+                                        relay::client::Event::InboundCircuitEstablished {
+                                            ..
+                                        }
+                                        | relay::client::Event::OutboundCircuitEstablished {
+                                            ..
+                                        } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.relay_circuits =
+                                                    st.relay_circuits.saturating_add(1);
+                                            }
+                                        }
+                                    }
+                                }
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::Wire(ev)) => {
                                     use request_response::{Event, Message};
                                     match ev {
@@ -884,9 +1100,24 @@ mod enabled {
     #[pymethods]
     impl Libp2pNode {
         #[new]
-        #[pyo3(signature = (max_dials = DEFAULT_MAX_DIALS, key_path = None))]
-        fn new_py(max_dials: u32, key_path: Option<String>) -> PyResult<Self> {
-            Self::spawn(max_dials, key_path)
+        #[pyo3(signature = (
+            max_dials = DEFAULT_MAX_DIALS,
+            key_path = None,
+            max_established_incoming = None,
+            max_established = None
+        ))]
+        fn new_py(
+            max_dials: u32,
+            key_path: Option<String>,
+            max_established_incoming: Option<u32>,
+            max_established: Option<u32>,
+        ) -> PyResult<Self> {
+            Self::spawn(
+                max_dials,
+                key_path,
+                max_established_incoming,
+                max_established,
+            )
         }
 
         #[getter]
@@ -922,6 +1153,33 @@ mod enabled {
                 Ok(Err(e)) => Err(PyValueError::new_err(e)),
                 Err(_) => Err(PyRuntimeError::new_err("dial reply dropped")),
             }
+        }
+
+        /// Dial a relay and listen via circuit-relay-v2 (Slice H).
+        ///
+        /// ``relay_multiaddr`` must include ``/p2p/<relay_peer_id>``.
+        /// Returns circuit listen multiaddrs once the reservation is accepted.
+        fn listen_relay(&self, relay_multiaddr: &str) -> PyResult<Vec<String>> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::ListenRelay {
+                    relay_addr: relay_multiaddr.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(addrs)) => Ok(addrs),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("listen_relay reply dropped")),
+            }
+        }
+
+        /// Circuit listen addrs observed after ``listen_relay`` (Slice H).
+        fn circuit_addrs(&self) -> Vec<String> {
+            self.state
+                .lock()
+                .map(|s| s.circuit_addrs.clone())
+                .unwrap_or_default()
         }
 
         /// Send Absolute wire bytes over `/abs/wire/1.0.0`; returns response ack bytes.
@@ -1153,6 +1411,16 @@ mod enabled {
                 d.set_item("libp2p_kad_peers", st.kad_peers.len())?;
                 d.set_item("libp2p_kad_routing_updates", st.kad_routing_updates)?;
                 d.set_item("libp2p_kad_queries", st.kad_queries)?;
+                d.set_item("libp2p_relay_reservations", st.relay_reservations)?;
+                d.set_item("libp2p_relay_circuits", st.relay_circuits)?;
+                d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
+                d.set_item("libp2p_circuit_addrs", st.circuit_addrs.len())?;
+                if let Some(n) = st.max_established_incoming {
+                    d.set_item("libp2p_max_established_incoming", n)?;
+                }
+                if let Some(n) = st.max_established {
+                    d.set_item("libp2p_max_established", n)?;
+                }
                 d.set_item("libp2p_key_path", &st.key_path)?;
                 d.set_item("libp2p_wire_protocol", ABS_WIRE_PROTOCOL)?;
                 d.set_item("libp2p_gossip_blocks_topic", ABS_GOSSIP_BLOCKS_TOPIC)?;
@@ -1171,12 +1439,14 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 7)?;
+                d.set_item("phase", 8)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
                 d.set_item("mdns", true)?;
                 d.set_item("kademlia", true)?;
+                d.set_item("relay", true)?;
+                d.set_item("connection_limits", true)?;
                 d.set_item("persistent_identity", !st.key_path.is_empty())?;
                 d.set_item("wire_protocol", ABS_WIRE_PROTOCOL)?;
                 d.set_item("gossip_blocks_topic", ABS_GOSSIP_BLOCKS_TOPIC)?;
@@ -1184,6 +1454,7 @@ mod enabled {
                 d.set_item("peer_id", &self.peer_id)?;
                 d.set_item("key_path", &st.key_path)?;
                 d.set_item("listen_addrs", st.listen_addrs.clone())?;
+                d.set_item("circuit_addrs", st.circuit_addrs.clone())?;
                 d.set_item("connected", st.connected.len())?;
                 d.set_item("libp2p_peers", st.connected.len())?;
                 d.set_item("libp2p_dial_ok", st.dial_ok)?;
@@ -1194,6 +1465,8 @@ mod enabled {
                 d.set_item("libp2p_gossip_recv", st.gossip_recv)?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
                 d.set_item("libp2p_kad_peers", st.kad_peers.len())?;
+                d.set_item("libp2p_relay_reservations", st.relay_reservations)?;
+                d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
                 d.set_item("default_mesh", false)?;
                 d.set_item("honesty", "ADR0019_rust_libp2p_lab_not_prod_mesh")?;
                 d.set_item("error", st.last_error.clone())?;
@@ -1210,9 +1483,24 @@ mod enabled {
     }
 
     #[pyfunction]
-    #[pyo3(signature = (max_dials = DEFAULT_MAX_DIALS, key_path = None))]
-    fn libp2p_node_new(max_dials: u32, key_path: Option<String>) -> PyResult<Libp2pNode> {
-        Libp2pNode::spawn(max_dials, key_path)
+    #[pyo3(signature = (
+        max_dials = DEFAULT_MAX_DIALS,
+        key_path = None,
+        max_established_incoming = None,
+        max_established = None
+    ))]
+    fn libp2p_node_new(
+        max_dials: u32,
+        key_path: Option<String>,
+        max_established_incoming: Option<u32>,
+        max_established: Option<u32>,
+    ) -> PyResult<Libp2pNode> {
+        Libp2pNode::spawn(
+            max_dials,
+            key_path,
+            max_established_incoming,
+            max_established,
+        )
     }
 
     /// Encode a minimal Absolute lab wire frame: msg_type\\0 + payload.
