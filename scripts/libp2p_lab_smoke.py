@@ -46,7 +46,7 @@ def main() -> int:
     assert on.capability_status()["dial_count"] == 1
 
     print("OK: libp2p_lab_smoke PASS")
-    print("  default transport: TCP+TLS (native) — libp2p opt-in only")
+    print("  default transport: TCP+TLS (native) - libp2p opt-in only")
     print("  honesty: stub handle != prod mesh is libp2p")
     return 0
 
