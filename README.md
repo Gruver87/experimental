@@ -1,5 +1,9 @@
 # Absolute Blockchain Ultimate Hybrid
 
+> **EXPERIMENTAL SANDBOX COPY** — local R&D (`libp2p` / Long-Range / EVM depth).  
+> **Not** the audit-freeze tree. See [EXPERIMENTAL_SANDBOX.md](EXPERIMENTAL_SANDBOX.md).  
+> Audit pin lives in `Desktop\Absolute_Blockchain_Ultimate_Hybrid` · tag `v1.3.1339-tip-v2-industrial`.
+
 ![Absolute Blockchain Ultimate Hybrid — Python + Rust L1](docs/assets/repo-banner.svg)
 
 **Python orchestrates. Rust owns the hot path.** Local prod-profile L1 mesh with evidence you can re-run — **not** a launched public mainnet.
