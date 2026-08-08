@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import pytest
 
+from network.transport.dual_stack import DualStackDialer
 from network.transport.libp2p_adapter import (
     DiscoveryRegistry,
+    IdentifyService,
     InProcessSwarm,
     Libp2pTransportAdapter,
     RequestResponseService,
@@ -57,6 +59,22 @@ def test_request_response_echo() -> None:
     rr_b = RequestResponseService(b)
     rr_b.set_handler(lambda _p, data: data.upper())
     assert rr_a.request("b", b"hi") == b"HI"
+
+
+def test_identify_and_dial_discovered() -> None:
+    swarm = InProcessSwarm()
+    a = swarm.spawn("a", "/ip4/127.0.0.1/tcp/4501/p2p/a")
+    b = swarm.spawn("b", "/ip4/127.0.0.1/tcp/4502/p2p/b")
+    a.dial(b.listen.to_string())
+    id_a = IdentifyService(a)
+    IdentifyService(b)
+    info = id_a.identify("b")
+    assert info.peer_id == "b"
+    reg = DiscoveryRegistry()
+    reg.announce("b", b.listen.to_string())
+    h = DualStackDialer(feature_libp2p=True).dial_discovered(reg, "b")
+    assert h["kind"] == "libp2p"
+    assert "4502" in h["handle"]["multiaddr"]
 
 
 def test_discovery_announce_dial() -> None:

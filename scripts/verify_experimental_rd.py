@@ -35,6 +35,7 @@ UNIT_TESTS = [
 
 LABS = [
     "scripts/long_range_lab.py",
+    "scripts/evm_precompile_lab.py",
     "scripts/libp2p_lab_smoke.py",
     "scripts/libp2p_two_node_lab.py",
     "scripts/libp2p_swarm_lab.py",
@@ -42,6 +43,7 @@ LABS = [
     "scripts/libp2p_reqresp_lab.py",
     "scripts/libp2p_relay_lab.py",
     "scripts/libp2p_discovery_lab.py",
+    "scripts/libp2p_identify_lab.py",
 ]
 
 

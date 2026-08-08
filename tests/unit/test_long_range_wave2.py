@@ -70,6 +70,17 @@ def test_checkpoint_store_apply_latest() -> None:
     assert svc.get_anchor().height == 4
 
 
+def test_checkpoint_store_save_load(tmp_path) -> None:
+    store = CheckpointStore(max_history=4)
+    store.push(CheckpointCertificate.issue(height=1, block_hash="aa" * 32))
+    store.push(CheckpointCertificate.issue(height=2, block_hash="bb" * 32))
+    path = tmp_path / "ws.json"
+    store.save(path)
+    loaded = CheckpointStore.load(path)
+    assert len(loaded) == 2
+    assert loaded.latest().digest == store.latest().digest
+
+
 def test_shares_ancestor_walk() -> None:
     w, anchor, child, mid = _chain()
     assert shares_ancestor_with_anchor(w, candidate_hash=child, anchor_hash=anchor)

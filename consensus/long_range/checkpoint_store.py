@@ -1,9 +1,11 @@
-"""Bounded store of WS checkpoint certificates (ADR 0017 wave-6/7)."""
+"""Bounded store of WS checkpoint certificates (ADR 0017 wave-6/8)."""
 
 from __future__ import annotations
 
+import json
 from collections import deque
-from typing import Deque, List, Optional
+from pathlib import Path
+from typing import Deque, List, Optional, Union
 
 from consensus.long_range.checkpoint import CheckpointCertificate
 from consensus.long_range.service import WeakSubjectivityService
@@ -39,6 +41,27 @@ class CheckpointStore:
             return False
         svc.set_anchor(cert.anchor)
         return True
+
+    def save(self, path: Union[str, Path]) -> Path:
+        """Persist history as JSON (wave-8 lab handoff)."""
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "max_history": self._max,
+            "items": [dict(c.to_dict()) for c in self._items],
+        }
+        p.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        return p
+
+    @classmethod
+    def load(cls, path: Union[str, Path]) -> "CheckpointStore":
+        """Load store from JSON; fail-closed on digest mismatch."""
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        max_h = int(raw.get("max_history") or 8)
+        store = cls(max_history=max_h)
+        for item in raw.get("items") or []:
+            store.push(CheckpointCertificate.from_dict(item))
+        return store
 
     def __len__(self) -> int:
         return len(self._items)

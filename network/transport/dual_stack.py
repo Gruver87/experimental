@@ -59,6 +59,17 @@ class DualStackDialer:
             },
         }
 
+    def dial_discovered(self, registry: Any, peer_id: str, **kwargs: Any) -> Mapping[str, Any]:
+        """Resolve ``peer_id`` via discovery registry, then dial (wave-8)."""
+        addr = registry.lookup(str(peer_id))
+        if not addr:
+            raise TransportCapabilityError(f"peer not announced: {peer_id}")
+        from network.transport.libp2p_adapter.multiaddr import parse_multiaddr
+
+        ma = parse_multiaddr(addr)
+        endpoint = ma.to_endpoint()
+        return self.dial(endpoint, multiaddr=addr, **kwargs)
+
     @staticmethod
     def from_config(cfg: Any) -> "DualStackDialer":
         enabled = bool(getattr(cfg, "feature_libp2p", False))

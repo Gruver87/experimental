@@ -24,7 +24,9 @@ Compatibility gaps: [EVM_COMPAT_MATRIX.md](EVM_COMPAT_MATRIX.md).
 - Lab scripts: `scripts/long_range_lab.py`, `scripts/libp2p_lab_smoke.py`,
   `scripts/libp2p_two_node_lab.py`, `scripts/libp2p_swarm_lab.py`,
   `scripts/libp2p_three_node_lab.py`,   `scripts/libp2p_reqresp_lab.py`,
-  `scripts/libp2p_relay_lab.py`, `scripts/libp2p_discovery_lab.py`.
+  `scripts/libp2p_relay_lab.py`, `scripts/libp2p_discovery_lab.py`,
+  `scripts/libp2p_identify_lab.py`, `scripts/evm_precompile_lab.py`,
+  `scripts/verify_experimental_rd.py`.
 - Long-Range tip gate (when `FEATURE_LONG_RANGE=true`): optional
   `ABS_WS_ANCHOR_HEIGHT` + `ABS_WS_ANCHOR_HASH` on tip-safety shadow sync.
   Without an anchor, tip import is **not** blocked (`no_anchor` is informational).

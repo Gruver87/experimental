@@ -53,3 +53,9 @@ jobs:
         run: python scripts/libp2p_relay_lab.py
       - name: libp2p discovery lab
         run: python scripts/libp2p_discovery_lab.py
+      - name: libp2p identify lab
+        run: python scripts/libp2p_identify_lab.py
+      - name: EVM precompile lab
+        run: python scripts/evm_precompile_lab.py
+      - name: Local R&D verify aggregator
+        run: python scripts/verify_experimental_rd.py -q

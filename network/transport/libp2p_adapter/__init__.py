@@ -8,6 +8,7 @@ from network.transport.libp2p_adapter.multiaddr import (
     parse_multiaddr,
 )
 from network.transport.libp2p_adapter.discovery import DiscoveryRegistry
+from network.transport.libp2p_adapter.identify import IdentifyInfo, IdentifyService
 from network.transport.libp2p_adapter.request_response import RequestResponseService
 
 __all__ = [
@@ -19,4 +20,6 @@ __all__ = [
     "endpoint_to_multiaddr",
     "RequestResponseService",
     "DiscoveryRegistry",
+    "IdentifyInfo",
+    "IdentifyService",
 ]

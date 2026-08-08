@@ -6,6 +6,7 @@ Wave-4: JSON export/import round-trip of the WS checkpoint.
 Wave-5: TipSafetyService WS tip-import gate (below-anchor refuse).
 Wave-6: CheckpointStore rotation (bounded history).
 Wave-7: CheckpointStore.apply_latest → WeakSubjectivityService.
+Wave-8: CheckpointStore save/load JSON persistence.
 
 Usage:
   python scripts/long_range_lab.py
@@ -120,8 +121,15 @@ def main() -> int:
     if svc3.get_anchor() is None or svc3.get_anchor().height != 3:
         print("FAIL: apply_latest anchor height")
         return 1
+    with tempfile.TemporaryDirectory() as tmp:
+        store_path = Path(tmp) / "ws_store.json"
+        store.save(store_path)
+        loaded = CheckpointStore.load(store_path)
+    if len(loaded) != len(store) or loaded.latest().digest != store.latest().digest:
+        print("FAIL: checkpoint store save/load")
+        return 1
 
-    print("Long-Range lab wave-7 (store apply_latest + tip-import WS gate)")
+    print("Long-Range lab wave-8 (store persist + tip-import WS gate)")
     print(f"  cert digest: {cert.digest[:16]}... verify={cert.verify_digest()}")
     print(f"  WS child:   accept={ok.accept} reason={ok.reason}")
     print(f"  stale fork: accept={bad.accept} reason={bad.reason}")

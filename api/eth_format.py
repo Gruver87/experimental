@@ -3,9 +3,64 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from api.ports import BlockQuery, LogsQuery, QueryLimitError, QueryTimeoutError
+
+
+def _keccak(data: bytes) -> bytes:
+    try:
+        from crypto import native
+
+        return native.keccak256_digest(data)
+    except Exception:
+        import hashlib
+
+        # Fallback only for environments without native keccak (not Ethereum-accurate).
+        return hashlib.sha3_256(data).digest()
+
+
+def _addr_bytes(addr: str) -> bytes:
+    a = str(addr or "").strip().lower().replace("0x", "")
+    if len(a) != 40:
+        a = a.zfill(40)[-40:]
+    return bytes.fromhex(a)
+
+
+def _topic_bytes(topic: str) -> bytes:
+    t = str(topic or "").strip().lower().replace("0x", "")
+    if len(t) > 64:
+        t = t[-64:]
+    return bytes.fromhex(t.zfill(64))
+
+
+def logs_bloom(logs: Sequence[Dict[str, Any]]) -> str:
+    """Compute Ethereum logsBloom (256 bytes / 2048 bits) from formatted logs.
+
+    Wave-8: receipt-level bloom from address + topics (Yellow Paper / geth parity).
+    """
+    bloom = bytearray(256)
+    for log in logs or ():
+        if not isinstance(log, dict):
+            continue
+        addr = log.get("address") or log.get("contract_address") or ""
+        if addr:
+            _bloom_add(bloom, _addr_bytes(str(addr)))
+        topics = log.get("topics") or []
+        if isinstance(topics, (list, tuple)):
+            for topic in topics:
+                if topic is None or topic == "":
+                    continue
+                _bloom_add(bloom, _topic_bytes(str(topic)))
+    return "0x" + bloom.hex()
+
+
+def _bloom_add(bloom: bytearray, data: bytes) -> None:
+    h = _keccak(data)
+    for i in (0, 2, 4):
+        bit_index = ((h[i] << 8) | h[i + 1]) & 2047
+        byte_index = 255 - (bit_index // 8)
+        bloom[byte_index] |= 1 << (bit_index % 8)
 
 
 def format_block(blk: Optional[Dict], full_tx: bool = False) -> Optional[Dict]:
@@ -201,7 +256,7 @@ def format_receipt(tx: Optional[Dict], bc=None, query=None) -> Optional[Dict]:
         "gasUsed": hex(gas_used),
         "contractAddress": contract,
         "logs": logs,
-        "logsBloom": "0x" + ("0" * 512),
+        "logsBloom": logs_bloom(logs),
         "status": hex(status_i),
         "type": hex(int(tx.get("type", 0) or 0)),
         "effectiveGasPrice": hex(int(tx.get("gas_price", tx.get("gasPrice", 0)) or 0)),
