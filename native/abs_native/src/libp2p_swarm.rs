@@ -10,6 +10,7 @@
 //! Slice H: circuit-relay-v2 + connection_limits.
 //! Slice I: allow/block-list peer enforcement (native ban hooks).
 //! Slice K: mDNS Toggle + loopback-only discovery hygiene.
+//! Slice L: Absolute wire request timeout + adapter API parity (Python edge).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -30,6 +31,9 @@ pub const DEFAULT_MAX_DIALS: u32 = 32;
 /// Max wire / gossip payload bytes (lab bound).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const MAX_WIRE_BYTES: usize = 1024 * 1024;
+/// Default `/abs/wire/1.0.0` request-response timeout (Slice L).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub const DEFAULT_WIRE_TIMEOUT_SECS: u64 = 10;
 
 #[pyfunction]
 fn libp2p_available() -> bool {
@@ -46,7 +50,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 mod enabled {
     use super::{
         libp2p_available, ABS_GOSSIP_BLOCKS_TOPIC, ABS_KAD_PROTOCOL, ABS_WIRE_PROTOCOL,
-        DEFAULT_MAX_DIALS, MAX_WIRE_BYTES,
+        DEFAULT_MAX_DIALS, DEFAULT_WIRE_TIMEOUT_SECS, MAX_WIRE_BYTES,
     };
     use async_trait::async_trait;
     use futures::prelude::*;
@@ -297,6 +301,7 @@ mod enabled {
         max_established_incoming: Option<u32>,
         max_established: Option<u32>,
         enable_mdns: bool,
+        wire_timeout_secs: u64,
         last_error: String,
         inbox: VecDeque<(String, Vec<u8>)>,
         gossip_inbox: VecDeque<(String, String, Vec<u8>)>,
@@ -325,6 +330,7 @@ mod enabled {
             max_established_incoming: Option<u32>,
             max_established: Option<u32>,
             enable_mdns: bool,
+            wire_timeout_secs: u64,
         ) -> PyResult<Self> {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -333,12 +339,14 @@ mod enabled {
                 .map_err(|e| PyRuntimeError::new_err(format!("tokio runtime: {e}")))?;
 
             let key_path_str = key_path.unwrap_or_default();
+            let wire_timeout_secs = wire_timeout_secs.max(1);
             let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel::<Cmd>();
             let state = Arc::new(Mutex::new(NodeState {
                 max_dials: max_dials.max(1),
                 max_established_incoming,
                 max_established,
                 enable_mdns,
+                wire_timeout_secs,
                 key_path: key_path_str.clone(),
                 ..NodeState::default()
             }));
@@ -349,6 +357,7 @@ mod enabled {
             let limits_incoming = max_established_incoming;
             let limits_total = max_established;
             let want_mdns = enable_mdns;
+            let wire_timeout = Duration::from_secs(wire_timeout_secs);
 
             runtime.spawn(async move {
                 let keypair = if key_path_str.is_empty() {
@@ -391,7 +400,7 @@ mod enabled {
                             StreamProtocol::new(ABS_WIRE_PROTOCOL),
                             request_response::ProtocolSupport::Full,
                         )],
-                        request_response::Config::default(),
+                        request_response::Config::default().with_request_timeout(wire_timeout),
                     );
                     let message_id_fn = |message: &gossipsub::Message| {
                         let mut hasher = DefaultHasher::new();
@@ -1221,7 +1230,8 @@ mod enabled {
             key_path = None,
             max_established_incoming = None,
             max_established = None,
-            enable_mdns = None
+            enable_mdns = None,
+            wire_timeout_secs = None
         ))]
         fn new_py(
             max_dials: u32,
@@ -1229,6 +1239,7 @@ mod enabled {
             max_established_incoming: Option<u32>,
             max_established: Option<u32>,
             enable_mdns: Option<bool>,
+            wire_timeout_secs: Option<u64>,
         ) -> PyResult<Self> {
             Self::spawn(
                 max_dials,
@@ -1236,6 +1247,7 @@ mod enabled {
                 max_established_incoming,
                 max_established,
                 resolve_enable_mdns(enable_mdns),
+                resolve_wire_timeout_secs(wire_timeout_secs),
             )
         }
 
@@ -1581,6 +1593,7 @@ mod enabled {
                 d.set_item("libp2p_blocked_peers", st.blocked.len())?;
                 d.set_item("libp2p_circuit_addrs", st.circuit_addrs.len())?;
                 d.set_item("libp2p_mdns_enabled", st.enable_mdns)?;
+                d.set_item("libp2p_wire_timeout_secs", st.wire_timeout_secs)?;
                 if let Some(n) = st.max_established_incoming {
                     d.set_item("libp2p_max_established_incoming", n)?;
                 }
@@ -1605,7 +1618,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 10)?;
+                d.set_item("phase", 11)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -1614,6 +1627,7 @@ mod enabled {
                 d.set_item("relay", true)?;
                 d.set_item("connection_limits", true)?;
                 d.set_item("block_list", true)?;
+                d.set_item("wire_timeout_secs", st.wire_timeout_secs)?;
                 d.set_item("persistent_identity", !st.key_path.is_empty())?;
                 d.set_item("wire_protocol", ABS_WIRE_PROTOCOL)?;
                 d.set_item("gossip_blocks_topic", ABS_GOSSIP_BLOCKS_TOPIC)?;
@@ -1664,13 +1678,29 @@ mod enabled {
         }
     }
 
+    fn resolve_wire_timeout_secs(explicit: Option<u64>) -> u64 {
+        if let Some(v) = explicit {
+            return v.max(1);
+        }
+        match std::env::var("ABS_LIBP2P_WIRE_TIMEOUT_SECS") {
+            Ok(s) => s
+                .trim()
+                .parse::<u64>()
+                .ok()
+                .unwrap_or(DEFAULT_WIRE_TIMEOUT_SECS)
+                .max(1),
+            Err(_) => DEFAULT_WIRE_TIMEOUT_SECS,
+        }
+    }
+
     #[pyfunction]
     #[pyo3(signature = (
         max_dials = DEFAULT_MAX_DIALS,
         key_path = None,
         max_established_incoming = None,
         max_established = None,
-        enable_mdns = None
+        enable_mdns = None,
+        wire_timeout_secs = None
     ))]
     fn libp2p_node_new(
         max_dials: u32,
@@ -1678,6 +1708,7 @@ mod enabled {
         max_established_incoming: Option<u32>,
         max_established: Option<u32>,
         enable_mdns: Option<bool>,
+        wire_timeout_secs: Option<u64>,
     ) -> PyResult<Libp2pNode> {
         Libp2pNode::spawn(
             max_dials,
@@ -1685,6 +1716,7 @@ mod enabled {
             max_established_incoming,
             max_established,
             resolve_enable_mdns(enable_mdns),
+            resolve_wire_timeout_secs(wire_timeout_secs),
         )
     }
 

@@ -82,6 +82,7 @@ LABS = [
     ("I", "scripts/libp2p_rust_blocklist_lab.py"),
     ("J", "scripts/libp2p_rust_status_surface_lab.py"),
     ("K", "scripts/libp2p_rust_mdns_toggle_lab.py"),
+    ("L", "scripts/libp2p_rust_wire_timeout_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -184,7 +185,7 @@ def check_repo_honesty() -> tuple[bool, str]:
         "TCP+TLS",
         "tip proof",
         "Gruver87/experimental",
-        "Slice K",
+        "Slice L",
         "FEATURE_LIBP2P",
         "## Honesty",
     )

@@ -37,6 +37,7 @@ LABS = (
     "scripts/libp2p_rust_blocklist_lab.py",
     "scripts/libp2p_rust_status_surface_lab.py",
     "scripts/libp2p_rust_mdns_toggle_lab.py",
+    "scripts/libp2p_rust_wire_timeout_lab.py",
 )
 
 

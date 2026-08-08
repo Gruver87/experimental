@@ -31,12 +31,18 @@ class Libp2pTransportAdapter:
         *,
         enabled: bool = False,
         peer_policy: Optional[Any] = None,
+        enable_mdns: Optional[bool] = None,
+        wire_timeout_secs: Optional[int] = None,
     ) -> None:
         self._enabled = bool(enabled)
         self._dial_count = 0
         self._node: Any = None
         self._native_capable = native_libp2p_available()
         self._peer_policy = peer_policy
+        self._enable_mdns = enable_mdns
+        self._wire_timeout_secs = (
+            int(wire_timeout_secs) if wire_timeout_secs is not None else None
+        )
 
     def set_peer_policy(self, policy: Any) -> None:
         self._peer_policy = policy
@@ -58,10 +64,14 @@ class Libp2pTransportAdapter:
             import abs_native
 
             key_path = str(os.environ.get("ABS_LIBP2P_KEY_PATH", "") or "").strip() or None
+            kwargs: dict[str, Any] = {"max_dials": 32}
             if key_path:
-                self._node = abs_native.libp2p_node_new(32, key_path)
-            else:
-                self._node = abs_native.libp2p_node_new()
+                kwargs["key_path"] = key_path
+            if self._enable_mdns is not None:
+                kwargs["enable_mdns"] = bool(self._enable_mdns)
+            if self._wire_timeout_secs is not None:
+                kwargs["wire_timeout_secs"] = int(self._wire_timeout_secs)
+            self._node = abs_native.libp2p_node_new(**kwargs)
             if self._peer_policy is not None and hasattr(self._peer_policy, "attach_native"):
                 try:
                     self._peer_policy.attach_native(self._node)
@@ -145,6 +155,29 @@ class Libp2pTransportAdapter:
         if node is None:
             raise TransportCapabilityError("rust libp2p node not available")
         return list(node.listen(str(multiaddr)))
+
+    def listen_relay(self, relay_multiaddr: str) -> list[str]:
+        """Slice H/L: circuit-relay-v2 reservation via adapter."""
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        return list(node.listen_relay(str(relay_multiaddr)))
+
+    def kad_add_address(self, peer_id: str, multiaddr: str) -> str:
+        """Slice G/L: seed Kademlia address via adapter."""
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        return str(node.kad_add_address(str(peer_id), str(multiaddr)))
+
+    def kad_get_closest_peers(self, peer_id: str) -> list[str]:
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        return [str(p) for p in node.kad_get_closest_peers(str(peer_id))]
 
     @property
     def peer_id(self) -> str:
