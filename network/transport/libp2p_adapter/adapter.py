@@ -179,6 +179,19 @@ class Libp2pTransportAdapter:
             raise TransportCapabilityError("rust libp2p node not available")
         return [str(p) for p in node.kad_get_closest_peers(str(peer_id))]
 
+    def autonat_add_server(
+        self, peer_id: str, multiaddr: Optional[str] = None
+    ) -> None:
+        """Slice N: register AutoNAT dial-back server via adapter."""
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        if multiaddr is None:
+            node.autonat_add_server(str(peer_id))
+        else:
+            node.autonat_add_server(str(peer_id), str(multiaddr))
+
     @property
     def peer_id(self) -> str:
         if self._node is None:

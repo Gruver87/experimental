@@ -61,6 +61,10 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_abs_wire_v2_sent",
     "libp2p_abs_wire_v1_recv",
     "libp2p_abs_wire_v2_recv",
+    "libp2p_autonat_probes",
+    "libp2p_autonat_status_changes",
+    "libp2p_dcutr_upgrade_success",
+    "libp2p_dcutr_upgrade_fail",
 )
 
 UNIT_TESTS = [
@@ -88,6 +92,7 @@ LABS = [
     ("K", "scripts/libp2p_rust_mdns_toggle_lab.py"),
     ("L", "scripts/libp2p_rust_wire_timeout_lab.py"),
     ("M", "scripts/libp2p_rust_abs_wire_lab.py"),
+    ("N", "scripts/libp2p_rust_autonat_dcutr_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -190,7 +195,7 @@ def check_repo_honesty() -> tuple[bool, str]:
         "TCP+TLS",
         "tip proof",
         "Gruver87/experimental",
-        "Slice M",
+        "Slice N",
         "FEATURE_LIBP2P",
         "## Honesty",
     )

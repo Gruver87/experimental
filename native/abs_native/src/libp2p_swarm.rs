@@ -12,6 +12,7 @@
 //! Slice K: mDNS Toggle + loopback-only discovery hygiene.
 //! Slice L: Absolute wire request timeout + adapter API parity (Python edge).
 //! Slice M: ADR 0008 Absolute wire codecs (v1 NDJSON / v2 Borsh AB2) over `/abs/wire`.
+//! Slice N: AutoNAT + DCUtR (NAT status + hole-punch over relay).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -81,7 +82,7 @@ mod enabled {
     use libp2p::{
         allow_block_list,
         allow_block_list::BlockedPeers,
-        connection_limits, gossipsub, identify,
+        autonat, connection_limits, dcutr, gossipsub, identify,
         identity::Keypair,
         kad::{self, store::MemoryStore},
         mdns, noise, ping, relay, request_response,
@@ -224,6 +225,8 @@ mod enabled {
         kademlia: kad::Behaviour<MemoryStore>,
         relay: relay::Behaviour,
         relay_client: relay::client::Behaviour,
+        autonat: autonat::Behaviour,
+        dcutr: dcutr::Behaviour,
         connection_limits: connection_limits::Behaviour,
         blocked_peers: allow_block_list::Behaviour<BlockedPeers>,
     }
@@ -283,6 +286,12 @@ mod enabled {
             peer_id: String,
             reply: oneshot::Sender<Result<(), String>>,
         },
+        /// Explicit AutoNAT server registration (Slice N lab).
+        AutonatAddServer {
+            peer_id: String,
+            addr: Option<String>,
+            reply: oneshot::Sender<Result<(), String>>,
+        },
         Shutdown {
             reply: oneshot::Sender<()>,
         },
@@ -321,6 +330,12 @@ mod enabled {
         kad_queries: u64,
         relay_reservations: u64,
         relay_circuits: u64,
+        autonat_probes: u64,
+        autonat_status_changes: u64,
+        /// 0=unknown, 1=public, 2=private (Slice N).
+        autonat_status: u8,
+        dcutr_upgrade_success: u64,
+        dcutr_upgrade_fail: u64,
         conn_limit_denied: u64,
         block_denied: u64,
         blocked: HashSet<String>,
@@ -485,6 +500,17 @@ mod enabled {
                         kademlia,
                         relay: relay::Behaviour::new(local, relay::Config::default()),
                         relay_client,
+                        autonat: {
+                            // Lab-friendly AutoNAT: allow private/loopback peers (Slice N).
+                            let mut cfg = autonat::Config::default();
+                            cfg.only_global_ips = false;
+                            cfg.boot_delay = Duration::from_millis(200);
+                            cfg.retry_interval = Duration::from_secs(2);
+                            cfg.refresh_interval = Duration::from_secs(10);
+                            cfg.throttle_server_period = Duration::from_secs(1);
+                            autonat::Behaviour::new(local, cfg)
+                        },
+                        dcutr: dcutr::Behaviour::new(local),
                         connection_limits: connection_limits::Behaviour::new(limits),
                         blocked_peers: allow_block_list::Behaviour::default(),
                     })
@@ -823,6 +849,33 @@ mod enabled {
                                         }
                                     }
                                 }
+                                Some(Cmd::AutonatAddServer {
+                                    peer_id,
+                                    addr,
+                                    reply,
+                                }) => {
+                                    match peer_id.parse::<PeerId>() {
+                                        Ok(pid) => {
+                                            let ma = match addr {
+                                                Some(a) => match a.parse::<Multiaddr>() {
+                                                    Ok(m) => Some(m),
+                                                    Err(e) => {
+                                                        let _ = reply.send(Err(format!(
+                                                            "bad multiaddr: {e}"
+                                                        )));
+                                                        continue;
+                                                    }
+                                                },
+                                                None => None,
+                                            };
+                                            swarm.behaviour_mut().autonat.add_server(pid, ma);
+                                            let _ = reply.send(Ok(()));
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!("bad peer_id: {e}")));
+                                        }
+                                    }
+                                }
                             }
                         }
                         event = swarm.select_next_some() => {
@@ -1006,6 +1059,18 @@ mod enabled {
                                                 .collect(),
                                             observed_addr: info.observed_addr.to_string(),
                                         };
+                                        // Slice N: register AutoNAT servers discovered via identify.
+                                        let supports_autonat = info.protocols.iter().any(|p| {
+                                            let s = p.as_ref();
+                                            s.contains("autonat")
+                                        });
+                                        if supports_autonat {
+                                            let addr = info.listen_addrs.first().cloned();
+                                            swarm
+                                                .behaviour_mut()
+                                                .autonat
+                                                .add_server(peer_id, addr);
+                                        }
                                         if let Ok(mut st) = state_bg.lock() {
                                             st.identify.insert(peer_id.to_string(), snap);
                                         }
@@ -1161,6 +1226,44 @@ mod enabled {
                                             if let Ok(mut st) = state_bg.lock() {
                                                 st.relay_circuits =
                                                     st.relay_circuits.saturating_add(1);
+                                            }
+                                        }
+                                    }
+                                }
+                                SwarmEvent::Behaviour(AbsBehaviourEvent::Autonat(ev)) => {
+                                    match ev {
+                                        autonat::Event::InboundProbe(_)
+                                        | autonat::Event::OutboundProbe(_) => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.autonat_probes =
+                                                    st.autonat_probes.saturating_add(1);
+                                            }
+                                        }
+                                        autonat::Event::StatusChanged { new, .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.autonat_status_changes = st
+                                                    .autonat_status_changes
+                                                    .saturating_add(1);
+                                                st.autonat_status = match new {
+                                                    autonat::NatStatus::Public(_) => 1,
+                                                    autonat::NatStatus::Private => 2,
+                                                    autonat::NatStatus::Unknown => 0,
+                                                };
+                                            }
+                                        }
+                                    }
+                                }
+                                SwarmEvent::Behaviour(AbsBehaviourEvent::Dcutr(ev)) => {
+                                    if let Ok(mut st) = state_bg.lock() {
+                                        match ev.result {
+                                            Ok(_) => {
+                                                st.dcutr_upgrade_success = st
+                                                    .dcutr_upgrade_success
+                                                    .saturating_add(1);
+                                            }
+                                            Err(_) => {
+                                                st.dcutr_upgrade_fail =
+                                                    st.dcutr_upgrade_fail.saturating_add(1);
                                             }
                                         }
                                     }
@@ -1365,6 +1468,24 @@ mod enabled {
                 .lock()
                 .map(|s| s.circuit_addrs.clone())
                 .unwrap_or_default()
+        }
+
+        /// Register a peer as AutoNAT dial-back server (Slice N).
+        #[pyo3(signature = (peer_id, multiaddr=None))]
+        fn autonat_add_server(&self, peer_id: &str, multiaddr: Option<&str>) -> PyResult<()> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::AutonatAddServer {
+                    peer_id: peer_id.to_string(),
+                    addr: multiaddr.map(|s| s.to_string()),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("autonat_add_server reply dropped")),
+            }
         }
 
         /// Send Absolute wire bytes over `/abs/wire/1.0.0`; returns response ack bytes.
@@ -1646,6 +1767,11 @@ mod enabled {
                 d.set_item("libp2p_kad_queries", st.kad_queries)?;
                 d.set_item("libp2p_relay_reservations", st.relay_reservations)?;
                 d.set_item("libp2p_relay_circuits", st.relay_circuits)?;
+                d.set_item("libp2p_autonat_probes", st.autonat_probes)?;
+                d.set_item("libp2p_autonat_status_changes", st.autonat_status_changes)?;
+                d.set_item("libp2p_autonat_status", st.autonat_status)?;
+                d.set_item("libp2p_dcutr_upgrade_success", st.dcutr_upgrade_success)?;
+                d.set_item("libp2p_dcutr_upgrade_fail", st.dcutr_upgrade_fail)?;
                 d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
                 d.set_item("libp2p_block_denied", st.block_denied)?;
                 d.set_item("libp2p_blocked_peers", st.blocked.len())?;
@@ -1676,17 +1802,27 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 12)?;
+                d.set_item("phase", 13)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
                 d.set_item("mdns", st.enable_mdns)?;
                 d.set_item("kademlia", true)?;
                 d.set_item("relay", true)?;
+                d.set_item("autonat", true)?;
+                d.set_item("dcutr", true)?;
                 d.set_item("connection_limits", true)?;
                 d.set_item("block_list", true)?;
                 d.set_item("abs_wire_codecs", true)?;
                 d.set_item("wire_timeout_secs", st.wire_timeout_secs)?;
+                d.set_item(
+                    "autonat_status",
+                    match st.autonat_status {
+                        1 => "public",
+                        2 => "private",
+                        _ => "unknown",
+                    },
+                )?;
                 d.set_item("persistent_identity", !st.key_path.is_empty())?;
                 d.set_item("wire_protocol", ABS_WIRE_PROTOCOL)?;
                 d.set_item("gossip_blocks_topic", ABS_GOSSIP_BLOCKS_TOPIC)?;
@@ -1710,6 +1846,10 @@ mod enabled {
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
                 d.set_item("libp2p_kad_peers", st.kad_peers.len())?;
                 d.set_item("libp2p_relay_reservations", st.relay_reservations)?;
+                d.set_item("libp2p_autonat_probes", st.autonat_probes)?;
+                d.set_item("libp2p_autonat_status_changes", st.autonat_status_changes)?;
+                d.set_item("libp2p_dcutr_upgrade_success", st.dcutr_upgrade_success)?;
+                d.set_item("libp2p_dcutr_upgrade_fail", st.dcutr_upgrade_fail)?;
                 d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
                 d.set_item("libp2p_block_denied", st.block_denied)?;
                 d.set_item("libp2p_blocked_peers", st.blocked.len())?;

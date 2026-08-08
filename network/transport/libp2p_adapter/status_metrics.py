@@ -32,6 +32,11 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_abs_wire_v2_sent",
     "libp2p_abs_wire_v1_recv",
     "libp2p_abs_wire_v2_recv",
+    "libp2p_autonat_probes",
+    "libp2p_autonat_status_changes",
+    "libp2p_autonat_status",
+    "libp2p_dcutr_upgrade_success",
+    "libp2p_dcutr_upgrade_fail",
 )
 
 

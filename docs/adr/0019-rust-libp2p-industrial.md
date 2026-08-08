@@ -51,6 +51,7 @@ feature `libp2p`), exposed to Python through the existing
 | mDNS hygiene | Slice K: `enable_mdns` / `ABS_LIBP2P_MDNS` Toggle; loopback-only discoveries |
 | Wire timeout / adapter | Slice L: `wire_timeout_secs` / `ABS_LIBP2P_WIRE_TIMEOUT_SECS`; adapter kad/relay/block parity |
 | ADR 0008 on wire | Slice M: Absolute v1/v2 classify + counters; `send_abs_wire` / admit inbox; `libp2p_rust_abs_wire_lab.py` |
+| NAT traversal | Slice N: AutoNAT + DCUtR; `autonat_add_server`; `libp2p_rust_autonat_dcutr_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -71,6 +72,7 @@ feature `libp2p`), exposed to Python through the existing
 | K | mDNS Toggle + loopback filter; `libp2p_rust_mdns_toggle_lab.py` |
 | L | Wire timeout + adapter API parity; `libp2p_rust_wire_timeout_lab.py` |
 | M | ADR 0008 v1/v2 over `/abs/wire`; `libp2p_rust_abs_wire_lab.py` |
+| N | AutoNAT + DCUtR hole-punch; `libp2p_rust_autonat_dcutr_lab.py` |
 
 ## Honesty
 
@@ -89,7 +91,7 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_abs_announce_lab.py`, `libp2p_rust_relay_limits_lab.py`,
   `libp2p_rust_blocklist_lab.py`,   `libp2p_rust_status_surface_lab.py`,
   `libp2p_rust_mdns_toggle_lab.py`, `libp2p_rust_wire_timeout_lab.py`,
-  `libp2p_rust_abs_wire_lab.py`;
+  `libp2p_rust_abs_wire_lab.py`, `libp2p_rust_autonat_dcutr_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
