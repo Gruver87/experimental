@@ -1,6 +1,6 @@
 OK: libp2p_rust_identity_mdns_lab PASS
-  identity: 12D3KooWKo5PZjHM… stable across restart
-  key_path: C:\Users\vovun\AppData\Local\Temp\abs-libp2p-key-gq_2_8tb\node.key
+  identity: 12D3KooWMkZgQ5yH… stable across restart
+  key_path: C:\Users\vovun\AppData\Local\Temp\abs-libp2p-key-_linat3y\node.key
   mdns: discovered=True metric=2
-  dial_via: /ip4/127.0.0.1/tcp/53504
+  dial_via: /ip4/127.0.0.1/tcp/55214
   honesty: FEATURE_LIBP2P lab; not prod TCP+TLS mesh

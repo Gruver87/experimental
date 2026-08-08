@@ -44,6 +44,7 @@ feature `libp2p`), exposed to Python through the existing
 | Absolute wire | Slice A: identify + ping + listen/dial. Slice B: `/abs/wire/1.0.0` request-response (length-prefixed Absolute lab frames; full Borsh ADR 0008 may wrap at Python edge). Slice C: dial budgets / backpressure counters |
 | Gossipsub | Slice E: signed gossipsub announce (`abs/blocks/1.0.0`); Absolute wire remains request-response — not replaced by gossipsub |
 | Identity / discovery | Slice F: protobuf Ed25519 key file (`key_path` / `ABS_LIBP2P_KEY_PATH`); mDNS local discovery (LAN; may be filtered in CI) |
+| Kademlia | Slice G: `/absolute/kad/1.0.0` MemoryStore DHT (lab mesh; not IPFS public bootstrap) |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -57,6 +58,7 @@ feature `libp2p`), exposed to Python through the existing
 | D | `/status` libp2p block; ADR 0008 wire bridge; PeerManager ban hooks; mixed dual-stack lab; evidence pack |
 | E | Gossipsub publish/subscribe + identify Received; `libp2p_rust_gossip_lab.py` |
 | F | Persistent PeerId keystore + mDNS discovery; `libp2p_rust_identity_mdns_lab.py` |
+| G | Kademlia DHT + Absolute `new_block` gossip announce admit; kad + abs_announce labs |
 
 ## Honesty
 
@@ -71,7 +73,8 @@ feature `libp2p`), exposed to Python through the existing
 - Labs: `libp2p_rust_two_node_lab.py`, `libp2p_rust_wire_lab.py`,
   `libp2p_rust_three_node_lab.py`, `libp2p_rust_soak_lab.py`,
   `libp2p_mixed_dual_stack_lab.py`, `libp2p_rust_gossip_lab.py`,
-  `libp2p_rust_identity_mdns_lab.py`;
+  `libp2p_rust_identity_mdns_lab.py`, `libp2p_rust_kad_lab.py`,
+  `libp2p_rust_abs_announce_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit), `Libp2pPeerPolicy` → PeerManager.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.

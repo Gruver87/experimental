@@ -6,6 +6,7 @@
 //! Slice D: status / ADR 0008 bridge / peer policy (Python edge).
 //! Slice E: gossipsub announce + identify Received snapshots.
 //! Slice F: persistent PeerId keystore + mDNS discovery.
+//! Slice G: Kademlia DHT (MemoryStore) + Absolute gossip announce edge.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -14,6 +15,8 @@ use pyo3::prelude::*;
 pub const ABS_WIRE_PROTOCOL: &str = "/abs/wire/1.0.0";
 /// Default gossip topic for Absolute block announce labs (Slice E).
 pub const ABS_GOSSIP_BLOCKS_TOPIC: &str = "abs/blocks/1.0.0";
+/// Absolute Kademlia protocol id (Slice G; not IPFS bootstrap).
+pub const ABS_KAD_PROTOCOL: &str = "/absolute/kad/1.0.0";
 /// Default max concurrent outbound dials (Slice C).
 pub const DEFAULT_MAX_DIALS: u32 = 32;
 /// Max wire / gossip payload bytes (lab bound).
@@ -33,13 +36,17 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(feature = "libp2p")]
 mod enabled {
     use super::{
-        libp2p_available, ABS_GOSSIP_BLOCKS_TOPIC, ABS_WIRE_PROTOCOL, DEFAULT_MAX_DIALS,
-        MAX_WIRE_BYTES,
+        libp2p_available, ABS_GOSSIP_BLOCKS_TOPIC, ABS_KAD_PROTOCOL, ABS_WIRE_PROTOCOL,
+        DEFAULT_MAX_DIALS, MAX_WIRE_BYTES,
     };
     use async_trait::async_trait;
     use futures::prelude::*;
+    use libp2p::core::ConnectedPoint;
     use libp2p::{
-        gossipsub, identify, identity::Keypair, mdns, noise, ping, request_response,
+        gossipsub, identify,
+        identity::Keypair,
+        kad::{self, store::MemoryStore},
+        mdns, noise, ping, request_response,
         swarm::{NetworkBehaviour, SwarmEvent},
         tcp, yamux, Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
     };
@@ -62,8 +69,7 @@ mod enabled {
         } else {
             if let Some(parent) = path.parent() {
                 if !parent.as_os_str().is_empty() {
-                    std::fs::create_dir_all(parent)
-                        .map_err(|e| format!("create key dir: {e}"))?;
+                    std::fs::create_dir_all(parent).map_err(|e| format!("create key dir: {e}"))?;
                 }
             }
             let kp = Keypair::generate_ed25519();
@@ -177,6 +183,7 @@ mod enabled {
         wire: request_response::Behaviour<AbsWireCodec>,
         gossipsub: gossipsub::Behaviour,
         mdns: mdns::tokio::Behaviour,
+        kademlia: kad::Behaviour<MemoryStore>,
     }
 
     enum Cmd {
@@ -212,6 +219,15 @@ mod enabled {
         PollGossip {
             reply: oneshot::Sender<Vec<(String, String, Vec<u8>)>>,
         },
+        KadAddAddress {
+            peer_id: String,
+            addr: String,
+            reply: oneshot::Sender<Result<String, String>>,
+        },
+        KadGetClosest {
+            peer_id: String,
+            reply: oneshot::Sender<Result<Vec<String>, String>>,
+        },
         Shutdown {
             reply: oneshot::Sender<()>,
         },
@@ -241,6 +257,8 @@ mod enabled {
         gossip_pub: u64,
         gossip_recv: u64,
         mdns_discovered: u64,
+        kad_routing_updates: u64,
+        kad_queries: u64,
         max_dials: u32,
         last_error: String,
         inbox: VecDeque<(String, Vec<u8>)>,
@@ -249,6 +267,7 @@ mod enabled {
         identify: HashMap<String, IdentifySnap>,
         /// peer_id -> last advertised multiaddr from mDNS
         discovered: HashMap<String, String>,
+        kad_peers: HashSet<String>,
         key_path: String,
     }
 
@@ -347,6 +366,12 @@ mod enabled {
                         key.public().to_peer_id(),
                     )
                     .map_err(|e| format!("mdns: {e}"))?;
+                    let local = key.public().to_peer_id();
+                    let mut kad_cfg = kad::Config::new(StreamProtocol::new(ABS_KAD_PROTOCOL));
+                    kad_cfg.set_query_timeout(Duration::from_secs(10));
+                    let store = MemoryStore::new(local);
+                    let mut kademlia = kad::Behaviour::with_config(local, store, kad_cfg);
+                    kademlia.set_mode(Some(kad::Mode::Server));
                     Ok(AbsBehaviour {
                         ping: ping::Behaviour::new(ping::Config::new()),
                         identify: identify::Behaviour::new(identify::Config::new(
@@ -356,6 +381,7 @@ mod enabled {
                         wire,
                         gossipsub,
                         mdns,
+                        kademlia,
                     })
                 }) {
                     Ok(b) => b
@@ -381,6 +407,10 @@ mod enabled {
                 let mut pending_wire: HashMap<
                     request_response::OutboundRequestId,
                     oneshot::Sender<Result<Vec<u8>, String>>,
+                > = HashMap::new();
+                let mut pending_kad: HashMap<
+                    kad::QueryId,
+                    oneshot::Sender<Result<Vec<String>, String>>,
                 > = HashMap::new();
 
                 loop {
@@ -529,6 +559,44 @@ mod enabled {
                                     };
                                     let _ = reply.send(items);
                                 }
+                                Some(Cmd::KadAddAddress { peer_id, addr, reply }) => {
+                                    match (peer_id.parse::<PeerId>(), addr.parse::<Multiaddr>()) {
+                                        (Ok(pid), Ok(ma)) => {
+                                            let update = swarm
+                                                .behaviour_mut()
+                                                .kademlia
+                                                .add_address(&pid, ma);
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.kad_peers.insert(pid.to_string());
+                                            }
+                                            let _ = reply.send(Ok(format!("{update:?}")));
+                                        }
+                                        (Err(e), _) => {
+                                            let _ = reply.send(Err(format!("bad peer_id: {e}")));
+                                        }
+                                        (_, Err(e)) => {
+                                            let _ = reply.send(Err(format!("bad multiaddr: {e}")));
+                                        }
+                                    }
+                                }
+                                Some(Cmd::KadGetClosest { peer_id, reply }) => {
+                                    match peer_id.parse::<PeerId>() {
+                                        Ok(pid) => {
+                                            let qid = swarm
+                                                .behaviour_mut()
+                                                .kademlia
+                                                .get_closest_peers(pid);
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.kad_queries =
+                                                    st.kad_queries.saturating_add(1);
+                                            }
+                                            pending_kad.insert(qid, reply);
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!("bad peer_id: {e}")));
+                                        }
+                                    }
+                                }
                             }
                         }
                         event = swarm.select_next_some() => {
@@ -557,8 +625,23 @@ mod enabled {
                                     let is_dialer = endpoint.is_dialer();
                                     // Explicit peer so gossipsub mesh forms without mDNS.
                                     swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
+                                    let kad_addr = match &endpoint {
+                                        ConnectedPoint::Dialer { address, .. } => {
+                                            Some(address.clone())
+                                        }
+                                        ConnectedPoint::Listener { send_back_addr, .. } => {
+                                            Some(send_back_addr.clone())
+                                        }
+                                    };
+                                    if let Some(addr) = kad_addr {
+                                        swarm
+                                            .behaviour_mut()
+                                            .kademlia
+                                            .add_address(&peer_id, addr);
+                                    }
                                     if let Ok(mut st) = state_bg.lock() {
                                         st.connected.insert(pid.clone());
+                                        st.kad_peers.insert(pid.clone());
                                         if is_dialer {
                                             st.outbound_peers.insert(pid.clone());
                                             st.dial_ok = st.dial_ok.saturating_add(1);
@@ -659,6 +742,47 @@ mod enabled {
                                                 }
                                             }
                                         }
+                                    }
+                                }
+                                SwarmEvent::Behaviour(AbsBehaviourEvent::Kademlia(ev)) => {
+                                    match ev {
+                                        kad::Event::RoutingUpdated { peer, .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.kad_routing_updates =
+                                                    st.kad_routing_updates.saturating_add(1);
+                                                st.kad_peers.insert(peer.to_string());
+                                            }
+                                        }
+                                        kad::Event::OutboundQueryProgressed {
+                                            id,
+                                            result,
+                                            step,
+                                            ..
+                                        } => {
+                                            if !step.last {
+                                                continue;
+                                            }
+                                            if let kad::QueryResult::GetClosestPeers(res) = result {
+                                                if let Some(reply) = pending_kad.remove(&id) {
+                                                    match res {
+                                                        Ok(ok) => {
+                                                            let peers: Vec<String> = ok
+                                                                .peers
+                                                                .into_iter()
+                                                                .map(|p| p.peer_id.to_string())
+                                                                .collect();
+                                                            let _ = reply.send(Ok(peers));
+                                                        }
+                                                        Err(e) => {
+                                                            let _ = reply.send(Err(format!(
+                                                                "kad get_closest: {e}"
+                                                            )));
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        _ => {}
                                     }
                                 }
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::Wire(ev)) => {
@@ -811,9 +935,7 @@ mod enabled {
                 })
                 .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
             match rx.blocking_recv() {
-                Ok(Ok(resp)) => {
-                    Python::with_gil(|py| Ok(PyBytes::new_bound(py, &resp).into()))
-                }
+                Ok(Ok(resp)) => Python::with_gil(|py| Ok(PyBytes::new_bound(py, &resp).into())),
                 Ok(Err(e)) => Err(PyValueError::new_err(e)),
                 Err(_) => Err(PyRuntimeError::new_err("send_wire reply dropped")),
             }
@@ -833,10 +955,7 @@ mod enabled {
                 for (peer, data) in items {
                     let tup = pyo3::types::PyTuple::new_bound(
                         py,
-                        &[
-                            peer.into_py(py),
-                            PyBytes::new_bound(py, &data).into_py(py),
-                        ],
+                        &[peer.into_py(py), PyBytes::new_bound(py, &data).into_py(py)],
                     );
                     out.append(tup)?;
                 }
@@ -865,9 +984,10 @@ mod enabled {
         /// mDNS discoveries: dict peer_id -> multiaddr (Slice F).
         fn discovered_peers(&self) -> PyResult<PyObject> {
             Python::with_gil(|py| {
-                let st = self.state.lock().map_err(|e| {
-                    PyRuntimeError::new_err(format!("state lock poisoned: {e}"))
-                })?;
+                let st = self
+                    .state
+                    .lock()
+                    .map_err(|e| PyRuntimeError::new_err(format!("state lock poisoned: {e}")))?;
                 let d = pyo3::types::PyDict::new_bound(py);
                 for (peer, addr) in &st.discovered {
                     d.set_item(peer, addr)?;
@@ -950,12 +1070,46 @@ mod enabled {
             })
         }
 
+        /// Add peer multiaddr into Kademlia routing table (Slice G).
+        fn kad_add_address(&self, peer_id: &str, multiaddr: &str) -> PyResult<String> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::KadAddAddress {
+                    peer_id: peer_id.to_string(),
+                    addr: multiaddr.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(s)) => Ok(s),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("kad_add_address reply dropped")),
+            }
+        }
+
+        /// Iterative get_closest_peers; returns list of peer id strings.
+        fn kad_get_closest_peers(&self, peer_id: &str) -> PyResult<Vec<String>> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::KadGetClosest {
+                    peer_id: peer_id.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(peers)) => Ok(peers),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("kad_get_closest reply dropped")),
+            }
+        }
+
         /// Identify snapshot for a peer (empty dict if not yet received).
         fn identify_info(&self, peer_id: &str) -> PyResult<PyObject> {
             Python::with_gil(|py| {
-                let st = self.state.lock().map_err(|e| {
-                    PyRuntimeError::new_err(format!("state lock poisoned: {e}"))
-                })?;
+                let st = self
+                    .state
+                    .lock()
+                    .map_err(|e| PyRuntimeError::new_err(format!("state lock poisoned: {e}")))?;
                 let d = pyo3::types::PyDict::new_bound(py);
                 if let Some(snap) = st.identify.get(peer_id) {
                     d.set_item("peer_id", peer_id)?;
@@ -976,9 +1130,10 @@ mod enabled {
         /// Metrics for /status / security status (ADR 0019).
         fn metrics(&self) -> PyResult<PyObject> {
             Python::with_gil(|py| {
-                let st = self.state.lock().map_err(|e| {
-                    PyRuntimeError::new_err(format!("state lock poisoned: {e}"))
-                })?;
+                let st = self
+                    .state
+                    .lock()
+                    .map_err(|e| PyRuntimeError::new_err(format!("state lock poisoned: {e}")))?;
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("libp2p_peers", st.connected.len())?;
                 d.set_item("libp2p_dial_ok", st.dial_ok)?;
@@ -995,9 +1150,13 @@ mod enabled {
                 d.set_item("libp2p_identify_peers", st.identify.len())?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
                 d.set_item("libp2p_discovered_peers", st.discovered.len())?;
+                d.set_item("libp2p_kad_peers", st.kad_peers.len())?;
+                d.set_item("libp2p_kad_routing_updates", st.kad_routing_updates)?;
+                d.set_item("libp2p_kad_queries", st.kad_queries)?;
                 d.set_item("libp2p_key_path", &st.key_path)?;
                 d.set_item("libp2p_wire_protocol", ABS_WIRE_PROTOCOL)?;
                 d.set_item("libp2p_gossip_blocks_topic", ABS_GOSSIP_BLOCKS_TOPIC)?;
+                d.set_item("libp2p_kad_protocol", ABS_KAD_PROTOCOL)?;
                 d.set_item("peer_id", &self.peer_id)?;
                 Ok(d.into())
             })
@@ -1005,20 +1164,23 @@ mod enabled {
 
         fn capability_status(&self) -> PyResult<PyObject> {
             Python::with_gil(|py| {
-                let st = self.state.lock().map_err(|e| {
-                    PyRuntimeError::new_err(format!("state lock poisoned: {e}"))
-                })?;
+                let st = self
+                    .state
+                    .lock()
+                    .map_err(|e| PyRuntimeError::new_err(format!("state lock poisoned: {e}")))?;
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 6)?;
+                d.set_item("phase", 7)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
                 d.set_item("mdns", true)?;
+                d.set_item("kademlia", true)?;
                 d.set_item("persistent_identity", !st.key_path.is_empty())?;
                 d.set_item("wire_protocol", ABS_WIRE_PROTOCOL)?;
                 d.set_item("gossip_blocks_topic", ABS_GOSSIP_BLOCKS_TOPIC)?;
+                d.set_item("kad_protocol", ABS_KAD_PROTOCOL)?;
                 d.set_item("peer_id", &self.peer_id)?;
                 d.set_item("key_path", &st.key_path)?;
                 d.set_item("listen_addrs", st.listen_addrs.clone())?;
@@ -1031,6 +1193,7 @@ mod enabled {
                 d.set_item("libp2p_gossip_pub", st.gossip_pub)?;
                 d.set_item("libp2p_gossip_recv", st.gossip_recv)?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
+                d.set_item("libp2p_kad_peers", st.kad_peers.len())?;
                 d.set_item("default_mesh", false)?;
                 d.set_item("honesty", "ADR0019_rust_libp2p_lab_not_prod_mesh")?;
                 d.set_item("error", st.last_error.clone())?;
@@ -1084,6 +1247,7 @@ mod enabled {
         m.add_function(wrap_pyfunction!(libp2p_unpack_wire, m)?)?;
         m.add("ABS_WIRE_PROTOCOL", ABS_WIRE_PROTOCOL)?;
         m.add("ABS_GOSSIP_BLOCKS_TOPIC", ABS_GOSSIP_BLOCKS_TOPIC)?;
+        m.add("ABS_KAD_PROTOCOL", ABS_KAD_PROTOCOL)?;
         Ok(())
     }
 }

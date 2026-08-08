@@ -1,7 +1,7 @@
 OK: libp2p_rust_wire_lab PASS
   protocol: /abs/wire/1.0.0
-  peer_a: 12D3KooWDWVn8iDmCm4zUUha87JSq8WcDjyH1aqcXeDgdSbviJUx
-  peer_b: 12D3KooWNxqxDHTSKaHaa7nKyGFDgtEe1BFWHGUnGNV5BBVJxLuA
+  peer_a: 12D3KooWB9q8FyNmX5bcfcYsa6xzsjF4xKiQSYLqTpdXycPtcpRE
+  peer_b: 12D3KooWJX81A9Zf1axAV5euuEb6ywHtkACqepG6YzgK2XtYMypv
   metrics_a: peers=1 recv=1
   metrics_b: dial_ok=1 sent=1
   honesty: FEATURE_LIBP2P lab; not prod TCP+TLS mesh

@@ -1,7 +1,7 @@
 {
   "schema": "abs.libp2p_rd_evidence.v1",
-  "created_unix": 1786160819,
-  "commit": "4bf003f15471f50f355a7375e746cbd4d4d0fb60",
+  "created_unix": 1786161467,
+  "commit": "8e2ab29234e8817c58aa0fc724bcb32240ad0765",
   "honesty": [
     "experimental_only",
     "not_prod_mesh_libp2p",
@@ -14,7 +14,7 @@
       "status": "pass",
       "exit_code": 0,
       "log": "docs\\evidence\\runs\\libp2p-rd\\libp2p_rust_two_node_lab.log",
-      "sha256": "d60dd2d28706c5849922042c4540b0afcd8a7dd8d93a58d0d2ff5a601345f80f",
+      "sha256": "0e9b87ca986d2f88001a803915258a38055552f6fe4cd82e9a39cd976920891b",
       "bytes": 470
     },
     {
@@ -22,7 +22,7 @@
       "status": "pass",
       "exit_code": 0,
       "log": "docs\\evidence\\runs\\libp2p-rd\\libp2p_rust_wire_lab.log",
-      "sha256": "0e884cdc5667fbb1b70e622a52858d98df8b30d205b1823e29d37348f203ee70",
+      "sha256": "2b6c8a1f69f70b3f3fec0c3d108877df73ba9a53952c089ddfb1ca8b481e1f09",
       "bytes": 302
     },
     {
@@ -30,7 +30,7 @@
       "status": "pass",
       "exit_code": 0,
       "log": "docs\\evidence\\runs\\libp2p-rd\\libp2p_rust_three_node_lab.log",
-      "sha256": "5f4b7cf08caaa636ff78c5796c1de7d0d76c7fb64e2e0a9478d1cb46998cfd13",
+      "sha256": "6ee319ffa4e5faa1b4ec699d9e0999f6cd6ee8fea51468e16d8844830c4126d8",
       "bytes": 215
     },
     {
@@ -62,12 +62,28 @@
       "status": "pass",
       "exit_code": 0,
       "log": "docs\\evidence\\runs\\libp2p-rd\\libp2p_rust_identity_mdns_lab.log",
-      "sha256": "888a56925bbcb6f2e145823d0c3e6f8f05bdec4353b0ffb527878cd4a94b92e2",
+      "sha256": "72a28da47f9f480175319a7c0a8876bc9ebcce7409e7d475dd8aa9ba3d58f097",
       "bytes": 301
+    },
+    {
+      "lab": "scripts/libp2p_rust_kad_lab.py",
+      "status": "pass",
+      "exit_code": 0,
+      "log": "docs\\evidence\\runs\\libp2p-rd\\libp2p_rust_kad_lab.log",
+      "sha256": "f3837b7f5351f466376e2298403f4723f4a74b827280efbec7bbb37b4657bd28",
+      "bytes": 176
+    },
+    {
+      "lab": "scripts/libp2p_rust_abs_announce_lab.py",
+      "status": "pass",
+      "exit_code": 0,
+      "log": "docs\\evidence\\runs\\libp2p-rd\\libp2p_rust_abs_announce_lab.log",
+      "sha256": "0c8d70259174716375e00a10835e5887432c7124b880980b718a4f8b986670e1",
+      "bytes": 206
     }
   ],
   "summary": {
-    "pass": 7,
+    "pass": 9,
     "fail": 0,
     "missing": 0,
     "error": 0
