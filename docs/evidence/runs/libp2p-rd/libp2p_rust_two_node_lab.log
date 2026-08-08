@@ -1,0 +1,8 @@
+OK: libp2p_rust_two_node_lab PASS
+  peer_a: 12D3KooWHr4oF3o1Tm5Bs7bhooMVJNwsqp3abF8C8ioJaFkqgzn7
+  peer_b: 12D3KooWPCYZrVEV4itEjawZyLLSpfrGBAFnPLkY1pzRD3YuStnA
+  listen_a: /ip4/127.0.0.1/tcp/49239
+  dial_remote: 12D3KooWHr4oF3o1Tm5Bs7bhooMVJNwsqp3abF8C8ioJaFkqgzn7
+  connected_a: ['12D3KooWPCYZrVEV4itEjawZyLLSpfrGBAFnPLkY1pzRD3YuStnA']
+  connected_b: ['12D3KooWHr4oF3o1Tm5Bs7bhooMVJNwsqp3abF8C8ioJaFkqgzn7']
+  honesty: FEATURE_LIBP2P lab; not prod TCP+TLS mesh

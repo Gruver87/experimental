@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""libp2p dual-stack lab smoke (ADR 0018).
+"""libp2p dual-stack lab smoke (ADR 0018 / 0019).
 
 Verifies TCP+TLS remains the default and libp2p adapter only activates behind
-FEATURE_LIBP2P. Phase-1 adapter is a capability stub (no real swarm).
+FEATURE_LIBP2P. With rust backend: fail-closed dial without listener.
+Without: phase-1 stub handle.
 
 Usage:
   python scripts/libp2p_lab_smoke.py
@@ -40,14 +41,30 @@ def main() -> int:
         pass
 
     on = Libp2pTransportAdapter(enabled=True)
-    handle = on.connect(PeerEndpoint(host="127.0.0.1", port=4001, peer_id="lab-peer"))
-    assert handle["transport"] == "libp2p"
-    assert handle["phase"] == 1
-    assert on.capability_status()["dial_count"] == 1
+    try:
+        if on.rust_backend:
+            try:
+                on.connect(PeerEndpoint(host="127.0.0.1", port=39999, peer_id="lab-peer"))
+                print("FAIL: rust dial without listener should fail closed")
+                return 1
+            except TransportCapabilityError:
+                pass
+            backend = "rust_libp2p_fail_closed"
+        else:
+            handle = on.connect(
+                PeerEndpoint(host="127.0.0.1", port=4001, peer_id="lab-peer")
+            )
+            assert handle["transport"] == "libp2p"
+            assert handle["phase"] == 1
+            assert on.capability_status()["dial_count"] == 1
+            backend = "stub_phase1"
+    finally:
+        on.close()
 
     print("OK: libp2p_lab_smoke PASS")
     print("  default transport: TCP+TLS (native) - libp2p opt-in only")
-    print("  honesty: stub handle != prod mesh is libp2p")
+    print(f"  backend: {backend}")
+    print("  honesty: lab path != prod mesh is libp2p")
     return 0
 
 

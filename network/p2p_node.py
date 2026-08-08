@@ -1634,6 +1634,14 @@ class P2PNode:
         self.transport_adapter = NativeTransportAdapter(
             require_native=bool(_want_native_rl),
         )
+        # ADR 0019: dual-stack selector + PeerManager ban hooks (FEATURE_LIBP2P lab).
+        from network.transport.dual_stack import DualStackDialer
+        from network.transport.libp2p_adapter.peer_policy import Libp2pPeerPolicy
+
+        self._dual_stack = DualStackDialer.from_config(self.config)
+        self._dual_stack.attach_peer_policy(
+            Libp2pPeerPolicy(peer_manager=self.peer_manager)
+        )
         # Step D: application dispatcher (type → handler registry; tip-evidence DI).
         from network.p2p_dispatch import (
             TipSafetyEvidenceBridge,
@@ -7259,4 +7267,65 @@ class P2PNode:
                 status.setdefault("solicit_hub", True)
         else:
             status.setdefault("solicit_hub", False)
+        try:
+            status["libp2p"] = self._libp2p_status_block()
+        except Exception as exc:
+            logger.warning("[P2P] libp2p status merge failed: %s", exc)
+            status["libp2p"] = {
+                "feature_libp2p": bool(getattr(self.config, "feature_libp2p", False)),
+                "error": str(exc),
+                "honesty": "ADR0019_rust_libp2p_lab_not_prod_mesh",
+            }
         return status
+
+    def _libp2p_status_block(self) -> Dict:
+        """ADR 0019 metrics for /status /security (lab; not prod mesh claim)."""
+        feature = bool(getattr(self.config, "feature_libp2p", False))
+        block: Dict = {
+            "feature_libp2p": feature,
+            "active": False,
+            "default_mesh": False,
+            "honesty": "ADR0019_rust_libp2p_lab_not_prod_mesh",
+            "libp2p_peers": 0,
+            "libp2p_dial_ok": 0,
+            "libp2p_dial_fail": 0,
+            "libp2p_wire_sent": 0,
+            "libp2p_wire_recv": 0,
+            "libp2p_dial_refused_budget": 0,
+            "peer_policy": False,
+            "rust_backend": False,
+        }
+        ds = getattr(self, "_dual_stack", None)
+        if ds is None:
+            return block
+        try:
+            caps = dict(ds.capability_status() or {})
+            lib = dict(caps.get("libp2p") or {})
+            block["active"] = bool(feature and str(caps.get("active") or "") == "libp2p")
+            block["rust_backend"] = bool(lib.get("rust_backend") or lib.get("noise"))
+            pol = lib.get("peer_policy") if isinstance(lib.get("peer_policy"), dict) else {}
+            block["peer_policy"] = bool(pol.get("attached"))
+            for key in (
+                "libp2p_peers",
+                "libp2p_dial_ok",
+                "libp2p_dial_fail",
+                "libp2p_wire_sent",
+                "libp2p_wire_recv",
+                "libp2p_dial_refused_budget",
+            ):
+                if key in lib:
+                    block[key] = int(lib.get(key) or 0)
+            metrics = dict(ds.metrics() or {})
+            for key in (
+                "libp2p_peers",
+                "libp2p_dial_ok",
+                "libp2p_dial_fail",
+                "libp2p_wire_sent",
+                "libp2p_wire_recv",
+                "libp2p_dial_refused_budget",
+            ):
+                if key in metrics:
+                    block[key] = int(metrics.get(key) or 0)
+        except Exception as exc:
+            block["error"] = str(exc)
+        return block

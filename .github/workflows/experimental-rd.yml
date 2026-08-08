@@ -92,5 +92,9 @@ jobs:
         run: python scripts/libp2p_rust_three_node_lab.py
       - name: rust-libp2p soak / dial budget lab (Slice C)
         run: python scripts/libp2p_rust_soak_lab.py
-      - name: adapter unit with rust backend
-        run: pytest -q tests/unit/test_libp2p_adapter.py
+      - name: mixed dual-stack lab (Slice D)
+        run: python scripts/libp2p_mixed_dual_stack_lab.py
+      - name: adapter + wire-bridge units
+        run: pytest -q tests/unit/test_libp2p_adapter.py tests/unit/test_libp2p_wire_bridge.py
+      - name: package ADR 0019 evidence pack
+        run: python scripts/package_libp2p_evidence.py

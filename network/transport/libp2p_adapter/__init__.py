@@ -12,7 +12,13 @@ from network.transport.libp2p_adapter.multiaddr import (
 )
 from network.transport.libp2p_adapter.discovery import DiscoveryRegistry
 from network.transport.libp2p_adapter.identify import IdentifyInfo, IdentifyService
+from network.transport.libp2p_adapter.peer_policy import Libp2pPeerPolicy
 from network.transport.libp2p_adapter.request_response import RequestResponseService
+from network.transport.libp2p_adapter.wire_bridge import (
+    admit_abs_wire_frame,
+    encode_abs_wire_frame,
+    prepare_abs_wire_frame,
+)
 
 __all__ = [
     "Libp2pTransportAdapter",
@@ -26,4 +32,8 @@ __all__ = [
     "DiscoveryRegistry",
     "IdentifyInfo",
     "IdentifyService",
+    "Libp2pPeerPolicy",
+    "encode_abs_wire_frame",
+    "admit_abs_wire_frame",
+    "prepare_abs_wire_frame",
 ]

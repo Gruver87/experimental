@@ -28,6 +28,7 @@ UNIT_TESTS = [
     "tests/unit/test_long_range_wave2.py",
     "tests/unit/test_long_range_wave3.py",
     "tests/unit/test_libp2p_adapter.py",
+    "tests/unit/test_libp2p_wire_bridge.py",
     "tests/unit/test_libp2p_swarm_lab.py",
     "tests/unit/test_dual_stack.py",
     "tests/unit/test_prod_mesh_feature_freeze.py",
@@ -44,8 +45,9 @@ LABS = [
     "scripts/libp2p_relay_lab.py",
     "scripts/libp2p_discovery_lab.py",
     "scripts/libp2p_identify_lab.py",
+    "scripts/libp2p_mixed_dual_stack_lab.py",
     # ADR 0019 rust labs are opt-in (needs maturin --features libp2p); run via
-    # CI job rd-libp2p-rust or:
+    # CI job rd-libp2p-rust or package_libp2p_evidence.py:
     #   scripts/libp2p_rust_two_node_lab.py
     #   scripts/libp2p_rust_wire_lab.py
     #   scripts/libp2p_rust_three_node_lab.py

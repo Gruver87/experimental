@@ -147,6 +147,7 @@ def _status_p2p_hardening_snapshot(cfg, p2p) -> Dict[str, Any]:
             logger.warning("config TLS status snapshot failed: %s", exc)
             status_error = str(exc)
             tls = {"status_error": str(exc)}
+    libp2p = dict(sec.get("libp2p") or {})
     out = {
         "rate_limit_per_sec": int(getattr(cfg, "p2p_max_messages_per_sec", 0) or 0) if cfg else 0,
         "tls_enabled": bool(tls.get("enabled")),
@@ -160,6 +161,13 @@ def _status_p2p_hardening_snapshot(cfg, p2p) -> Dict[str, Any]:
         "active_bans": int(sec.get("active_bans", 0) or 0),
         "attestation_local_fail": int(sec.get("attestation_local_fail", 0) or 0),
         "ops_errors": dict(sec.get("ops_errors") or {}),
+        # ADR 0019 — lab metrics only; default_mesh remains TCP+TLS
+        "libp2p_feature": bool(libp2p.get("feature_libp2p")),
+        "libp2p_peers": int(libp2p.get("libp2p_peers", 0) or 0),
+        "libp2p_dial_ok": int(libp2p.get("libp2p_dial_ok", 0) or 0),
+        "libp2p_honesty": str(
+            libp2p.get("honesty") or "ADR0019_rust_libp2p_lab_not_prod_mesh"
+        ),
     }
     if status_error:
         out["status_error"] = status_error

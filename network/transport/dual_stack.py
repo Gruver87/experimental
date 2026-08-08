@@ -31,12 +31,27 @@ class DualStackDialer:
     def active_kind(self) -> TransportKind:
         return "libp2p" if self._feature and self._libp2p.enabled else "native_tcp_tls"
 
+    @property
+    def libp2p(self) -> Libp2pTransportAdapter:
+        return self._libp2p
+
+    def attach_peer_policy(self, policy: Any) -> None:
+        self._libp2p.set_peer_policy(policy)
+
+    def metrics(self) -> Mapping[str, Any]:
+        return dict(self._libp2p.metrics())
+
     def capability_status(self) -> Mapping[str, Any]:
+        lib = dict(self._libp2p.capability_status())
+        try:
+            lib.update({k: v for k, v in dict(self._libp2p.metrics()).items() if k.startswith("libp2p_")})
+        except Exception:
+            pass
         return {
             "active": self.active_kind,
             "feature_libp2p": self._feature,
             "default_mesh": "native_tcp_tls",
-            "libp2p": dict(self._libp2p.capability_status()),
+            "libp2p": lib,
             "honesty": "dual_stack_selector_lab",
         }
 

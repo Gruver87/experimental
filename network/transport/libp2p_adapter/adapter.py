@@ -26,11 +26,20 @@ def native_libp2p_available() -> bool:
 class Libp2pTransportAdapter:
     """Dual-stack lab adapter behind FEATURE_LIBP2P."""
 
-    def __init__(self, *, enabled: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        enabled: bool = False,
+        peer_policy: Optional[Any] = None,
+    ) -> None:
         self._enabled = bool(enabled)
         self._dial_count = 0
         self._node: Any = None
         self._native_capable = native_libp2p_available()
+        self._peer_policy = peer_policy
+
+    def set_peer_policy(self, policy: Any) -> None:
+        self._peer_policy = policy
 
     @property
     def enabled(self) -> bool:
@@ -54,12 +63,28 @@ class Libp2pTransportAdapter:
         return self._node
 
     def capability_status(self) -> Mapping[str, Any]:
+        policy = (
+            dict(self._peer_policy.status())
+            if self._peer_policy is not None and hasattr(self._peer_policy, "status")
+            else {"attached": False}
+        )
         if self._node is not None:
             try:
                 st = dict(self._node.capability_status())
                 st["feature_libp2p"] = self._enabled
                 st["dial_count"] = self._dial_count
                 st["rust_backend"] = True
+                st["peer_policy"] = policy
+                try:
+                    st.update(
+                        {
+                            k: v
+                            for k, v in dict(self._node.metrics()).items()
+                            if str(k).startswith("libp2p_")
+                        }
+                    )
+                except Exception:
+                    pass
                 return st
             except Exception as exc:
                 return {
@@ -68,6 +93,7 @@ class Libp2pTransportAdapter:
                     "phase": 3,
                     "error": str(exc),
                     "honesty": "ADR0019_rust_libp2p_lab_not_prod_mesh",
+                    "peer_policy": policy,
                 }
         return {
             "available": self._enabled,
@@ -84,6 +110,11 @@ class Libp2pTransportAdapter:
             ),
             "dial_count": self._dial_count,
             "error": "" if self._enabled else "feature_libp2p_disabled",
+            "peer_policy": (
+                dict(self._peer_policy.status())
+                if self._peer_policy is not None and hasattr(self._peer_policy, "status")
+                else {"attached": False}
+            ),
         }
 
     def require_transport(self) -> None:
@@ -127,6 +158,8 @@ class Libp2pTransportAdapter:
             peer_id = str(endpoint.peer_id or "")
         if not host or port <= 0:
             raise TransportCapabilityError("libp2p dial requires host:port or multiaddr")
+        if self._peer_policy is not None:
+            self._peer_policy.check_dial(peer_id=peer_id, host=host, port=port)
         self._dial_count += 1
         from network.transport.libp2p_adapter.multiaddr import Multiaddr
 
@@ -139,6 +172,13 @@ class Libp2pTransportAdapter:
             try:
                 remote = node.dial(dial_addr)
             except Exception as exc:
+                if self._peer_policy is not None:
+                    self._peer_policy.note_failure(
+                        peer_id=peer_id or str(exc),
+                        reason="libp2p_dial_fail",
+                        host=host,
+                        port=port,
+                    )
                 raise TransportCapabilityError(f"libp2p dial failed: {exc}") from exc
             return {
                 "transport": "libp2p",
