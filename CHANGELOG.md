@@ -8,6 +8,14 @@
 
 ## [Unreleased]
 
+### Experimental R&D (Gruver87/experimental only)
+
+- Profile F: `FEATURE_LIBP2P` / `FEATURE_LONG_RANGE` (default + prod forced **off** on industrial JSON)
+- ADR 0017 Long-Range / weak-subjectivity research + `scripts/long_range_lab.py`
+- ADR 0018 libp2p dual-stack transport adapter (phase-1 stub) + `scripts/libp2p_lab_smoke.py`
+- EVM compat matrix + RPC wave: `eth_call` ABI word encode, `eth_estimateGas` create path, richer receipts
+- CI fast lane: `.github/workflows/experimental-rd.yml` (no tip-v2 48h soak hard gate)
+
 ### Industrial harden (no new features)
 
 - **Public surface polish** — tighter README (evidence-first hero), ADR index, architecture ADR table 0008–0016, banner refresh; pin docs to `v1.3.1339-tip-v2-industrial`

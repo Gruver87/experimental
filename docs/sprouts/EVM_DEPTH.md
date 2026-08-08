@@ -16,6 +16,10 @@ the single `ChainApplyQueue` / mempool / state-root path.
 - Profile freeze: `tests/unit/test_sprout_profiles.py`
 - Industrial gate requires CREATE2 + deploy salt on prod mesh JSON
 
+## Compatibility gaps
+
+Honest matrix (Shanghai/Cancun subset): [EVM_COMPAT_MATRIX.md](EVM_COMPAT_MATRIX.md).
+
 ## Explicit non-goals
 
 - Full Ethereum client parity

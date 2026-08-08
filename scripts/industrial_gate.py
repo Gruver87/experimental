@@ -244,6 +244,8 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
                 "feature_ai_validator",
                 "feature_smart_accounts",
                 "feature_validator_selection",
+                "feature_libp2p",
+                "feature_long_range",
             )
             for fk in _feature_keys:
                 if fk in prod_cfg and prod_cfg.get(fk) is not False:
@@ -1236,6 +1238,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("prod config must forbid BRIDGE_REQUIRE_L1_PROOF=false via env")
         if "FEATURE_AI_VALIDATOR" not in cfg_py:
             errors.append("config must include FEATURE_AI_VALIDATOR")
+        if "FEATURE_LIBP2P" not in cfg_py:
+            errors.append("config must include FEATURE_LIBP2P (experimental; prod forced off)")
+        if "FEATURE_LONG_RANGE" not in cfg_py:
+            errors.append("config must include FEATURE_LONG_RANGE (experimental; prod forced off)")
         relayer_py = (ROOT / "scripts" / "bridge_relayer.py").read_text(encoding="utf-8")
         if "refusing --allow-blind-confirm against prod API" not in relayer_py:
             errors.append("bridge_relayer must hard-fail --allow-blind-confirm on prod API")

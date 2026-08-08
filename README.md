@@ -1,21 +1,20 @@
 # Absolute Blockchain Ultimate Hybrid
 
-> **EXPERIMENTAL SANDBOX COPY** - local R&D (`libp2p` / Long-Range / EVM depth).  
+> **EXPERIMENTAL SANDBOX** — [Gruver87/experimental](https://github.com/Gruver87/experimental)  
+> R&D: libp2p (opt-in) / Long-Range lab / EVM depth. **Default transport = TCP+TLS.**  
 > **Not** the audit-freeze tree. See [EXPERIMENTAL_SANDBOX.md](EXPERIMENTAL_SANDBOX.md).  
-> Audit pin lives in `Desktop\Absolute_Blockchain_Ultimate_Hybrid` / tag `v1.3.1339-tip-v2-industrial`.
+> Audit pin: `Desktop\Absolute_Blockchain_Ultimate_Hybrid` · tag `v1.3.1339-tip-v2-industrial`.
 
 ![Absolute Blockchain Ultimate Hybrid — Python + Rust L1](docs/assets/repo-banner.svg)
 
 **Python orchestrates. Rust owns the hot path.** Local prod-profile L1 mesh with evidence you can re-run — **not** a launched public mainnet.
 
-[![Release](https://img.shields.io/github/v/release/Gruver87/Absolute_Blockchain_Ultimate_Hybrid?include_prereleases&sort=semver&label=release)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests CI](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/test.yml)
-[![Docker CI](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/docker-prod-image.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/docker-prod-image.yml)
-[![Security checks](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
+[![Experimental R&D](https://github.com/Gruver87/experimental/actions/workflows/experimental-rd.yml/badge.svg?branch=main)](https://github.com/Gruver87/experimental/actions/workflows/experimental-rd.yml)
+[![Tests CI](https://github.com/Gruver87/experimental/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/Gruver87/experimental/actions/workflows/test.yml)
 
-> **Industrial pin:** [`v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial) · tip-v2 48h soak **PASS** · Phase 3–4 ops/audit binder **READY** · external firm audit **still pending**  
-> Auditor one-pager → [AUDIT_ENGAGEMENT_BRIEF](docs/AUDIT_ENGAGEMENT_BRIEF.md) · one-screen card → [AT_A_GLANCE](docs/AT_A_GLANCE.md)
+> **R&D labs:** `python scripts/long_range_lab.py` · `python scripts/libp2p_lab_smoke.py` · [EVM matrix](docs/sprouts/EVM_COMPAT_MATRIX.md) · Profile F [EXPERIMENTAL_RD_PROFILE](docs/sprouts/EXPERIMENTAL_RD_PROFILE.md)  
+> Audit pin (separate repo): [`v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial)
 
 ---
 

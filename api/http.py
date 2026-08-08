@@ -1039,20 +1039,22 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
 
         # ── EVM ────────────────────────────────────────────────────────────
         if method == "eth_call":
-            tx_obj = params[0] if params else {}
-            to_addr = tx_obj.get("to", "")
-            data = tx_obj.get("data", "")
-            if evm_adapter and to_addr:
-                result = evm_adapter.static_call(to_addr, data)
-                if result.success and result.return_value is not None:
-                    return hex(result.return_value)
-            return "0x"
+            from api.eth_format import encode_eth_call_return
 
-        if method == "eth_estimateGas":
             tx_obj = params[0] if params else {}
             to_addr = tx_obj.get("to", "")
             data = tx_obj.get("data", tx_obj.get("input", ""))
             if evm_adapter and to_addr:
+                result = evm_adapter.static_call(to_addr, data)
+                if result.success and result.return_value is not None:
+                    return encode_eth_call_return(result.return_value)
+            return "0x"
+
+        if method == "eth_estimateGas":
+            tx_obj = params[0] if params else {}
+            to_addr = tx_obj.get("to", "") or ""
+            data = tx_obj.get("data", tx_obj.get("input", ""))
+            if evm_adapter and (to_addr or data):
                 gas = evm_adapter.estimate_gas(to_addr, data)
                 return hex(max(21_000, int(gas or 0)))
             return hex(21_000)

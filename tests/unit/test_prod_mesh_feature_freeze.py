@@ -27,6 +27,8 @@ _FEATURE_KEYS = (
     "feature_ai_validator",
     "feature_smart_accounts",
     "feature_validator_selection",
+    "feature_libp2p",
+    "feature_long_range",
 )
 
 

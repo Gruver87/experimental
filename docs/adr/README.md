@@ -1,7 +1,8 @@
 # Architecture Decision Records
 
 Boundary ADRs for Absolute Blockchain Ultimate Hybrid.  
-**Stack claimed in docs:** **0001–0016** · **0013 intentionally unused** (number reserved / skipped).
+**Industrial stack:** **0001–0016** · **0013 unused**.  
+**Experimental (this sandbox):** **0017–0018** (not on audit pin).
 
 | ADR | Title | Status |
 |-----|-------|--------|
@@ -21,5 +22,7 @@ Boundary ADRs for Absolute Blockchain Ultimate Hybrid.
 | [0014](0014-graceful-shutdown-deep-health.md) | Graceful shutdown / deep ready | Accepted |
 | [0015](0015-observability-secret-management.md) | Observability + SecretManager | Accepted |
 | [0016](0016-feature-sprouts-profiles.md) | Feature sprouts / profiles | Accepted |
+| [0017](0017-long-range-research.md) | Long-Range / WS research | Accepted (experimental) |
+| [0018](0018-libp2p-transport.md) | libp2p dual-stack transport | Accepted (experimental) |
 
 System map: [ARCHITECTURE.md](../ARCHITECTURE.md) · sprouts: [sprouts/](../sprouts/)

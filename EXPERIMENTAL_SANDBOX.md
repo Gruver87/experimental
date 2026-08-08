@@ -9,16 +9,26 @@ This folder is a **local R&D copy** of Absolute Blockchain Ultimate Hybrid.
 
 ## Rules
 
-1. **Do not push** from here to the audit GitHub `master` / audit tags.
-2. If you want cloud backup for R&D, create a **new separate** GitHub repo and add it as another remote (e.g. `rd`).
-3. Work on branch `experimental/libp2p-longrange-evm` (or feature branches off it).
-4. Honesty still applies: experimental != public mainnet != audited.
+1. **Push only** to [Gruver87/experimental](https://github.com/Gruver87/experimental) (`origin`).
+2. Remote `audit-frozen` is fetch-only — **do not** push to the audit pin repo.
+3. Work on `experimental/libp2p-longrange-evm` / `rd/*` branches.
+4. Honesty: experimental != public mainnet != audited.
 
-## Suggested R&D tracks (out of audit scope)
+## Transport default
 
-- libp2p transport rewrite / dual-stack with current TCP+TLS mesh
-- Long-Range / tip-proof research (not claimed on industrial pin)
-- Broader EVM compatibility (beyond current subset)
+- **Default mesh transport:** native **TCP + TLS/mTLS** (ADR 0002).
+- **libp2p:** opt-in only (`FEATURE_LIBP2P=true`, ADR 0018). Never on industrial JSON.
+- **Long-Range:** lab only (`FEATURE_LONG_RANGE=true`, ADR 0017).
+
+Profile F: [docs/sprouts/EXPERIMENTAL_RD_PROFILE.md](docs/sprouts/EXPERIMENTAL_RD_PROFILE.md)
+
+## R&D tracks
+
+| Track | Entry |
+|-------|-------|
+| EVM compat | [EVM_COMPAT_MATRIX.md](docs/sprouts/EVM_COMPAT_MATRIX.md) |
+| Long-Range | `python scripts/long_range_lab.py` · ADR 0017 |
+| libp2p | `python scripts/libp2p_lab_smoke.py` · ADR 0018 |
 
 ## Bootstrap this copy
 

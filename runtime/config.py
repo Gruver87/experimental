@@ -218,6 +218,9 @@ class Config:
     feature_ai_validator: bool = True
     feature_smart_accounts: bool = True
     feature_validator_selection: bool = True
+    # Experimental R&D (Profile F) — always default OFF; prod forces OFF.
+    feature_libp2p: bool = False
+    feature_long_range: bool = False
 
     # ── Мост (Cross-chain bridge) ────────────────────────────────────────────
     bridge_enabled: bool = False        # OFF by default (mainnet-v1 decision until L1 contracts)
@@ -818,6 +821,10 @@ class Config:
         self.feature_validator_selection = env_bool(
             "FEATURE_VALIDATOR_SELECTION", self.feature_validator_selection
         )
+        self.feature_libp2p = env_bool("FEATURE_LIBP2P", self.feature_libp2p)
+        self.feature_long_range = env_bool(
+            "FEATURE_LONG_RANGE", self.feature_long_range
+        )
 
         peers = env_list("BOOTSTRAP_PEERS")
         if peers:
@@ -902,6 +909,9 @@ class Config:
             self.feature_validator_selection = env_bool(
                 "FEATURE_VALIDATOR_SELECTION", False
             )
+            # Profile F R&D flags: hard-off in prod (env cannot enable).
+            self.feature_libp2p = False
+            self.feature_long_range = False
             # Fail-closed: env cannot weaken these for prod (break-glass forbidden).
             self.require_wallet_file = True
             self.require_signatures = True

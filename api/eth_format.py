@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from api.ports import BlockQuery, LogsQuery, QueryLimitError, QueryTimeoutError
 
@@ -150,6 +150,28 @@ def format_eth_log(row: Dict, bc=None) -> Dict:
     }
 
 
+def encode_eth_call_return(value: Any) -> str:
+    """Encode eth_call return as 0x-hex (ABI word for ints; raw hex for bytes)."""
+    if value is None:
+        return "0x"
+    if isinstance(value, (bytes, bytearray)):
+        return "0x" + bytes(value).hex()
+    if isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return "0x"
+        if s.startswith("0x") or s.startswith("0X"):
+            return "0x" + s[2:]
+        return "0x" + s
+    if isinstance(value, bool):
+        return "0x" + ("1" if value else "0").zfill(64)
+    if isinstance(value, int):
+        if value < 0:
+            raise ValueError("eth_call negative int unsupported")
+        return "0x" + format(value, "x").zfill(64)
+    return "0x"
+
+
 def format_receipt(tx: Optional[Dict], bc=None, query=None) -> Optional[Dict]:
     if not tx:
         return None
@@ -165,14 +187,24 @@ def format_receipt(tx: Optional[Dict], bc=None, query=None) -> Optional[Dict]:
         rows = bc.query_facade.get_evm_logs_by_tx(tx_hash)
         logs = [format_eth_log(row, bc.query_facade) for row in rows]
     status_i = Database._normalize_tx_status(tx.get("status"))
+    gas_used = int(tx.get("gas_used", tx.get("gas", 21000)) or 21000)
+    to_addr = tx.get("to_addr", tx.get("to", "")) or None
+    contract = tx.get("contract_address") or None
     return {
         "transactionHash": tx_hash,
+        "transactionIndex": hex(int(tx.get("tx_index", tx.get("index", 0)) or 0)),
         "blockNumber": hex(tx.get("block_height", 0)),
+        "blockHash": tx.get("block_hash", tx.get("blockHash", "0x" + "0" * 64)),
         "from": tx.get("from_addr", tx.get("from", "")),
-        "to": tx.get("to_addr", tx.get("to", "")),
-        "status": hex(status_i),
-        "gasUsed": hex(tx.get("gas_used", tx.get("gas", 21000))),
+        "to": to_addr,
+        "cumulativeGasUsed": hex(gas_used),
+        "gasUsed": hex(gas_used),
+        "contractAddress": contract,
         "logs": logs,
+        "logsBloom": "0x" + ("0" * 512),
+        "status": hex(status_i),
+        "type": hex(int(tx.get("type", 0) or 0)),
+        "effectiveGasPrice": hex(int(tx.get("gas_price", tx.get("gasPrice", 0)) or 0)),
         "burned": tx.get("burned", 0.0),
     }
 
