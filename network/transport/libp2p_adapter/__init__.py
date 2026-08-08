@@ -14,6 +14,11 @@ from network.transport.libp2p_adapter.discovery import DiscoveryRegistry
 from network.transport.libp2p_adapter.identify import IdentifyInfo, IdentifyService
 from network.transport.libp2p_adapter.peer_policy import Libp2pPeerPolicy
 from network.transport.libp2p_adapter.request_response import RequestResponseService
+from network.transport.libp2p_adapter.status_metrics import (
+    LIBP2P_STATUS_METRIC_KEYS,
+    empty_libp2p_status_metrics,
+    merge_libp2p_status_metrics,
+)
 from network.transport.libp2p_adapter.wire_bridge import (
     admit_abs_wire_frame,
     encode_abs_wire_frame,
@@ -33,6 +38,9 @@ __all__ = [
     "IdentifyInfo",
     "IdentifyService",
     "Libp2pPeerPolicy",
+    "LIBP2P_STATUS_METRIC_KEYS",
+    "empty_libp2p_status_metrics",
+    "merge_libp2p_status_metrics",
     "encode_abs_wire_frame",
     "admit_abs_wire_frame",
     "prepare_abs_wire_frame",

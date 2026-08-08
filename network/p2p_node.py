@@ -7280,23 +7280,21 @@ class P2PNode:
 
     def _libp2p_status_block(self) -> Dict:
         """ADR 0019 metrics for /status /security (lab; not prod mesh claim)."""
+        from network.transport.libp2p_adapter.status_metrics import (
+            empty_libp2p_status_metrics,
+            merge_libp2p_status_metrics,
+        )
+
         feature = bool(getattr(self.config, "feature_libp2p", False))
         block: Dict = {
             "feature_libp2p": feature,
             "active": False,
             "default_mesh": False,
             "honesty": "ADR0019_rust_libp2p_lab_not_prod_mesh",
-            "libp2p_peers": 0,
-            "libp2p_dial_ok": 0,
-            "libp2p_dial_fail": 0,
-            "libp2p_wire_sent": 0,
-            "libp2p_wire_recv": 0,
-            "libp2p_dial_refused_budget": 0,
-            "libp2p_gossip_pub": 0,
-            "libp2p_gossip_recv": 0,
             "peer_policy": False,
             "rust_backend": False,
         }
+        block.update(empty_libp2p_status_metrics())
         ds = getattr(self, "_dual_stack", None)
         if ds is None:
             return block
@@ -7307,23 +7305,8 @@ class P2PNode:
             block["rust_backend"] = bool(lib.get("rust_backend") or lib.get("noise"))
             pol = lib.get("peer_policy") if isinstance(lib.get("peer_policy"), dict) else {}
             block["peer_policy"] = bool(pol.get("attached"))
-            metric_keys = (
-                "libp2p_peers",
-                "libp2p_dial_ok",
-                "libp2p_dial_fail",
-                "libp2p_wire_sent",
-                "libp2p_wire_recv",
-                "libp2p_dial_refused_budget",
-                "libp2p_gossip_pub",
-                "libp2p_gossip_recv",
-            )
-            for key in metric_keys:
-                if key in lib:
-                    block[key] = int(lib.get(key) or 0)
-            metrics = dict(ds.metrics() or {})
-            for key in metric_keys:
-                if key in metrics:
-                    block[key] = int(metrics.get(key) or 0)
+            merge_libp2p_status_metrics(block, lib)
+            merge_libp2p_status_metrics(block, dict(ds.metrics() or {}))
         except Exception as exc:
             block["error"] = str(exc)
         return block

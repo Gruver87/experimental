@@ -62,6 +62,11 @@ class Libp2pTransportAdapter:
                 self._node = abs_native.libp2p_node_new(32, key_path)
             else:
                 self._node = abs_native.libp2p_node_new()
+            if self._peer_policy is not None and hasattr(self._peer_policy, "attach_native"):
+                try:
+                    self._peer_policy.attach_native(self._node)
+                except Exception:
+                    pass
         except Exception as exc:
             raise TransportCapabilityError(f"libp2p node start failed: {exc}") from exc
         return self._node
@@ -250,6 +255,29 @@ class Libp2pTransportAdapter:
             return {"peer_id": str(peer_id), "received": False}
         return dict(node.identify_info(str(peer_id)))
 
+    def block_peer(self, peer_id: str) -> None:
+        """Slice I/J: push PeerId into native allow/block-list."""
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        node.block_peer(str(peer_id))
+
+    def unblock_peer(self, peer_id: str) -> None:
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        node.unblock_peer(str(peer_id))
+
+    def blocked_peers(self) -> list[str]:
+        if self._node is None:
+            return []
+        try:
+            return [str(p) for p in self._node.blocked_peers()]
+        except Exception:
+            return []
+
     def metrics(self) -> Mapping[str, Any]:
         if self._node is None:
             return {"rust_backend": bool(self._native_capable), "libp2p_peers": 0}
@@ -260,6 +288,34 @@ class Libp2pTransportAdapter:
             return st
         except Exception as exc:
             return {"available": False, "error": str(exc)}
+
+    def status_snapshot(self) -> Mapping[str, Any]:
+        """Flat lab status block (same keys as P2PNode._libp2p_status_block metrics)."""
+        from network.transport.libp2p_adapter.status_metrics import (
+            empty_libp2p_status_metrics,
+            merge_libp2p_status_metrics,
+        )
+
+        policy_attached = False
+        if self._peer_policy is not None and hasattr(self._peer_policy, "status"):
+            try:
+                policy_attached = bool(dict(self._peer_policy.status()).get("attached"))
+            except Exception:
+                policy_attached = False
+        out: dict[str, Any] = {
+            "feature_libp2p": self._enabled,
+            "active": bool(self._enabled and self._node is not None),
+            "default_mesh": False,
+            "honesty": "ADR0019_rust_libp2p_lab_not_prod_mesh",
+            "rust_backend": bool(self._native_capable),
+            "peer_policy": policy_attached,
+        }
+        out.update(empty_libp2p_status_metrics())
+        merge_libp2p_status_metrics(out, dict(self.capability_status() or {}))
+        merge_libp2p_status_metrics(out, dict(self.metrics() or {}))
+        if self._node is not None:
+            out["peer_id"] = str(self._node.peer_id)
+        return out
 
     def close(self) -> None:
         if self._node is not None:

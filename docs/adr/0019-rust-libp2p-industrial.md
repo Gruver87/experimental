@@ -47,6 +47,7 @@ feature `libp2p`), exposed to Python through the existing
 | Kademlia | Slice G: `/absolute/kad/1.0.0` MemoryStore DHT (lab mesh; not IPFS public bootstrap) |
 | Relay / limits | Slice H: circuit-relay-v2 (`listen_relay` + circuit dial) + `connection_limits` (`max_established_incoming`) |
 | Ban / block-list | Slice I: `allow_block_list` (`block_peer` / `unblock_peer`) + `Libp2pPeerPolicy.sync_block` |
+| Status surface | Slice J: shared metric keys → `/status` / hardening snapshot + `adapter.status_snapshot` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -63,6 +64,7 @@ feature `libp2p`), exposed to Python through the existing
 | G | Kademlia DHT + Absolute `new_block` gossip announce admit; kad + abs_announce labs |
 | H | Circuit-relay-v2 + connection limits; `libp2p_rust_relay_limits_lab.py` |
 | I | Native block-list + policy sync; `libp2p_rust_blocklist_lab.py` |
+| J | Status metric surface (G–I counters) + adapter hooks; `libp2p_rust_status_surface_lab.py` |
 
 ## Honesty
 
@@ -79,9 +81,10 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_mixed_dual_stack_lab.py`, `libp2p_rust_gossip_lab.py`,
   `libp2p_rust_identity_mdns_lab.py`, `libp2p_rust_kad_lab.py`,
   `libp2p_rust_abs_announce_lab.py`, `libp2p_rust_relay_limits_lab.py`,
-  `libp2p_rust_blocklist_lab.py`;
+  `libp2p_rust_blocklist_lab.py`, `libp2p_rust_status_surface_lab.py`;
   evidence via `package_libp2p_evidence.py`.
-- Python edge: `wire_bridge` (ADR 0008 encode/admit), `Libp2pPeerPolicy` → PeerManager.
+- Python edge: `wire_bridge` (ADR 0008 encode/admit), `Libp2pPeerPolicy` → PeerManager;
+  `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.
 - CI: experimental-rd job `rd-libp2p-rust`; Hybrid Node Checks default path

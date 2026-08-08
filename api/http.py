@@ -165,6 +165,10 @@ def _status_p2p_hardening_snapshot(cfg, p2p) -> Dict[str, Any]:
         "libp2p_feature": bool(libp2p.get("feature_libp2p")),
         "libp2p_peers": int(libp2p.get("libp2p_peers", 0) or 0),
         "libp2p_dial_ok": int(libp2p.get("libp2p_dial_ok", 0) or 0),
+        "libp2p_block_denied": int(libp2p.get("libp2p_block_denied", 0) or 0),
+        "libp2p_conn_limit_denied": int(libp2p.get("libp2p_conn_limit_denied", 0) or 0),
+        "libp2p_relay_reservations": int(libp2p.get("libp2p_relay_reservations", 0) or 0),
+        "libp2p_kad_peers": int(libp2p.get("libp2p_kad_peers", 0) or 0),
         "libp2p_honesty": str(
             libp2p.get("honesty") or "ADR0019_rust_libp2p_lab_not_prod_mesh"
         ),
