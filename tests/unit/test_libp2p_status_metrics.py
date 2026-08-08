@@ -16,6 +16,7 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_block_denied" in empty
     assert "libp2p_relay_reservations" in empty
     assert "libp2p_kad_peers" in empty
+    assert "libp2p_abs_wire_v2_recv" in empty
 
 
 def test_merge_overwrites_present_keys_only() -> None:

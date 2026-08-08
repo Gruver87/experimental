@@ -1,16 +1,34 @@
 """ADR 0008 Absolute wire frames over `/abs/wire/1.0.0` (ADR 0019).
 
 Honesty: length-prefix is rust-libp2p codec; payload is Absolute NDJSON/AB2 line.
+Slice M: v1 NDJSON + v2 Borsh (AB2) round-trip over request-response.
 Not a gossipsub rewrite; not prod mesh cutover.
 """
 
 from __future__ import annotations
 
 import time
-from typing import Any, Mapping, Optional, Sequence, Tuple
+from typing import Any, List, Mapping, Optional, Sequence, Tuple
 
 from network.transport.native_adapter import NativeTransportAdapter
 from network.transport.types import AdmitDecision, OutboundEnvelope
+
+
+def detect_abs_wire_codec(frame: bytes) -> str:
+    """Classify Absolute ADR 0008 codec (v1 / v2 / lab)."""
+    try:
+        import abs_native
+
+        if hasattr(abs_native, "libp2p_classify_abs_wire"):
+            return str(abs_native.libp2p_classify_abs_wire(bytes(frame)))
+    except Exception:
+        pass
+    body = bytes(frame).rstrip(b"\r\n")
+    if body.startswith(b"AB2:"):
+        return "v2"
+    if body.startswith(b"{"):
+        return "v1"
+    return "lab"
 
 
 def encode_abs_wire_frame(
@@ -80,3 +98,28 @@ def prepare_abs_wire_frame(
             return decision, bytes(raw)
     # Lab-safe fallback: encode without rate table when native prepare soft-fails
     return decision, encode_abs_wire_frame(msg_type, payload, codec=codec)
+
+
+def admit_abs_inbox(
+    items: Sequence[Tuple[str, bytes]],
+    *,
+    adapter: Optional[NativeTransportAdapter] = None,
+    rate_table: Any = None,
+    max_bytes: int = 2 * 1024 * 1024,
+    allowed_types: Optional[Sequence[str]] = None,
+) -> List[Tuple[str, AdmitDecision, str]]:
+    """Admit a batch of ``(peer_id, frame)`` from libp2p ``poll_inbox`` (Slice M)."""
+    out: List[Tuple[str, AdmitDecision, str]] = []
+    for peer_id, frame in items:
+        raw = bytes(frame)
+        codec = detect_abs_wire_codec(raw)
+        decision = admit_abs_wire_frame(
+            raw,
+            peer_id=str(peer_id),
+            adapter=adapter,
+            rate_table=rate_table,
+            max_bytes=int(max_bytes),
+            allowed_types=allowed_types,
+        )
+        out.append((str(peer_id), decision, codec))
+    return out

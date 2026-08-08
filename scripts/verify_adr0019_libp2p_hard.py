@@ -57,6 +57,10 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_block_denied",
     "libp2p_blocked_peers",
     "libp2p_identify_peers",
+    "libp2p_abs_wire_v1_sent",
+    "libp2p_abs_wire_v2_sent",
+    "libp2p_abs_wire_v1_recv",
+    "libp2p_abs_wire_v2_recv",
 )
 
 UNIT_TESTS = [
@@ -83,6 +87,7 @@ LABS = [
     ("J", "scripts/libp2p_rust_status_surface_lab.py"),
     ("K", "scripts/libp2p_rust_mdns_toggle_lab.py"),
     ("L", "scripts/libp2p_rust_wire_timeout_lab.py"),
+    ("M", "scripts/libp2p_rust_abs_wire_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -185,7 +190,7 @@ def check_repo_honesty() -> tuple[bool, str]:
         "TCP+TLS",
         "tip proof",
         "Gruver87/experimental",
-        "Slice L",
+        "Slice M",
         "FEATURE_LIBP2P",
         "## Honesty",
     )

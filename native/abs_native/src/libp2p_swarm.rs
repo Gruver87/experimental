@@ -11,6 +11,7 @@
 //! Slice I: allow/block-list peer enforcement (native ban hooks).
 //! Slice K: mDNS Toggle + loopback-only discovery hygiene.
 //! Slice L: Absolute wire request timeout + adapter API parity (Python edge).
+//! Slice M: ADR 0008 Absolute wire codecs (v1 NDJSON / v2 Borsh AB2) over `/abs/wire`.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -34,6 +35,27 @@ pub const MAX_WIRE_BYTES: usize = 1024 * 1024;
 /// Default `/abs/wire/1.0.0` request-response timeout (Slice L).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_WIRE_TIMEOUT_SECS: u64 = 10;
+
+/// Classify Absolute ADR 0008 payload on `/abs/wire` (Slice M).
+///
+/// - `v2`: `AB2:` + hex(Borsh) line (ADR 0008 dual-stack)
+/// - `v1`: NDJSON `{...}` line
+/// - `lab`: Slice B `libp2p_pack_wire` / other lab frames
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn classify_abs_wire_codec(data: &[u8]) -> &'static str {
+    let mut end = data.len();
+    while end > 0 && (data[end - 1] == b'\n' || data[end - 1] == b'\r') {
+        end -= 1;
+    }
+    let body = &data[..end];
+    if body.starts_with(b"AB2:") {
+        "v2"
+    } else if body.starts_with(b"{") {
+        "v1"
+    } else {
+        "lab"
+    }
+}
 
 #[pyfunction]
 fn libp2p_available() -> bool {
@@ -287,6 +309,11 @@ mod enabled {
         dial_refused_budget: u64,
         wire_sent: u64,
         wire_recv: u64,
+        /// Absolute ADR 0008 codec counters (Slice M; lab pack_wire stays in wire_* only).
+        abs_wire_v1_sent: u64,
+        abs_wire_v2_sent: u64,
+        abs_wire_v1_recv: u64,
+        abs_wire_v2_recv: u64,
         gossip_pub: u64,
         gossip_recv: u64,
         mdns_discovered: u64,
@@ -640,6 +667,7 @@ mod enabled {
                                     }
                                 }
                                 Some(Cmd::SendWire { peer_id, data, reply }) => {
+                                    let codec = super::classify_abs_wire_codec(&data);
                                     match peer_id.parse::<PeerId>() {
                                         Ok(pid) => {
                                             let req_id = swarm.behaviour_mut().wire.send_request(
@@ -649,6 +677,17 @@ mod enabled {
                                             pending_wire.insert(req_id, reply);
                                             if let Ok(mut st) = state_bg.lock() {
                                                 st.wire_sent = st.wire_sent.saturating_add(1);
+                                                match codec {
+                                                    "v1" => {
+                                                        st.abs_wire_v1_sent =
+                                                            st.abs_wire_v1_sent.saturating_add(1)
+                                                    }
+                                                    "v2" => {
+                                                        st.abs_wire_v2_sent =
+                                                            st.abs_wire_v2_sent.saturating_add(1)
+                                                    }
+                                                    _ => {}
+                                                }
                                             }
                                         }
                                         Err(e) => {
@@ -1135,9 +1174,24 @@ mod enabled {
                                                 channel,
                                                 ..
                                             } => {
+                                                let codec =
+                                                    super::classify_abs_wire_codec(&request);
                                                 if let Ok(mut st) = state_bg.lock() {
                                                     st.wire_recv =
                                                         st.wire_recv.saturating_add(1);
+                                                    match codec {
+                                                        "v1" => {
+                                                            st.abs_wire_v1_recv = st
+                                                                .abs_wire_v1_recv
+                                                                .saturating_add(1)
+                                                        }
+                                                        "v2" => {
+                                                            st.abs_wire_v2_recv = st
+                                                                .abs_wire_v2_recv
+                                                                .saturating_add(1)
+                                                        }
+                                                        _ => {}
+                                                    }
                                                     if st.inbox.len() < 1024 {
                                                         st.inbox.push_back((
                                                             peer.to_string(),
@@ -1577,6 +1631,10 @@ mod enabled {
                 d.set_item("libp2p_max_dials", st.max_dials)?;
                 d.set_item("libp2p_wire_sent", st.wire_sent)?;
                 d.set_item("libp2p_wire_recv", st.wire_recv)?;
+                d.set_item("libp2p_abs_wire_v1_sent", st.abs_wire_v1_sent)?;
+                d.set_item("libp2p_abs_wire_v2_sent", st.abs_wire_v2_sent)?;
+                d.set_item("libp2p_abs_wire_v1_recv", st.abs_wire_v1_recv)?;
+                d.set_item("libp2p_abs_wire_v2_recv", st.abs_wire_v2_recv)?;
                 d.set_item("libp2p_gossip_pub", st.gossip_pub)?;
                 d.set_item("libp2p_gossip_recv", st.gossip_recv)?;
                 d.set_item("libp2p_gossip_topics", st.subscribed.len())?;
@@ -1618,7 +1676,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 11)?;
+                d.set_item("phase", 12)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -1627,6 +1685,7 @@ mod enabled {
                 d.set_item("relay", true)?;
                 d.set_item("connection_limits", true)?;
                 d.set_item("block_list", true)?;
+                d.set_item("abs_wire_codecs", true)?;
                 d.set_item("wire_timeout_secs", st.wire_timeout_secs)?;
                 d.set_item("persistent_identity", !st.key_path.is_empty())?;
                 d.set_item("wire_protocol", ABS_WIRE_PROTOCOL)?;
@@ -1642,6 +1701,10 @@ mod enabled {
                 d.set_item("libp2p_dial_fail", st.dial_fail)?;
                 d.set_item("libp2p_wire_sent", st.wire_sent)?;
                 d.set_item("libp2p_wire_recv", st.wire_recv)?;
+                d.set_item("libp2p_abs_wire_v1_sent", st.abs_wire_v1_sent)?;
+                d.set_item("libp2p_abs_wire_v2_sent", st.abs_wire_v2_sent)?;
+                d.set_item("libp2p_abs_wire_v1_recv", st.abs_wire_v1_recv)?;
+                d.set_item("libp2p_abs_wire_v2_recv", st.abs_wire_v2_recv)?;
                 d.set_item("libp2p_gossip_pub", st.gossip_pub)?;
                 d.set_item("libp2p_gossip_recv", st.gossip_recv)?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
@@ -1720,8 +1783,14 @@ mod enabled {
         )
     }
 
+    /// Classify Absolute ADR 0008 codec on `/abs/wire` payload (Slice M).
+    #[pyfunction]
+    fn libp2p_classify_abs_wire(data: &[u8]) -> &'static str {
+        super::classify_abs_wire_codec(data)
+    }
+
     /// Encode a minimal Absolute lab wire frame: msg_type\\0 + payload.
-    /// Slice B honesty: full ADR 0008 Borsh may wrap this at Python edge later.
+    /// Slice B lab helper; Absolute ADR 0008 v1/v2 uses wire_bridge / encode_p2p_wire (Slice M).
     #[pyfunction]
     fn libp2p_pack_wire(msg_type: &str, payload: &[u8]) -> PyResult<PyObject> {
         let mut out = Vec::with_capacity(msg_type.len() + 1 + payload.len());
@@ -1748,6 +1817,7 @@ mod enabled {
         m.add_function(wrap_pyfunction!(libp2p_available, m)?)?;
         m.add_class::<Libp2pNode>()?;
         m.add_function(wrap_pyfunction!(libp2p_node_new, m)?)?;
+        m.add_function(wrap_pyfunction!(libp2p_classify_abs_wire, m)?)?;
         m.add_function(wrap_pyfunction!(libp2p_pack_wire, m)?)?;
         m.add_function(wrap_pyfunction!(libp2p_unpack_wire, m)?)?;
         m.add("ABS_WIRE_PROTOCOL", ABS_WIRE_PROTOCOL)?;
@@ -1759,3 +1829,23 @@ mod enabled {
 
 #[cfg(feature = "libp2p")]
 pub use enabled::register;
+
+#[cfg(test)]
+mod tests {
+    use super::classify_abs_wire_codec;
+
+    #[test]
+    fn classify_v1_ndjson() {
+        assert_eq!(classify_abs_wire_codec(b"{\"type\":\"ping\"}\n"), "v1");
+    }
+
+    #[test]
+    fn classify_v2_ab2() {
+        assert_eq!(classify_abs_wire_codec(b"AB2:deadbeef\n"), "v2");
+    }
+
+    #[test]
+    fn classify_lab_pack() {
+        assert_eq!(classify_abs_wire_codec(b"ping\0slice-b"), "lab");
+    }
+}

@@ -253,12 +253,37 @@ class Libp2pTransportAdapter:
             raise TransportCapabilityError("rust libp2p node not available")
         return bytes(node.send_wire(str(peer_id), data))
 
+    def send_abs_wire(
+        self,
+        peer_id: str,
+        msg_type: str,
+        payload: Optional[Mapping[str, Any]] = None,
+        *,
+        codec: str = "v1",
+    ) -> bytes:
+        """Encode ADR 0008 Absolute frame and send over `/abs/wire` (Slice M)."""
+        from network.transport.libp2p_adapter.wire_bridge import prepare_abs_wire_frame
+
+        _decision, frame = prepare_abs_wire_frame(
+            peer_id=str(peer_id),
+            msg_type=str(msg_type),
+            payload=payload,
+            codec=str(codec),
+        )
+        return self.send_wire(str(peer_id), frame)
+
     def poll_inbox(self) -> list[tuple[str, bytes]]:
         self.require_transport()
         node = self._ensure_node()
         if node is None:
             return []
         return [(str(p), bytes(b)) for p, b in node.poll_inbox()]
+
+    def poll_admit_inbox(self) -> list[tuple[str, Any, str]]:
+        """Drain inbox and admit Absolute ADR 0008 frames (Slice M)."""
+        from network.transport.libp2p_adapter.wire_bridge import admit_abs_inbox
+
+        return admit_abs_inbox(self.poll_inbox())
 
     def subscribe(self, topic: str) -> bool:
         self.require_transport()

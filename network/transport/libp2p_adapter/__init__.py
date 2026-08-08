@@ -20,7 +20,9 @@ from network.transport.libp2p_adapter.status_metrics import (
     merge_libp2p_status_metrics,
 )
 from network.transport.libp2p_adapter.wire_bridge import (
+    admit_abs_inbox,
     admit_abs_wire_frame,
+    detect_abs_wire_codec,
     encode_abs_wire_frame,
     prepare_abs_wire_frame,
 )
@@ -44,4 +46,6 @@ __all__ = [
     "encode_abs_wire_frame",
     "admit_abs_wire_frame",
     "prepare_abs_wire_frame",
+    "detect_abs_wire_codec",
+    "admit_abs_inbox",
 ]

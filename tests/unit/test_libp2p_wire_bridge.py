@@ -9,7 +9,9 @@ from network.transport.errors import TransportCapabilityError
 from network.transport.libp2p_adapter import Libp2pTransportAdapter
 from network.transport.libp2p_adapter.peer_policy import Libp2pPeerPolicy
 from network.transport.libp2p_adapter.wire_bridge import (
+    admit_abs_inbox,
     admit_abs_wire_frame,
+    detect_abs_wire_codec,
     encode_abs_wire_frame,
 )
 from network.transport.types import PeerEndpoint
@@ -21,6 +23,14 @@ def test_encode_abs_wire_frame_ping() -> None:
     assert b"ping" in raw or b"PING" in raw or raw.startswith(b"AB2:")
 
 
+def test_detect_abs_wire_codec_v1_v2() -> None:
+    v1 = encode_abs_wire_frame("ping", {"lab": True}, codec="v1")
+    v2 = encode_abs_wire_frame("ping", {"lab": True}, codec="v2")
+    assert detect_abs_wire_codec(v1) == "v1"
+    assert detect_abs_wire_codec(v2) == "v2"
+    assert detect_abs_wire_codec(b"ping\0lab") == "lab"
+
+
 def test_admit_abs_wire_frame_roundtrip() -> None:
     raw = encode_abs_wire_frame("ping", None, codec="v1")
     decision = admit_abs_wire_frame(raw, peer_id="peer-a")
@@ -28,6 +38,17 @@ def test_admit_abs_wire_frame_roundtrip() -> None:
     assert decision.ok or decision.reject is not None
     if decision.ok and decision.frame is not None:
         assert decision.frame.msg_type.lower() == "ping"
+
+
+def test_admit_abs_inbox_batch() -> None:
+    v1 = encode_abs_wire_frame("ping", {"n": 1}, codec="v1")
+    v2 = encode_abs_wire_frame("ping", {"n": 2}, codec="v2")
+    out = admit_abs_inbox([("p1", v1), ("p2", v2)])
+    assert len(out) == 2
+    assert out[0][0] == "p1" and out[0][2] == "v1"
+    assert out[1][0] == "p2" and out[1][2] == "v2"
+    assert out[0][1].ok or out[0][1].reject is not None
+    assert out[1][1].ok or out[1][1].reject is not None
 
 
 def test_peer_policy_blocks_banned() -> None:
