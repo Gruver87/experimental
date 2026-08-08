@@ -26,6 +26,8 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_gossip_validation_accept" in empty
     assert "libp2p_ping_ok" in empty
     assert "libp2p_ping_unhealthy_disconnects" in empty
+    assert "libp2p_score_autoblocks" in empty
+    assert "libp2p_score_sweep_ticks" in empty
 
 
 def test_merge_overwrites_present_keys_only() -> None:

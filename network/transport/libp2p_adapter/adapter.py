@@ -299,6 +299,16 @@ class Libp2pTransportAdapter:
         v = node.last_ping_rtt_ms(str(peer_id))
         return int(v) if v is not None else None
 
+    def set_score_autoblock(
+        self, enabled: bool, graylist_threshold: float = -80.0
+    ) -> None:
+        """Slice S: auto-block peers at/below gossip graylist score."""
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        node.set_score_autoblock(bool(enabled), float(graylist_threshold))
+
     @property
     def peer_id(self) -> str:
         if self._node is None:

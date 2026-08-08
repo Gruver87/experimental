@@ -44,6 +44,7 @@ LABS = (
     "scripts/libp2p_rust_reconnect_lab.py",
     "scripts/libp2p_rust_peer_score_lab.py",
     "scripts/libp2p_rust_ping_lab.py",
+    "scripts/libp2p_rust_score_autoblock_lab.py",
 )
 
 

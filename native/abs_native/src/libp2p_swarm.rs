@@ -17,6 +17,7 @@
 //! Slice P: bootstrap reconnect policy (backoff) on ConnectionClosed.
 //! Slice Q: gossipsub peer scoring + app score hooks + validation accept metrics.
 //! Slice R: ping RTT metrics + unhealthy peer disconnect policy.
+//! Slice S: low gossip peer-score auto-block (graylist bridge to allow/block-list).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -57,6 +58,9 @@ pub const DEFAULT_PING_INTERVAL_SECS: u64 = 2;
 pub const DEFAULT_PING_TIMEOUT_SECS: u64 = 10;
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_PING_MAX_FAILS: u32 = 3;
+/// Slice S: default gossip graylist threshold (matches PeerScoreThresholds::default).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub const DEFAULT_SCORE_GRAYLIST_THRESHOLD: f64 = -80.0;
 
 /// Classify Absolute ADR 0008 payload on `/abs/wire` (Slice M).
 ///
@@ -96,8 +100,8 @@ mod enabled {
         libp2p_available, ABS_GOSSIP_BLOCKS_TOPIC, ABS_KAD_PROTOCOL, ABS_WIRE_PROTOCOL,
         DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_PING_INTERVAL_SECS,
         DEFAULT_PING_MAX_FAILS, DEFAULT_PING_TIMEOUT_SECS, DEFAULT_RECONNECT_BASE_MS,
-        DEFAULT_RECONNECT_MAX_ATTEMPTS, DEFAULT_RECONNECT_MAX_MS, DEFAULT_WIRE_TIMEOUT_SECS,
-        MAX_WIRE_BYTES,
+        DEFAULT_RECONNECT_MAX_ATTEMPTS, DEFAULT_RECONNECT_MAX_MS, DEFAULT_SCORE_GRAYLIST_THRESHOLD,
+        DEFAULT_WIRE_TIMEOUT_SECS, MAX_WIRE_BYTES,
     };
     use async_trait::async_trait;
     use futures::prelude::*;
@@ -625,6 +629,12 @@ mod enabled {
             peer_id: String,
             reply: oneshot::Sender<Option<u64>>,
         },
+        /// Slice S: enable/disable score→block sweep + graylist threshold.
+        SetScoreAutoblock {
+            enabled: bool,
+            graylist_threshold: f64,
+            reply: oneshot::Sender<()>,
+        },
         Shutdown {
             reply: oneshot::Sender<()>,
         },
@@ -722,6 +732,11 @@ mod enabled {
         ping_max_fails: u32,
         ping_fail_streak: HashMap<String, u32>,
         ping_rtt_by_peer: HashMap<String, u64>,
+        /// Slice S: auto-block peers at/below gossip graylist score.
+        enable_score_autoblock: bool,
+        score_graylist_threshold: f64,
+        score_autoblocks: u64,
+        score_sweep_ticks: u64,
     }
 
     #[pyclass(name = "Libp2pNode")]
@@ -777,6 +792,8 @@ mod enabled {
                 enable_ping_unhealthy_disconnect: resolve_ping_unhealthy_disconnect(None),
                 ping_max_fails: resolve_ping_max_fails(None),
                 ping_max_rtt_ms: resolve_ping_max_rtt_ms(None),
+                enable_score_autoblock: resolve_score_autoblock(None),
+                score_graylist_threshold: resolve_score_graylist_threshold(None),
                 ..NodeState::default()
             }));
             let state_bg = Arc::clone(&state);
@@ -960,6 +977,8 @@ mod enabled {
                     kad::QueryId,
                     oneshot::Sender<Result<Vec<String>, String>>,
                 > = HashMap::new();
+                let mut score_sweep_at =
+                    tokio::time::Instant::now() + Duration::from_secs(1);
 
                 loop {
                     let boot_deadline = bootstrap_job.as_ref().and_then(|j| j.per_dial_deadline);
@@ -974,6 +993,55 @@ mod enabled {
                         soonest
                     };
                     tokio::select! {
+                        _ = tokio::time::sleep_until(score_sweep_at) => {
+                            score_sweep_at =
+                                tokio::time::Instant::now() + Duration::from_secs(1);
+                            // Slice S: periodic gossip score → native block sweep.
+                            let (enabled, threshold, peers) = state_bg
+                                .lock()
+                                .map(|mut st| {
+                                    st.score_sweep_ticks =
+                                        st.score_sweep_ticks.saturating_add(1);
+                                    (
+                                        st.enable_score_autoblock,
+                                        st.score_graylist_threshold,
+                                        st.connected.iter().cloned().collect::<Vec<_>>(),
+                                    )
+                                })
+                                .unwrap_or((false, DEFAULT_SCORE_GRAYLIST_THRESHOLD, Vec::new()));
+                            if enabled {
+                                for pid in peers {
+                                    let Ok(peer) = pid.parse::<PeerId>() else {
+                                        continue;
+                                    };
+                                    let already = state_bg
+                                        .lock()
+                                        .map(|st| st.blocked.contains(&pid))
+                                        .unwrap_or(false);
+                                    if already {
+                                        continue;
+                                    }
+                                    let Some(score) =
+                                        swarm.behaviour().gossipsub.peer_score(&peer)
+                                    else {
+                                        continue;
+                                    };
+                                    if score > threshold {
+                                        continue;
+                                    }
+                                    swarm.behaviour_mut().blocked_peers.block_peer(peer);
+                                    let _ = swarm.disconnect_peer_id(peer);
+                                    if let Ok(mut st) = state_bg.lock() {
+                                        st.blocked.insert(pid.clone());
+                                        st.score_autoblocks =
+                                            st.score_autoblocks.saturating_add(1);
+                                        st.last_error = format!(
+                                            "score autoblock peer={pid} score={score} thr={threshold}"
+                                        );
+                                    }
+                                }
+                            }
+                        }
                         _ = async {
                             if let Some(deadline) = relay_listen_deadline {
                                 tokio::time::sleep_until(deadline).await;
@@ -1794,6 +1862,17 @@ mod enabled {
                                         .ok()
                                         .and_then(|st| st.ping_rtt_by_peer.get(&peer_id).copied());
                                     let _ = reply.send(rtt);
+                                }
+                                Some(Cmd::SetScoreAutoblock {
+                                    enabled,
+                                    graylist_threshold,
+                                    reply,
+                                }) => {
+                                    if let Ok(mut st) = state_bg.lock() {
+                                        st.enable_score_autoblock = enabled;
+                                        st.score_graylist_threshold = graylist_threshold;
+                                    }
+                                    let _ = reply.send(());
                                 }
                             }
                         }
@@ -2857,6 +2936,21 @@ mod enabled {
                 .map_err(|_| PyRuntimeError::new_err("last_ping_rtt_ms reply dropped"))
         }
 
+        /// Slice S: enable score→block sweep; peers at/below threshold are blocked.
+        fn set_score_autoblock(&self, enabled: bool, graylist_threshold: f64) -> PyResult<()> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::SetScoreAutoblock {
+                    enabled,
+                    graylist_threshold,
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            rx.blocking_recv()
+                .map_err(|_| PyRuntimeError::new_err("set_score_autoblock reply dropped"))?;
+            Ok(())
+        }
+
         /// Send Absolute wire bytes over `/abs/wire/1.0.0`; returns response ack bytes.
         fn send_wire(&self, peer_id: &str, data: &[u8]) -> PyResult<PyObject> {
             let (tx, rx) = oneshot::channel();
@@ -3183,6 +3277,13 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_ping_max_fails", st.ping_max_fails)?;
                 d.set_item("libp2p_ping_max_rtt_ms", st.ping_max_rtt_ms)?;
+                d.set_item("libp2p_score_autoblock", st.enable_score_autoblock)?;
+                d.set_item(
+                    "libp2p_score_graylist_threshold",
+                    st.score_graylist_threshold,
+                )?;
+                d.set_item("libp2p_score_autoblocks", st.score_autoblocks)?;
+                d.set_item("libp2p_score_sweep_ticks", st.score_sweep_ticks)?;
                 d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
                 d.set_item("libp2p_block_denied", st.block_denied)?;
                 d.set_item("libp2p_blocked_peers", st.blocked.len())?;
@@ -3214,11 +3315,12 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 17)?;
+                d.set_item("phase", 18)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
                 d.set_item("peer_score", true)?;
+                d.set_item("score_autoblock", st.enable_score_autoblock)?;
                 d.set_item("ping", true)?;
                 d.set_item(
                     "ping_unhealthy_disconnect",
@@ -3311,6 +3413,13 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_ping_max_fails", st.ping_max_fails)?;
                 d.set_item("libp2p_ping_max_rtt_ms", st.ping_max_rtt_ms)?;
+                d.set_item("libp2p_score_autoblock", st.enable_score_autoblock)?;
+                d.set_item(
+                    "libp2p_score_graylist_threshold",
+                    st.score_graylist_threshold,
+                )?;
+                d.set_item("libp2p_score_autoblocks", st.score_autoblocks)?;
+                d.set_item("libp2p_score_sweep_ticks", st.score_sweep_ticks)?;
                 d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
                 d.set_item("libp2p_block_denied", st.block_denied)?;
                 d.set_item("libp2p_blocked_peers", st.blocked.len())?;
@@ -3471,6 +3580,34 @@ mod enabled {
         match std::env::var("ABS_LIBP2P_PING_MAX_RTT_MS") {
             Ok(s) => s.trim().parse::<u64>().ok().unwrap_or(0),
             Err(_) => 0,
+        }
+    }
+
+    fn resolve_score_autoblock(explicit: Option<bool>) -> bool {
+        if let Some(v) = explicit {
+            return v;
+        }
+        match std::env::var("ABS_LIBP2P_SCORE_AUTOBLOCK") {
+            Ok(s) => {
+                let t = s.trim().to_ascii_lowercase();
+                matches!(t.as_str(), "1" | "true" | "on" | "yes")
+            }
+            // Default off so Slice Q labs are not surprise-blocked.
+            Err(_) => false,
+        }
+    }
+
+    fn resolve_score_graylist_threshold(explicit: Option<f64>) -> f64 {
+        if let Some(v) = explicit {
+            return v;
+        }
+        match std::env::var("ABS_LIBP2P_SCORE_GRAYLIST_THRESHOLD") {
+            Ok(s) => s
+                .trim()
+                .parse::<f64>()
+                .ok()
+                .unwrap_or(DEFAULT_SCORE_GRAYLIST_THRESHOLD),
+            Err(_) => DEFAULT_SCORE_GRAYLIST_THRESHOLD,
         }
     }
 

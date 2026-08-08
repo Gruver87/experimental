@@ -87,6 +87,10 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_ping_unhealthy_disconnect",
     "libp2p_ping_max_fails",
     "libp2p_ping_max_rtt_ms",
+    "libp2p_score_autoblock",
+    "libp2p_score_graylist_threshold",
+    "libp2p_score_autoblocks",
+    "libp2p_score_sweep_ticks",
 )
 
 UNIT_TESTS = [
@@ -119,6 +123,7 @@ LABS = [
     ("P", "scripts/libp2p_rust_reconnect_lab.py"),
     ("Q", "scripts/libp2p_rust_peer_score_lab.py"),
     ("R", "scripts/libp2p_rust_ping_lab.py"),
+    ("S", "scripts/libp2p_rust_score_autoblock_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -221,7 +226,7 @@ def check_repo_honesty() -> tuple[bool, str]:
         "TCP+TLS",
         "tip proof",
         "Gruver87/experimental",
-        "Slice R",
+        "Slice S",
         "FEATURE_LIBP2P",
         "## Honesty",
     )

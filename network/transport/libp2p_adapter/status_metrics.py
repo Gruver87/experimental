@@ -59,6 +59,10 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_ping_unhealthy_disconnect",
     "libp2p_ping_max_fails",
     "libp2p_ping_max_rtt_ms",
+    "libp2p_score_autoblock",
+    "libp2p_score_graylist_threshold",
+    "libp2p_score_autoblocks",
+    "libp2p_score_sweep_ticks",
 )
 
 
