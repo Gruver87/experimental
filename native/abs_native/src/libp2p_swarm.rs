@@ -16,6 +16,7 @@
 //! Slice O: persistent bootstrap peer list (JSON file) + dial-all.
 //! Slice P: bootstrap reconnect policy (backoff) on ConnectionClosed.
 //! Slice Q: gossipsub peer scoring + app score hooks + validation accept metrics.
+//! Slice R: ping RTT metrics + unhealthy peer disconnect policy.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -49,6 +50,13 @@ pub const DEFAULT_RECONNECT_BASE_MS: u64 = 200;
 pub const DEFAULT_RECONNECT_MAX_MS: u64 = 5_000;
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_RECONNECT_MAX_ATTEMPTS: u32 = 8;
+/// Slice R ping defaults (faster interval for lab observability).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub const DEFAULT_PING_INTERVAL_SECS: u64 = 2;
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub const DEFAULT_PING_TIMEOUT_SECS: u64 = 10;
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub const DEFAULT_PING_MAX_FAILS: u32 = 3;
 
 /// Classify Absolute ADR 0008 payload on `/abs/wire` (Slice M).
 ///
@@ -86,7 +94,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 mod enabled {
     use super::{
         libp2p_available, ABS_GOSSIP_BLOCKS_TOPIC, ABS_KAD_PROTOCOL, ABS_WIRE_PROTOCOL,
-        DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_RECONNECT_BASE_MS,
+        DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_PING_INTERVAL_SECS,
+        DEFAULT_PING_MAX_FAILS, DEFAULT_PING_TIMEOUT_SECS, DEFAULT_RECONNECT_BASE_MS,
         DEFAULT_RECONNECT_MAX_ATTEMPTS, DEFAULT_RECONNECT_MAX_MS, DEFAULT_WIRE_TIMEOUT_SECS,
         MAX_WIRE_BYTES,
     };
@@ -605,6 +614,17 @@ mod enabled {
             acceptance: String,
             reply: oneshot::Sender<Result<bool, String>>,
         },
+        /// Slice R: tune unhealthy ping disconnect policy.
+        SetPingUnhealthyPolicy {
+            enabled: bool,
+            max_fails: u32,
+            max_rtt_ms: u64,
+            reply: oneshot::Sender<()>,
+        },
+        LastPingRttMs {
+            peer_id: String,
+            reply: oneshot::Sender<Option<u64>>,
+        },
         Shutdown {
             reply: oneshot::Sender<()>,
         },
@@ -690,6 +710,18 @@ mod enabled {
         reconnect_ok: u64,
         reconnect_fail: u64,
         reconnect_give_up: u64,
+        /// Slice R: ping / liveness.
+        ping_ok: u64,
+        ping_fail: u64,
+        ping_rtt_ms_last: u64,
+        ping_rtt_ms_max: u64,
+        ping_unhealthy_disconnects: u64,
+        enable_ping_unhealthy_disconnect: bool,
+        /// 0 = RTT threshold disabled.
+        ping_max_rtt_ms: u64,
+        ping_max_fails: u32,
+        ping_fail_streak: HashMap<String, u32>,
+        ping_rtt_by_peer: HashMap<String, u64>,
     }
 
     #[pyclass(name = "Libp2pNode")]
@@ -742,6 +774,9 @@ mod enabled {
                 reconnect_base_ms: DEFAULT_RECONNECT_BASE_MS,
                 reconnect_max_ms: DEFAULT_RECONNECT_MAX_MS,
                 reconnect_max_attempts: DEFAULT_RECONNECT_MAX_ATTEMPTS,
+                enable_ping_unhealthy_disconnect: resolve_ping_unhealthy_disconnect(None),
+                ping_max_fails: resolve_ping_max_fails(None),
+                ping_max_rtt_ms: resolve_ping_max_rtt_ms(None),
                 ..NodeState::default()
             }));
             let state_bg = Arc::clone(&state);
@@ -752,6 +787,8 @@ mod enabled {
             let limits_total = max_established;
             let want_mdns = enable_mdns;
             let wire_timeout = Duration::from_secs(wire_timeout_secs);
+            let ping_interval = Duration::from_secs(resolve_ping_interval_secs(None));
+            let ping_timeout = Duration::from_secs(resolve_ping_timeout_secs(None));
 
             runtime.spawn(async move {
                 let keypair = if key_path_str.is_empty() {
@@ -858,7 +895,11 @@ mod enabled {
                         limits = limits.with_max_established(Some(n));
                     }
                     Ok(AbsBehaviour {
-                        ping: ping::Behaviour::new(ping::Config::new()),
+                        ping: ping::Behaviour::new(
+                            ping::Config::new()
+                                .with_interval(ping_interval)
+                                .with_timeout(ping_timeout),
+                        ),
                         identify: identify::Behaviour::new(identify::Config::new(
                             "/absolute/1.0.0".into(),
                             key.public(),
@@ -1712,6 +1753,48 @@ mod enabled {
                                         }
                                     }
                                 }
+                                Some(Cmd::SetPingUnhealthyPolicy {
+                                    enabled,
+                                    max_fails,
+                                    max_rtt_ms,
+                                    reply,
+                                }) => {
+                                    let mut drop_list: Vec<String> = Vec::new();
+                                    if let Ok(mut st) = state_bg.lock() {
+                                        st.enable_ping_unhealthy_disconnect = enabled;
+                                        st.ping_max_fails = max_fails.max(1);
+                                        st.ping_max_rtt_ms = max_rtt_ms;
+                                        if enabled && max_rtt_ms > 0 {
+                                            for (pid, ms) in st.ping_rtt_by_peer.iter() {
+                                                if *ms >= max_rtt_ms {
+                                                    drop_list.push(pid.clone());
+                                                }
+                                            }
+                                            if !drop_list.is_empty() {
+                                                st.ping_unhealthy_disconnects = st
+                                                    .ping_unhealthy_disconnects
+                                                    .saturating_add(drop_list.len() as u64);
+                                                st.last_error = format!(
+                                                    "ping unhealthy policy drop n={}",
+                                                    drop_list.len()
+                                                );
+                                            }
+                                        }
+                                    }
+                                    for pid in drop_list {
+                                        if let Ok(p) = pid.parse::<PeerId>() {
+                                            let _ = swarm.disconnect_peer_id(p);
+                                        }
+                                    }
+                                    let _ = reply.send(());
+                                }
+                                Some(Cmd::LastPingRttMs { peer_id, reply }) => {
+                                    let rtt = state_bg
+                                        .lock()
+                                        .ok()
+                                        .and_then(|st| st.ping_rtt_by_peer.get(&peer_id).copied());
+                                    let _ = reply.send(rtt);
+                                }
                             }
                         }
                         event = swarm.select_next_some() => {
@@ -2041,6 +2124,60 @@ mod enabled {
                                                 }
                                             }
                                         }
+                                    }
+                                }
+                                SwarmEvent::Behaviour(AbsBehaviourEvent::Ping(ev)) => {
+                                    let pid = ev.peer.to_string();
+                                    let mut drop_peer = false;
+                                    match ev.result {
+                                        Ok(rtt) => {
+                                            let ms = rtt.as_millis().min(u128::from(u64::MAX))
+                                                as u64;
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.ping_ok = st.ping_ok.saturating_add(1);
+                                                st.ping_rtt_ms_last = ms;
+                                                if ms > st.ping_rtt_ms_max {
+                                                    st.ping_rtt_ms_max = ms;
+                                                }
+                                                st.ping_rtt_by_peer.insert(pid.clone(), ms);
+                                                st.ping_fail_streak.remove(&pid);
+                                                if st.enable_ping_unhealthy_disconnect
+                                                    && st.ping_max_rtt_ms > 0
+                                                    && ms >= st.ping_max_rtt_ms
+                                                {
+                                                    st.ping_unhealthy_disconnects = st
+                                                        .ping_unhealthy_disconnects
+                                                        .saturating_add(1);
+                                                    st.last_error = format!(
+                                                        "ping unhealthy rtt_ms={ms} peer={pid}"
+                                                    );
+                                                    drop_peer = true;
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.ping_fail = st.ping_fail.saturating_add(1);
+                                                st.last_error = format!("ping fail {pid}: {e}");
+                                                let streak = st
+                                                    .ping_fail_streak
+                                                    .entry(pid.clone())
+                                                    .or_insert(0);
+                                                *streak = streak.saturating_add(1);
+                                                let streak_n = *streak;
+                                                let max_fails = st.ping_max_fails.max(1);
+                                                let unhealthy = st.enable_ping_unhealthy_disconnect;
+                                                if unhealthy && streak_n >= max_fails {
+                                                    st.ping_unhealthy_disconnects = st
+                                                        .ping_unhealthy_disconnects
+                                                        .saturating_add(1);
+                                                    drop_peer = true;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if drop_peer {
+                                        let _ = swarm.disconnect_peer_id(ev.peer);
                                     }
                                 }
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::Identify(ev)) => {
@@ -2686,6 +2823,40 @@ mod enabled {
             }
         }
 
+        /// Slice R: enable/disable unhealthy ping disconnect + thresholds.
+        fn set_ping_unhealthy_policy(
+            &self,
+            enabled: bool,
+            max_fails: u32,
+            max_rtt_ms: u64,
+        ) -> PyResult<()> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::SetPingUnhealthyPolicy {
+                    enabled,
+                    max_fails,
+                    max_rtt_ms,
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            rx.blocking_recv()
+                .map_err(|_| PyRuntimeError::new_err("set_ping_unhealthy_policy reply dropped"))?;
+            Ok(())
+        }
+
+        /// Slice R: last successful ping RTT in milliseconds for a peer.
+        fn last_ping_rtt_ms(&self, peer_id: &str) -> PyResult<Option<u64>> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::LastPingRttMs {
+                    peer_id: peer_id.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            rx.blocking_recv()
+                .map_err(|_| PyRuntimeError::new_err("last_ping_rtt_ms reply dropped"))
+        }
+
         /// Send Absolute wire bytes over `/abs/wire/1.0.0`; returns response ack bytes.
         fn send_wire(&self, peer_id: &str, data: &[u8]) -> PyResult<PyObject> {
             let (tx, rx) = oneshot::channel();
@@ -2998,6 +3169,20 @@ mod enabled {
                 d.set_item("libp2p_reconnect_ok", st.reconnect_ok)?;
                 d.set_item("libp2p_reconnect_fail", st.reconnect_fail)?;
                 d.set_item("libp2p_reconnect_give_up", st.reconnect_give_up)?;
+                d.set_item("libp2p_ping_ok", st.ping_ok)?;
+                d.set_item("libp2p_ping_fail", st.ping_fail)?;
+                d.set_item("libp2p_ping_rtt_ms_last", st.ping_rtt_ms_last)?;
+                d.set_item("libp2p_ping_rtt_ms_max", st.ping_rtt_ms_max)?;
+                d.set_item(
+                    "libp2p_ping_unhealthy_disconnects",
+                    st.ping_unhealthy_disconnects,
+                )?;
+                d.set_item(
+                    "libp2p_ping_unhealthy_disconnect",
+                    st.enable_ping_unhealthy_disconnect,
+                )?;
+                d.set_item("libp2p_ping_max_fails", st.ping_max_fails)?;
+                d.set_item("libp2p_ping_max_rtt_ms", st.ping_max_rtt_ms)?;
                 d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
                 d.set_item("libp2p_block_denied", st.block_denied)?;
                 d.set_item("libp2p_blocked_peers", st.blocked.len())?;
@@ -3029,11 +3214,16 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 16)?;
+                d.set_item("phase", 17)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
                 d.set_item("peer_score", true)?;
+                d.set_item("ping", true)?;
+                d.set_item(
+                    "ping_unhealthy_disconnect",
+                    st.enable_ping_unhealthy_disconnect,
+                )?;
                 d.set_item("mdns", st.enable_mdns)?;
                 d.set_item("kademlia", true)?;
                 d.set_item("relay", true)?;
@@ -3107,6 +3297,20 @@ mod enabled {
                 d.set_item("libp2p_reconnect_ok", st.reconnect_ok)?;
                 d.set_item("libp2p_reconnect_fail", st.reconnect_fail)?;
                 d.set_item("libp2p_reconnect_give_up", st.reconnect_give_up)?;
+                d.set_item("libp2p_ping_ok", st.ping_ok)?;
+                d.set_item("libp2p_ping_fail", st.ping_fail)?;
+                d.set_item("libp2p_ping_rtt_ms_last", st.ping_rtt_ms_last)?;
+                d.set_item("libp2p_ping_rtt_ms_max", st.ping_rtt_ms_max)?;
+                d.set_item(
+                    "libp2p_ping_unhealthy_disconnects",
+                    st.ping_unhealthy_disconnects,
+                )?;
+                d.set_item(
+                    "libp2p_ping_unhealthy_disconnect",
+                    st.enable_ping_unhealthy_disconnect,
+                )?;
+                d.set_item("libp2p_ping_max_fails", st.ping_max_fails)?;
+                d.set_item("libp2p_ping_max_rtt_ms", st.ping_max_rtt_ms)?;
                 d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
                 d.set_item("libp2p_block_denied", st.block_denied)?;
                 d.set_item("libp2p_blocked_peers", st.blocked.len())?;
@@ -3199,6 +3403,74 @@ mod enabled {
             }
             // Default on: industrial bootstrap mesh expects auto-redial.
             Err(_) => true,
+        }
+    }
+
+    fn resolve_ping_interval_secs(explicit: Option<u64>) -> u64 {
+        if let Some(v) = explicit {
+            return v.max(1);
+        }
+        match std::env::var("ABS_LIBP2P_PING_INTERVAL_SECS") {
+            Ok(s) => s
+                .trim()
+                .parse::<u64>()
+                .ok()
+                .unwrap_or(DEFAULT_PING_INTERVAL_SECS)
+                .max(1),
+            Err(_) => DEFAULT_PING_INTERVAL_SECS,
+        }
+    }
+
+    fn resolve_ping_timeout_secs(explicit: Option<u64>) -> u64 {
+        if let Some(v) = explicit {
+            return v.max(1);
+        }
+        match std::env::var("ABS_LIBP2P_PING_TIMEOUT_SECS") {
+            Ok(s) => s
+                .trim()
+                .parse::<u64>()
+                .ok()
+                .unwrap_or(DEFAULT_PING_TIMEOUT_SECS)
+                .max(1),
+            Err(_) => DEFAULT_PING_TIMEOUT_SECS,
+        }
+    }
+
+    fn resolve_ping_unhealthy_disconnect(explicit: Option<bool>) -> bool {
+        if let Some(v) = explicit {
+            return v;
+        }
+        match std::env::var("ABS_LIBP2P_PING_UNHEALTHY_DISCONNECT") {
+            Ok(s) => {
+                let t = s.trim().to_ascii_lowercase();
+                !matches!(t.as_str(), "0" | "false" | "off" | "no")
+            }
+            Err(_) => true,
+        }
+    }
+
+    fn resolve_ping_max_fails(explicit: Option<u32>) -> u32 {
+        if let Some(v) = explicit {
+            return v.max(1);
+        }
+        match std::env::var("ABS_LIBP2P_PING_MAX_FAILS") {
+            Ok(s) => s
+                .trim()
+                .parse::<u32>()
+                .ok()
+                .unwrap_or(DEFAULT_PING_MAX_FAILS)
+                .max(1),
+            Err(_) => DEFAULT_PING_MAX_FAILS,
+        }
+    }
+
+    fn resolve_ping_max_rtt_ms(explicit: Option<u64>) -> u64 {
+        if let Some(v) = explicit {
+            return v;
+        }
+        match std::env::var("ABS_LIBP2P_PING_MAX_RTT_MS") {
+            Ok(s) => s.trim().parse::<u64>().ok().unwrap_or(0),
+            Err(_) => 0,
         }
     }
 

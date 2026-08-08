@@ -280,6 +280,25 @@ class Libp2pTransportAdapter:
             node.report_gossip_validation(str(message_id), str(peer_id), str(acceptance))
         )
 
+    def set_ping_unhealthy_policy(
+        self, enabled: bool, max_fails: int = 3, max_rtt_ms: int = 0
+    ) -> None:
+        """Slice R: tune unhealthy ping disconnect policy."""
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        node.set_ping_unhealthy_policy(bool(enabled), int(max_fails), int(max_rtt_ms))
+
+    def last_ping_rtt_ms(self, peer_id: str) -> Optional[int]:
+        """Slice R: last successful ping RTT in milliseconds."""
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        v = node.last_ping_rtt_ms(str(peer_id))
+        return int(v) if v is not None else None
+
     @property
     def peer_id(self) -> str:
         if self._node is None:

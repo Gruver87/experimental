@@ -79,6 +79,14 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_gossip_app_score_sets",
     "libp2p_gossip_not_supported",
     "libp2p_gossip_peer_score",
+    "libp2p_ping_ok",
+    "libp2p_ping_fail",
+    "libp2p_ping_rtt_ms_last",
+    "libp2p_ping_rtt_ms_max",
+    "libp2p_ping_unhealthy_disconnects",
+    "libp2p_ping_unhealthy_disconnect",
+    "libp2p_ping_max_fails",
+    "libp2p_ping_max_rtt_ms",
 )
 
 UNIT_TESTS = [
@@ -110,6 +118,7 @@ LABS = [
     ("O", "scripts/libp2p_rust_bootstrap_lab.py"),
     ("P", "scripts/libp2p_rust_reconnect_lab.py"),
     ("Q", "scripts/libp2p_rust_peer_score_lab.py"),
+    ("R", "scripts/libp2p_rust_ping_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -212,7 +221,7 @@ def check_repo_honesty() -> tuple[bool, str]:
         "TCP+TLS",
         "tip proof",
         "Gruver87/experimental",
-        "Slice Q",
+        "Slice R",
         "FEATURE_LIBP2P",
         "## Honesty",
     )

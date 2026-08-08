@@ -51,6 +51,14 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_gossip_app_score_sets",
     "libp2p_gossip_not_supported",
     "libp2p_gossip_peer_score",
+    "libp2p_ping_ok",
+    "libp2p_ping_fail",
+    "libp2p_ping_rtt_ms_last",
+    "libp2p_ping_rtt_ms_max",
+    "libp2p_ping_unhealthy_disconnects",
+    "libp2p_ping_unhealthy_disconnect",
+    "libp2p_ping_max_fails",
+    "libp2p_ping_max_rtt_ms",
 )
 
 

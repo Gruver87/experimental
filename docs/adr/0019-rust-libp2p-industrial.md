@@ -55,6 +55,7 @@ feature `libp2p`), exposed to Python through the existing
 | Bootstrap book | Slice O: JSON peer book + industrial sequential `bootstrap_dial` (budget/timeout/settle); `libp2p_rust_bootstrap_lab.py` |
 | Reconnect | Slice P: bootstrap auto-redial on disconnect with exponential backoff; `libp2p_rust_reconnect_lab.py` |
 | Peer score | Slice Q: gossipsub peer scoring + app score hooks; `libp2p_rust_peer_score_lab.py` |
+| Ping / liveness | Slice R: ping RTT metrics + unhealthy disconnect policy; `libp2p_rust_ping_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -79,6 +80,7 @@ feature `libp2p`), exposed to Python through the existing
 | O | Persistent bootstrap JSON + industrial dial settle; `libp2p_rust_bootstrap_lab.py` |
 | P | Bootstrap reconnect backoff policy; `libp2p_rust_reconnect_lab.py` |
 | Q | Gossipsub peer scoring + app score; `libp2p_rust_peer_score_lab.py` |
+| R | Ping RTT + unhealthy disconnect; `libp2p_rust_ping_lab.py` |
 
 ## Honesty
 
@@ -98,8 +100,8 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_blocklist_lab.py`,   `libp2p_rust_status_surface_lab.py`,
   `libp2p_rust_mdns_toggle_lab.py`, `libp2p_rust_wire_timeout_lab.py`,
   `libp2p_rust_abs_wire_lab.py`, `libp2p_rust_autonat_dcutr_lab.py`,
-  `libp2p_rust_bootstrap_lab.py`, `libp2p_rust_reconnect_lab.py`,
-  `libp2p_rust_peer_score_lab.py`;
+  `libp2p_rust_bootstrap_lab.py`,   `libp2p_rust_reconnect_lab.py`,
+  `libp2p_rust_peer_score_lab.py`, `libp2p_rust_ping_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
