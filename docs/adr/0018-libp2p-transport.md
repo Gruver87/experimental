@@ -28,5 +28,6 @@ ADR 0008 wire codec. A full libp2p rewrite must not break the industrial default
 ## Consequences
 
 - Config: `feature_libp2p` / `FEATURE_LIBP2P` (default false).
-- Lab: `scripts/libp2p_lab_smoke.py`.
+- Labs: `scripts/libp2p_lab_smoke.py`, `libp2p_two_node_lab.py`,
+  `libp2p_swarm_lab.py`, `libp2p_three_node_lab.py` (in-process; not rust-libp2p).
 - Industrial gate freezes the flag off on prod mesh JSON.

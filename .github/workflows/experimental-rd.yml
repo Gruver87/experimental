@@ -45,3 +45,5 @@ jobs:
         run: python scripts/libp2p_two_node_lab.py
       - name: libp2p in-process swarm lab
         run: python scripts/libp2p_swarm_lab.py
+      - name: libp2p 3-node swarm lab
+        run: python scripts/libp2p_three_node_lab.py

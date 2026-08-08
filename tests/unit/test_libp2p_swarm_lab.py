@@ -44,3 +44,19 @@ def test_in_process_swarm_dial_and_publish() -> None:
     assert a.dial(b.listen.to_string())["connected"]
     assert a.publish("t", b"ping") == 1
     assert got == [b"ping"]
+
+
+def test_three_node_mesh_fanout() -> None:
+    swarm = InProcessSwarm()
+    a = swarm.spawn("n1", "/ip4/127.0.0.1/tcp/4101/p2p/n1")
+    b = swarm.spawn("n2", "/ip4/127.0.0.1/tcp/4102/p2p/n2")
+    c = swarm.spawn("n3", "/ip4/127.0.0.1/tcp/4103/p2p/n3")
+    a.dial(b.listen.to_string())
+    a.dial(c.listen.to_string())
+    b.dial(c.listen.to_string())
+    got_b: list[bytes] = []
+    got_c: list[bytes] = []
+    b.subscribe("blocks", lambda _p, d: got_b.append(d))
+    c.subscribe("blocks", lambda _p, d: got_c.append(d))
+    assert a.publish("blocks", b"x") == 2
+    assert got_b == [b"x"] and got_c == [b"x"]

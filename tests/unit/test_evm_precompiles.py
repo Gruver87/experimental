@@ -35,6 +35,17 @@ def test_sha256_precompile() -> None:
     assert r.return_value == hashlib.sha256(payload).digest()
 
 
+def test_ripemd160_precompile() -> None:
+    import hashlib
+
+    payload = b"abc"
+    r = try_precompile("0x0000000000000000000000000000000000000003", payload.hex())
+    assert r is not None and r.success
+    digest = hashlib.new("ripemd160", payload).digest()
+    assert r.return_value == digest.rjust(32, b"\x00")
+    assert r.gas_used == 600 + 120 * 1
+
+
 def test_unknown_address_none() -> None:
     assert try_precompile("0x" + "0" * 39 + "9", "00") is None
     assert not is_precompile("0xdead")

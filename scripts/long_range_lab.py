@@ -2,6 +2,7 @@
 """Long-Range / weak-subjectivity lab (ADR 0017).
 
 Wave-2: checkpoint certificate + AncestryWindow walk.
+Wave-4: JSON export/import round-trip of the WS checkpoint.
 
 Usage:
   python scripts/long_range_lab.py
@@ -10,6 +11,7 @@ Usage:
 from __future__ import annotations
 
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -55,11 +57,27 @@ def main() -> int:
     bad = evaluate_with_window(svc, window, candidate_hash=stale, candidate_height=3)
     below = evaluate_with_window(svc, window, candidate_hash=a1, candidate_height=1)
 
-    print("Long-Range lab wave-2 (checkpoint + AncestryWindow)")
+    # Wave-4: export/import checkpoint (lab peer handoff simulation)
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "ws_checkpoint.json"
+        path.write_text(cert.to_json(), encoding="utf-8")
+        restored = CheckpointCertificate.from_json(path.read_text(encoding="utf-8"))
+    if restored.digest != cert.digest or not restored.verify_digest():
+        print("FAIL: checkpoint export/import")
+        return 1
+    svc2 = WeakSubjectivityService()
+    svc2.set_anchor(restored.anchor)
+    ok2 = evaluate_with_window(svc2, window, candidate_hash=child, candidate_height=3)
+    if not ok2.accept:
+        print("FAIL: restored anchor rejected valid child")
+        return 1
+
+    print("Long-Range lab wave-4 (checkpoint + AncestryWindow + JSON round-trip)")
     print(f"  cert digest: {cert.digest[:16]}… verify={cert.verify_digest()}")
     print(f"  WS child:   accept={ok.accept} reason={ok.reason}")
     print(f"  stale fork: accept={bad.accept} reason={bad.reason}")
     print(f"  below:      accept={below.accept} reason={below.reason}")
+    print(f"  import:     digest_match={restored.digest == cert.digest}")
 
     if not ok.accept or bad.accept or below.accept:
         print("FAIL: unexpected policy outcomes")

@@ -28,6 +28,24 @@ def test_checkpoint_digest_stable() -> None:
     assert len(c.digest) == 64
 
 
+def test_checkpoint_json_roundtrip() -> None:
+    c = CheckpointCertificate.issue(height=2, block_hash="aa" * 32, issuer="x", epoch=7)
+    again = CheckpointCertificate.from_json(c.to_json())
+    assert again.digest == c.digest
+    assert again.anchor.epoch == 7
+    assert again.verify_digest()
+
+
+def test_checkpoint_from_dict_digest_mismatch() -> None:
+    import pytest
+
+    c = CheckpointCertificate.issue(height=1, block_hash="bb" * 32)
+    bad = dict(c.to_dict())
+    bad["digest"] = "00" * 32
+    with pytest.raises(ValueError, match="digest mismatch"):
+        CheckpointCertificate.from_dict(bad)
+
+
 def test_shares_ancestor_walk() -> None:
     w, anchor, child, mid = _chain()
     assert shares_ancestor_with_anchor(w, candidate_hash=child, anchor_hash=anchor)

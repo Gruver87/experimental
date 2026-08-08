@@ -3,6 +3,7 @@
 Addresses (20-byte, hex with/without 0x):
   0x01 — ECRECOVER
   0x02 — SHA256
+  0x03 — RIPEMD160
   0x04 — IDENTITY (data copy)
 
 Honesty: modexp/bn254/blake2f remain open.
@@ -15,6 +16,7 @@ from typing import Any, Optional
 # Canonical 20-byte addresses
 _ECRECOVER = "0000000000000000000000000000000000000001"
 _SHA256 = "0000000000000000000000000000000000000002"
+_RIPEMD160 = "0000000000000000000000000000000000000003"
 _IDENTITY = "0000000000000000000000000000000000000004"
 
 
@@ -72,6 +74,20 @@ def try_precompile(contract_addr: str, calldata_hex: str = "") -> Optional[Any]:
         gas = 15 + 3 * words
         return EVMResult(success=True, return_value=data, gas_used=gas)
 
+    if key == _RIPEMD160:
+        # Yellow paper: 600 + 120 * words; return left-padded 32-byte digest.
+        words = (len(data) + 31) // 32
+        gas = 600 + 120 * words
+        try:
+            import hashlib
+
+            digest = hashlib.new("ripemd160", data).digest()
+        except Exception:
+            return EVMResult(
+                success=False, error="ripemd160_unavailable", gas_used=gas
+            )
+        return EVMResult(success=True, return_value=digest.rjust(32, b"\x00"), gas_used=gas)
+
     if key == _SHA256:
         try:
             from crypto import native
@@ -91,4 +107,9 @@ def try_precompile(contract_addr: str, calldata_hex: str = "") -> Optional[Any]:
 
 
 def is_precompile(contract_addr: str) -> bool:
-    return _norm_addr(contract_addr) in {_ECRECOVER, _SHA256, _IDENTITY}
+    return _norm_addr(contract_addr) in {
+        _ECRECOVER,
+        _SHA256,
+        _RIPEMD160,
+        _IDENTITY,
+    }
