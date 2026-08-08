@@ -19,6 +19,7 @@
 //! Slice R: ping RTT metrics + unhealthy peer disconnect policy.
 //! Slice S: low gossip peer-score auto-block (graylist bridge to allow/block-list).
 //! Slice T: persistent learned peerstore (identify/connection → JSON) + warm dial.
+//! Slice U: reconnect policy also covers learned peerstore peers (not only bootstrap).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -820,6 +821,8 @@ mod enabled {
         reconnect_ok: u64,
         reconnect_fail: u64,
         reconnect_give_up: u64,
+        /// Slice U: reconnects scheduled because peer was in learned peerstore.
+        reconnect_from_peerstore: u64,
         /// Slice R: ping / liveness.
         ping_ok: u64,
         ping_fail: u64,
@@ -2332,7 +2335,8 @@ mod enabled {
                                             st.outbound_peers.remove(&pid);
                                         }
                                     }
-                                    // Slice P: schedule bootstrap reconnect after full disconnect.
+                                    // Slice P/U: schedule reconnect after full disconnect for
+                                    // bootstrap book peers, else learned peerstore peers.
                                     if !still {
                                         let schedule = state_bg.lock().ok().and_then(|st| {
                                             if !st.enable_reconnect {
@@ -2341,17 +2345,30 @@ mod enabled {
                                             if st.blocked.contains(&pid) {
                                                 return None;
                                             }
-                                            let addrs = st.bootstrap.get(&pid)?.clone();
-                                            if addrs.is_empty() {
-                                                return None;
-                                            }
+                                            let (addrs, from_peerstore) =
+                                                if let Some(a) = st.bootstrap.get(&pid) {
+                                                    if a.is_empty() {
+                                                        return None;
+                                                    }
+                                                    (a.clone(), false)
+                                                } else if let Some(a) = st.peerstore.get(&pid) {
+                                                    if a.is_empty() {
+                                                        return None;
+                                                    }
+                                                    (a.clone(), true)
+                                                } else {
+                                                    return None;
+                                                };
                                             Some((
                                                 addrs,
+                                                from_peerstore,
                                                 st.reconnect_base_ms,
                                                 pending_reconnects.contains_key(&pid),
                                             ))
                                         });
-                                        if let Some((addrs, base_ms, already)) = schedule {
+                                        if let Some((addrs, from_peerstore, base_ms, already)) =
+                                            schedule
+                                        {
                                             if !already {
                                                 pending_reconnects.insert(
                                                     pid.clone(),
@@ -2367,6 +2384,11 @@ mod enabled {
                                                     st.reconnect_scheduled = st
                                                         .reconnect_scheduled
                                                         .saturating_add(1);
+                                                    if from_peerstore {
+                                                        st.reconnect_from_peerstore = st
+                                                            .reconnect_from_peerstore
+                                                            .saturating_add(1);
+                                                    }
                                                 }
                                             }
                                         }
@@ -3501,6 +3523,10 @@ mod enabled {
                 d.set_item("libp2p_reconnect_ok", st.reconnect_ok)?;
                 d.set_item("libp2p_reconnect_fail", st.reconnect_fail)?;
                 d.set_item("libp2p_reconnect_give_up", st.reconnect_give_up)?;
+                d.set_item(
+                    "libp2p_reconnect_from_peerstore",
+                    st.reconnect_from_peerstore,
+                )?;
                 d.set_item("libp2p_ping_ok", st.ping_ok)?;
                 d.set_item("libp2p_ping_fail", st.ping_fail)?;
                 d.set_item("libp2p_ping_rtt_ms_last", st.ping_rtt_ms_last)?;
@@ -3553,13 +3579,14 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 19)?;
+                d.set_item("phase", 20)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
                 d.set_item("peer_score", true)?;
                 d.set_item("score_autoblock", st.enable_score_autoblock)?;
                 d.set_item("peerstore", !st.peerstore_path.is_empty())?;
+                d.set_item("peerstore_reconnect", st.enable_reconnect)?;
                 d.set_item("ping", true)?;
                 d.set_item(
                     "ping_unhealthy_disconnect",
@@ -3650,6 +3677,10 @@ mod enabled {
                 d.set_item("libp2p_reconnect_ok", st.reconnect_ok)?;
                 d.set_item("libp2p_reconnect_fail", st.reconnect_fail)?;
                 d.set_item("libp2p_reconnect_give_up", st.reconnect_give_up)?;
+                d.set_item(
+                    "libp2p_reconnect_from_peerstore",
+                    st.reconnect_from_peerstore,
+                )?;
                 d.set_item("libp2p_ping_ok", st.ping_ok)?;
                 d.set_item("libp2p_ping_fail", st.ping_fail)?;
                 d.set_item("libp2p_ping_rtt_ms_last", st.ping_rtt_ms_last)?;

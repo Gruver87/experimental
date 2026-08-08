@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify ADR 0019 rust-libp2p work (Slices A–T) locally.
+"""Verify ADR 0019 rust-libp2p work (Slices A–U) locally.
 
 Checks abs_native libp2p feature, unit tests, and all rust labs.
 
@@ -37,7 +37,7 @@ UNIT_TESTS = [
     "tests/unit/test_prod_mesh_feature_freeze.py",
 ]
 
-# Slice A–T rust / dual-stack labs (order = dependency-friendly)
+# Slice A–U rust / dual-stack labs (order = dependency-friendly)
 LABS = [
     ("A", "scripts/libp2p_rust_two_node_lab.py"),
     ("B", "scripts/libp2p_rust_wire_lab.py"),
@@ -61,6 +61,7 @@ LABS = [
     ("R", "scripts/libp2p_rust_ping_lab.py"),
     ("S", "scripts/libp2p_rust_score_autoblock_lab.py"),
     ("T", "scripts/libp2p_rust_peerstore_lab.py"),
+    ("U", "scripts/libp2p_rust_peerstore_reconnect_lab.py"),
 ]
 
 

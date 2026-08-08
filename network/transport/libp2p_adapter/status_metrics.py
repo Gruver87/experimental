@@ -69,6 +69,7 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_peerstore_dials_fail",
     "libp2p_peerstore_dials_timeout",
     "libp2p_peerstore_dials_attempted",
+    "libp2p_reconnect_from_peerstore",
 )
 
 
