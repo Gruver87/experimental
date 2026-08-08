@@ -46,6 +46,7 @@ feature `libp2p`), exposed to Python through the existing
 | Identity / discovery | Slice F: protobuf Ed25519 key file (`key_path` / `ABS_LIBP2P_KEY_PATH`); mDNS local discovery (LAN; may be filtered in CI) |
 | Kademlia | Slice G: `/absolute/kad/1.0.0` MemoryStore DHT (lab mesh; not IPFS public bootstrap) |
 | Relay / limits | Slice H: circuit-relay-v2 (`listen_relay` + circuit dial) + `connection_limits` (`max_established_incoming`) |
+| Ban / block-list | Slice I: `allow_block_list` (`block_peer` / `unblock_peer`) + `Libp2pPeerPolicy.sync_block` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -61,6 +62,7 @@ feature `libp2p`), exposed to Python through the existing
 | F | Persistent PeerId keystore + mDNS discovery; `libp2p_rust_identity_mdns_lab.py` |
 | G | Kademlia DHT + Absolute `new_block` gossip announce admit; kad + abs_announce labs |
 | H | Circuit-relay-v2 + connection limits; `libp2p_rust_relay_limits_lab.py` |
+| I | Native block-list + policy sync; `libp2p_rust_blocklist_lab.py` |
 
 ## Honesty
 
@@ -76,7 +78,8 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_three_node_lab.py`, `libp2p_rust_soak_lab.py`,
   `libp2p_mixed_dual_stack_lab.py`, `libp2p_rust_gossip_lab.py`,
   `libp2p_rust_identity_mdns_lab.py`, `libp2p_rust_kad_lab.py`,
-  `libp2p_rust_abs_announce_lab.py`, `libp2p_rust_relay_limits_lab.py`;
+  `libp2p_rust_abs_announce_lab.py`, `libp2p_rust_relay_limits_lab.py`,
+  `libp2p_rust_blocklist_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit), `Libp2pPeerPolicy` → PeerManager.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.

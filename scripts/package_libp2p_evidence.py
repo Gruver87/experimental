@@ -34,6 +34,7 @@ LABS = (
     "scripts/libp2p_rust_kad_lab.py",
     "scripts/libp2p_rust_abs_announce_lab.py",
     "scripts/libp2p_rust_relay_limits_lab.py",
+    "scripts/libp2p_rust_blocklist_lab.py",
 )
 
 

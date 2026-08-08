@@ -8,6 +8,7 @@
 //! Slice F: persistent PeerId keystore + mDNS discovery.
 //! Slice G: Kademlia DHT (MemoryStore) + Absolute gossip announce edge.
 //! Slice H: circuit-relay-v2 + connection_limits.
+//! Slice I: allow/block-list peer enforcement (native ban hooks).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -45,6 +46,8 @@ mod enabled {
     use libp2p::core::ConnectedPoint;
     use libp2p::multiaddr::Protocol;
     use libp2p::{
+        allow_block_list,
+        allow_block_list::BlockedPeers,
         connection_limits, gossipsub, identify,
         identity::Keypair,
         kad::{self, store::MemoryStore},
@@ -189,6 +192,7 @@ mod enabled {
         relay: relay::Behaviour,
         relay_client: relay::client::Behaviour,
         connection_limits: connection_limits::Behaviour,
+        blocked_peers: allow_block_list::Behaviour<BlockedPeers>,
     }
 
     enum Cmd {
@@ -238,6 +242,14 @@ mod enabled {
             peer_id: String,
             reply: oneshot::Sender<Result<Vec<String>, String>>,
         },
+        BlockPeer {
+            peer_id: String,
+            reply: oneshot::Sender<Result<(), String>>,
+        },
+        UnblockPeer {
+            peer_id: String,
+            reply: oneshot::Sender<Result<(), String>>,
+        },
         Shutdown {
             reply: oneshot::Sender<()>,
         },
@@ -272,6 +284,8 @@ mod enabled {
         relay_reservations: u64,
         relay_circuits: u64,
         conn_limit_denied: u64,
+        block_denied: u64,
+        blocked: HashSet<String>,
         max_dials: u32,
         max_established_incoming: Option<u32>,
         max_established: Option<u32>,
@@ -419,6 +433,7 @@ mod enabled {
                         relay: relay::Behaviour::new(local, relay::Config::default()),
                         relay_client,
                         connection_limits: connection_limits::Behaviour::new(limits),
+                        blocked_peers: allow_block_list::Behaviour::default(),
                     })
                 }) {
                     Ok(b) => b
@@ -440,8 +455,8 @@ mod enabled {
                 }
 
                 let mut pending_listen: Option<oneshot::Sender<Result<Vec<String>, String>>> = None;
-                let mut pending_relay_listen:
-                    Option<oneshot::Sender<Result<Vec<String>, String>>> = None;
+                let mut pending_relay_listen: Option<oneshot::Sender<Result<Vec<String>, String>>> =
+                    None;
                 let mut relay_listen_deadline: Option<tokio::time::Instant> = None;
                 let mut pending_dial: Option<oneshot::Sender<Result<String, String>>> = None;
                 let mut pending_wire: HashMap<
@@ -533,6 +548,28 @@ mod enabled {
                                     }
                                 }
                                 Some(Cmd::Dial { addr, reply }) => {
+                                    // Fast-fail if multiaddr targets a blocked PeerId (Slice I).
+                                    if let Ok(ma) = addr.parse::<Multiaddr>() {
+                                        let target = ma.iter().find_map(|p| match p {
+                                            Protocol::P2p(pid) => Some(pid),
+                                            _ => None,
+                                        });
+                                        if let Some(pid) = target {
+                                            let blocked = state_bg
+                                                .lock()
+                                                .map(|st| st.blocked.contains(&pid.to_string()))
+                                                .unwrap_or(false);
+                                            if blocked {
+                                                if let Ok(mut st) = state_bg.lock() {
+                                                    st.block_denied =
+                                                        st.block_denied.saturating_add(1);
+                                                    st.last_error = "peer_blocked".into();
+                                                }
+                                                let _ = reply.send(Err("peer_blocked".into()));
+                                                continue;
+                                            }
+                                        }
+                                    }
                                     // Budget = outbound peers + inflight dials (Slice C).
                                     let reserved = if let Ok(mut st) = state_bg.lock() {
                                         let used = (st.outbound_peers.len() as u32)
@@ -693,6 +730,34 @@ mod enabled {
                                         }
                                     }
                                 }
+                                Some(Cmd::BlockPeer { peer_id, reply }) => {
+                                    match peer_id.parse::<PeerId>() {
+                                        Ok(pid) => {
+                                            swarm.behaviour_mut().blocked_peers.block_peer(pid);
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.blocked.insert(pid.to_string());
+                                            }
+                                            let _ = reply.send(Ok(()));
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!("bad peer_id: {e}")));
+                                        }
+                                    }
+                                }
+                                Some(Cmd::UnblockPeer { peer_id, reply }) => {
+                                    match peer_id.parse::<PeerId>() {
+                                        Ok(pid) => {
+                                            swarm.behaviour_mut().blocked_peers.unblock_peer(pid);
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.blocked.remove(&pid.to_string());
+                                            }
+                                            let _ = reply.send(Ok(()));
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!("bad peer_id: {e}")));
+                                        }
+                                    }
+                                }
                             }
                         }
                         event = swarm.select_next_some() => {
@@ -774,6 +839,13 @@ mod enabled {
                                                 .downcast_ref::<connection_limits::Exceeded>()
                                                 .is_some()
                                     );
+                                    let block_denied = matches!(
+                                        &error,
+                                        DialError::Denied { cause }
+                                            if cause
+                                                .downcast_ref::<allow_block_list::Blocked>()
+                                                .is_some()
+                                    );
                                     if let Ok(mut st) = state_bg.lock() {
                                         st.last_error = format!("outgoing: {error}");
                                         st.dial_fail = st.dial_fail.saturating_add(1);
@@ -782,9 +854,17 @@ mod enabled {
                                             st.conn_limit_denied =
                                                 st.conn_limit_denied.saturating_add(1);
                                         }
+                                        if block_denied {
+                                            st.block_denied = st.block_denied.saturating_add(1);
+                                        }
                                     }
                                     if let Some(reply) = pending_dial.take() {
-                                        let _ = reply.send(Err(format!("outgoing: {error}")));
+                                        let msg = if block_denied {
+                                            "peer_blocked".into()
+                                        } else {
+                                            format!("outgoing: {error}")
+                                        };
+                                        let _ = reply.send(Err(msg));
                                     }
                                 }
                                 SwarmEvent::IncomingConnectionError { error, .. } => {
@@ -795,11 +875,21 @@ mod enabled {
                                                 .downcast_ref::<connection_limits::Exceeded>()
                                                 .is_some()
                                     );
+                                    let block_denied = matches!(
+                                        &error,
+                                        ListenError::Denied { cause }
+                                            if cause
+                                                .downcast_ref::<allow_block_list::Blocked>()
+                                                .is_some()
+                                    );
                                     if let Ok(mut st) = state_bg.lock() {
                                         st.last_error = format!("incoming: {error}");
                                         if limit_denied {
                                             st.conn_limit_denied =
                                                 st.conn_limit_denied.saturating_add(1);
+                                        }
+                                        if block_denied {
+                                            st.block_denied = st.block_denied.saturating_add(1);
                                         }
                                     }
                                 }
@@ -1361,6 +1451,50 @@ mod enabled {
             }
         }
 
+        /// Block a PeerId (Slice I allow/block-list). Closes existing connections.
+        fn block_peer(&self, peer_id: &str) -> PyResult<()> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::BlockPeer {
+                    peer_id: peer_id.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("block_peer reply dropped")),
+            }
+        }
+
+        /// Remove PeerId from the block list (Slice I).
+        fn unblock_peer(&self, peer_id: &str) -> PyResult<()> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::UnblockPeer {
+                    peer_id: peer_id.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("unblock_peer reply dropped")),
+            }
+        }
+
+        /// Currently blocked PeerIds (Slice I).
+        fn blocked_peers(&self) -> Vec<String> {
+            self.state
+                .lock()
+                .map(|s| {
+                    let mut v: Vec<String> = s.blocked.iter().cloned().collect();
+                    v.sort();
+                    v
+                })
+                .unwrap_or_default()
+        }
+
         /// Identify snapshot for a peer (empty dict if not yet received).
         fn identify_info(&self, peer_id: &str) -> PyResult<PyObject> {
             Python::with_gil(|py| {
@@ -1414,6 +1548,8 @@ mod enabled {
                 d.set_item("libp2p_relay_reservations", st.relay_reservations)?;
                 d.set_item("libp2p_relay_circuits", st.relay_circuits)?;
                 d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
+                d.set_item("libp2p_block_denied", st.block_denied)?;
+                d.set_item("libp2p_blocked_peers", st.blocked.len())?;
                 d.set_item("libp2p_circuit_addrs", st.circuit_addrs.len())?;
                 if let Some(n) = st.max_established_incoming {
                     d.set_item("libp2p_max_established_incoming", n)?;
@@ -1439,7 +1575,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 8)?;
+                d.set_item("phase", 9)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -1447,6 +1583,7 @@ mod enabled {
                 d.set_item("kademlia", true)?;
                 d.set_item("relay", true)?;
                 d.set_item("connection_limits", true)?;
+                d.set_item("block_list", true)?;
                 d.set_item("persistent_identity", !st.key_path.is_empty())?;
                 d.set_item("wire_protocol", ABS_WIRE_PROTOCOL)?;
                 d.set_item("gossip_blocks_topic", ABS_GOSSIP_BLOCKS_TOPIC)?;
@@ -1467,6 +1604,8 @@ mod enabled {
                 d.set_item("libp2p_kad_peers", st.kad_peers.len())?;
                 d.set_item("libp2p_relay_reservations", st.relay_reservations)?;
                 d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
+                d.set_item("libp2p_block_denied", st.block_denied)?;
+                d.set_item("libp2p_blocked_peers", st.blocked.len())?;
                 d.set_item("default_mesh", false)?;
                 d.set_item("honesty", "ADR0019_rust_libp2p_lab_not_prod_mesh")?;
                 d.set_item("error", st.last_error.clone())?;
