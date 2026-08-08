@@ -42,7 +42,7 @@ feature `libp2p`), exposed to Python through the existing
 | Security | Noise XX + Ed25519 PeerId (rust-libp2p standard) — **not** a drop-in for current mTLS peer-cert model |
 | Mux | Yamux |
 | Absolute wire | Slice A: identify + ping + listen/dial. Slice B: `/abs/wire/1.0.0` request-response (length-prefixed Absolute lab frames; full Borsh ADR 0008 may wrap at Python edge). Slice C: dial budgets / backpressure counters |
-| Gossipsub | Later announce; not required for Slices A–C |
+| Gossipsub | Slice E: signed gossipsub announce (`abs/blocks/1.0.0`); Absolute wire remains request-response — not replaced by gossipsub |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -54,6 +54,7 @@ feature `libp2p`), exposed to Python through the existing
 | B | `/abs/wire/1.0.0` + `libp2p_peers` / `libp2p_dial_ok`; wire + 3-node rust labs |
 | C | `max_dials` budget + `libp2p_dial_refused_budget`; soak lab |
 | D | `/status` libp2p block; ADR 0008 wire bridge; PeerManager ban hooks; mixed dual-stack lab; evidence pack |
+| E | Gossipsub publish/subscribe + identify Received; `libp2p_rust_gossip_lab.py` |
 
 ## Honesty
 
@@ -67,7 +68,8 @@ feature `libp2p`), exposed to Python through the existing
   `Libp2pNode` / `libp2p_node_new`, `send_wire`, `metrics`).
 - Labs: `libp2p_rust_two_node_lab.py`, `libp2p_rust_wire_lab.py`,
   `libp2p_rust_three_node_lab.py`, `libp2p_rust_soak_lab.py`,
-  `libp2p_mixed_dual_stack_lab.py`; evidence via `package_libp2p_evidence.py`.
+  `libp2p_mixed_dual_stack_lab.py`, `libp2p_rust_gossip_lab.py`;
+  evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit), `Libp2pPeerPolicy` → PeerManager.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.

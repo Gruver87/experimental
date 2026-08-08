@@ -3,15 +3,19 @@
 //! Slice A: listen/dial/identify/ping.
 //! Slice B: `/abs/wire/1.0.0` request-response (Absolute wire bytes).
 //! Slice C: dial budgets / backpressure counters.
+//! Slice D: status / ADR 0008 bridge / peer policy (Python edge).
+//! Slice E: gossipsub announce + identify Received snapshots.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
 use pyo3::prelude::*;
 
 pub const ABS_WIRE_PROTOCOL: &str = "/abs/wire/1.0.0";
+/// Default gossip topic for Absolute block announce labs (Slice E).
+pub const ABS_GOSSIP_BLOCKS_TOPIC: &str = "abs/blocks/1.0.0";
 /// Default max concurrent outbound dials (Slice C).
 pub const DEFAULT_MAX_DIALS: u32 = 32;
-/// Max wire payload bytes (lab bound).
+/// Max wire / gossip payload bytes (lab bound).
 pub const MAX_WIRE_BYTES: usize = 1024 * 1024;
 
 #[pyfunction]
@@ -28,19 +32,22 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(feature = "libp2p")]
 mod enabled {
     use super::{
-        libp2p_available, ABS_WIRE_PROTOCOL, DEFAULT_MAX_DIALS, MAX_WIRE_BYTES,
+        libp2p_available, ABS_GOSSIP_BLOCKS_TOPIC, ABS_WIRE_PROTOCOL, DEFAULT_MAX_DIALS,
+        MAX_WIRE_BYTES,
     };
     use async_trait::async_trait;
     use futures::prelude::*;
     use libp2p::{
-        identify, noise, ping, request_response,
+        gossipsub, identify, noise, ping, request_response,
         swarm::{NetworkBehaviour, SwarmEvent},
         tcp, yamux, Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
     };
     use pyo3::exceptions::{PyRuntimeError, PyValueError};
     use pyo3::prelude::*;
     use pyo3::types::PyBytes;
+    use std::collections::hash_map::DefaultHasher;
     use std::collections::{HashMap, HashSet, VecDeque};
+    use std::hash::{Hash, Hasher};
     use std::io;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
@@ -146,6 +153,7 @@ mod enabled {
         ping: ping::Behaviour,
         identify: identify::Behaviour,
         wire: request_response::Behaviour<AbsWireCodec>,
+        gossipsub: gossipsub::Behaviour,
     }
 
     enum Cmd {
@@ -165,9 +173,34 @@ mod enabled {
         PollInbox {
             reply: oneshot::Sender<Vec<(String, Vec<u8>)>>,
         },
+        Subscribe {
+            topic: String,
+            reply: oneshot::Sender<Result<bool, String>>,
+        },
+        Unsubscribe {
+            topic: String,
+            reply: oneshot::Sender<Result<bool, String>>,
+        },
+        Publish {
+            topic: String,
+            data: Vec<u8>,
+            reply: oneshot::Sender<Result<String, String>>,
+        },
+        PollGossip {
+            reply: oneshot::Sender<Vec<(String, String, Vec<u8>)>>,
+        },
         Shutdown {
             reply: oneshot::Sender<()>,
         },
+    }
+
+    #[derive(Clone, Default)]
+    struct IdentifySnap {
+        protocol_version: String,
+        agent_version: String,
+        listen_addrs: Vec<String>,
+        protocols: Vec<String>,
+        observed_addr: String,
     }
 
     #[derive(Default)]
@@ -182,9 +215,14 @@ mod enabled {
         dial_refused_budget: u64,
         wire_sent: u64,
         wire_recv: u64,
+        gossip_pub: u64,
+        gossip_recv: u64,
         max_dials: u32,
         last_error: String,
         inbox: VecDeque<(String, Vec<u8>)>,
+        gossip_inbox: VecDeque<(String, String, Vec<u8>)>,
+        subscribed: HashSet<String>,
+        identify: HashMap<String, IdentifySnap>,
     }
 
     #[pyclass(name = "Libp2pNode")]
@@ -241,14 +279,31 @@ mod enabled {
                         )],
                         request_response::Config::default(),
                     );
-                    AbsBehaviour {
+                    let message_id_fn = |message: &gossipsub::Message| {
+                        let mut hasher = DefaultHasher::new();
+                        message.data.hash(&mut hasher);
+                        gossipsub::MessageId::from(hasher.finish().to_string())
+                    };
+                    let gs_cfg = gossipsub::ConfigBuilder::default()
+                        .heartbeat_interval(Duration::from_millis(500))
+                        .validation_mode(gossipsub::ValidationMode::Strict)
+                        .message_id_fn(message_id_fn)
+                        .build()
+                        .map_err(|e| format!("gossipsub config: {e}"))?;
+                    let gossipsub = gossipsub::Behaviour::new(
+                        gossipsub::MessageAuthenticity::Signed(key.clone()),
+                        gs_cfg,
+                    )
+                    .map_err(|e| format!("gossipsub: {e}"))?;
+                    Ok(AbsBehaviour {
                         ping: ping::Behaviour::new(ping::Config::new()),
                         identify: identify::Behaviour::new(identify::Config::new(
                             "/absolute/1.0.0".into(),
                             key.public(),
                         )),
                         wire,
-                    }
+                        gossipsub,
+                    })
                 }) {
                     Ok(b) => b
                         .with_swarm_config(|cfg| {
@@ -367,6 +422,60 @@ mod enabled {
                                     };
                                     let _ = reply.send(items);
                                 }
+                                Some(Cmd::Subscribe { topic, reply }) => {
+                                    let t = gossipsub::IdentTopic::new(topic.clone());
+                                    match swarm.behaviour_mut().gossipsub.subscribe(&t) {
+                                        Ok(fresh) => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.subscribed.insert(topic);
+                                            }
+                                            let _ = reply.send(Ok(fresh));
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!("subscribe: {e}")));
+                                        }
+                                    }
+                                }
+                                Some(Cmd::Unsubscribe { topic, reply }) => {
+                                    let t = gossipsub::IdentTopic::new(topic.clone());
+                                    match swarm.behaviour_mut().gossipsub.unsubscribe(&t) {
+                                        Ok(was) => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.subscribed.remove(&topic);
+                                            }
+                                            let _ = reply.send(Ok(was));
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!("unsubscribe: {e}")));
+                                        }
+                                    }
+                                }
+                                Some(Cmd::Publish { topic, data, reply }) => {
+                                    if data.len() > MAX_WIRE_BYTES {
+                                        let _ = reply.send(Err("gossip payload too large".into()));
+                                        continue;
+                                    }
+                                    let t = gossipsub::IdentTopic::new(topic);
+                                    match swarm.behaviour_mut().gossipsub.publish(t, data) {
+                                        Ok(mid) => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.gossip_pub = st.gossip_pub.saturating_add(1);
+                                            }
+                                            let _ = reply.send(Ok(mid.to_string()));
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!("publish: {e}")));
+                                        }
+                                    }
+                                }
+                                Some(Cmd::PollGossip { reply }) => {
+                                    let items = if let Ok(mut st) = state_bg.lock() {
+                                        st.gossip_inbox.drain(..).collect()
+                                    } else {
+                                        Vec::new()
+                                    };
+                                    let _ = reply.send(items);
+                                }
                             }
                         }
                         event = swarm.select_next_some() => {
@@ -393,6 +502,8 @@ mod enabled {
                                 } => {
                                     let pid = peer_id.to_string();
                                     let is_dialer = endpoint.is_dialer();
+                                    // Explicit peer so gossipsub mesh forms without mDNS.
+                                    swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
                                     if let Ok(mut st) = state_bg.lock() {
                                         st.connected.insert(pid.clone());
                                         if is_dialer {
@@ -420,10 +531,53 @@ mod enabled {
                                 }
                                 SwarmEvent::ConnectionClosed { peer_id, endpoint, .. } => {
                                     let pid = peer_id.to_string();
+                                    swarm.behaviour_mut().gossipsub.remove_explicit_peer(&peer_id);
                                     if let Ok(mut st) = state_bg.lock() {
                                         st.connected.remove(&pid);
                                         if endpoint.is_dialer() {
                                             st.outbound_peers.remove(&pid);
+                                        }
+                                    }
+                                }
+                                SwarmEvent::Behaviour(AbsBehaviourEvent::Identify(ev)) => {
+                                    if let identify::Event::Received { peer_id, info, .. } = ev {
+                                        let snap = IdentifySnap {
+                                            protocol_version: info.protocol_version.clone(),
+                                            agent_version: info.agent_version.clone(),
+                                            listen_addrs: info
+                                                .listen_addrs
+                                                .iter()
+                                                .map(|a| a.to_string())
+                                                .collect(),
+                                            protocols: info
+                                                .protocols
+                                                .iter()
+                                                .map(|p| p.to_string())
+                                                .collect(),
+                                            observed_addr: info.observed_addr.to_string(),
+                                        };
+                                        if let Ok(mut st) = state_bg.lock() {
+                                            st.identify.insert(peer_id.to_string(), snap);
+                                        }
+                                    }
+                                }
+                                SwarmEvent::Behaviour(AbsBehaviourEvent::Gossipsub(ev)) => {
+                                    if let gossipsub::Event::Message {
+                                        propagation_source,
+                                        message,
+                                        ..
+                                    } = ev
+                                    {
+                                        let topic = message.topic.to_string();
+                                        if let Ok(mut st) = state_bg.lock() {
+                                            st.gossip_recv = st.gossip_recv.saturating_add(1);
+                                            if st.gossip_inbox.len() < 1024 {
+                                                st.gossip_inbox.push_back((
+                                                    propagation_source.to_string(),
+                                                    topic,
+                                                    message.data,
+                                                ));
+                                            }
                                         }
                                     }
                                 }
@@ -628,7 +782,104 @@ mod enabled {
                 .unwrap_or_default()
         }
 
-        /// Metrics for /status / security status (ADR 0019 Slice B/C).
+        /// Subscribe to a gossipsub topic (Slice E).
+        fn subscribe(&self, topic: &str) -> PyResult<bool> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::Subscribe {
+                    topic: topic.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(fresh)) => Ok(fresh),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("subscribe reply dropped")),
+            }
+        }
+
+        fn unsubscribe(&self, topic: &str) -> PyResult<bool> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::Unsubscribe {
+                    topic: topic.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(ok)) => Ok(ok),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("unsubscribe reply dropped")),
+            }
+        }
+
+        /// Publish bytes on a gossipsub topic; returns message id string.
+        fn publish(&self, topic: &str, data: &[u8]) -> PyResult<String> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::Publish {
+                    topic: topic.to_string(),
+                    data: data.to_vec(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(mid)) => Ok(mid),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("publish reply dropped")),
+            }
+        }
+
+        /// Drain gossip messages as list of (peer_id, topic, payload_bytes).
+        fn poll_gossip(&self) -> PyResult<PyObject> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::PollGossip { reply: tx })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            let items = rx
+                .blocking_recv()
+                .map_err(|_| PyRuntimeError::new_err("poll_gossip reply dropped"))?;
+            Python::with_gil(|py| {
+                let out = pyo3::types::PyList::empty_bound(py);
+                for (peer, topic, data) in items {
+                    let tup = pyo3::types::PyTuple::new_bound(
+                        py,
+                        &[
+                            peer.into_py(py),
+                            topic.into_py(py),
+                            PyBytes::new_bound(py, &data).into_py(py),
+                        ],
+                    );
+                    out.append(tup)?;
+                }
+                Ok(out.into())
+            })
+        }
+
+        /// Identify snapshot for a peer (empty dict if not yet received).
+        fn identify_info(&self, peer_id: &str) -> PyResult<PyObject> {
+            Python::with_gil(|py| {
+                let st = self.state.lock().map_err(|e| {
+                    PyRuntimeError::new_err(format!("state lock poisoned: {e}"))
+                })?;
+                let d = pyo3::types::PyDict::new_bound(py);
+                if let Some(snap) = st.identify.get(peer_id) {
+                    d.set_item("peer_id", peer_id)?;
+                    d.set_item("protocol_version", &snap.protocol_version)?;
+                    d.set_item("agent_version", &snap.agent_version)?;
+                    d.set_item("listen_addrs", snap.listen_addrs.clone())?;
+                    d.set_item("protocols", snap.protocols.clone())?;
+                    d.set_item("observed_addr", &snap.observed_addr)?;
+                    d.set_item("received", true)?;
+                } else {
+                    d.set_item("peer_id", peer_id)?;
+                    d.set_item("received", false)?;
+                }
+                Ok(d.into())
+            })
+        }
+
+        /// Metrics for /status / security status (ADR 0019).
         fn metrics(&self) -> PyResult<PyObject> {
             Python::with_gil(|py| {
                 let st = self.state.lock().map_err(|e| {
@@ -644,7 +895,12 @@ mod enabled {
                 d.set_item("libp2p_max_dials", st.max_dials)?;
                 d.set_item("libp2p_wire_sent", st.wire_sent)?;
                 d.set_item("libp2p_wire_recv", st.wire_recv)?;
+                d.set_item("libp2p_gossip_pub", st.gossip_pub)?;
+                d.set_item("libp2p_gossip_recv", st.gossip_recv)?;
+                d.set_item("libp2p_gossip_topics", st.subscribed.len())?;
+                d.set_item("libp2p_identify_peers", st.identify.len())?;
                 d.set_item("libp2p_wire_protocol", ABS_WIRE_PROTOCOL)?;
+                d.set_item("libp2p_gossip_blocks_topic", ABS_GOSSIP_BLOCKS_TOPIC)?;
                 d.set_item("peer_id", &self.peer_id)?;
                 Ok(d.into())
             })
@@ -658,10 +914,12 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 4)?;
+                d.set_item("phase", 5)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
+                d.set_item("gossipsub", true)?;
                 d.set_item("wire_protocol", ABS_WIRE_PROTOCOL)?;
+                d.set_item("gossip_blocks_topic", ABS_GOSSIP_BLOCKS_TOPIC)?;
                 d.set_item("peer_id", &self.peer_id)?;
                 d.set_item("listen_addrs", st.listen_addrs.clone())?;
                 d.set_item("connected", st.connected.len())?;
@@ -670,6 +928,8 @@ mod enabled {
                 d.set_item("libp2p_dial_fail", st.dial_fail)?;
                 d.set_item("libp2p_wire_sent", st.wire_sent)?;
                 d.set_item("libp2p_wire_recv", st.wire_recv)?;
+                d.set_item("libp2p_gossip_pub", st.gossip_pub)?;
+                d.set_item("libp2p_gossip_recv", st.gossip_recv)?;
                 d.set_item("default_mesh", false)?;
                 d.set_item("honesty", "ADR0019_rust_libp2p_lab_not_prod_mesh")?;
                 d.set_item("error", st.last_error.clone())?;
@@ -722,6 +982,7 @@ mod enabled {
         m.add_function(wrap_pyfunction!(libp2p_pack_wire, m)?)?;
         m.add_function(wrap_pyfunction!(libp2p_unpack_wire, m)?)?;
         m.add("ABS_WIRE_PROTOCOL", ABS_WIRE_PROTOCOL)?;
+        m.add("ABS_GOSSIP_BLOCKS_TOPIC", ABS_GOSSIP_BLOCKS_TOPIC)?;
         Ok(())
     }
 }

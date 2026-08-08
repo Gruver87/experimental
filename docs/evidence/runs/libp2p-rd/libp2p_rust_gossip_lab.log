@@ -1,0 +1,6 @@
+OK: libp2p_rust_gossip_lab PASS
+  topic: abs/blocks/1.0.0
+  publish_id: 35363735303837303533313334343733363637
+  fan-out: n1=1 n2=1
+  identify_peers: 2
+  honesty: FEATURE_LIBP2P lab; not prod TCP+TLS mesh

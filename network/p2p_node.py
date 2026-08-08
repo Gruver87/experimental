@@ -7292,6 +7292,8 @@ class P2PNode:
             "libp2p_wire_sent": 0,
             "libp2p_wire_recv": 0,
             "libp2p_dial_refused_budget": 0,
+            "libp2p_gossip_pub": 0,
+            "libp2p_gossip_recv": 0,
             "peer_policy": False,
             "rust_backend": False,
         }
@@ -7305,25 +7307,21 @@ class P2PNode:
             block["rust_backend"] = bool(lib.get("rust_backend") or lib.get("noise"))
             pol = lib.get("peer_policy") if isinstance(lib.get("peer_policy"), dict) else {}
             block["peer_policy"] = bool(pol.get("attached"))
-            for key in (
+            metric_keys = (
                 "libp2p_peers",
                 "libp2p_dial_ok",
                 "libp2p_dial_fail",
                 "libp2p_wire_sent",
                 "libp2p_wire_recv",
                 "libp2p_dial_refused_budget",
-            ):
+                "libp2p_gossip_pub",
+                "libp2p_gossip_recv",
+            )
+            for key in metric_keys:
                 if key in lib:
                     block[key] = int(lib.get(key) or 0)
             metrics = dict(ds.metrics() or {})
-            for key in (
-                "libp2p_peers",
-                "libp2p_dial_ok",
-                "libp2p_dial_fail",
-                "libp2p_wire_sent",
-                "libp2p_wire_recv",
-                "libp2p_dial_refused_budget",
-            ):
+            for key in metric_keys:
                 if key in metrics:
                     block[key] = int(metrics.get(key) or 0)
         except Exception as exc:

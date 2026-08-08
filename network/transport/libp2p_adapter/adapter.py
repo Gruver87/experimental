@@ -218,6 +218,34 @@ class Libp2pTransportAdapter:
             return []
         return [(str(p), bytes(b)) for p, b in node.poll_inbox()]
 
+    def subscribe(self, topic: str) -> bool:
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        return bool(node.subscribe(str(topic)))
+
+    def publish(self, topic: str, data: bytes) -> str:
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        return str(node.publish(str(topic), data))
+
+    def poll_gossip(self) -> list[tuple[str, str, bytes]]:
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            return []
+        return [(str(p), str(t), bytes(b)) for p, t, b in node.poll_gossip()]
+
+    def identify_info(self, peer_id: str) -> Mapping[str, Any]:
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            return {"peer_id": str(peer_id), "received": False}
+        return dict(node.identify_info(str(peer_id)))
+
     def metrics(self) -> Mapping[str, Any]:
         if self._node is None:
             return {"rust_backend": bool(self._native_capable), "libp2p_peers": 0}
