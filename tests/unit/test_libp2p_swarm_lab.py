@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from network.transport.dual_stack import DualStackDialer
+from network.transport.errors import TransportCapabilityError
 from network.transport.libp2p_adapter import (
     DiscoveryRegistry,
     IdentifyService,
@@ -31,12 +32,23 @@ def test_parse_multiaddr_rejects_junk() -> None:
 
 def test_adapter_connect_multiaddr() -> None:
     ad = Libp2pTransportAdapter(enabled=True)
-    h = ad.connect(
-        PeerEndpoint(host="127.0.0.1", port=1),
-        multiaddr="/ip4/10.0.0.2/tcp/4002/p2p/peer-b",
-    )
-    assert h["multiaddr"] == "/ip4/10.0.0.2/tcp/4002/p2p/peer-b"
-    assert h["peer_id"] == "peer-b"
+    try:
+        if ad.rust_backend:
+            # ADR 0019: real swarm fail-closes when nothing listens.
+            with pytest.raises(TransportCapabilityError):
+                ad.connect(
+                    PeerEndpoint(host="127.0.0.1", port=1),
+                    multiaddr="/ip4/127.0.0.1/tcp/39998/p2p/peer-b",
+                )
+        else:
+            h = ad.connect(
+                PeerEndpoint(host="127.0.0.1", port=1),
+                multiaddr="/ip4/10.0.0.2/tcp/4002/p2p/peer-b",
+            )
+            assert h["multiaddr"] == "/ip4/10.0.0.2/tcp/4002/p2p/peer-b"
+            assert h["peer_id"] == "peer-b"
+    finally:
+        ad.close()
 
 
 def test_in_process_swarm_dial_and_publish() -> None:
@@ -72,9 +84,18 @@ def test_identify_and_dial_discovered() -> None:
     assert info.peer_id == "b"
     reg = DiscoveryRegistry()
     reg.announce("b", b.listen.to_string())
-    h = DualStackDialer(feature_libp2p=True).dial_discovered(reg, "b")
-    assert h["kind"] == "libp2p"
-    assert "4502" in h["handle"]["multiaddr"]
+    dialer = DualStackDialer(feature_libp2p=True)
+    try:
+        if dialer.libp2p.rust_backend:
+            # In-process registry addr is not a real rust listener → fail-closed.
+            with pytest.raises(TransportCapabilityError):
+                dialer.dial_discovered(reg, "b")
+        else:
+            h = dialer.dial_discovered(reg, "b")
+            assert h["kind"] == "libp2p"
+            assert "4502" in h["handle"]["multiaddr"]
+    finally:
+        dialer.libp2p.close()
 
 
 def test_discovery_announce_dial() -> None:
