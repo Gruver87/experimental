@@ -9,19 +9,26 @@
 //! Slice G: Kademlia DHT (MemoryStore) + Absolute gossip announce edge.
 //! Slice H: circuit-relay-v2 + connection_limits.
 //! Slice I: allow/block-list peer enforcement (native ban hooks).
+//! Slice K: mDNS Toggle + loopback-only discovery hygiene.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
 use pyo3::prelude::*;
 
+// Used under feature=libp2p; default Hybrid clippy build has feature off.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const ABS_WIRE_PROTOCOL: &str = "/abs/wire/1.0.0";
 /// Default gossip topic for Absolute block announce labs (Slice E).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const ABS_GOSSIP_BLOCKS_TOPIC: &str = "abs/blocks/1.0.0";
 /// Absolute Kademlia protocol id (Slice G; not IPFS bootstrap).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const ABS_KAD_PROTOCOL: &str = "/absolute/kad/1.0.0";
 /// Default max concurrent outbound dials (Slice C).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_MAX_DIALS: u32 = 32;
 /// Max wire / gossip payload bytes (lab bound).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const MAX_WIRE_BYTES: usize = 1024 * 1024;
 
 #[pyfunction]
@@ -52,7 +59,7 @@ mod enabled {
         identity::Keypair,
         kad::{self, store::MemoryStore},
         mdns, noise, ping, relay, request_response,
-        swarm::{DialError, ListenError, NetworkBehaviour, SwarmEvent},
+        swarm::{behaviour::toggle::Toggle, DialError, ListenError, NetworkBehaviour, SwarmEvent},
         tcp, yamux, Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
     };
     use pyo3::exceptions::{PyRuntimeError, PyValueError};
@@ -187,7 +194,7 @@ mod enabled {
         identify: identify::Behaviour,
         wire: request_response::Behaviour<AbsWireCodec>,
         gossipsub: gossipsub::Behaviour,
-        mdns: mdns::tokio::Behaviour,
+        mdns: Toggle<mdns::tokio::Behaviour>,
         kademlia: kad::Behaviour<MemoryStore>,
         relay: relay::Behaviour,
         relay_client: relay::client::Behaviour,
@@ -289,6 +296,7 @@ mod enabled {
         max_dials: u32,
         max_established_incoming: Option<u32>,
         max_established: Option<u32>,
+        enable_mdns: bool,
         last_error: String,
         inbox: VecDeque<(String, Vec<u8>)>,
         gossip_inbox: VecDeque<(String, String, Vec<u8>)>,
@@ -316,6 +324,7 @@ mod enabled {
             key_path: Option<String>,
             max_established_incoming: Option<u32>,
             max_established: Option<u32>,
+            enable_mdns: bool,
         ) -> PyResult<Self> {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -329,6 +338,7 @@ mod enabled {
                 max_dials: max_dials.max(1),
                 max_established_incoming,
                 max_established,
+                enable_mdns,
                 key_path: key_path_str.clone(),
                 ..NodeState::default()
             }));
@@ -338,6 +348,7 @@ mod enabled {
             let peer_id_bg = Arc::clone(&peer_id_cell);
             let limits_incoming = max_established_incoming;
             let limits_total = max_established;
+            let want_mdns = enable_mdns;
 
             runtime.spawn(async move {
                 let keypair = if key_path_str.is_empty() {
@@ -398,15 +409,21 @@ mod enabled {
                         gs_cfg,
                     )
                     .map_err(|e| format!("gossipsub: {e}"))?;
-                    let mdns = mdns::tokio::Behaviour::new(
-                        mdns::Config {
-                            ttl: Duration::from_secs(60),
-                            query_interval: Duration::from_secs(1),
-                            enable_ipv6: false,
-                        },
-                        key.public().to_peer_id(),
-                    )
-                    .map_err(|e| format!("mdns: {e}"))?;
+                    let mdns = if want_mdns {
+                        Toggle::from(Some(
+                            mdns::tokio::Behaviour::new(
+                                mdns::Config {
+                                    ttl: Duration::from_secs(60),
+                                    query_interval: Duration::from_secs(1),
+                                    enable_ipv6: false,
+                                },
+                                key.public().to_peer_id(),
+                            )
+                            .map_err(|e| format!("mdns: {e}"))?,
+                        ))
+                    } else {
+                        Toggle::from(None)
+                    };
                     let local = key.public().to_peer_id();
                     let mut kad_cfg = kad::Config::new(StreamProtocol::new(ABS_KAD_PROTOCOL));
                     kad_cfg.set_query_timeout(Duration::from_secs(10));
@@ -969,6 +986,15 @@ mod enabled {
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::Mdns(ev)) => match ev {
                                     mdns::Event::Discovered(list) => {
                                         for (peer, addr) in list {
+                                            // Slice K hygiene: ignore non-loopback mDNS (LAN noise).
+                                            let loopback = addr.iter().any(|p| match p {
+                                                Protocol::Ip4(ip) => ip.is_loopback(),
+                                                Protocol::Ip6(ip) => ip.is_loopback(),
+                                                _ => false,
+                                            });
+                                            if !loopback {
+                                                continue;
+                                            }
                                             swarm
                                                 .behaviour_mut()
                                                 .gossipsub
@@ -1194,19 +1220,22 @@ mod enabled {
             max_dials = DEFAULT_MAX_DIALS,
             key_path = None,
             max_established_incoming = None,
-            max_established = None
+            max_established = None,
+            enable_mdns = None
         ))]
         fn new_py(
             max_dials: u32,
             key_path: Option<String>,
             max_established_incoming: Option<u32>,
             max_established: Option<u32>,
+            enable_mdns: Option<bool>,
         ) -> PyResult<Self> {
             Self::spawn(
                 max_dials,
                 key_path,
                 max_established_incoming,
                 max_established,
+                resolve_enable_mdns(enable_mdns),
             )
         }
 
@@ -1551,6 +1580,7 @@ mod enabled {
                 d.set_item("libp2p_block_denied", st.block_denied)?;
                 d.set_item("libp2p_blocked_peers", st.blocked.len())?;
                 d.set_item("libp2p_circuit_addrs", st.circuit_addrs.len())?;
+                d.set_item("libp2p_mdns_enabled", st.enable_mdns)?;
                 if let Some(n) = st.max_established_incoming {
                     d.set_item("libp2p_max_established_incoming", n)?;
                 }
@@ -1575,11 +1605,11 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 9)?;
+                d.set_item("phase", 10)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
-                d.set_item("mdns", true)?;
+                d.set_item("mdns", st.enable_mdns)?;
                 d.set_item("kademlia", true)?;
                 d.set_item("relay", true)?;
                 d.set_item("connection_limits", true)?;
@@ -1621,24 +1651,40 @@ mod enabled {
         }
     }
 
+    fn resolve_enable_mdns(explicit: Option<bool>) -> bool {
+        if let Some(v) = explicit {
+            return v;
+        }
+        match std::env::var("ABS_LIBP2P_MDNS") {
+            Ok(s) => {
+                let t = s.trim().to_ascii_lowercase();
+                !matches!(t.as_str(), "0" | "false" | "off" | "no")
+            }
+            Err(_) => true,
+        }
+    }
+
     #[pyfunction]
     #[pyo3(signature = (
         max_dials = DEFAULT_MAX_DIALS,
         key_path = None,
         max_established_incoming = None,
-        max_established = None
+        max_established = None,
+        enable_mdns = None
     ))]
     fn libp2p_node_new(
         max_dials: u32,
         key_path: Option<String>,
         max_established_incoming: Option<u32>,
         max_established: Option<u32>,
+        enable_mdns: Option<bool>,
     ) -> PyResult<Libp2pNode> {
         Libp2pNode::spawn(
             max_dials,
             key_path,
             max_established_incoming,
             max_established,
+            resolve_enable_mdns(enable_mdns),
         )
     }
 
