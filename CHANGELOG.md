@@ -15,6 +15,7 @@
 - ADR 0018 libp2p dual-stack transport adapter (phase-1 stub) + `scripts/libp2p_lab_smoke.py`
 - EVM compat matrix + RPC wave: `eth_call` ABI word encode, `eth_estimateGas` create path, richer receipts
 - CI fast lane: `.github/workflows/experimental-rd.yml` (no tip-v2 48h soak hard gate)
+- Wave-2: WS `CheckpointCertificate` + AncestryWindow bridge; `DualStackDialer` + `libp2p_two_node_lab.py`; EVM precompiles sha256/identity
 
 ### Industrial harden (no new features)
 

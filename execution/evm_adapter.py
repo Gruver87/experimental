@@ -893,6 +893,13 @@ class EVMAdapter:
         """
         gas_limit = gas_limit or self.config.evm_gas_limit
 
+        # Experimental: Ethereum precompile subset (identity / sha256).
+        from execution.evm_precompiles import try_precompile
+
+        pre = try_precompile(contract_addr, calldata_hex)
+        if pre is not None:
+            return pre
+
         account = self.db.get_account(contract_addr)
         if not account or not account.get("code"):
             return EVMResult(success=False, error="not_a_contract")

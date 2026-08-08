@@ -26,9 +26,9 @@ Profile F: [docs/sprouts/EXPERIMENTAL_RD_PROFILE.md](docs/sprouts/EXPERIMENTAL_R
 
 | Track | Entry |
 |-------|-------|
-| EVM compat | [EVM_COMPAT_MATRIX.md](docs/sprouts/EVM_COMPAT_MATRIX.md) |
-| Long-Range | `python scripts/long_range_lab.py` · ADR 0017 |
-| libp2p | `python scripts/libp2p_lab_smoke.py` · ADR 0018 |
+| EVM compat | [EVM_COMPAT_MATRIX.md](docs/sprouts/EVM_COMPAT_MATRIX.md) · precompiles 0x02/0x04 |
+| Long-Range | `python scripts/long_range_lab.py` · ADR 0017 (checkpoint + AncestryWindow) |
+| libp2p | `python scripts/libp2p_lab_smoke.py` · `python scripts/libp2p_two_node_lab.py` · ADR 0018 |
 
 ## Bootstrap this copy
 

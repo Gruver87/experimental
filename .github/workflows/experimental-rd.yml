@@ -29,10 +29,15 @@ jobs:
         run: |
           pytest -q \
             tests/unit/test_evm_rpc_compat.py \
+            tests/unit/test_evm_precompiles.py \
             tests/unit/test_long_range_ws.py \
+            tests/unit/test_long_range_wave2.py \
             tests/unit/test_libp2p_adapter.py \
+            tests/unit/test_dual_stack.py \
             tests/unit/test_prod_mesh_feature_freeze.py
       - name: Long-Range lab
         run: python scripts/long_range_lab.py
       - name: libp2p lab smoke
         run: python scripts/libp2p_lab_smoke.py
+      - name: libp2p 2-node dual-stack lab
+        run: python scripts/libp2p_two_node_lab.py
