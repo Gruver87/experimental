@@ -15,6 +15,7 @@ mod evm_pure_runner;
 mod evm_writeback;
 mod fuzz_api;
 mod hotpath;
+mod libp2p_swarm;
 mod p2p_frame;
 mod p2p_ingress;
 mod p2p_rate_limit;
@@ -1984,6 +1985,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     p2p_transport::register(m)?;
     p2p_rate_limit::register(m)?;
     p2p_wire::register(m)?;
+    libp2p_swarm::register(m)?;
     hotpath::register(m)?;
     amount::register(m)?;
     Ok(())

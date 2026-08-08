@@ -1,6 +1,9 @@
 """libp2p transport adapter (ADR 0018) — FEATURE_LIBP2P lab path."""
 
-from network.transport.libp2p_adapter.adapter import Libp2pTransportAdapter
+from network.transport.libp2p_adapter.adapter import (
+    Libp2pTransportAdapter,
+    native_libp2p_available,
+)
 from network.transport.libp2p_adapter.lab_swarm import InProcessSwarm, LabPeer
 from network.transport.libp2p_adapter.multiaddr import (
     Multiaddr,
@@ -13,6 +16,7 @@ from network.transport.libp2p_adapter.request_response import RequestResponseSer
 
 __all__ = [
     "Libp2pTransportAdapter",
+    "native_libp2p_available",
     "InProcessSwarm",
     "LabPeer",
     "Multiaddr",

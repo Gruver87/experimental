@@ -1,16 +1,26 @@
-"""Phase-1 libp2p TransportPort adapter (capability + gated dial).
+"""libp2p TransportPort adapter (ADR 0018 / 0019).
 
-Full rust-libp2p swarm wiring can replace the body without changing the port
-surface. Default industrial mesh must keep FEATURE_LIBP2P=false and continue
-using NativeTransportAdapter (TCP+TLS).
+When FEATURE_LIBP2P is on and abs_native was built with Cargo feature ``libp2p``,
+dials use the real rust-libp2p swarm. Otherwise Phase-1 stub handles remain
+(lab scaffolding). Default industrial mesh must keep FEATURE_LIBP2P=false.
 """
 
 from __future__ import annotations
 
+import os
 from typing import Any, Mapping, Optional
 
 from network.transport.errors import TransportCapabilityError
 from network.transport.types import PeerEndpoint
+
+
+def native_libp2p_available() -> bool:
+    try:
+        import abs_native
+
+        return bool(getattr(abs_native, "libp2p_available", lambda: False)())
+    except Exception:
+        return False
 
 
 class Libp2pTransportAdapter:
@@ -19,19 +29,59 @@ class Libp2pTransportAdapter:
     def __init__(self, *, enabled: bool = False) -> None:
         self._enabled = bool(enabled)
         self._dial_count = 0
+        self._node: Any = None
+        self._native_capable = native_libp2p_available()
 
     @property
     def enabled(self) -> bool:
         return self._enabled
 
+    @property
+    def rust_backend(self) -> bool:
+        return bool(self._native_capable)
+
+    def _ensure_node(self) -> Any:
+        if self._node is not None:
+            return self._node
+        if not self._native_capable:
+            return None
+        try:
+            import abs_native
+
+            self._node = abs_native.libp2p_node_new()
+        except Exception as exc:
+            raise TransportCapabilityError(f"libp2p node start failed: {exc}") from exc
+        return self._node
+
     def capability_status(self) -> Mapping[str, Any]:
+        if self._node is not None:
+            try:
+                st = dict(self._node.capability_status())
+                st["feature_libp2p"] = self._enabled
+                st["dial_count"] = self._dial_count
+                st["rust_backend"] = True
+                return st
+            except Exception as exc:
+                return {
+                    "available": False,
+                    "transport": "libp2p",
+                    "phase": 3,
+                    "error": str(exc),
+                    "honesty": "ADR0019_rust_libp2p_lab_not_prod_mesh",
+                }
         return {
             "available": self._enabled,
             "transport": "libp2p",
-            "phase": 1,
+            "phase": 3 if (self._enabled and self._native_capable) else (1 if self._enabled else 0),
+            "rust_backend": bool(self._native_capable),
             "tls": False,
+            "noise": bool(self._native_capable),
             "default_mesh": False,
-            "honesty": "lab_only_behind_FEATURE_LIBP2P",
+            "honesty": (
+                "ADR0019_rust_libp2p_lab_not_prod_mesh"
+                if self._native_capable
+                else "lab_stub_or_disabled_behind_FEATURE_LIBP2P"
+            ),
             "dial_count": self._dial_count,
             "error": "" if self._enabled else "feature_libp2p_disabled",
         }
@@ -41,6 +91,26 @@ class Libp2pTransportAdapter:
             raise TransportCapabilityError(
                 "libp2p adapter disabled (set FEATURE_LIBP2P=true for lab)"
             )
+        require = str(os.environ.get("ABS_NATIVE_MODE", "") or "").strip().lower()
+        if require == "require" and not self._native_capable:
+            raise TransportCapabilityError(
+                "FEATURE_LIBP2P + ABS_NATIVE_MODE=require needs abs_native built "
+                "with --features libp2p"
+            )
+
+    def listen(self, multiaddr: str = "/ip4/127.0.0.1/tcp/0") -> list[str]:
+        """Listen via rust swarm when available."""
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        return list(node.listen(str(multiaddr)))
+
+    @property
+    def peer_id(self) -> str:
+        if self._node is None:
+            return ""
+        return str(self._node.peer_id)
 
     def connect(self, endpoint: PeerEndpoint, **kwargs: Any) -> Any:
         self.require_transport()
@@ -61,7 +131,27 @@ class Libp2pTransportAdapter:
         from network.transport.libp2p_adapter.multiaddr import Multiaddr
 
         ma_str = Multiaddr(host=host, port=port, peer_id=peer_id).to_string()
-        # Phase-1/2: opaque handle; in-process swarm is separate (lab_swarm).
+        dial_addr = f"/ip4/{host}/tcp/{port}"
+
+        if self._native_capable:
+            node = self._ensure_node()
+            assert node is not None
+            try:
+                remote = node.dial(dial_addr)
+            except Exception as exc:
+                raise TransportCapabilityError(f"libp2p dial failed: {exc}") from exc
+            return {
+                "transport": "libp2p",
+                "peer": f"{host}:{port}",
+                "peer_id": str(remote),
+                "multiaddr": ma_str,
+                "phase": 3,
+                "connected": True,
+                "backend": "rust_libp2p",
+                "local_peer_id": str(node.peer_id),
+                "note": "ADR0019_rust_libp2p",
+            }
+
         return {
             "transport": "libp2p",
             "peer": f"{host}:{port}",
@@ -69,8 +159,17 @@ class Libp2pTransportAdapter:
             "multiaddr": ma_str,
             "phase": 1,
             "connected": False,
+            "backend": "stub",
             "note": "stub_handle_pending_rust_libp2p_swarm",
         }
+
+    def close(self) -> None:
+        if self._node is not None:
+            try:
+                self._node.close()
+            except Exception:
+                pass
+            self._node = None
 
     @staticmethod
     def from_config(cfg: Any) -> "Libp2pTransportAdapter":

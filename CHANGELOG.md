@@ -22,6 +22,7 @@
 - Wave-6: EVM blake2f (0x09 EIP-152); libp2p multi-hop relay lab; WS `CheckpointStore` rotation
 - Wave-7: EVM bn254 ecAdd/ecMul/ecPairing (0x06–0x08 via `py_ecc`); libp2p discovery stub; `CheckpointStore.apply_latest`
 - Wave-8: receipt `logsBloom`; `evm_precompile_lab`; libp2p Identify + `dial_discovered`; CheckpointStore JSON persist; `verify_experimental_rd`
+- ADR 0019: rust-libp2p industrial path (Cargo feature `libp2p`, Noise/Yamux/Identify/Ping, `Libp2pNode` PyO3, `libp2p_rust_two_node_lab.py`); TCP+TLS remains default
 
 ### Industrial harden (no new features)
 

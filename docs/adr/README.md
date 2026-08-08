@@ -2,7 +2,7 @@
 
 Boundary ADRs for Absolute Blockchain Ultimate Hybrid.  
 **Industrial stack:** **0001–0016** · **0013 unused**.  
-**Experimental (this sandbox):** **0017–0018** (not on audit pin).
+**Experimental (this sandbox):** **0017–0019** (not on audit pin).
 
 | ADR | Title | Status |
 |-----|-------|--------|
@@ -24,5 +24,6 @@ Boundary ADRs for Absolute Blockchain Ultimate Hybrid.
 | [0016](0016-feature-sprouts-profiles.md) | Feature sprouts / profiles | Accepted |
 | [0017](0017-long-range-research.md) | Long-Range / WS research | Accepted (experimental) |
 | [0018](0018-libp2p-transport.md) | libp2p dual-stack transport | Accepted (experimental) |
+| [0019](0019-rust-libp2p-industrial.md) | rust-libp2p industrial path | Accepted (experimental) |
 
 System map: [ARCHITECTURE.md](../ARCHITECTURE.md) · sprouts: [sprouts/](../sprouts/)
