@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from network.transport.libp2p_adapter import (
+    DiscoveryRegistry,
     InProcessSwarm,
     Libp2pTransportAdapter,
     RequestResponseService,
@@ -56,6 +57,17 @@ def test_request_response_echo() -> None:
     rr_b = RequestResponseService(b)
     rr_b.set_handler(lambda _p, data: data.upper())
     assert rr_a.request("b", b"hi") == b"HI"
+
+
+def test_discovery_announce_dial() -> None:
+    reg = DiscoveryRegistry()
+    swarm = InProcessSwarm()
+    a = swarm.spawn("a", "/ip4/127.0.0.1/tcp/4401/p2p/a")
+    b = swarm.spawn("b", "/ip4/127.0.0.1/tcp/4402/p2p/b")
+    reg.announce("a", a.listen.to_string())
+    reg.announce("b", b.listen.to_string())
+    assert reg.lookup("b").endswith("/p2p/b")
+    assert reg.find_and_dial(a, "b")["remote"] == "b"
 
 
 def test_relay_line_topology() -> None:

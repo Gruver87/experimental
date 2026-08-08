@@ -60,6 +60,16 @@ def test_checkpoint_store_rotation() -> None:
     assert store.history()[0].digest == b.digest
 
 
+def test_checkpoint_store_apply_latest() -> None:
+    store = CheckpointStore()
+    svc = WeakSubjectivityService()
+    assert store.apply_latest(svc) is False
+    store.push(CheckpointCertificate.issue(height=4, block_hash="dd" * 32))
+    assert store.apply_latest(svc) is True
+    assert svc.get_anchor() is not None
+    assert svc.get_anchor().height == 4
+
+
 def test_shares_ancestor_walk() -> None:
     w, anchor, child, mid = _chain()
     assert shares_ancestor_with_anchor(w, candidate_hash=child, anchor_hash=anchor)

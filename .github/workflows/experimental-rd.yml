@@ -51,3 +51,5 @@ jobs:
         run: python scripts/libp2p_reqresp_lab.py
       - name: libp2p multi-hop relay lab
         run: python scripts/libp2p_relay_lab.py
+      - name: libp2p discovery lab
+        run: python scripts/libp2p_discovery_lab.py

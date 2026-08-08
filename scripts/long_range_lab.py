@@ -5,6 +5,7 @@ Wave-2: checkpoint certificate + AncestryWindow walk.
 Wave-4: JSON export/import round-trip of the WS checkpoint.
 Wave-5: TipSafetyService WS tip-import gate (below-anchor refuse).
 Wave-6: CheckpointStore rotation (bounded history).
+Wave-7: CheckpointStore.apply_latest → WeakSubjectivityService.
 
 Usage:
   python scripts/long_range_lab.py
@@ -112,8 +113,15 @@ def main() -> int:
     if len(store.history()) != 2:
         print("FAIL: checkpoint store history")
         return 1
+    svc3 = WeakSubjectivityService()
+    if not store.apply_latest(svc3):
+        print("FAIL: apply_latest")
+        return 1
+    if svc3.get_anchor() is None or svc3.get_anchor().height != 3:
+        print("FAIL: apply_latest anchor height")
+        return 1
 
-    print("Long-Range lab wave-6 (checkpoint store + tip-import WS gate)")
+    print("Long-Range lab wave-7 (store apply_latest + tip-import WS gate)")
     print(f"  cert digest: {cert.digest[:16]}... verify={cert.verify_digest()}")
     print(f"  WS child:   accept={ok.accept} reason={ok.reason}")
     print(f"  stale fork: accept={bad.accept} reason={bad.reason}")

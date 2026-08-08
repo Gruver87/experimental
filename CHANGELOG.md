@@ -20,6 +20,7 @@
 - Wave-4: EVM ripemd160 (0x03); libp2p 3-node in-process mesh lab; WS checkpoint JSON export/import
 - Wave-5: EVM modexp (0x05, EIP-2565 gas); libp2p request/response lab; TipSafety WS tip-import gate in `long_range_lab`
 - Wave-6: EVM blake2f (0x09 EIP-152); libp2p multi-hop relay lab; WS `CheckpointStore` rotation
+- Wave-7: EVM bn254 ecAdd/ecMul/ecPairing (0x06–0x08 via `py_ecc`); libp2p discovery stub; `CheckpointStore.apply_latest`
 
 ### Industrial harden (no new features)
 

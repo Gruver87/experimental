@@ -1,4 +1,4 @@
-"""Bounded store of WS checkpoint certificates (ADR 0017 wave-6)."""
+"""Bounded store of WS checkpoint certificates (ADR 0017 wave-6/7)."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from collections import deque
 from typing import Deque, List, Optional
 
 from consensus.long_range.checkpoint import CheckpointCertificate
+from consensus.long_range.service import WeakSubjectivityService
 
 
 class CheckpointStore:
@@ -30,6 +31,14 @@ class CheckpointStore:
 
     def history(self) -> List[CheckpointCertificate]:
         return list(self._items)
+
+    def apply_latest(self, svc: WeakSubjectivityService) -> bool:
+        """Set ``svc`` anchor from the newest certificate (wave-7)."""
+        cert = self.latest()
+        if cert is None:
+            return False
+        svc.set_anchor(cert.anchor)
+        return True
 
     def __len__(self) -> int:
         return len(self._items)

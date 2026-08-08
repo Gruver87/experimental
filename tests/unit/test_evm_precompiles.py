@@ -42,6 +42,50 @@ def _modexp_calldata(base: bytes, exp: bytes, mod: bytes) -> str:
     return (_len(len(base)) + _len(len(exp)) + _len(len(mod)) + base + exp + mod).hex()
 
 
+@pytest.mark.skipif(
+    __import__("importlib").util.find_spec("py_ecc") is None,
+    reason="py_ecc not installed",
+)
+def test_bn254_ecadd_double_g1() -> None:
+    from py_ecc.bn128 import G1, add  # type: ignore
+
+    g = (int(G1[0]).to_bytes(32, "big") + int(G1[1]).to_bytes(32, "big"))
+    r = try_precompile("0x06", (g + g).hex())
+    assert r is not None and r.success and r.gas_used == 150
+    expect = add(G1, G1)
+    assert r.return_value == (
+        int(expect[0]).to_bytes(32, "big") + int(expect[1]).to_bytes(32, "big")
+    )
+
+
+@pytest.mark.skipif(
+    __import__("importlib").util.find_spec("py_ecc") is None,
+    reason="py_ecc not installed",
+)
+def test_bn254_ecmul_two() -> None:
+    from py_ecc.bn128 import G1, multiply  # type: ignore
+
+    g = int(G1[0]).to_bytes(32, "big") + int(G1[1]).to_bytes(32, "big")
+    scalar = (2).to_bytes(32, "big")
+    r = try_precompile("0x07", (g + scalar).hex())
+    assert r is not None and r.success and r.gas_used == 6000
+    expect = multiply(G1, 2)
+    assert r.return_value == (
+        int(expect[0]).to_bytes(32, "big") + int(expect[1]).to_bytes(32, "big")
+    )
+
+
+@pytest.mark.skipif(
+    __import__("importlib").util.find_spec("py_ecc") is None,
+    reason="py_ecc not installed",
+)
+def test_bn254_pairing_empty() -> None:
+    r = try_precompile("0x08", "")
+    assert r is not None and r.success
+    assert r.return_value == (1).to_bytes(32, "big")
+    assert r.gas_used == 45000
+
+
 def test_blake2f_eip152_vector5() -> None:
     # EIP-152 test vector 5 (12 rounds, f=1) — blake2b("abc") compression.
     inp = bytes.fromhex(
@@ -99,7 +143,7 @@ def test_ripemd160_precompile() -> None:
 
 
 def test_unknown_address_none() -> None:
-    # 0x0a is not implemented (bn254 range starts at 0x06; blake2f is 0x09).
+    # 0x0a is outside the implemented precompile set (0x01–0x09).
     assert try_precompile("0x" + "0" * 38 + "0a", "00") is None
     assert not is_precompile("0xdead")
 

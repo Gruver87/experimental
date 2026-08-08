@@ -6,9 +6,12 @@ Addresses (20-byte, hex with/without 0x):
   0x03 — RIPEMD160
   0x04 — IDENTITY (data copy)
   0x05 — MODEXP (EIP-198 + EIP-2565 gas)
+  0x06 — BN254 ECADD
+  0x07 — BN254 ECMUL
+  0x08 — BN254 ECPAIRING
   0x09 — BLAKE2F (EIP-152)
 
-Honesty: bn254 (0x06–0x08) remain open. Not a full Ethereum client.
+Honesty: requires optional ``py_ecc`` for 0x06–0x08. Not a full Ethereum client.
 """
 
 from __future__ import annotations
@@ -22,6 +25,9 @@ _SHA256 = "0000000000000000000000000000000000000002"
 _RIPEMD160 = "0000000000000000000000000000000000000003"
 _IDENTITY = "0000000000000000000000000000000000000004"
 _MODEXP = "0000000000000000000000000000000000000005"
+_ECADD = "0000000000000000000000000000000000000006"
+_ECMUL = "0000000000000000000000000000000000000007"
+_ECPAIRING = "0000000000000000000000000000000000000008"
 _BLAKE2F = "0000000000000000000000000000000000000009"
 
 # Lab/DoS bound (bytes) for base/exp/mod payloads
@@ -177,6 +183,45 @@ def try_precompile(contract_addr: str, calldata_hex: str = "") -> Optional[Any]:
         out = out_i.to_bytes(mod_len, "big")
         return EVMResult(success=True, return_value=out, gas_used=gas)
 
+    if key == _ECADD:
+        gas = 150
+        try:
+            from execution import bn254
+
+            if not bn254.available():
+                return EVMResult(success=False, error="bn254_unavailable", gas_used=gas)
+            out = bn254.ec_add(data)
+        except Exception as exc:
+            return EVMResult(success=False, error=str(exc), gas_used=gas)
+        return EVMResult(success=True, return_value=out, gas_used=gas)
+
+    if key == _ECMUL:
+        gas = 6000
+        try:
+            from execution import bn254
+
+            if not bn254.available():
+                return EVMResult(success=False, error="bn254_unavailable", gas_used=gas)
+            out = bn254.ec_mul(data)
+        except Exception as exc:
+            return EVMResult(success=False, error=str(exc), gas_used=gas)
+        return EVMResult(success=True, return_value=out, gas_used=gas)
+
+    if key == _ECPAIRING:
+        if len(data) % 192 != 0:
+            return EVMResult(success=False, error="pairing_bad_length", gas_used=0)
+        k = len(data) // 192
+        gas = 45000 + 34000 * k
+        try:
+            from execution import bn254
+
+            if not bn254.available():
+                return EVMResult(success=False, error="bn254_unavailable", gas_used=gas)
+            out = bn254.ec_pairing(data)
+        except Exception as exc:
+            return EVMResult(success=False, error=str(exc), gas_used=gas)
+        return EVMResult(success=True, return_value=out, gas_used=gas)
+
     if key == _BLAKE2F:
         # EIP-152: gas = rounds (GFROUND=1). Invalid encoding → fail.
         if len(data) != 213:
@@ -203,5 +248,8 @@ def is_precompile(contract_addr: str) -> bool:
         _RIPEMD160,
         _IDENTITY,
         _MODEXP,
+        _ECADD,
+        _ECMUL,
+        _ECPAIRING,
         _BLAKE2F,
     }
