@@ -8,7 +8,7 @@ Scope: Absolute hybrid EVM subset on the single apply path.
 | Transfer + fee burn | **Supported** | Native apply + satoshi domain |
 | CREATE / CREATE2 + deploy salt | **Supported (prod)** | `evm_create2_eip1014` + `evm_require_deploy_salt` |
 | CALL / STATICCALL host | **Partial** | Host-in-apply; nested depth limited |
-| Precompiles (ecrecover, sha256, …) | **Partial** | **0x01 ecrecover + 0x02 sha256 + 0x03 ripemd160 + 0x04 identity** via `execution/evm_precompiles.py`; modexp/bn254/blake2f still open |
+| Precompiles (ecrecover, sha256, …) | **Partial** | **0x01–0x05** (ecrecover, sha256, ripemd160, identity, modexp EIP-2565) via `execution/evm_precompiles.py`; bn254/blake2f still open |
 | `eth_call` | **Supported** | Hex ABI word encoding + precompile bytes |
 | `eth_estimateGas` | **Supported** | Includes create (`to` empty) path |
 | `eth_getTransactionReceipt` | **Partial** | Core fields + logs; bloom/type stubs |

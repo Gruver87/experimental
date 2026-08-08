@@ -7,6 +7,7 @@ import pytest
 from network.transport.libp2p_adapter import (
     InProcessSwarm,
     Libp2pTransportAdapter,
+    RequestResponseService,
     parse_multiaddr,
 )
 from network.transport.types import PeerEndpoint
@@ -44,6 +45,17 @@ def test_in_process_swarm_dial_and_publish() -> None:
     assert a.dial(b.listen.to_string())["connected"]
     assert a.publish("t", b"ping") == 1
     assert got == [b"ping"]
+
+
+def test_request_response_echo() -> None:
+    swarm = InProcessSwarm()
+    a = swarm.spawn("a", "/ip4/127.0.0.1/tcp/4201/p2p/a")
+    b = swarm.spawn("b", "/ip4/127.0.0.1/tcp/4202/p2p/b")
+    a.dial(b.listen.to_string())
+    rr_a = RequestResponseService(a)
+    rr_b = RequestResponseService(b)
+    rr_b.set_handler(lambda _p, data: data.upper())
+    assert rr_a.request("b", b"hi") == b"HI"
 
 
 def test_three_node_mesh_fanout() -> None:

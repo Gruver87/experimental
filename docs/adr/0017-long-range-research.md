@@ -16,7 +16,8 @@ need an explicit weak-subjectivity (WS) story before claiming Long-Range safety.
    **stale-fork policy** used only when `FEATURE_LONG_RANGE=true`.
 2. Keep industrial prod mesh (`778888`) with `feature_long_range=false`.
 3. Lab proof: `scripts/long_range_lab.py` simulates a stale competing history
-   below a WS anchor and asserts refuse/accept policy.
+   below a WS anchor and asserts refuse/accept policy; TipSafety tip-import
+   gate may refuse when a WS anchor is set (`FEATURE_LONG_RANGE`).
 4. Do **not** set `finality_quorum_live=true` from this ADR.
 
 ## Honesty

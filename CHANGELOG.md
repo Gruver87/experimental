@@ -18,6 +18,7 @@
 - Wave-2: WS `CheckpointCertificate` + AncestryWindow bridge; `DualStackDialer` + `libp2p_two_node_lab.py`; EVM precompiles sha256/identity
 - Wave-3: EVM ecrecover (0x01); libp2p multiaddr + in-process swarm lab; optional WS tip-import gate on TipSafetyService / shadow (`FEATURE_LONG_RANGE` + optional `ABS_WS_ANCHOR_*`)
 - Wave-4: EVM ripemd160 (0x03); libp2p 3-node in-process mesh lab; WS checkpoint JSON export/import
+- Wave-5: EVM modexp (0x05, EIP-2565 gas); libp2p request/response lab; TipSafety WS tip-import gate in `long_range_lab`
 
 ### Industrial harden (no new features)
 

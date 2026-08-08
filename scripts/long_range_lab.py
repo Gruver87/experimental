@@ -3,6 +3,7 @@
 
 Wave-2: checkpoint certificate + AncestryWindow walk.
 Wave-4: JSON export/import round-trip of the WS checkpoint.
+Wave-5: TipSafetyService WS tip-import gate (below-anchor refuse).
 
 Usage:
   python scripts/long_range_lab.py
@@ -23,8 +24,10 @@ from consensus.long_range import (
     WeakSubjectivityService,
     evaluate_with_window,
 )
+from consensus.tip_safety import TipSafetyService
 from consensus.tip_safety.ancestry_window import AncestryWindow
-from consensus.tip_safety.types import BlockRef
+from consensus.tip_safety.tip_state import TipState
+from consensus.tip_safety.types import ApplyOutcome, BlockRef
 
 
 def main() -> int:
@@ -72,12 +75,35 @@ def main() -> int:
         print("FAIL: restored anchor rejected valid child")
         return 1
 
-    print("Long-Range lab wave-4 (checkpoint + AncestryWindow + JSON round-trip)")
-    print(f"  cert digest: {cert.digest[:16]}… verify={cert.verify_digest()}")
+    # Wave-5: TipSafety tip-import gate with WS ahead of tip
+    tip_w = AncestryWindow(max_blocks=64)
+    tip_block = BlockRef(height=2, block_hash=anchor_h, parent_hash=a1)
+    tip_w.record(BlockRef(height=0, block_hash=g, parent_hash=""))
+    tip_w.record(BlockRef(height=1, block_hash=a1, parent_hash=g))
+    tip_w.record(tip_block)
+    ws_ahead = WeakSubjectivityService()
+    ws_ahead.set_anchor(
+        CheckpointCertificate.issue(height=10, block_hash="ff" * 32).anchor
+    )
+    tip_svc = TipSafetyService(
+        TipState(head=tip_block), ancestry=tip_w, ws_service=ws_ahead
+    )
+    tip_child = BlockRef(height=3, block_hash=child, parent_hash=anchor_h)
+    tip_dec = tip_svc.evaluate_candidate(tip_child)
+    if tip_dec.outcome != ApplyOutcome.REJECT or tip_dec.reason_code != "ws_below_ws_anchor":
+        print(
+            f"FAIL: tip gate expected ws_below_ws_anchor got "
+            f"{tip_dec.outcome}/{tip_dec.reason_code}"
+        )
+        return 1
+
+    print("Long-Range lab wave-5 (checkpoint + tip-import WS gate)")
+    print(f"  cert digest: {cert.digest[:16]}... verify={cert.verify_digest()}")
     print(f"  WS child:   accept={ok.accept} reason={ok.reason}")
     print(f"  stale fork: accept={bad.accept} reason={bad.reason}")
     print(f"  below:      accept={below.accept} reason={below.reason}")
     print(f"  import:     digest_match={restored.digest == cert.digest}")
+    print(f"  tip gate:   reject={tip_dec.reason_code}")
 
     if not ok.accept or bad.accept or below.accept:
         print("FAIL: unexpected policy outcomes")

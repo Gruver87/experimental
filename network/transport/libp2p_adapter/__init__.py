@@ -7,6 +7,7 @@ from network.transport.libp2p_adapter.multiaddr import (
     endpoint_to_multiaddr,
     parse_multiaddr,
 )
+from network.transport.libp2p_adapter.request_response import RequestResponseService
 
 __all__ = [
     "Libp2pTransportAdapter",
@@ -15,4 +16,5 @@ __all__ = [
     "Multiaddr",
     "parse_multiaddr",
     "endpoint_to_multiaddr",
+    "RequestResponseService",
 ]

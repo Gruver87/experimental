@@ -5,19 +5,25 @@ Addresses (20-byte, hex with/without 0x):
   0x02 — SHA256
   0x03 — RIPEMD160
   0x04 — IDENTITY (data copy)
+  0x05 — MODEXP (EIP-198 + EIP-2565 gas)
 
-Honesty: modexp/bn254/blake2f remain open.
+Honesty: bn254 / blake2f remain open. Not a full Ethereum client.
 """
 
 from __future__ import annotations
 
-from typing import Any, Optional
+import math
+from typing import Any, Optional, Tuple
 
 # Canonical 20-byte addresses
 _ECRECOVER = "0000000000000000000000000000000000000001"
 _SHA256 = "0000000000000000000000000000000000000002"
 _RIPEMD160 = "0000000000000000000000000000000000000003"
 _IDENTITY = "0000000000000000000000000000000000000004"
+_MODEXP = "0000000000000000000000000000000000000005"
+
+# Lab/DoS bound (bytes) for base/exp/mod payloads
+_MODEXP_MAX_LEN = 1024
 
 
 def _norm_addr(addr: str) -> str:
@@ -25,6 +31,52 @@ def _norm_addr(addr: str) -> str:
     if len(a) > 40:
         a = a[-40:]
     return a.zfill(40)
+
+
+def _modexp_gas(base_len: int, exp_len: int, mod_len: int, exp_head: int) -> int:
+    """EIP-2565 gas (Berlin+)."""
+    words = math.ceil(max(base_len, mod_len) / 8)
+    multiplication_complexity = words * words
+    if exp_len <= 32 and exp_head == 0:
+        iteration_count = 0
+    elif exp_len <= 32:
+        iteration_count = max(exp_head.bit_length() - 1, 0)
+    else:
+        # First 32 bytes of exponent as integer (big-endian head).
+        head = exp_head & ((1 << 256) - 1)
+        iteration_count = (8 * (exp_len - 32)) + max(head.bit_length() - 1, 0)
+    iteration_count = max(iteration_count, 1)
+    return max(200, math.floor(multiplication_complexity * iteration_count / 3))
+
+
+def _parse_modexp(data: bytes) -> Optional[Tuple[bytes, bytes, bytes, int]]:
+    """Return (base, exp, mod, gas) or None if lengths invalid / over cap."""
+    if len(data) < 96:
+        # Geth pads short input with zeros for length fields.
+        data = data + b"\x00" * (96 - len(data))
+    base_len = int.from_bytes(data[0:32], "big")
+    exp_len = int.from_bytes(data[32:64], "big")
+    mod_len = int.from_bytes(data[64:96], "big")
+    if (
+        base_len > _MODEXP_MAX_LEN
+        or exp_len > _MODEXP_MAX_LEN
+        or mod_len > _MODEXP_MAX_LEN
+    ):
+        return None
+    total = 96 + base_len + exp_len + mod_len
+    if len(data) < total:
+        data = data + b"\x00" * (total - len(data))
+    base = data[96 : 96 + base_len]
+    exp = data[96 + base_len : 96 + base_len + exp_len]
+    mod = data[96 + base_len + exp_len : 96 + base_len + exp_len + mod_len]
+    if exp_len == 0:
+        exp_head = 0
+    elif exp_len <= 32:
+        exp_head = int.from_bytes(exp, "big") if exp else 0
+    else:
+        exp_head = int.from_bytes(exp[:32], "big")
+    gas = _modexp_gas(base_len, exp_len, mod_len, exp_head)
+    return base, exp, mod, gas
 
 
 def try_precompile(contract_addr: str, calldata_hex: str = "") -> Optional[Any]:
@@ -103,6 +155,26 @@ def try_precompile(contract_addr: str, calldata_hex: str = "") -> Optional[Any]:
         gas = 60 + 12 * words
         return EVMResult(success=True, return_value=out, gas_used=gas)
 
+    if key == _MODEXP:
+        parsed = _parse_modexp(data)
+        if parsed is None:
+            return EVMResult(success=False, error="modexp_input_too_large", gas_used=0)
+        base_b, exp_b, mod_b, gas = parsed
+        mod_len = len(mod_b)
+        if mod_len == 0:
+            return EVMResult(success=True, return_value=b"", gas_used=gas)
+        mod_i = int.from_bytes(mod_b, "big")
+        if mod_i == 0:
+            return EVMResult(success=True, return_value=b"\x00" * mod_len, gas_used=gas)
+        base_i = int.from_bytes(base_b, "big") if base_b else 0
+        exp_i = int.from_bytes(exp_b, "big") if exp_b else 0
+        try:
+            out_i = pow(base_i, exp_i, mod_i)
+        except Exception:
+            return EVMResult(success=False, error="modexp_failed", gas_used=gas)
+        out = out_i.to_bytes(mod_len, "big")
+        return EVMResult(success=True, return_value=out, gas_used=gas)
+
     return None
 
 
@@ -112,4 +184,5 @@ def is_precompile(contract_addr: str) -> bool:
         _SHA256,
         _RIPEMD160,
         _IDENTITY,
+        _MODEXP,
     }

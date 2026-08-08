@@ -35,6 +35,29 @@ def test_sha256_precompile() -> None:
     assert r.return_value == hashlib.sha256(payload).digest()
 
 
+def _modexp_calldata(base: bytes, exp: bytes, mod: bytes) -> str:
+    def _len(n: int) -> bytes:
+        return n.to_bytes(32, "big")
+
+    return (_len(len(base)) + _len(len(exp)) + _len(len(mod)) + base + exp + mod).hex()
+
+
+def test_modexp_precompile() -> None:
+    # 3^5 mod 7 = 5; EIP-2565 min gas 200 for tiny inputs.
+    data = _modexp_calldata(b"\x03", b"\x05", b"\x07")
+    r = try_precompile("0x0000000000000000000000000000000000000005", data)
+    assert r is not None and r.success
+    assert r.return_value == b"\x05"
+    assert r.gas_used >= 200
+
+
+def test_modexp_zero_modulus() -> None:
+    data = _modexp_calldata(b"\x02", b"\x03", b"\x00")
+    r = try_precompile("0x05", data)
+    assert r is not None and r.success
+    assert r.return_value == b"\x00"
+
+
 def test_ripemd160_precompile() -> None:
     import hashlib
 
