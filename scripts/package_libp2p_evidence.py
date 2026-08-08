@@ -42,6 +42,7 @@ LABS = (
     "scripts/libp2p_rust_autonat_dcutr_lab.py",
     "scripts/libp2p_rust_bootstrap_lab.py",
     "scripts/libp2p_rust_reconnect_lab.py",
+    "scripts/libp2p_rust_peer_score_lab.py",
 )
 
 

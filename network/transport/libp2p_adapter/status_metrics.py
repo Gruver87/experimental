@@ -46,6 +46,11 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_reconnect_ok",
     "libp2p_reconnect_fail",
     "libp2p_reconnect_give_up",
+    "libp2p_gossip_validation_accept",
+    "libp2p_gossip_validation_reject",
+    "libp2p_gossip_app_score_sets",
+    "libp2p_gossip_not_supported",
+    "libp2p_gossip_peer_score",
 )
 
 

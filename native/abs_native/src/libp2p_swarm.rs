@@ -15,6 +15,7 @@
 //! Slice N: AutoNAT + DCUtR (NAT status + hole-punch over relay).
 //! Slice O: persistent bootstrap peer list (JSON file) + dial-all.
 //! Slice P: bootstrap reconnect policy (backoff) on ConnectionClosed.
+//! Slice Q: gossipsub peer scoring + app score hooks + validation accept metrics.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -586,6 +587,24 @@ mod enabled {
             peer_id: String,
             reply: oneshot::Sender<Result<(), String>>,
         },
+        /// Slice Q: read gossipsub peer score (None if scoring inactive / unknown peer).
+        GossipPeerScore {
+            peer_id: String,
+            reply: oneshot::Sender<Option<f64>>,
+        },
+        /// Slice Q: application-specific gossip score contribution.
+        SetGossipAppScore {
+            peer_id: String,
+            score: f64,
+            reply: oneshot::Sender<bool>,
+        },
+        /// Slice Q: Accept/Reject/Ignore a pending gossip message id.
+        ReportGossipValidation {
+            message_id: String,
+            peer_id: String,
+            acceptance: String,
+            reply: oneshot::Sender<Result<bool, String>>,
+        },
         Shutdown {
             reply: oneshot::Sender<()>,
         },
@@ -619,6 +638,11 @@ mod enabled {
         abs_wire_v2_recv: u64,
         gossip_pub: u64,
         gossip_recv: u64,
+        /// Slice Q: messages accepted after inbox enqueue (validate_messages path).
+        gossip_validation_accept: u64,
+        gossip_validation_reject: u64,
+        gossip_app_score_sets: u64,
+        gossip_not_supported: u64,
         mdns_discovered: u64,
         kad_routing_updates: u64,
         kad_queries: u64,
@@ -780,14 +804,31 @@ mod enabled {
                     let gs_cfg = gossipsub::ConfigBuilder::default()
                         .heartbeat_interval(Duration::from_millis(500))
                         .validation_mode(gossipsub::ValidationMode::Strict)
+                        .validate_messages()
                         .message_id_fn(message_id_fn)
                         .build()
                         .map_err(|e| format!("gossipsub config: {e}"))?;
-                    let gossipsub = gossipsub::Behaviour::new(
+                    let mut gossipsub = gossipsub::Behaviour::new(
                         gossipsub::MessageAuthenticity::Signed(key.clone()),
                         gs_cfg,
                     )
                     .map_err(|e| format!("gossipsub: {e}"))?;
+                    // Slice Q: industrial peer scoring (loopback whitelisted for local labs).
+                    let mut score_params = gossipsub::PeerScoreParams::default();
+                    if let Ok(ip) = "127.0.0.1".parse() {
+                        score_params.ip_colocation_factor_whitelist.insert(ip);
+                    }
+                    if let Ok(ip) = "::1".parse() {
+                        score_params.ip_colocation_factor_whitelist.insert(ip);
+                    }
+                    let blocks_topic = gossipsub::IdentTopic::new(ABS_GOSSIP_BLOCKS_TOPIC);
+                    score_params.topics.insert(
+                        blocks_topic.hash(),
+                        gossipsub::TopicScoreParams::default(),
+                    );
+                    gossipsub
+                        .with_peer_score(score_params, gossipsub::PeerScoreThresholds::default())
+                        .map_err(|e| format!("gossip peer score: {e}"))?;
                     let mdns = if want_mdns {
                         Toggle::from(Some(
                             mdns::tokio::Behaviour::new(
@@ -1584,6 +1625,93 @@ mod enabled {
                                         }
                                     }
                                 }
+                                Some(Cmd::GossipPeerScore { peer_id, reply }) => {
+                                    let score = peer_id
+                                        .parse::<PeerId>()
+                                        .ok()
+                                        .and_then(|pid| swarm.behaviour().gossipsub.peer_score(&pid));
+                                    let _ = reply.send(score);
+                                }
+                                Some(Cmd::SetGossipAppScore {
+                                    peer_id,
+                                    score,
+                                    reply,
+                                }) => {
+                                    let ok = match peer_id.parse::<PeerId>() {
+                                        Ok(pid) => {
+                                            let applied = swarm
+                                                .behaviour_mut()
+                                                .gossipsub
+                                                .set_application_score(&pid, score);
+                                            if applied {
+                                                if let Ok(mut st) = state_bg.lock() {
+                                                    st.gossip_app_score_sets = st
+                                                        .gossip_app_score_sets
+                                                        .saturating_add(1);
+                                                }
+                                            }
+                                            applied
+                                        }
+                                        Err(_) => false,
+                                    };
+                                    let _ = reply.send(ok);
+                                }
+                                Some(Cmd::ReportGossipValidation {
+                                    message_id,
+                                    peer_id,
+                                    acceptance,
+                                    reply,
+                                }) => {
+                                    let kind = acceptance.to_ascii_lowercase();
+                                    let acc = match kind.as_str() {
+                                        "accept" => gossipsub::MessageAcceptance::Accept,
+                                        "reject" => gossipsub::MessageAcceptance::Reject,
+                                        "ignore" => gossipsub::MessageAcceptance::Ignore,
+                                        other => {
+                                            let _ = reply.send(Err(format!(
+                                                "acceptance must be accept|reject|ignore, got {other}"
+                                            )));
+                                            continue;
+                                        }
+                                    };
+                                    match peer_id.parse::<PeerId>() {
+                                        Ok(pid) => {
+                                            let mid = gossipsub::MessageId::from(message_id);
+                                            match swarm
+                                                .behaviour_mut()
+                                                .gossipsub
+                                                .report_message_validation_result(&mid, &pid, acc)
+                                            {
+                                                Ok(forwarded) => {
+                                                    if let Ok(mut st) = state_bg.lock() {
+                                                        match kind.as_str() {
+                                                            "accept" => {
+                                                                st.gossip_validation_accept = st
+                                                                    .gossip_validation_accept
+                                                                    .saturating_add(1);
+                                                            }
+                                                            "reject" => {
+                                                                st.gossip_validation_reject = st
+                                                                    .gossip_validation_reject
+                                                                    .saturating_add(1);
+                                                            }
+                                                            _ => {}
+                                                        }
+                                                    }
+                                                    let _ = reply.send(Ok(forwarded));
+                                                }
+                                                Err(e) => {
+                                                    let _ = reply.send(Err(format!(
+                                                        "report_gossip_validation: {e}"
+                                                    )));
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!("bad peer_id: {e}")));
+                                        }
+                                    }
+                                }
                             }
                         }
                         event = swarm.select_next_some() => {
@@ -1950,23 +2078,61 @@ mod enabled {
                                     }
                                 }
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::Gossipsub(ev)) => {
-                                    if let gossipsub::Event::Message {
-                                        propagation_source,
-                                        message,
-                                        ..
-                                    } = ev
-                                    {
-                                        let topic = message.topic.to_string();
-                                        if let Ok(mut st) = state_bg.lock() {
-                                            st.gossip_recv = st.gossip_recv.saturating_add(1);
-                                            if st.gossip_inbox.len() < 1024 {
-                                                st.gossip_inbox.push_back((
-                                                    propagation_source.to_string(),
-                                                    topic,
-                                                    message.data,
-                                                ));
+                                    match ev {
+                                        gossipsub::Event::Message {
+                                            propagation_source,
+                                            message_id,
+                                            message,
+                                        } => {
+                                            let topic = message.topic.to_string();
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.gossip_recv = st.gossip_recv.saturating_add(1);
+                                                if st.gossip_inbox.len() < 1024 {
+                                                    st.gossip_inbox.push_back((
+                                                        propagation_source.to_string(),
+                                                        topic,
+                                                        message.data,
+                                                    ));
+                                                }
+                                            }
+                                            // Default: accept after enqueue so existing labs keep
+                                            // forwarding; app can still use report_gossip_validation
+                                            // for explicit rejects on custom flows.
+                                            match swarm
+                                                .behaviour_mut()
+                                                .gossipsub
+                                                .report_message_validation_result(
+                                                    &message_id,
+                                                    &propagation_source,
+                                                    gossipsub::MessageAcceptance::Accept,
+                                                ) {
+                                                Ok(_) => {
+                                                    if let Ok(mut st) = state_bg.lock() {
+                                                        st.gossip_validation_accept = st
+                                                            .gossip_validation_accept
+                                                            .saturating_add(1);
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    if let Ok(mut st) = state_bg.lock() {
+                                                        st.last_error = format!(
+                                                            "gossip validate accept: {e}"
+                                                        );
+                                                    }
+                                                }
                                             }
                                         }
+                                        gossipsub::Event::GossipsubNotSupported { peer_id } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.gossip_not_supported = st
+                                                    .gossip_not_supported
+                                                    .saturating_add(1);
+                                                st.last_error = format!(
+                                                    "gossipsub not supported: {peer_id}"
+                                                );
+                                            }
+                                        }
+                                        _ => {}
                                     }
                                 }
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::Mdns(ev)) => match ev {
@@ -2468,6 +2634,58 @@ mod enabled {
             }
         }
 
+        /// Slice Q: gossipsub peer score, or None if unknown / scoring inactive.
+        fn gossip_peer_score(&self, peer_id: &str) -> PyResult<Option<f64>> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::GossipPeerScore {
+                    peer_id: peer_id.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            rx.blocking_recv()
+                .map_err(|_| PyRuntimeError::new_err("gossip_peer_score reply dropped"))
+        }
+
+        /// Slice Q: set application-specific gossip score for a peer.
+        fn set_gossip_app_score(&self, peer_id: &str, score: f64) -> PyResult<bool> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::SetGossipAppScore {
+                    peer_id: peer_id.to_string(),
+                    score,
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            rx.blocking_recv()
+                .map_err(|_| PyRuntimeError::new_err("set_gossip_app_score reply dropped"))
+        }
+
+        /// Slice Q: Accept/Reject/Ignore a gossip message id (validate_messages path).
+        fn report_gossip_validation(
+            &self,
+            message_id: &str,
+            peer_id: &str,
+            acceptance: &str,
+        ) -> PyResult<bool> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::ReportGossipValidation {
+                    message_id: message_id.to_string(),
+                    peer_id: peer_id.to_string(),
+                    acceptance: acceptance.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(v)) => Ok(v),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err(
+                    "report_gossip_validation reply dropped",
+                )),
+            }
+        }
+
         /// Send Absolute wire bytes over `/abs/wire/1.0.0`; returns response ack bytes.
         fn send_wire(&self, peer_id: &str, data: &[u8]) -> PyResult<PyObject> {
             let (tx, rx) = oneshot::channel();
@@ -2738,6 +2956,17 @@ mod enabled {
                 d.set_item("libp2p_abs_wire_v2_recv", st.abs_wire_v2_recv)?;
                 d.set_item("libp2p_gossip_pub", st.gossip_pub)?;
                 d.set_item("libp2p_gossip_recv", st.gossip_recv)?;
+                d.set_item(
+                    "libp2p_gossip_validation_accept",
+                    st.gossip_validation_accept,
+                )?;
+                d.set_item(
+                    "libp2p_gossip_validation_reject",
+                    st.gossip_validation_reject,
+                )?;
+                d.set_item("libp2p_gossip_app_score_sets", st.gossip_app_score_sets)?;
+                d.set_item("libp2p_gossip_not_supported", st.gossip_not_supported)?;
+                d.set_item("libp2p_gossip_peer_score", true)?;
                 d.set_item("libp2p_gossip_topics", st.subscribed.len())?;
                 d.set_item("libp2p_identify_peers", st.identify.len())?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
@@ -2800,10 +3029,11 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 15)?;
+                d.set_item("phase", 16)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
+                d.set_item("peer_score", true)?;
                 d.set_item("mdns", st.enable_mdns)?;
                 d.set_item("kademlia", true)?;
                 d.set_item("relay", true)?;
@@ -2846,6 +3076,17 @@ mod enabled {
                 d.set_item("libp2p_abs_wire_v2_recv", st.abs_wire_v2_recv)?;
                 d.set_item("libp2p_gossip_pub", st.gossip_pub)?;
                 d.set_item("libp2p_gossip_recv", st.gossip_recv)?;
+                d.set_item(
+                    "libp2p_gossip_validation_accept",
+                    st.gossip_validation_accept,
+                )?;
+                d.set_item(
+                    "libp2p_gossip_validation_reject",
+                    st.gossip_validation_reject,
+                )?;
+                d.set_item("libp2p_gossip_app_score_sets", st.gossip_app_score_sets)?;
+                d.set_item("libp2p_gossip_not_supported", st.gossip_not_supported)?;
+                d.set_item("libp2p_gossip_peer_score", true)?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
                 d.set_item("libp2p_kad_peers", st.kad_peers.len())?;
                 d.set_item("libp2p_relay_reservations", st.relay_reservations)?;

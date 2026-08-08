@@ -251,6 +251,35 @@ class Libp2pTransportAdapter:
             raise TransportCapabilityError("rust libp2p node not available")
         node.disconnect_peer(str(peer_id))
 
+    def gossip_peer_score(self, peer_id: str) -> Optional[float]:
+        """Slice Q: gossipsub peer score, or None if unknown."""
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        score = node.gossip_peer_score(str(peer_id))
+        return float(score) if score is not None else None
+
+    def set_gossip_app_score(self, peer_id: str, score: float) -> bool:
+        """Slice Q: application-specific gossip score contribution."""
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        return bool(node.set_gossip_app_score(str(peer_id), float(score)))
+
+    def report_gossip_validation(
+        self, message_id: str, peer_id: str, acceptance: str
+    ) -> bool:
+        """Slice Q: Accept/Reject/Ignore a gossip message id."""
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        return bool(
+            node.report_gossip_validation(str(message_id), str(peer_id), str(acceptance))
+        )
+
     @property
     def peer_id(self) -> str:
         if self._node is None:
