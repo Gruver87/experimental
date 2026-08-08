@@ -30,6 +30,12 @@ class LabPeer:
     def publish(self, topic: str, data: bytes) -> int:
         return self._bus.publish(self.peer_id, topic, data)
 
+    def publish_relay(self, topic: str, data: bytes, *, ttl: int = 2) -> int:
+        """Publish with multi-hop relay (wave-6 gossip-like flood)."""
+        return self._bus.publish_relay(
+            self.peer_id, topic, data, ttl=int(ttl), exclude=set()
+        )
+
     def dial(self, addr: str) -> dict:
         ma = parse_multiaddr(addr)
         remote = self._bus.resolve(ma.peer_id or "")
@@ -57,6 +63,33 @@ class LabPeer:
     def _deliver(self, topic: str, data: bytes, from_peer: str) -> None:
         for h in self._handlers.get(topic, []):
             h(from_peer, data)
+
+    def _deliver_relay(
+        self,
+        topic: str,
+        data: bytes,
+        from_peer: str,
+        *,
+        ttl: int,
+        seen: set[str],
+    ) -> int:
+        """Deliver locally then flood to neighbors except ``seen`` (hop count)."""
+        self._deliver(topic, data, from_peer)
+        if ttl <= 0:
+            return 1
+        delivered = 1
+        next_seen = set(seen)
+        next_seen.add(self.peer_id)
+        for remote_id in self.connected_peers():
+            if remote_id in next_seen:
+                continue
+            remote = self._bus.resolve(remote_id)
+            if remote is None:
+                continue
+            delivered += remote._deliver_relay(
+                topic, data, self.peer_id, ttl=ttl - 1, seen=next_seen
+            )
+        return delivered
 
 
 class InProcessSwarm:
@@ -109,4 +142,31 @@ class InProcessSwarm:
                 continue
             p._deliver(topic, data, from_peer)
             delivered += 1
+        return delivered
+
+    def publish_relay(
+        self,
+        from_peer: str,
+        topic: str,
+        data: bytes,
+        *,
+        ttl: int = 2,
+        exclude: Optional[set[str]] = None,
+    ) -> int:
+        """1-hop publish that relays up to ``ttl`` hops (line/mesh lab)."""
+        sender = self.resolve(from_peer)
+        if sender is None:
+            return 0
+        seen = set(exclude or ())
+        seen.add(from_peer)
+        delivered = 0
+        for remote_id in sender.connected_peers():
+            if remote_id in seen:
+                continue
+            remote = self.resolve(remote_id)
+            if remote is None:
+                continue
+            delivered += remote._deliver_relay(
+                topic, data, from_peer, ttl=max(0, int(ttl) - 1), seen=set(seen)
+            )
         return delivered

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from consensus.long_range import (
     CheckpointCertificate,
+    CheckpointStore,
     WeakSubjectivityService,
     evaluate_with_window,
     shares_ancestor_with_anchor,
@@ -44,6 +45,19 @@ def test_checkpoint_from_dict_digest_mismatch() -> None:
     bad["digest"] = "00" * 32
     with pytest.raises(ValueError, match="digest mismatch"):
         CheckpointCertificate.from_dict(bad)
+
+
+def test_checkpoint_store_rotation() -> None:
+    store = CheckpointStore(max_history=2)
+    a = CheckpointCertificate.issue(height=1, block_hash="aa" * 32)
+    b = CheckpointCertificate.issue(height=2, block_hash="bb" * 32)
+    c = CheckpointCertificate.issue(height=3, block_hash="cc" * 32)
+    store.push(a)
+    store.push(b)
+    store.push(c)
+    assert len(store) == 2
+    assert store.latest().digest == c.digest
+    assert store.history()[0].digest == b.digest
 
 
 def test_shares_ancestor_walk() -> None:

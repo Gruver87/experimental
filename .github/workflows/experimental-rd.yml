@@ -49,3 +49,5 @@ jobs:
         run: python scripts/libp2p_three_node_lab.py
       - name: libp2p request/response lab
         run: python scripts/libp2p_reqresp_lab.py
+      - name: libp2p multi-hop relay lab
+        run: python scripts/libp2p_relay_lab.py

@@ -4,6 +4,7 @@
 Wave-2: checkpoint certificate + AncestryWindow walk.
 Wave-4: JSON export/import round-trip of the WS checkpoint.
 Wave-5: TipSafetyService WS tip-import gate (below-anchor refuse).
+Wave-6: CheckpointStore rotation (bounded history).
 
 Usage:
   python scripts/long_range_lab.py
@@ -21,6 +22,7 @@ if str(ROOT) not in sys.path:
 
 from consensus.long_range import (
     CheckpointCertificate,
+    CheckpointStore,
     WeakSubjectivityService,
     evaluate_with_window,
 )
@@ -97,13 +99,28 @@ def main() -> int:
         )
         return 1
 
-    print("Long-Range lab wave-5 (checkpoint + tip-import WS gate)")
+    # Wave-6: rotate checkpoints in a bounded store
+    store = CheckpointStore(max_history=3)
+    store.push(cert)
+    later = CheckpointCertificate.issue(
+        height=3, block_hash=child, epoch=2, issuer="lab-node1"
+    )
+    store.push(later)
+    if store.latest() is None or store.latest().digest != later.digest:
+        print("FAIL: checkpoint store latest")
+        return 1
+    if len(store.history()) != 2:
+        print("FAIL: checkpoint store history")
+        return 1
+
+    print("Long-Range lab wave-6 (checkpoint store + tip-import WS gate)")
     print(f"  cert digest: {cert.digest[:16]}... verify={cert.verify_digest()}")
     print(f"  WS child:   accept={ok.accept} reason={ok.reason}")
     print(f"  stale fork: accept={bad.accept} reason={bad.reason}")
     print(f"  below:      accept={below.accept} reason={below.reason}")
     print(f"  import:     digest_match={restored.digest == cert.digest}")
     print(f"  tip gate:   reject={tip_dec.reason_code}")
+    print(f"  store:      history={len(store)} latest_h={store.latest().anchor.height}")
 
     if not ok.accept or bad.accept or below.accept:
         print("FAIL: unexpected policy outcomes")

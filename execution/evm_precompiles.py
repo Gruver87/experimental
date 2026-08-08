@@ -6,8 +6,9 @@ Addresses (20-byte, hex with/without 0x):
   0x03 — RIPEMD160
   0x04 — IDENTITY (data copy)
   0x05 — MODEXP (EIP-198 + EIP-2565 gas)
+  0x09 — BLAKE2F (EIP-152)
 
-Honesty: bn254 / blake2f remain open. Not a full Ethereum client.
+Honesty: bn254 (0x06–0x08) remain open. Not a full Ethereum client.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ _SHA256 = "0000000000000000000000000000000000000002"
 _RIPEMD160 = "0000000000000000000000000000000000000003"
 _IDENTITY = "0000000000000000000000000000000000000004"
 _MODEXP = "0000000000000000000000000000000000000005"
+_BLAKE2F = "0000000000000000000000000000000000000009"
 
 # Lab/DoS bound (bytes) for base/exp/mod payloads
 _MODEXP_MAX_LEN = 1024
@@ -175,6 +177,22 @@ def try_precompile(contract_addr: str, calldata_hex: str = "") -> Optional[Any]:
         out = out_i.to_bytes(mod_len, "big")
         return EVMResult(success=True, return_value=out, gas_used=gas)
 
+    if key == _BLAKE2F:
+        # EIP-152: gas = rounds (GFROUND=1). Invalid encoding → fail.
+        if len(data) != 213:
+            return EVMResult(
+                success=False, error="blake2f_bad_length", gas_used=0
+            )
+        rounds = int.from_bytes(data[0:4], "big")
+        gas = int(rounds)
+        try:
+            from execution.blake2f import parse_and_run
+
+            out = parse_and_run(data)
+        except ValueError as exc:
+            return EVMResult(success=False, error=str(exc), gas_used=gas)
+        return EVMResult(success=True, return_value=out, gas_used=gas)
+
     return None
 
 
@@ -185,4 +203,5 @@ def is_precompile(contract_addr: str) -> bool:
         _RIPEMD160,
         _IDENTITY,
         _MODEXP,
+        _BLAKE2F,
     }

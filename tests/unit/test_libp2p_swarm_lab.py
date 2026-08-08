@@ -58,6 +58,21 @@ def test_request_response_echo() -> None:
     assert rr_a.request("b", b"hi") == b"HI"
 
 
+def test_relay_line_topology() -> None:
+    swarm = InProcessSwarm()
+    a = swarm.spawn("n1", "/ip4/127.0.0.1/tcp/4301/p2p/n1")
+    b = swarm.spawn("n2", "/ip4/127.0.0.1/tcp/4302/p2p/n2")
+    c = swarm.spawn("n3", "/ip4/127.0.0.1/tcp/4303/p2p/n3")
+    a.dial(b.listen.to_string())
+    b.dial(c.listen.to_string())
+    got: list[bytes] = []
+    c.subscribe("t", lambda _p, d: got.append(d))
+    assert a.publish("t", b"x") == 1
+    assert got == []
+    assert a.publish_relay("t", b"y", ttl=2) >= 2
+    assert got == [b"y"]
+
+
 def test_three_node_mesh_fanout() -> None:
     swarm = InProcessSwarm()
     a = swarm.spawn("n1", "/ip4/127.0.0.1/tcp/4101/p2p/n1")
