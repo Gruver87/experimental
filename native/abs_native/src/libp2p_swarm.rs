@@ -48,7 +48,7 @@ pub const DEFAULT_WIRE_TIMEOUT_SECS: u64 = 10;
 pub const DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS: u64 = 8;
 /// Slice P reconnect backoff base / cap / attempts.
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
-pub const DEFAULT_RECONNECT_BASE_MS: u64 = 200;
+pub const DEFAULT_RECONNECT_BASE_MS: u64 = 350;
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_RECONNECT_MAX_MS: u64 = 5_000;
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
@@ -312,6 +312,12 @@ mod enabled {
             if entry.contains(&ma) {
                 return;
             }
+            // If we already learned a loopback dial endpoint, ignore non-loopback
+            // identify listen addrs (hub often binds 127.0.0.1 only; LAN IPs refuse).
+            let has_loopback = entry.iter().any(|a| addr_is_loopback(a));
+            if has_loopback && !addr_is_loopback(&ma) {
+                return;
+            }
             entry.push(ma);
             st.peerstore_learned = st.peerstore_learned.saturating_add(1);
             (st.peerstore_path.clone(), st.peerstore.clone())
@@ -319,6 +325,36 @@ mod enabled {
             return;
         };
         let _ = save_bootstrap_peers(Path::new(&persist.0), &persist.1);
+    }
+
+    fn addr_is_loopback(addr: &str) -> bool {
+        addr.contains("/ip4/127.0.0.1/")
+            || addr.contains("/ip4/127.")
+            || addr.contains("/ip6/::1/")
+            || addr.contains("/ip6/0:0:0:0:0:0:0:1/")
+    }
+
+    /// Order reconnect dial targets: loopback TCP first, then other direct TCP,
+    /// circuits last. Avoids Autonat/identify LAN addrs stealing the first slot
+    /// when the peer only listens on 127.0.0.1.
+    fn prefer_reconnect_addrs(addrs: Vec<String>) -> Vec<String> {
+        let mut loopback = Vec::new();
+        let mut direct = Vec::new();
+        let mut rest = Vec::new();
+        for a in addrs {
+            if a.contains("/p2p-circuit") {
+                rest.push(a);
+            } else if addr_is_loopback(&a) {
+                loopback.push(a);
+            } else if a.contains("/tcp/") {
+                direct.push(a);
+            } else {
+                rest.push(a);
+            }
+        }
+        loopback.extend(direct);
+        loopback.extend(rest);
+        loopback
     }
 
     /// Slice P: scheduled bootstrap reconnect with exponential backoff.
@@ -591,7 +627,8 @@ mod enabled {
         kademlia: kad::Behaviour<MemoryStore>,
         relay: relay::Behaviour,
         relay_client: relay::client::Behaviour,
-        autonat: autonat::Behaviour,
+        /// Slice N: off by default — AutoNAT probe dials raced reconnect (Slice U).
+        autonat: Toggle<autonat::Behaviour>,
         dcutr: dcutr::Behaviour,
         connection_limits: connection_limits::Behaviour,
         blocked_peers: allow_block_list::Behaviour<BlockedPeers>,
@@ -784,6 +821,8 @@ mod enabled {
         max_established_incoming: Option<u32>,
         max_established: Option<u32>,
         enable_mdns: bool,
+        /// Slice N: AutoNAT behaviour enabled (probe dials).
+        enable_autonat: bool,
         wire_timeout_secs: u64,
         last_error: String,
         inbox: VecDeque<(String, Vec<u8>)>,
@@ -861,6 +900,7 @@ mod enabled {
             bootstrap_path: Option<String>,
             enable_reconnect: bool,
             peerstore_path: Option<String>,
+            enable_autonat: bool,
         ) -> PyResult<Self> {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -891,6 +931,7 @@ mod enabled {
                 max_established_incoming,
                 max_established,
                 enable_mdns,
+                enable_autonat,
                 wire_timeout_secs,
                 key_path: key_path_str.clone(),
                 bootstrap_path: bootstrap_path_str.clone(),
@@ -916,6 +957,7 @@ mod enabled {
             let limits_incoming = max_established_incoming;
             let limits_total = max_established;
             let want_mdns = enable_mdns;
+            let want_autonat = enable_autonat;
             let wire_timeout = Duration::from_secs(wire_timeout_secs);
             let ping_interval = Duration::from_secs(resolve_ping_interval_secs(None));
             let ping_timeout = Duration::from_secs(resolve_ping_timeout_secs(None));
@@ -1040,7 +1082,7 @@ mod enabled {
                         kademlia,
                         relay: relay::Behaviour::new(local, relay::Config::default()),
                         relay_client,
-                        autonat: {
+                        autonat: if want_autonat {
                             // Lab-friendly AutoNAT: allow private/loopback peers (Slice N).
                             let mut cfg = autonat::Config::default();
                             cfg.only_global_ips = false;
@@ -1048,7 +1090,9 @@ mod enabled {
                             cfg.retry_interval = Duration::from_secs(2);
                             cfg.refresh_interval = Duration::from_secs(10);
                             cfg.throttle_server_period = Duration::from_secs(1);
-                            autonat::Behaviour::new(local, cfg)
+                            Toggle::from(Some(autonat::Behaviour::new(local, cfg)))
+                        } else {
+                            Toggle::from(None)
                         },
                         dcutr: dcutr::Behaviour::new(local),
                         connection_limits: connection_limits::Behaviour::new(limits),
@@ -1209,38 +1253,57 @@ mod enabled {
                                 futures::future::pending::<()>().await;
                             }
                         }, if reconnect_deadline.is_some() => {
-                            // Inflight reconnect timed out.
+                            // Inflight reconnect timed out (or soft-fail grace elapsed).
                             if let Some(pid) = reconnect_inflight.take() {
                                 reconnect_inflight_deadline = None;
-                                if let Ok(mut st) = state_bg.lock() {
-                                    st.dial_inflight = st.dial_inflight.saturating_sub(1);
-                                    st.reconnect_fail = st.reconnect_fail.saturating_add(1);
-                                }
-                                let cfg = state_bg.lock().ok().map(|st| {
-                                    (
-                                        st.reconnect_base_ms,
-                                        st.reconnect_max_ms,
-                                        st.reconnect_max_attempts,
-                                    )
-                                });
-                                if let Some((base, max_ms, max_att)) = cfg {
-                                    if let Some(pr) = pending_reconnects.get_mut(&pid) {
-                                        pr.attempts = pr.attempts.saturating_add(1);
-                                        if pr.attempts >= max_att {
-                                            pending_reconnects.remove(&pid);
-                                            if let Ok(mut st) = state_bg.lock() {
-                                                st.reconnect_give_up =
-                                                    st.reconnect_give_up.saturating_add(1);
+                                let still_up = pid
+                                    .parse::<PeerId>()
+                                    .ok()
+                                    .map(|p| swarm.is_connected(&p))
+                                    .unwrap_or(false)
+                                    || state_bg
+                                        .lock()
+                                        .map(|st| st.connected.contains(&pid))
+                                        .unwrap_or(false);
+                                if still_up {
+                                    reconnect_settle_ok(
+                                        &state_bg,
+                                        &mut pending_reconnects,
+                                        &mut reconnect_inflight,
+                                        &mut reconnect_inflight_deadline,
+                                        &pid,
+                                    );
+                                } else {
+                                    if let Ok(mut st) = state_bg.lock() {
+                                        st.dial_inflight = st.dial_inflight.saturating_sub(1);
+                                        st.reconnect_fail = st.reconnect_fail.saturating_add(1);
+                                    }
+                                    let cfg = state_bg.lock().ok().map(|st| {
+                                        (
+                                            st.reconnect_base_ms,
+                                            st.reconnect_max_ms,
+                                            st.reconnect_max_attempts,
+                                        )
+                                    });
+                                    if let Some((base, max_ms, max_att)) = cfg {
+                                        if let Some(pr) = pending_reconnects.get_mut(&pid) {
+                                            pr.attempts = pr.attempts.saturating_add(1);
+                                            if pr.attempts >= max_att {
+                                                pending_reconnects.remove(&pid);
+                                                if let Ok(mut st) = state_bg.lock() {
+                                                    st.reconnect_give_up =
+                                                        st.reconnect_give_up.saturating_add(1);
+                                                }
+                                            } else {
+                                                let wait = reconnect_backoff_ms(
+                                                    base,
+                                                    max_ms,
+                                                    pr.attempts,
+                                                );
+                                                pr.next_at = tokio::time::Instant::now()
+                                                    + Duration::from_millis(wait);
+                                                pr.addr_idx = pr.addr_idx.saturating_add(1);
                                             }
-                                        } else {
-                                            let wait = reconnect_backoff_ms(
-                                                base,
-                                                max_ms,
-                                                pr.attempts,
-                                            );
-                                            pr.next_at = tokio::time::Instant::now()
-                                                + Duration::from_millis(wait);
-                                            pr.addr_idx = pr.addr_idx.saturating_add(1);
                                         }
                                     }
                                 }
@@ -1719,8 +1782,18 @@ mod enabled {
                                                 },
                                                 None => None,
                                             };
-                                            swarm.behaviour_mut().autonat.add_server(pid, ma);
-                                            let _ = reply.send(Ok(()));
+                                            match swarm.behaviour_mut().autonat.as_mut() {
+                                                Some(autonat) => {
+                                                    autonat.add_server(pid, ma);
+                                                    let _ = reply.send(Ok(()));
+                                                }
+                                                None => {
+                                                    let _ = reply.send(Err(
+                                                        "autonat disabled (enable_autonat=true)"
+                                                            .into(),
+                                                    ));
+                                                }
+                                            }
                                         }
                                         Err(e) => {
                                             let _ = reply.send(Err(format!("bad peer_id: {e}")));
@@ -2234,43 +2307,17 @@ mod enabled {
                                                     &pid,
                                                 );
                                             } else {
-                                                reconnect_inflight = None;
-                                                reconnect_inflight_deadline = None;
+                                                // Soft-fail: keep inflight briefly so a twin
+                                                // ConnectionEstablished can still win; do not
+                                                // rotate addrs on the first error event.
+                                                reconnect_inflight_deadline = Some(
+                                                    tokio::time::Instant::now()
+                                                        + Duration::from_millis(300),
+                                                );
                                                 if let Ok(mut st) = state_bg.lock() {
-                                                    st.reconnect_fail =
-                                                        st.reconnect_fail.saturating_add(1);
-                                                }
-                                                let cfg = state_bg.lock().ok().map(|st| {
-                                                    (
-                                                        st.reconnect_base_ms,
-                                                        st.reconnect_max_ms,
-                                                        st.reconnect_max_attempts,
-                                                    )
-                                                });
-                                                if let Some((base, max_ms, max_att)) = cfg {
-                                                    if let Some(pr) =
-                                                        pending_reconnects.get_mut(&pid)
-                                                    {
-                                                        pr.attempts =
-                                                            pr.attempts.saturating_add(1);
-                                                        if pr.attempts >= max_att {
-                                                            pending_reconnects.remove(&pid);
-                                                            if let Ok(mut st) = state_bg.lock() {
-                                                                st.reconnect_give_up = st
-                                                                    .reconnect_give_up
-                                                                    .saturating_add(1);
-                                                            }
-                                                        } else {
-                                                            let wait = reconnect_backoff_ms(
-                                                                base, max_ms, pr.attempts,
-                                                            );
-                                                            pr.next_at =
-                                                                tokio::time::Instant::now()
-                                                                    + Duration::from_millis(wait);
-                                                            pr.addr_idx =
-                                                                pr.addr_idx.saturating_add(1);
-                                                        }
-                                                    }
+                                                    st.last_error = format!(
+                                                        "outgoing(reconnect soft): {error}"
+                                                    );
                                                 }
                                             }
                                         }
@@ -2360,7 +2407,7 @@ mod enabled {
                                                     return None;
                                                 };
                                             Some((
-                                                addrs,
+                                                prefer_reconnect_addrs(addrs),
                                                 from_peerstore,
                                                 st.reconnect_base_ms,
                                                 pending_reconnects.contains_key(&pid),
@@ -2369,7 +2416,7 @@ mod enabled {
                                         if let Some((addrs, from_peerstore, base_ms, already)) =
                                             schedule
                                         {
-                                            if !already {
+                                            if !already && !addrs.is_empty() {
                                                 pending_reconnects.insert(
                                                     pid.clone(),
                                                     PendingReconnect {
@@ -2465,18 +2512,9 @@ mod enabled {
                                                 .collect(),
                                             observed_addr: info.observed_addr.to_string(),
                                         };
-                                        // Slice N: register AutoNAT servers discovered via identify.
-                                        let supports_autonat = info.protocols.iter().any(|p| {
-                                            let s = p.as_ref();
-                                            s.contains("autonat")
-                                        });
-                                        if supports_autonat {
-                                            let addr = info.listen_addrs.first().cloned();
-                                            swarm
-                                                .behaviour_mut()
-                                                .autonat
-                                                .add_server(peer_id, addr);
-                                        }
+                                        // Slice N: AutoNAT servers are explicit-only via
+                                        // `autonat_add_server`. Auto-register from identify caused
+                                        // probe dials that raced reconnect_inflight (Slice U flake).
                                         if let Ok(mut st) = state_bg.lock() {
                                             st.identify.insert(peer_id.to_string(), snap);
                                         }
@@ -2840,7 +2878,8 @@ mod enabled {
             wire_timeout_secs = None,
             bootstrap_path = None,
             enable_reconnect = None,
-            peerstore_path = None
+            peerstore_path = None,
+            enable_autonat = None
         ))]
         fn new_py(
             max_dials: u32,
@@ -2852,6 +2891,7 @@ mod enabled {
             bootstrap_path: Option<String>,
             enable_reconnect: Option<bool>,
             peerstore_path: Option<String>,
+            enable_autonat: Option<bool>,
         ) -> PyResult<Self> {
             Self::spawn(
                 max_dials,
@@ -2863,6 +2903,7 @@ mod enabled {
                 resolve_bootstrap_path(bootstrap_path),
                 resolve_enable_reconnect(enable_reconnect),
                 resolve_peerstore_path(peerstore_path),
+                resolve_enable_autonat(enable_autonat),
             )
         }
 
@@ -3595,7 +3636,7 @@ mod enabled {
                 d.set_item("mdns", st.enable_mdns)?;
                 d.set_item("kademlia", true)?;
                 d.set_item("relay", true)?;
-                d.set_item("autonat", true)?;
+                d.set_item("autonat", st.enable_autonat)?;
                 d.set_item("dcutr", true)?;
                 d.set_item("bootstrap", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
@@ -3730,6 +3771,20 @@ mod enabled {
                 !matches!(t.as_str(), "0" | "false" | "off" | "no")
             }
             Err(_) => true,
+        }
+    }
+
+    /// AutoNAT default off — probe dials interfere with reconnect labs (Slice U).
+    fn resolve_enable_autonat(explicit: Option<bool>) -> bool {
+        if let Some(v) = explicit {
+            return v;
+        }
+        match std::env::var("ABS_LIBP2P_AUTONAT") {
+            Ok(s) => {
+                let t = s.trim().to_ascii_lowercase();
+                matches!(t.as_str(), "1" | "true" | "on" | "yes")
+            }
+            Err(_) => false,
         }
     }
 
@@ -3923,7 +3978,8 @@ mod enabled {
         wire_timeout_secs = None,
         bootstrap_path = None,
         enable_reconnect = None,
-        peerstore_path = None
+        peerstore_path = None,
+        enable_autonat = None
     ))]
     fn libp2p_node_new(
         max_dials: u32,
@@ -3935,6 +3991,7 @@ mod enabled {
         bootstrap_path: Option<String>,
         enable_reconnect: Option<bool>,
         peerstore_path: Option<String>,
+        enable_autonat: Option<bool>,
     ) -> PyResult<Libp2pNode> {
         Libp2pNode::spawn(
             max_dials,
@@ -3946,6 +4003,7 @@ mod enabled {
             resolve_bootstrap_path(bootstrap_path),
             resolve_enable_reconnect(enable_reconnect),
             resolve_peerstore_path(peerstore_path),
+            resolve_enable_autonat(enable_autonat),
         )
     }
 

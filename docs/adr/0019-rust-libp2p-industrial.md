@@ -51,7 +51,7 @@ feature `libp2p`), exposed to Python through the existing
 | mDNS hygiene | Slice K: `enable_mdns` / `ABS_LIBP2P_MDNS` Toggle; loopback-only discoveries |
 | Wire timeout / adapter | Slice L: `wire_timeout_secs` / `ABS_LIBP2P_WIRE_TIMEOUT_SECS`; adapter kad/relay/block parity |
 | ADR 0008 on wire | Slice M: Absolute v1/v2 classify + counters; `send_abs_wire` / admit inbox; `libp2p_rust_abs_wire_lab.py` |
-| NAT traversal | Slice N: AutoNAT + DCUtR; `autonat_add_server`; `libp2p_rust_autonat_dcutr_lab.py` |
+| NAT traversal | Slice N: AutoNAT + DCUtR; `enable_autonat` / `ABS_LIBP2P_AUTONAT` (default off) + explicit `autonat_add_server`; `libp2p_rust_autonat_dcutr_lab.py` |
 | Bootstrap book | Slice O: JSON peer book + industrial sequential `bootstrap_dial` (budget/timeout/settle); `libp2p_rust_bootstrap_lab.py` |
 | Reconnect | Slice P: bootstrap auto-redial on disconnect with exponential backoff; `libp2p_rust_reconnect_lab.py` |
 | Peer score | Slice Q: gossipsub peer scoring + app score hooks; `libp2p_rust_peer_score_lab.py` |

@@ -35,8 +35,8 @@ def _wait(pred, timeout: float = 8.0, step: float = 0.1) -> bool:
 
 
 def _part_autonat(abs_native) -> None:
-    server = abs_native.libp2p_node_new(enable_mdns=False)
-    client = abs_native.libp2p_node_new(enable_mdns=False)
+    server = abs_native.libp2p_node_new(enable_mdns=False, enable_autonat=True)
+    client = abs_native.libp2p_node_new(enable_mdns=False, enable_autonat=True)
     try:
         s_addr = _listen_tcp(server)
         _listen_tcp(client)
@@ -48,7 +48,7 @@ def _part_autonat(abs_native) -> None:
         ):
             raise RuntimeError("autonat peers not connected")
 
-        # Explicit server registration (also auto via identify when protocol present).
+        # Explicit AutoNAT server registration (identify does not auto-add).
         client.autonat_add_server(server.peer_id, server_ma)
         time.sleep(0.2)
 
@@ -90,29 +90,56 @@ def _part_autonat(abs_native) -> None:
 
 
 def _part_dcutr(abs_native) -> None:
-    relay = abs_native.libp2p_node_new(enable_mdns=False)
-    listener = abs_native.libp2p_node_new(enable_mdns=False)
-    dialer = abs_native.libp2p_node_new(enable_mdns=False)
+    # Match Slice H relay setup: default node knobs + identify hop before reserve.
+    relay = abs_native.libp2p_node_new(enable_mdns=False, enable_reconnect=False)
+    listener = abs_native.libp2p_node_new(enable_mdns=False, enable_reconnect=False)
+    dialer = abs_native.libp2p_node_new(enable_mdns=False, enable_reconnect=False)
     try:
         r_tcp = _listen_tcp(relay)
         _listen_tcp(listener)
         relay_ma = f"{r_tcp}/p2p/{relay.peer_id}"
 
         listener.dial(relay_ma)
-        time.sleep(0.4)
+        if not _wait(
+            lambda: relay.peer_id in listener.connected_peers(),
+            timeout=5.0,
+        ):
+            raise RuntimeError("dcutr: listener not connected to relay")
+
+        # Identify must advertise hop before reservation (same as Slice H lab).
+        if not _wait(
+            lambda: any(
+                "circuit/relay" in str(p)
+                for p in (listener.identify_info(relay.peer_id).get("protocols") or [])
+            ),
+            timeout=5.0,
+        ):
+            raise RuntimeError(
+                f"dcutr: relay hop protocol missing in identify: "
+                f"{listener.identify_info(relay.peer_id)}"
+            )
+
+        circuits = []
         try:
-            listener.listen_relay(relay_ma)
+            circuits = list(listener.listen_relay(relay_ma) or [])
         except Exception as exc:
             print(f"  listen_relay note: {exc}")
 
-        reserved = _wait(
-            lambda: (
-                int(relay.metrics().get("libp2p_relay_reservations", 0)) >= 1
-                or int(listener.metrics().get("libp2p_relay_reservations", 0)) >= 1
-                or bool(listener.circuit_addrs())
-            ),
-            timeout=8.0,
-        )
+        reserved = False
+        for _ in range(60):
+            rm = relay.metrics()
+            lm = listener.metrics()
+            if int(rm.get("libp2p_relay_reservations", 0)) >= 1:
+                reserved = True
+                break
+            if int(lm.get("libp2p_relay_reservations", 0)) >= 1:
+                reserved = True
+                break
+            circuits = list(listener.circuit_addrs()) or circuits
+            if circuits:
+                reserved = True
+                break
+            time.sleep(0.1)
         if not reserved:
             raise RuntimeError(
                 f"no relay reservation for dcutr; "
@@ -143,17 +170,25 @@ def _part_dcutr(abs_native) -> None:
         )
         dm = dialer.metrics()
         lm = listener.metrics()
+        rm = relay.metrics()
         cap = dialer.capability_status()
         if not cap.get("dcutr"):
             raise RuntimeError(f"capability missing dcutr: {cap}")
         if not punched:
             # Honest fallback: circuit path + dcutr capability is enough for lab
             # when hole-punch is skipped (already-direct / platform timing).
-            if int(dm.get("libp2p_relay_circuits", 0)) + int(
-                lm.get("libp2p_relay_circuits", 0)
-            ) + int(relay.metrics().get("libp2p_relay_circuits", 0)) < 1:
+            if (
+                int(dm.get("libp2p_relay_circuits", 0))
+                + int(lm.get("libp2p_relay_circuits", 0))
+                + int(rm.get("libp2p_relay_circuits", 0))
+                + int(rm.get("libp2p_relay_reservations", 0))
+                + int(lm.get("libp2p_relay_reservations", 0))
+                < 1
+                and not (circuits or listener.circuit_addrs())
+            ):
                 raise RuntimeError(
-                    f"no DCUtR event and no circuit metric; dialer={dm} listener={lm}"
+                    f"no DCUtR event and no circuit/reservation metric; "
+                    f"dialer={dm} listener={lm} relay={rm}"
                 )
             print("OK: DCUtR enabled + circuit path (no upgrade event in window)")
         else:

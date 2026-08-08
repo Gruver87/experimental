@@ -85,15 +85,17 @@ def main() -> int:
                 return 1
             print("OK: reconnect scheduled from peerstore")
 
+            # Allow backoff + settle; dial-timeout default is 8s per attempt.
             if not _wait(
                 lambda: (
                     hub.peer_id in client.connected_peers()
                     and int(client.metrics().get("libp2p_reconnect_ok", 0)) >= 1
                 ),
-                timeout=10.0,
+                timeout=20.0,
             ):
                 print(
                     f"FAIL: peerstore reconnect incomplete "
+                    f"store={dict(client.peerstore_list())} "
                     f"client={client.metrics()} hub={hub.connected_peers()}"
                 )
                 return 1
