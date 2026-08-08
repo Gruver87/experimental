@@ -42,6 +42,47 @@ def shares_ancestor_with_anchor(
     return False
 
 
+def evaluate_block_ref(
+    svc: WeakSubjectivityService,
+    window: AncestryWindow,
+    candidate: BlockRef,
+) -> StaleForkDecision:
+    """Evaluate a tip candidate that may not yet be recorded in ``window``."""
+    anchor = svc.get_anchor()
+    if anchor is None:
+        return svc.evaluate_stale_fork(
+            candidate_height=int(candidate.height),
+            candidate_hash=str(candidate.block_hash),
+            shares_ancestor_with_anchor=False,
+        )
+    if window.contains(candidate.block_hash):
+        return evaluate_with_window(
+            svc,
+            window,
+            candidate_hash=candidate.block_hash,
+            candidate_height=candidate.height,
+        )
+    parent = str(candidate.parent_hash or "")
+    if not parent:
+        linked = int(candidate.height) == 0 and candidate.block_hash == anchor.block_hash
+    else:
+        try:
+            ph = normalize_block_hash(parent)
+        except Exception:
+            ph = ""
+        linked = bool(ph) and (
+            ph == normalize_block_hash(anchor.block_hash)
+            or shares_ancestor_with_anchor(
+                window, candidate_hash=ph, anchor_hash=anchor.block_hash
+            )
+        )
+    return svc.evaluate_stale_fork(
+        candidate_height=int(candidate.height),
+        candidate_hash=str(candidate.block_hash),
+        shares_ancestor_with_anchor=linked,
+    )
+
+
 def evaluate_with_window(
     svc: WeakSubjectivityService,
     window: AncestryWindow,

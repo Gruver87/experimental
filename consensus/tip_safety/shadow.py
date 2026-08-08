@@ -22,6 +22,30 @@ _LOG = logging.getLogger("abs.tip_safety.shadow")
 _GENESIS_HASH = "0" * 64
 
 
+def _optional_ws_service_from_env() -> Optional[Any]:
+    """Attach ADR 0017 WS gate when FEATURE_LONG_RANGE (optional anchor via env)."""
+    import os
+
+    flag = str(os.environ.get("FEATURE_LONG_RANGE", "") or "").strip().lower()
+    if flag not in ("1", "true", "yes", "on"):
+        return None
+    try:
+        from consensus.long_range import CheckpointCertificate, WeakSubjectivityService
+
+        svc = WeakSubjectivityService()
+        h_raw = str(os.environ.get("ABS_WS_ANCHOR_HEIGHT", "") or "").strip()
+        hash_raw = str(os.environ.get("ABS_WS_ANCHOR_HASH", "") or "").strip()
+        if h_raw and hash_raw:
+            cert = CheckpointCertificate.issue(
+                height=int(h_raw), block_hash=hash_raw, issuer="env"
+            )
+            svc.set_anchor(cert.anchor)
+        return svc
+    except Exception as exc:
+        _LOG.warning("FEATURE_LONG_RANGE WS service init failed: %s", exc)
+        return None
+
+
 def block_ref_from_mapping(data: Mapping[str, Any]) -> BlockRef:
     """Build a ``BlockRef`` from a block dict / announce body.
 
@@ -196,9 +220,12 @@ class TipSafetyShadowObserver:
                 max_blocks = int(os.environ.get("TIP_ANCESTRY_WINDOW_MAX", "256") or 256)
             except (TypeError, ValueError):
                 max_blocks = 256
+            ws = _optional_ws_service_from_env()
             with self._lock:
                 self._service = TipSafetyService(
-                    state, ancestry_max_blocks=max(1, max_blocks)
+                    state,
+                    ancestry_max_blocks=max(1, max_blocks),
+                    ws_service=ws,
                 )
             return True
         except Exception as exc:

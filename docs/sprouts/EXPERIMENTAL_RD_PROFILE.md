@@ -21,6 +21,10 @@ Compatibility gaps: [EVM_COMPAT_MATRIX.md](EVM_COMPAT_MATRIX.md).
 ## Gates
 
 - `scripts/industrial_gate.py` requires `feature_libp2p=false` and `feature_long_range=false` on prod mesh JSON.
-- Lab scripts: `scripts/long_range_lab.py`, `scripts/libp2p_lab_smoke.py`.
+- Lab scripts: `scripts/long_range_lab.py`, `scripts/libp2p_lab_smoke.py`,
+  `scripts/libp2p_two_node_lab.py`, `scripts/libp2p_swarm_lab.py`.
+- Long-Range tip gate (when `FEATURE_LONG_RANGE=true`): optional
+  `ABS_WS_ANCHOR_HEIGHT` + `ABS_WS_ANCHOR_HASH` on tip-safety shadow sync.
+  Without an anchor, tip import is **not** blocked (`no_anchor` is informational).
 
 See [EXPERIMENTAL_SANDBOX.md](../../EXPERIMENTAL_SANDBOX.md).

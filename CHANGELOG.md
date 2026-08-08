@@ -16,6 +16,7 @@
 - EVM compat matrix + RPC wave: `eth_call` ABI word encode, `eth_estimateGas` create path, richer receipts
 - CI fast lane: `.github/workflows/experimental-rd.yml` (no tip-v2 48h soak hard gate)
 - Wave-2: WS `CheckpointCertificate` + AncestryWindow bridge; `DualStackDialer` + `libp2p_two_node_lab.py`; EVM precompiles sha256/identity
+- Wave-3: EVM ecrecover (0x01); libp2p multiaddr + in-process swarm lab; optional WS tip-import gate on TipSafetyService / shadow (`FEATURE_LONG_RANGE` + optional `ABS_WS_ANCHOR_*`)
 
 ### Industrial harden (no new features)
 

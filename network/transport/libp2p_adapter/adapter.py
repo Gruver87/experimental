@@ -44,16 +44,29 @@ class Libp2pTransportAdapter:
 
     def connect(self, endpoint: PeerEndpoint, **kwargs: Any) -> Any:
         self.require_transport()
-        host = str(endpoint.host or "").strip()
-        port = int(endpoint.port or 0)
+        multiaddr = str(kwargs.get("multiaddr") or "").strip()
+        if multiaddr:
+            from network.transport.libp2p_adapter.multiaddr import parse_multiaddr
+
+            ma = parse_multiaddr(multiaddr)
+            host, port = ma.host, ma.port
+            peer_id = ma.peer_id or str(endpoint.peer_id or "")
+        else:
+            host = str(endpoint.host or "").strip()
+            port = int(endpoint.port or 0)
+            peer_id = str(endpoint.peer_id or "")
         if not host or port <= 0:
-            raise TransportCapabilityError("libp2p dial requires host:port")
+            raise TransportCapabilityError("libp2p dial requires host:port or multiaddr")
         self._dial_count += 1
-        # Phase-1: opaque handle recording intent; no real swarm yet.
+        from network.transport.libp2p_adapter.multiaddr import Multiaddr
+
+        ma_str = Multiaddr(host=host, port=port, peer_id=peer_id).to_string()
+        # Phase-1/2: opaque handle; in-process swarm is separate (lab_swarm).
         return {
             "transport": "libp2p",
             "peer": f"{host}:{port}",
-            "peer_id": str(endpoint.peer_id or ""),
+            "peer_id": peer_id,
+            "multiaddr": ma_str,
             "phase": 1,
             "connected": False,
             "note": "stub_handle_pending_rust_libp2p_swarm",

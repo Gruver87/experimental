@@ -30,6 +30,8 @@ class TipSafetyService:
             ``reorg_policy`` has no window, a default window is created and
             shared with a new ``ReorgPolicy``.
         ancestry_max_blocks: Capacity when constructing the default window.
+        ws_service: Optional ADR 0017 weak-subjectivity gate (FEATURE_LONG_RANGE).
+            When set, accepted tip candidates must also pass WS policy.
     """
 
     def __init__(
@@ -39,6 +41,7 @@ class TipSafetyService:
         fork_choice: Optional[ForkChoice] = None,
         ancestry: Optional[AncestryWindow] = None,
         ancestry_max_blocks: int = 256,
+        ws_service: Optional[object] = None,
     ) -> None:
         if not isinstance(state, TipState):
             raise TipValidationError(
@@ -64,6 +67,7 @@ class TipSafetyService:
         self._fork = fork_choice if fork_choice is not None else ForkChoice()
         if not isinstance(self._fork, ForkChoice):
             raise TipValidationError("fork_choice must be ForkChoice")
+        self._ws = ws_service
         # Seed window with current tip (and finalized if present).
         snap = self._state.snapshot()
         self._ancestry.record(snap.head)
@@ -93,7 +97,7 @@ class TipSafetyService:
             errors still raise ``TipValidationError``.
         """
         try:
-            return self._reorg.evaluate(self._state, candidate)
+            decision = self._reorg.evaluate(self._state, candidate)
         except TipSafetyError as exc:
             _LOG.info(
                 "evaluate_candidate reject code=%s detail=%s",
@@ -106,6 +110,34 @@ class TipSafetyService:
                 detail=exc.message,
                 new_head=None,
             )
+        if decision.accepted and self._ws is not None:
+            try:
+                from consensus.long_range.ancestry_bridge import evaluate_block_ref
+
+                ws_dec = evaluate_block_ref(self._ws, self._ancestry, candidate)
+                # no_anchor is informational — do not block tip import until
+                # an operator sets a WS checkpoint (ADR 0017).
+                if not ws_dec.accept and ws_dec.reason != "no_anchor":
+                    _LOG.info(
+                        "evaluate_candidate WS refuse reason=%s height=%s",
+                        ws_dec.reason,
+                        candidate.height,
+                    )
+                    return ApplyDecision(
+                        outcome=ApplyOutcome.REJECT,
+                        reason_code=f"ws_{ws_dec.reason}",
+                        detail=f"FEATURE_LONG_RANGE gate: {ws_dec.reason}",
+                        new_head=None,
+                    )
+            except Exception as exc:
+                _LOG.warning("WS tip gate error (fail-closed): %s", exc)
+                return ApplyDecision(
+                    outcome=ApplyOutcome.REJECT,
+                    reason_code="ws_gate_error",
+                    detail=str(exc),
+                    new_head=None,
+                )
+        return decision
 
     def apply_candidate(self, candidate: BlockRef) -> ApplyDecision:
         """Evaluate and, if accepted, update tip state.
