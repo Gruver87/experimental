@@ -37,6 +37,9 @@ pub const MAX_WIRE_BYTES: usize = 1024 * 1024;
 /// Default `/abs/wire/1.0.0` request-response timeout (Slice L).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_WIRE_TIMEOUT_SECS: u64 = 10;
+/// Per-entry bootstrap dial settle timeout (Slice O industrial).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub const DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS: u64 = 8;
 
 /// Classify Absolute ADR 0008 payload on `/abs/wire` (Slice M).
 ///
@@ -74,7 +77,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 mod enabled {
     use super::{
         libp2p_available, ABS_GOSSIP_BLOCKS_TOPIC, ABS_KAD_PROTOCOL, ABS_WIRE_PROTOCOL,
-        DEFAULT_MAX_DIALS, DEFAULT_WIRE_TIMEOUT_SECS, MAX_WIRE_BYTES,
+        DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_WIRE_TIMEOUT_SECS,
+        MAX_WIRE_BYTES,
     };
     use async_trait::async_trait;
     use futures::prelude::*;
@@ -195,6 +199,149 @@ mod enabled {
             }
         }
         out
+    }
+
+    /// In-flight industrial bootstrap dial batch (Slice O).
+    struct BootstrapDialJob {
+        queue: VecDeque<(String, String)>,
+        results: Vec<(String, String)>,
+        /// Peer currently being dialed (awaiting settle).
+        current_peer: Option<String>,
+        reply: oneshot::Sender<Result<Vec<(String, String)>, String>>,
+        per_dial_deadline: Option<tokio::time::Instant>,
+        /// Peers already recorded after per-dial timeout (ignore late events for results).
+        abandoned: HashSet<String>,
+    }
+
+    /// Try to start the next bootstrap dial entry. Returns `true` if job finished and reply sent.
+    fn bootstrap_advance(
+        swarm: &mut libp2p::Swarm<AbsBehaviour>,
+        state: &Arc<Mutex<NodeState>>,
+        job: &mut Option<BootstrapDialJob>,
+    ) -> bool {
+        let Some(j) = job.as_mut() else {
+            return false;
+        };
+        if j.current_peer.is_some() {
+            return false;
+        }
+        let timeout = state
+            .lock()
+            .map(|st| Duration::from_secs(st.bootstrap_dial_timeout_secs.max(1)))
+            .unwrap_or_else(|_| Duration::from_secs(DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS));
+
+        loop {
+            let Some((pid, addr)) = j.queue.pop_front() else {
+                let finished = job.take().expect("bootstrap job");
+                let _ = finished.reply.send(Ok(finished.results));
+                return true;
+            };
+
+            // Already connected — count as success without a new dial.
+            let already = state
+                .lock()
+                .map(|st| st.connected.contains(&pid))
+                .unwrap_or(false);
+            if already {
+                if let Ok(mut st) = state.lock() {
+                    st.bootstrap_dials_attempted = st.bootstrap_dials_attempted.saturating_add(1);
+                    st.bootstrap_dials_ok = st.bootstrap_dials_ok.saturating_add(1);
+                }
+                j.results.push((pid, "already_connected".into()));
+                continue;
+            }
+
+            if state
+                .lock()
+                .map(|st| st.blocked.contains(&pid))
+                .unwrap_or(false)
+            {
+                if let Ok(mut st) = state.lock() {
+                    st.bootstrap_dials_attempted = st.bootstrap_dials_attempted.saturating_add(1);
+                    st.bootstrap_dials_fail = st.bootstrap_dials_fail.saturating_add(1);
+                    st.block_denied = st.block_denied.saturating_add(1);
+                }
+                j.results.push((pid, "peer_blocked".into()));
+                continue;
+            }
+
+            let reserved = if let Ok(mut st) = state.lock() {
+                let used = (st.outbound_peers.len() as u32).saturating_add(st.dial_inflight);
+                if used < st.max_dials {
+                    st.dial_inflight = st.dial_inflight.saturating_add(1);
+                    st.bootstrap_dials_attempted = st.bootstrap_dials_attempted.saturating_add(1);
+                    true
+                } else {
+                    st.dial_refused_budget = st.dial_refused_budget.saturating_add(1);
+                    st.bootstrap_dials_attempted = st.bootstrap_dials_attempted.saturating_add(1);
+                    st.bootstrap_dials_fail = st.bootstrap_dials_fail.saturating_add(1);
+                    false
+                }
+            } else {
+                false
+            };
+            if !reserved {
+                j.results.push((pid, "dial_budget_exceeded".into()));
+                continue;
+            }
+
+            let ma = match addr.parse::<Multiaddr>() {
+                Ok(m) => m,
+                Err(e) => {
+                    if let Ok(mut st) = state.lock() {
+                        st.dial_inflight = st.dial_inflight.saturating_sub(1);
+                        st.bootstrap_dials_fail = st.bootstrap_dials_fail.saturating_add(1);
+                    }
+                    j.results.push((pid, format!("bad multiaddr: {e}")));
+                    continue;
+                }
+            };
+
+            if let Err(e) = swarm.dial(ma) {
+                if let Ok(mut st) = state.lock() {
+                    st.dial_inflight = st.dial_inflight.saturating_sub(1);
+                    st.bootstrap_dials_fail = st.bootstrap_dials_fail.saturating_add(1);
+                    st.dial_fail = st.dial_fail.saturating_add(1);
+                }
+                j.results.push((pid, format!("dial: {e}")));
+                continue;
+            }
+
+            j.current_peer = Some(pid);
+            j.per_dial_deadline = Some(tokio::time::Instant::now() + timeout);
+            return false;
+        }
+    }
+
+    fn bootstrap_record_settle(
+        state: &Arc<Mutex<NodeState>>,
+        job: &mut Option<BootstrapDialJob>,
+        peer_id: &str,
+        status: String,
+        kind: &str,
+    ) {
+        let Some(j) = job.as_mut() else {
+            return;
+        };
+        if j.abandoned.contains(peer_id) {
+            return;
+        }
+        if j.current_peer.as_deref() != Some(peer_id) {
+            return;
+        }
+        if let Ok(mut st) = state.lock() {
+            match kind {
+                "ok" => st.bootstrap_dials_ok = st.bootstrap_dials_ok.saturating_add(1),
+                "timeout" => {
+                    st.bootstrap_dials_timeout = st.bootstrap_dials_timeout.saturating_add(1);
+                    st.bootstrap_dials_fail = st.bootstrap_dials_fail.saturating_add(1);
+                }
+                _ => st.bootstrap_dials_fail = st.bootstrap_dials_fail.saturating_add(1),
+            }
+        }
+        j.results.push((peer_id.to_string(), status));
+        j.current_peer = None;
+        j.per_dial_deadline = None;
     }
 
     #[derive(Debug, Clone, Default)]
@@ -454,6 +601,9 @@ mod enabled {
         bootstrap: HashMap<String, Vec<String>>,
         bootstrap_dials_ok: u64,
         bootstrap_dials_fail: u64,
+        bootstrap_dials_timeout: u64,
+        bootstrap_dials_attempted: u64,
+        bootstrap_dial_timeout_secs: u64,
     }
 
     #[pyclass(name = "Libp2pNode")]
@@ -489,6 +639,7 @@ mod enabled {
                     .map_err(|e| PyRuntimeError::new_err(format!("bootstrap load: {e}")))?
             };
             let wire_timeout_secs = wire_timeout_secs.max(1);
+            let bootstrap_dial_timeout_secs = resolve_bootstrap_dial_timeout_secs(None);
             let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel::<Cmd>();
             let state = Arc::new(Mutex::new(NodeState {
                 max_dials: max_dials.max(1),
@@ -499,6 +650,7 @@ mod enabled {
                 key_path: key_path_str.clone(),
                 bootstrap_path: bootstrap_path_str.clone(),
                 bootstrap: bootstrap_peers,
+                bootstrap_dial_timeout_secs,
                 ..NodeState::default()
             }));
             let state_bg = Arc::clone(&state);
@@ -647,6 +799,7 @@ mod enabled {
                     None;
                 let mut relay_listen_deadline: Option<tokio::time::Instant> = None;
                 let mut pending_dial: Option<oneshot::Sender<Result<String, String>>> = None;
+                let mut bootstrap_job: Option<BootstrapDialJob> = None;
                 let mut pending_wire: HashMap<
                     request_response::OutboundRequestId,
                     oneshot::Sender<Result<Vec<u8>, String>>,
@@ -657,6 +810,7 @@ mod enabled {
                 > = HashMap::new();
 
                 loop {
+                    let boot_deadline = bootstrap_job.as_ref().and_then(|j| j.per_dial_deadline);
                     tokio::select! {
                         _ = async {
                             if let Some(deadline) = relay_listen_deadline {
@@ -679,6 +833,33 @@ mod enabled {
                                     let _ = reply.send(Ok(addrs));
                                 }
                             }
+                        }
+                        _ = async {
+                            if let Some(deadline) = boot_deadline {
+                                tokio::time::sleep_until(deadline).await;
+                            } else {
+                                futures::future::pending::<()>().await;
+                            }
+                        }, if boot_deadline.is_some() => {
+                            if let Some(j) = bootstrap_job.as_mut() {
+                                if let Some(pid) = j.current_peer.clone() {
+                                    j.abandoned.insert(pid.clone());
+                                    // Inflight will clear on late OutgoingConnectionError.
+                                    if let Ok(mut st) = state_bg.lock() {
+                                        st.dial_inflight =
+                                            st.dial_inflight.saturating_sub(1);
+                                        st.bootstrap_dials_timeout =
+                                            st.bootstrap_dials_timeout.saturating_add(1);
+                                        st.bootstrap_dials_fail =
+                                            st.bootstrap_dials_fail.saturating_add(1);
+                                        st.last_error = format!("bootstrap_dial timeout: {pid}");
+                                    }
+                                    j.results.push((pid, "timeout".into()));
+                                    j.current_peer = None;
+                                    j.per_dial_deadline = None;
+                                }
+                            }
+                            let _ = bootstrap_advance(&mut swarm, &state_bg, &mut bootstrap_job);
                         }
                         cmd = cmd_rx.recv() => {
                             match cmd {
@@ -1051,42 +1232,35 @@ mod enabled {
                                     let _ = reply.send(snap);
                                 }
                                 Some(Cmd::BootstrapDial { reply }) => {
+                                    if bootstrap_job.is_some() {
+                                        let _ = reply.send(Err(
+                                            "bootstrap_dial already in progress".into(),
+                                        ));
+                                        continue;
+                                    }
+                                    if pending_dial.is_some() {
+                                        let _ = reply.send(Err(
+                                            "bootstrap_dial blocked: user dial in flight".into(),
+                                        ));
+                                        continue;
+                                    }
                                     let queue = state_bg
                                         .lock()
                                         .map(|st| flatten_bootstrap_addrs(&st.bootstrap))
                                         .unwrap_or_default();
-                                    let mut results: Vec<(String, String)> = Vec::new();
-                                    for (pid, addr) in queue {
-                                        match addr.parse::<Multiaddr>() {
-                                            Ok(ma) => match swarm.dial(ma) {
-                                                Ok(()) => {
-                                                    if let Ok(mut st) = state_bg.lock() {
-                                                        st.dial_inflight =
-                                                            st.dial_inflight.saturating_add(1);
-                                                    }
-                                                    results.push((pid, "dialing".into()));
-                                                }
-                                                Err(e) => {
-                                                    if let Ok(mut st) = state_bg.lock() {
-                                                        st.bootstrap_dials_fail = st
-                                                            .bootstrap_dials_fail
-                                                            .saturating_add(1);
-                                                    }
-                                                    results.push((pid, format!("dial: {e}")));
-                                                }
-                                            },
-                                            Err(e) => {
-                                                if let Ok(mut st) = state_bg.lock() {
-                                                    st.bootstrap_dials_fail = st
-                                                        .bootstrap_dials_fail
-                                                        .saturating_add(1);
-                                                }
-                                                results
-                                                    .push((pid, format!("bad multiaddr: {e}")));
-                                            }
-                                        }
-                                    }
-                                    let _ = reply.send(Ok(results));
+                                    bootstrap_job = Some(BootstrapDialJob {
+                                        queue: queue.into(),
+                                        results: Vec::new(),
+                                        current_peer: None,
+                                        reply,
+                                        per_dial_deadline: None,
+                                        abandoned: HashSet::new(),
+                                    });
+                                    let _ = bootstrap_advance(
+                                        &mut swarm,
+                                        &state_bg,
+                                        &mut bootstrap_job,
+                                    );
                                 }
                             }
                         }
@@ -1146,7 +1320,6 @@ mod enabled {
                                             .add_address(&peer_id, addr);
                                     }
                                     if let Ok(mut st) = state_bg.lock() {
-                                        let is_bootstrap = st.bootstrap.contains_key(&pid);
                                         st.connected.insert(pid.clone());
                                         st.kad_peers.insert(pid.clone());
                                         if is_dialer {
@@ -1154,19 +1327,33 @@ mod enabled {
                                             st.dial_ok = st.dial_ok.saturating_add(1);
                                             st.dial_inflight =
                                                 st.dial_inflight.saturating_sub(1);
-                                            if is_bootstrap {
-                                                st.bootstrap_dials_ok =
-                                                    st.bootstrap_dials_ok.saturating_add(1);
-                                            }
                                         }
                                     }
                                     if is_dialer {
                                         if let Some(reply) = pending_dial.take() {
-                                            let _ = reply.send(Ok(pid));
+                                            let _ = reply.send(Ok(pid.clone()));
+                                        }
+                                        let is_current = bootstrap_job
+                                            .as_ref()
+                                            .and_then(|j| j.current_peer.as_deref())
+                                            == Some(pid.as_str());
+                                        if is_current {
+                                            bootstrap_record_settle(
+                                                &state_bg,
+                                                &mut bootstrap_job,
+                                                &pid,
+                                                "ok".into(),
+                                                "ok",
+                                            );
+                                            let _ = bootstrap_advance(
+                                                &mut swarm,
+                                                &state_bg,
+                                                &mut bootstrap_job,
+                                            );
                                         }
                                     }
                                 }
-                                SwarmEvent::OutgoingConnectionError { error, .. } => {
+                                SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
                                     let limit_denied = matches!(
                                         &error,
                                         DialError::Denied { cause }
@@ -1181,10 +1368,19 @@ mod enabled {
                                                 .downcast_ref::<allow_block_list::Blocked>()
                                                 .is_some()
                                     );
+                                    let pid = peer_id.map(|p| p.to_string()).unwrap_or_default();
+                                    let abandoned = !pid.is_empty()
+                                        && bootstrap_job
+                                            .as_ref()
+                                            .map(|j| j.abandoned.contains(&pid))
+                                            .unwrap_or(false);
                                     if let Ok(mut st) = state_bg.lock() {
                                         st.last_error = format!("outgoing: {error}");
-                                        st.dial_fail = st.dial_fail.saturating_add(1);
-                                        st.dial_inflight = st.dial_inflight.saturating_sub(1);
+                                        if !abandoned {
+                                            st.dial_fail = st.dial_fail.saturating_add(1);
+                                            st.dial_inflight =
+                                                st.dial_inflight.saturating_sub(1);
+                                        }
                                         if limit_denied {
                                             st.conn_limit_denied =
                                                 st.conn_limit_denied.saturating_add(1);
@@ -1200,6 +1396,31 @@ mod enabled {
                                             format!("outgoing: {error}")
                                         };
                                         let _ = reply.send(Err(msg));
+                                    }
+                                    if !pid.is_empty() && !abandoned {
+                                        let is_current = bootstrap_job
+                                            .as_ref()
+                                            .and_then(|j| j.current_peer.as_deref())
+                                            == Some(pid.as_str());
+                                        if is_current {
+                                            let status = if block_denied {
+                                                "peer_blocked".into()
+                                            } else {
+                                                format!("outgoing: {error}")
+                                            };
+                                            bootstrap_record_settle(
+                                                &state_bg,
+                                                &mut bootstrap_job,
+                                                &pid,
+                                                status,
+                                                "fail",
+                                            );
+                                            let _ = bootstrap_advance(
+                                                &mut swarm,
+                                                &state_bg,
+                                                &mut bootstrap_job,
+                                            );
+                                        }
                                     }
                                 }
                                 SwarmEvent::IncomingConnectionError { error, .. } => {
@@ -1758,8 +1979,8 @@ mod enabled {
             })
         }
 
-        /// Fire dials for all persisted bootstrap multiaddrs (Slice O).
-        /// Returns list of `(peer_id, status)` where status is `dialing` or an error.
+        /// Sequentially dial all persisted bootstrap multiaddrs and settle each
+        /// (ok / fail / timeout / already_connected / budget / blocked) before return.
         fn bootstrap_dial(&self) -> PyResult<PyObject> {
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
@@ -2069,6 +2290,15 @@ mod enabled {
                 d.set_item("libp2p_bootstrap_peers", st.bootstrap.len())?;
                 d.set_item("libp2p_bootstrap_dials_ok", st.bootstrap_dials_ok)?;
                 d.set_item("libp2p_bootstrap_dials_fail", st.bootstrap_dials_fail)?;
+                d.set_item("libp2p_bootstrap_dials_timeout", st.bootstrap_dials_timeout)?;
+                d.set_item(
+                    "libp2p_bootstrap_dials_attempted",
+                    st.bootstrap_dials_attempted,
+                )?;
+                d.set_item(
+                    "libp2p_bootstrap_dial_timeout_secs",
+                    st.bootstrap_dial_timeout_secs,
+                )?;
                 d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
                 d.set_item("libp2p_block_denied", st.block_denied)?;
                 d.set_item("libp2p_blocked_peers", st.blocked.len())?;
@@ -2155,6 +2385,11 @@ mod enabled {
                 d.set_item("libp2p_bootstrap_peers", st.bootstrap.len())?;
                 d.set_item("libp2p_bootstrap_dials_ok", st.bootstrap_dials_ok)?;
                 d.set_item("libp2p_bootstrap_dials_fail", st.bootstrap_dials_fail)?;
+                d.set_item("libp2p_bootstrap_dials_timeout", st.bootstrap_dials_timeout)?;
+                d.set_item(
+                    "libp2p_bootstrap_dials_attempted",
+                    st.bootstrap_dials_attempted,
+                )?;
                 d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
                 d.set_item("libp2p_block_denied", st.block_denied)?;
                 d.set_item("libp2p_blocked_peers", st.blocked.len())?;
@@ -2218,6 +2453,21 @@ mod enabled {
                 }
             }
             Err(_) => None,
+        }
+    }
+
+    fn resolve_bootstrap_dial_timeout_secs(explicit: Option<u64>) -> u64 {
+        if let Some(v) = explicit {
+            return v.max(1);
+        }
+        match std::env::var("ABS_LIBP2P_BOOTSTRAP_DIAL_TIMEOUT_SECS") {
+            Ok(s) => s
+                .trim()
+                .parse::<u64>()
+                .ok()
+                .unwrap_or(DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS)
+                .max(1),
+            Err(_) => DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS,
         }
     }
 

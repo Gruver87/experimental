@@ -68,6 +68,8 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_bootstrap_peers",
     "libp2p_bootstrap_dials_ok",
     "libp2p_bootstrap_dials_fail",
+    "libp2p_bootstrap_dials_timeout",
+    "libp2p_bootstrap_dials_attempted",
 )
 
 UNIT_TESTS = [
