@@ -166,6 +166,7 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_score_sweep_ticks",
     "libp2p_peerstore_peers",
     "libp2p_peerstore_learned",
+    "libp2p_peerstore_removed",
     "libp2p_peerstore_dials_ok",
     "libp2p_peerstore_dials_fail",
     "libp2p_peerstore_dials_timeout",

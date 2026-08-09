@@ -98,6 +98,7 @@ LABS = [
     ("BB", "scripts/libp2p_rust_wire_omit_response_lab.py"),
     ("BC", "scripts/libp2p_rust_identify_push_lab.py"),
     ("BD", "scripts/libp2p_rust_identify_interval_lab.py"),
+    ("BE", "scripts/libp2p_rust_peerstore_remove_lab.py"),
 ]
 
 

@@ -94,6 +94,7 @@ feature `libp2p`), exposed to Python through the existing
 | Wire omit-response | Slice BB: `ABS_LIBP2P_WIRE_OMIT_RESPONSE` → inbound `wire_inbound_fail_response_omission`; `libp2p_rust_wire_omit_response_lab.py` |
 | Identify push | Slice BC: `identify_push` API + `ABS_LIBP2P_IDENTIFY_PUSH` / `ABS_LIBP2P_AGENT_VERSION`; `libp2p_rust_identify_push_lab.py` |
 | Identify interval | Slice BD: `ABS_LIBP2P_IDENTIFY_INTERVAL_MS` + `identify_error_{timeout,negotiation,apply,io}`; `libp2p_rust_identify_interval_lab.py` |
+| Peerstore remove | Slice BE: `peerstore_remove` + `peerstore_removed`; `libp2p_rust_peerstore_remove_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -157,6 +158,7 @@ feature `libp2p`), exposed to Python through the existing
 | BB | Wire omit-response lab path (`ResponseOmission`); `libp2p_rust_wire_omit_response_lab.py` |
 | BC | Identify push API + agent version + listen-addr push; `libp2p_rust_identify_push_lab.py` |
 | BD | Identify interval + error taxonomy; `libp2p_rust_identify_interval_lab.py` |
+| BE | Peerstore remove (forget peer); `libp2p_rust_peerstore_remove_lab.py` |
 
 ## Honesty
 
@@ -207,7 +209,8 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_gossip_validation_lab.py`,
   `libp2p_rust_wire_omit_response_lab.py`,
   `libp2p_rust_identify_push_lab.py`,
-  `libp2p_rust_identify_interval_lab.py`;
+  `libp2p_rust_identify_interval_lab.py`,
+  `libp2p_rust_peerstore_remove_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -242,6 +245,7 @@ feature `libp2p`), exposed to Python through the existing
   Slice BB: wire omit-response (`wire_inbound_fail_response_omission` via `ABS_LIBP2P_WIRE_OMIT_RESPONSE`).
   Slice BC: identify push (`identify_push` / `identify_pushed` + `ABS_LIBP2P_AGENT_VERSION`).
   Slice BD: identify interval (`ABS_LIBP2P_IDENTIFY_INTERVAL_MS`) + `identify_error_*` taxonomy.
+  Slice BE: peerstore remove (`peerstore_remove` / `peerstore_removed`; runtime forget suppresses re-learn).
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.

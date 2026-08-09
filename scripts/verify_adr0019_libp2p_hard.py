@@ -194,6 +194,7 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_score_sweep_ticks",
     "libp2p_peerstore_peers",
     "libp2p_peerstore_learned",
+    "libp2p_peerstore_removed",
     "libp2p_peerstore_dials_ok",
     "libp2p_peerstore_dials_fail",
     "libp2p_peerstore_dials_timeout",
@@ -299,6 +300,7 @@ LABS = [
     ("BB", "scripts/libp2p_rust_wire_omit_response_lab.py"),
     ("BC", "scripts/libp2p_rust_identify_push_lab.py"),
     ("BD", "scripts/libp2p_rust_identify_interval_lab.py"),
+    ("BE", "scripts/libp2p_rust_peerstore_remove_lab.py"),
 ]
 
 PROD_JSONS = (

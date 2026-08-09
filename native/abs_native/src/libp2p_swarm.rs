@@ -51,6 +51,7 @@
 //! Slice BB: wire omit-response lab path (`ResponseOmission` inbound fail).
 //! Slice BC: identify push API + agent version + listen-addr push toggle.
 //! Slice BD: identify interval + identify error taxonomy.
+//! Slice BE: peerstore remove (forget peer) + removed counter.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -361,6 +362,10 @@ mod enabled {
         }
         let persist = if let Ok(mut st) = state.lock() {
             if st.peerstore_path.is_empty() {
+                return;
+            }
+            // Slice BE: honor explicit forget until clear / restart.
+            if st.peerstore_forgotten.contains(peer_id) {
                 return;
             }
             let entry = st.peerstore.entry(peer_id.to_string()).or_default();
@@ -851,6 +856,11 @@ mod enabled {
         PeerstoreClear {
             reply: oneshot::Sender<Result<(), String>>,
         },
+        /// Slice BE: forget one learned peer (and persist if path set).
+        PeerstoreRemove {
+            peer_id: String,
+            reply: oneshot::Sender<Result<bool, String>>,
+        },
         PeerstoreDial {
             reply: oneshot::Sender<Result<Vec<(String, String)>, String>>,
         },
@@ -1162,7 +1172,11 @@ mod enabled {
         /// Slice T: learned peer multiaddrs (identify/connection), separate from bootstrap.
         peerstore_path: String,
         peerstore: HashMap<String, Vec<String>>,
+        /// Slice BE: runtime suppress re-learn after ``peerstore_remove`` (not persisted).
+        peerstore_forgotten: HashSet<String>,
         peerstore_learned: u64,
+        /// Slice BE: successful peerstore_remove calls.
+        peerstore_removed: u64,
         peerstore_dials_ok: u64,
         peerstore_dials_fail: u64,
         peerstore_dials_timeout: u64,
@@ -2777,6 +2791,7 @@ mod enabled {
                                 Some(Cmd::PeerstoreClear { reply }) => {
                                     let persist = if let Ok(mut st) = state_bg.lock() {
                                         st.peerstore.clear();
+                                        st.peerstore_forgotten.clear();
                                         (st.peerstore_path.clone(), st.peerstore.clone())
                                     } else {
                                         let _ = reply.send(Err("state lock poisoned".into()));
@@ -2786,6 +2801,36 @@ mod enabled {
                                         Ok(())
                                     } else {
                                         save_bootstrap_peers(Path::new(&persist.0), &persist.1)
+                                    };
+                                    let _ = reply.send(res);
+                                }
+                                Some(Cmd::PeerstoreRemove { peer_id, reply }) => {
+                                    // Slice BE: forget one learned peer (+ suppress re-learn).
+                                    let persist = if let Ok(mut st) = state_bg.lock() {
+                                        let removed = st.peerstore.remove(&peer_id).is_some();
+                                        st.peerstore_forgotten.insert(peer_id.clone());
+                                        if removed {
+                                            st.peerstore_removed =
+                                                st.peerstore_removed.saturating_add(1);
+                                        }
+                                        (
+                                            removed,
+                                            st.peerstore_path.clone(),
+                                            st.peerstore.clone(),
+                                        )
+                                    } else {
+                                        let _ = reply.send(Err("state lock poisoned".into()));
+                                        continue;
+                                    };
+                                    if !persist.0 {
+                                        let _ = reply.send(Ok(false));
+                                        continue;
+                                    }
+                                    let res = if persist.1.is_empty() {
+                                        Ok(true)
+                                    } else {
+                                        save_bootstrap_peers(Path::new(&persist.1), &persist.2)
+                                            .map(|_| true)
                                     };
                                     let _ = reply.send(res);
                                 }
@@ -5012,6 +5057,22 @@ mod enabled {
             }
         }
 
+        /// Slice BE: forget one learned peer. Returns true if the peer was present.
+        fn peerstore_remove(&self, peer_id: &str) -> PyResult<bool> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::PeerstoreRemove {
+                    peer_id: peer_id.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(removed)) => Ok(removed),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("peerstore_remove reply dropped")),
+            }
+        }
+
         /// Slice T: industrial sequential dial of learned peerstore entries.
         fn peerstore_dial(&self) -> PyResult<PyObject> {
             let (tx, rx) = oneshot::channel();
@@ -5784,6 +5845,7 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_peerstore_peers", st.peerstore.len())?;
                 d.set_item("libp2p_peerstore_learned", st.peerstore_learned)?;
+                d.set_item("libp2p_peerstore_removed", st.peerstore_removed)?;
                 d.set_item("libp2p_peerstore_dials_ok", st.peerstore_dials_ok)?;
                 d.set_item("libp2p_peerstore_dials_fail", st.peerstore_dials_fail)?;
                 d.set_item("libp2p_peerstore_dials_timeout", st.peerstore_dials_timeout)?;
@@ -5941,13 +6003,14 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 55)?;
+                d.set_item("phase", 56)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
                 d.set_item("peer_score", true)?;
                 d.set_item("score_autoblock", st.enable_score_autoblock)?;
                 d.set_item("peerstore", !st.peerstore_path.is_empty())?;
+                d.set_item("peerstore_remove", true)?;
                 d.set_item("peerstore_reconnect", st.enable_reconnect)?;
                 d.set_item("ping", true)?;
                 d.set_item("ping_fail_events", true)?;
@@ -6249,6 +6312,7 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_peerstore_peers", st.peerstore.len())?;
                 d.set_item("libp2p_peerstore_learned", st.peerstore_learned)?;
+                d.set_item("libp2p_peerstore_removed", st.peerstore_removed)?;
                 d.set_item("libp2p_peerstore_dials_ok", st.peerstore_dials_ok)?;
                 d.set_item("libp2p_peerstore_dials_fail", st.peerstore_dials_fail)?;
                 d.set_item("libp2p_peerstore_dials_timeout", st.peerstore_dials_timeout)?;
