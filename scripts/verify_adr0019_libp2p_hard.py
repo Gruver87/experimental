@@ -195,6 +195,7 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_peerstore_peers",
     "libp2p_peerstore_learned",
     "libp2p_peerstore_removed",
+    "libp2p_peerstore_allow_learn",
     "libp2p_peerstore_dials_ok",
     "libp2p_peerstore_dials_fail",
     "libp2p_peerstore_dials_timeout",
@@ -301,6 +302,7 @@ LABS = [
     ("BC", "scripts/libp2p_rust_identify_push_lab.py"),
     ("BD", "scripts/libp2p_rust_identify_interval_lab.py"),
     ("BE", "scripts/libp2p_rust_peerstore_remove_lab.py"),
+    ("BF", "scripts/libp2p_rust_peerstore_allow_learn_lab.py"),
 ]
 
 PROD_JSONS = (

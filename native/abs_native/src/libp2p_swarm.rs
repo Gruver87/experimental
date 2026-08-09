@@ -52,6 +52,7 @@
 //! Slice BC: identify push API + agent version + listen-addr push toggle.
 //! Slice BD: identify interval + identify error taxonomy.
 //! Slice BE: peerstore remove (forget peer) + removed counter.
+//! Slice BF: peerstore_allow_learn (clear forget → re-learn allowed).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -861,6 +862,11 @@ mod enabled {
             peer_id: String,
             reply: oneshot::Sender<Result<bool, String>>,
         },
+        /// Slice BF: clear runtime forget so identify/connection may re-learn.
+        PeerstoreAllowLearn {
+            peer_id: String,
+            reply: oneshot::Sender<Result<bool, String>>,
+        },
         PeerstoreDial {
             reply: oneshot::Sender<Result<Vec<(String, String)>, String>>,
         },
@@ -1177,6 +1183,8 @@ mod enabled {
         peerstore_learned: u64,
         /// Slice BE: successful peerstore_remove calls.
         peerstore_removed: u64,
+        /// Slice BF: successful peerstore_allow_learn (was forgotten).
+        peerstore_allow_learn: u64,
         peerstore_dials_ok: u64,
         peerstore_dials_fail: u64,
         peerstore_dials_timeout: u64,
@@ -2833,6 +2841,21 @@ mod enabled {
                                             .map(|_| true)
                                     };
                                     let _ = reply.send(res);
+                                }
+                                Some(Cmd::PeerstoreAllowLearn { peer_id, reply }) => {
+                                    // Slice BF: lift forget so peerstore_note_addr may run again.
+                                    let cleared = if let Ok(mut st) = state_bg.lock() {
+                                        let was = st.peerstore_forgotten.remove(&peer_id);
+                                        if was {
+                                            st.peerstore_allow_learn =
+                                                st.peerstore_allow_learn.saturating_add(1);
+                                        }
+                                        was
+                                    } else {
+                                        let _ = reply.send(Err("state lock poisoned".into()));
+                                        continue;
+                                    };
+                                    let _ = reply.send(Ok(cleared));
                                 }
                                 Some(Cmd::PeerstoreDial { reply }) => {
                                     if bootstrap_job.is_some() {
@@ -5073,6 +5096,24 @@ mod enabled {
             }
         }
 
+        /// Slice BF: allow re-learning a forgotten peer. Returns true if it was forgotten.
+        fn peerstore_allow_learn(&self, peer_id: &str) -> PyResult<bool> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::PeerstoreAllowLearn {
+                    peer_id: peer_id.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(cleared)) => Ok(cleared),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err(
+                    "peerstore_allow_learn reply dropped",
+                )),
+            }
+        }
+
         /// Slice T: industrial sequential dial of learned peerstore entries.
         fn peerstore_dial(&self) -> PyResult<PyObject> {
             let (tx, rx) = oneshot::channel();
@@ -5846,6 +5887,7 @@ mod enabled {
                 d.set_item("libp2p_peerstore_peers", st.peerstore.len())?;
                 d.set_item("libp2p_peerstore_learned", st.peerstore_learned)?;
                 d.set_item("libp2p_peerstore_removed", st.peerstore_removed)?;
+                d.set_item("libp2p_peerstore_allow_learn", st.peerstore_allow_learn)?;
                 d.set_item("libp2p_peerstore_dials_ok", st.peerstore_dials_ok)?;
                 d.set_item("libp2p_peerstore_dials_fail", st.peerstore_dials_fail)?;
                 d.set_item("libp2p_peerstore_dials_timeout", st.peerstore_dials_timeout)?;
@@ -6003,7 +6045,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 56)?;
+                d.set_item("phase", 57)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -6011,6 +6053,7 @@ mod enabled {
                 d.set_item("score_autoblock", st.enable_score_autoblock)?;
                 d.set_item("peerstore", !st.peerstore_path.is_empty())?;
                 d.set_item("peerstore_remove", true)?;
+                d.set_item("peerstore_allow_learn", true)?;
                 d.set_item("peerstore_reconnect", st.enable_reconnect)?;
                 d.set_item("ping", true)?;
                 d.set_item("ping_fail_events", true)?;
@@ -6313,6 +6356,7 @@ mod enabled {
                 d.set_item("libp2p_peerstore_peers", st.peerstore.len())?;
                 d.set_item("libp2p_peerstore_learned", st.peerstore_learned)?;
                 d.set_item("libp2p_peerstore_removed", st.peerstore_removed)?;
+                d.set_item("libp2p_peerstore_allow_learn", st.peerstore_allow_learn)?;
                 d.set_item("libp2p_peerstore_dials_ok", st.peerstore_dials_ok)?;
                 d.set_item("libp2p_peerstore_dials_fail", st.peerstore_dials_fail)?;
                 d.set_item("libp2p_peerstore_dials_timeout", st.peerstore_dials_timeout)?;
