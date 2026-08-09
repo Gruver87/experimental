@@ -1,4 +1,4 @@
-﻿# Absolute Blockchain Node — зависимости
+# Absolute Blockchain Node — зависимости
 # Ядро работает на чистой стандартной библиотеке Python 3.10+
 # Все обязательные зависимости ниже
 
@@ -25,7 +25,7 @@ wasmtime>=24.0.0; platform_system != "Windows" or platform_machine == "AMD64"
 PyJWT>=2.8.0
 
 # Redis — distributed rate limit (Phase 5 HA, optional)
-redis>=5.0.0
+redis>=8.1.0
 
 # Тестирование
 pytest>=8.0.0
