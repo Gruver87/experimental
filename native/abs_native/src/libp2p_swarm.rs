@@ -718,6 +718,16 @@ mod enabled {
         PollGossip {
             reply: oneshot::Sender<Vec<(String, String, Vec<u8>)>>,
         },
+        /// Slice AM: current gossipsub mesh peers for a topic.
+        GossipMeshPeers {
+            topic: String,
+            reply: oneshot::Sender<Vec<String>>,
+        },
+        /// Slice AM: peers known to subscribe to a topic (fanout/mesh book).
+        GossipTopicPeers {
+            topic: String,
+            reply: oneshot::Sender<Vec<String>>,
+        },
         KadAddAddress {
             peer_id: String,
             addr: String,
@@ -923,6 +933,9 @@ mod enabled {
         gossip_validation_reject: u64,
         gossip_app_score_sets: u64,
         gossip_not_supported: u64,
+        /// Slice AM: remote peer topic join/leave notifications.
+        gossip_peer_subscribed: u64,
+        gossip_peer_unsubscribed: u64,
         mdns_discovered: u64,
         kad_routing_updates: u64,
         kad_queries: u64,
@@ -2056,6 +2069,33 @@ mod enabled {
                                         Vec::new()
                                     };
                                     let _ = reply.send(items);
+                                }
+                                Some(Cmd::GossipMeshPeers { topic, reply }) => {
+                                    let t = gossipsub::IdentTopic::new(topic);
+                                    let peers: Vec<String> = swarm
+                                        .behaviour()
+                                        .gossipsub
+                                        .mesh_peers(&t.hash())
+                                        .map(|p| p.to_string())
+                                        .collect();
+                                    let _ = reply.send(peers);
+                                }
+                                Some(Cmd::GossipTopicPeers { topic, reply }) => {
+                                    let t = gossipsub::IdentTopic::new(topic);
+                                    let want = t.hash();
+                                    let peers: Vec<String> = swarm
+                                        .behaviour()
+                                        .gossipsub
+                                        .all_peers()
+                                        .filter_map(|(peer, topics)| {
+                                            if topics.iter().any(|th| *th == &want) {
+                                                Some(peer.to_string())
+                                            } else {
+                                                None
+                                            }
+                                        })
+                                        .collect();
+                                    let _ = reply.send(peers);
                                 }
                                 Some(Cmd::KadAddAddress { peer_id, addr, reply }) => {
                                     match (peer_id.parse::<PeerId>(), addr.parse::<Multiaddr>()) {
@@ -3486,7 +3526,26 @@ mod enabled {
                                                 );
                                             }
                                         }
-                                        _ => {}
+                                        gossipsub::Event::Subscribed { peer_id, topic } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.gossip_peer_subscribed = st
+                                                    .gossip_peer_subscribed
+                                                    .saturating_add(1);
+                                                st.last_error = format!(
+                                                    "gossip subscribed peer={peer_id} topic={topic}"
+                                                );
+                                            }
+                                        }
+                                        gossipsub::Event::Unsubscribed { peer_id, topic } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.gossip_peer_unsubscribed = st
+                                                    .gossip_peer_unsubscribed
+                                                    .saturating_add(1);
+                                                st.last_error = format!(
+                                                    "gossip unsubscribed peer={peer_id} topic={topic}"
+                                                );
+                                            }
+                                        }
                                     }
                                 }
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::Mdns(ev)) => match ev {
@@ -4634,6 +4693,32 @@ mod enabled {
             })
         }
 
+        /// Slice AM: gossipsub mesh peers for a topic (PeerId strings).
+        fn gossip_mesh_peers(&self, topic: &str) -> PyResult<Vec<String>> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::GossipMeshPeers {
+                    topic: topic.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            rx.blocking_recv()
+                .map_err(|_| PyRuntimeError::new_err("gossip_mesh_peers reply dropped"))
+        }
+
+        /// Slice AM: peers known subscribed to a topic (broader than mesh).
+        fn gossip_topic_peers(&self, topic: &str) -> PyResult<Vec<String>> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::GossipTopicPeers {
+                    topic: topic.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            rx.blocking_recv()
+                .map_err(|_| PyRuntimeError::new_err("gossip_topic_peers reply dropped"))
+        }
+
         /// Add peer multiaddr into Kademlia routing table (Slice G).
         fn kad_add_address(&self, peer_id: &str, multiaddr: &str) -> PyResult<String> {
             let (tx, rx) = oneshot::channel();
@@ -4849,6 +4934,11 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_gossip_app_score_sets", st.gossip_app_score_sets)?;
                 d.set_item("libp2p_gossip_not_supported", st.gossip_not_supported)?;
+                d.set_item("libp2p_gossip_peer_subscribed", st.gossip_peer_subscribed)?;
+                d.set_item(
+                    "libp2p_gossip_peer_unsubscribed",
+                    st.gossip_peer_unsubscribed,
+                )?;
                 d.set_item("libp2p_gossip_peer_score", true)?;
                 d.set_item("libp2p_gossip_topics", st.subscribed.len())?;
                 d.set_item("libp2p_identify_peers", st.identify.len())?;
@@ -5013,7 +5103,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 37)?;
+                d.set_item("phase", 38)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -5044,6 +5134,7 @@ mod enabled {
                 d.set_item("listener_lifecycle", true)?;
                 d.set_item("connection_attempts", true)?;
                 d.set_item("identify_events", true)?;
+                d.set_item("gossip_subscription_events", true)?;
                 d.set_item("connection_manager", true)?;
                 d.set_item("bootstrap", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
@@ -5133,6 +5224,11 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_gossip_app_score_sets", st.gossip_app_score_sets)?;
                 d.set_item("libp2p_gossip_not_supported", st.gossip_not_supported)?;
+                d.set_item("libp2p_gossip_peer_subscribed", st.gossip_peer_subscribed)?;
+                d.set_item(
+                    "libp2p_gossip_peer_unsubscribed",
+                    st.gossip_peer_unsubscribed,
+                )?;
                 d.set_item("libp2p_gossip_peer_score", true)?;
                 d.set_item("libp2p_identify_peers", st.identify.len())?;
                 d.set_item("libp2p_identify_received", st.identify_received)?;

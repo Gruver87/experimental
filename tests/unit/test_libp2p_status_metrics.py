@@ -68,6 +68,8 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_identify_sent" in empty
     assert "libp2p_identify_pushed" in empty
     assert "libp2p_identify_error" in empty
+    assert "libp2p_gossip_peer_subscribed" in empty
+    assert "libp2p_gossip_peer_unsubscribed" in empty
 
 
 def test_merge_overwrites_present_keys_only() -> None:

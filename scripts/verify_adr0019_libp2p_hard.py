@@ -105,6 +105,8 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_gossip_validation_reject",
     "libp2p_gossip_app_score_sets",
     "libp2p_gossip_not_supported",
+    "libp2p_gossip_peer_subscribed",
+    "libp2p_gossip_peer_unsubscribed",
     "libp2p_gossip_peer_score",
     "libp2p_ping_ok",
     "libp2p_ping_fail",
@@ -201,6 +203,7 @@ LABS = [
     ("AJ", "scripts/libp2p_rust_listener_lifecycle_lab.py"),
     ("AK", "scripts/libp2p_rust_connection_attempt_lab.py"),
     ("AL", "scripts/libp2p_rust_identify_events_lab.py"),
+    ("AM", "scripts/libp2p_rust_gossip_subscription_lab.py"),
 ]
 
 PROD_JSONS = (

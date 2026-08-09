@@ -77,6 +77,8 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_gossip_validation_reject",
     "libp2p_gossip_app_score_sets",
     "libp2p_gossip_not_supported",
+    "libp2p_gossip_peer_subscribed",
+    "libp2p_gossip_peer_unsubscribed",
     "libp2p_gossip_peer_score",
     "libp2p_ping_ok",
     "libp2p_ping_fail",
