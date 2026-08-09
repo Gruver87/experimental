@@ -878,6 +878,10 @@ mod enabled {
         incoming_connections: u64,
         /// Slice AH: ConnectionClosed that dropped the last connection to a peer.
         connection_closed: u64,
+        /// Slice AI: ConnectionClosed cause taxonomy (counted with last-peer drop).
+        connection_closed_local: u64,
+        connection_closed_io: u64,
+        connection_closed_keep_alive: u64,
         /// Slice AH: last / max ConnectionEstablished duration (ms).
         established_in_ms_last: u64,
         established_in_ms_max: u64,
@@ -3102,6 +3106,24 @@ mod enabled {
                                             st.outbound_peers.remove(&pid);
                                             st.connection_closed =
                                                 st.connection_closed.saturating_add(1);
+                                            // Slice AI: cause buckets align with last-peer closes.
+                                            match &cause {
+                                                None => {
+                                                    st.connection_closed_local = st
+                                                        .connection_closed_local
+                                                        .saturating_add(1);
+                                                }
+                                                Some(ConnectionError::IO(_)) => {
+                                                    st.connection_closed_io = st
+                                                        .connection_closed_io
+                                                        .saturating_add(1);
+                                                }
+                                                Some(ConnectionError::KeepAliveTimeout) => {
+                                                    st.connection_closed_keep_alive = st
+                                                        .connection_closed_keep_alive
+                                                        .saturating_add(1);
+                                                }
+                                            }
                                         }
                                         if idle_close {
                                             st.idle_timeout_closes =
@@ -4610,6 +4632,12 @@ mod enabled {
                 d.set_item("libp2p_inbound_established", st.inbound_established)?;
                 d.set_item("libp2p_incoming_connections", st.incoming_connections)?;
                 d.set_item("libp2p_connection_closed", st.connection_closed)?;
+                d.set_item("libp2p_connection_closed_local", st.connection_closed_local)?;
+                d.set_item("libp2p_connection_closed_io", st.connection_closed_io)?;
+                d.set_item(
+                    "libp2p_connection_closed_keep_alive",
+                    st.connection_closed_keep_alive,
+                )?;
                 d.set_item("libp2p_established_in_ms_last", st.established_in_ms_last)?;
                 d.set_item("libp2p_established_in_ms_max", st.established_in_ms_max)?;
                 d.set_item("libp2p_wire_sent", st.wire_sent)?;
@@ -4799,7 +4827,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 33)?;
+                d.set_item("phase", 34)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -4826,6 +4854,7 @@ mod enabled {
                 d.set_item("bandwidth", true)?;
                 d.set_item("external_addrs", true)?;
                 d.set_item("connection_lifecycle", true)?;
+                d.set_item("connection_close_causes", true)?;
                 d.set_item("connection_manager", true)?;
                 d.set_item("bootstrap", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
@@ -4872,6 +4901,12 @@ mod enabled {
                 d.set_item("libp2p_inbound_established", st.inbound_established)?;
                 d.set_item("libp2p_incoming_connections", st.incoming_connections)?;
                 d.set_item("libp2p_connection_closed", st.connection_closed)?;
+                d.set_item("libp2p_connection_closed_local", st.connection_closed_local)?;
+                d.set_item("libp2p_connection_closed_io", st.connection_closed_io)?;
+                d.set_item(
+                    "libp2p_connection_closed_keep_alive",
+                    st.connection_closed_keep_alive,
+                )?;
                 d.set_item("libp2p_established_in_ms_last", st.established_in_ms_last)?;
                 d.set_item("libp2p_established_in_ms_max", st.established_in_ms_max)?;
                 d.set_item("libp2p_bytes_in", st.bytes_in)?;

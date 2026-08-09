@@ -76,6 +76,7 @@ LABS = [
     ("AF", "scripts/libp2p_rust_bandwidth_lab.py"),
     ("AG", "scripts/libp2p_rust_external_addr_lab.py"),
     ("AH", "scripts/libp2p_rust_connection_lifecycle_lab.py"),
+    ("AI", "scripts/libp2p_rust_connection_close_cause_lab.py"),
 ]
 
 

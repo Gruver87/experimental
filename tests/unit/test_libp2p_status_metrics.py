@@ -54,6 +54,9 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_external_addrs" in empty
     assert "libp2p_inbound_established" in empty
     assert "libp2p_connection_closed" in empty
+    assert "libp2p_connection_closed_local" in empty
+    assert "libp2p_connection_closed_io" in empty
+    assert "libp2p_connection_closed_keep_alive" in empty
 
 
 def test_merge_overwrites_present_keys_only() -> None:
