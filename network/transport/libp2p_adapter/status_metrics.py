@@ -121,6 +121,7 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_bootstrap_dials_fail",
     "libp2p_bootstrap_dials_timeout",
     "libp2p_bootstrap_dials_attempted",
+    "libp2p_bootstrap_removed",
     "libp2p_reconnect_scheduled",
     "libp2p_reconnect_ok",
     "libp2p_reconnect_fail",

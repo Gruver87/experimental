@@ -54,6 +54,7 @@
 //! Slice BE: peerstore remove (forget peer) + removed counter.
 //! Slice BF: peerstore_allow_learn (clear forget → re-learn allowed).
 //! Slice BG: identify observed-addr surface + confirm_observed_addr.
+//! Slice BH: bootstrap_remove returns bool + removed counter.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -840,9 +841,10 @@ mod enabled {
             multiaddr: String,
             reply: oneshot::Sender<Result<(), String>>,
         },
+        /// Slice BH: forget one bootstrap peer (returns whether it was present).
         BootstrapRemove {
             peer_id: String,
-            reply: oneshot::Sender<Result<(), String>>,
+            reply: oneshot::Sender<Result<bool, String>>,
         },
         BootstrapList {
             reply: oneshot::Sender<HashMap<String, Vec<String>>>,
@@ -1183,6 +1185,8 @@ mod enabled {
         bootstrap_dials_fail: u64,
         bootstrap_dials_timeout: u64,
         bootstrap_dials_attempted: u64,
+        /// Slice BH: successful bootstrap_remove calls.
+        bootstrap_removed: u64,
         bootstrap_dial_timeout_secs: u64,
         /// Slice T: learned peer multiaddrs (identify/connection), separate from bootstrap.
         peerstore_path: String,
@@ -2743,19 +2747,31 @@ mod enabled {
                                     let _ = reply.send(res);
                                 }
                                 Some(Cmd::BootstrapRemove { peer_id, reply }) => {
+                                    // Slice BH: forget one bootstrap peer (+ persist).
                                     let persist = if let Ok(mut st) = state_bg.lock() {
-                                        st.bootstrap.remove(&peer_id);
-                                        let path = st.bootstrap_path.clone();
-                                        let snap = st.bootstrap.clone();
-                                        (path, snap)
+                                        let removed = st.bootstrap.remove(&peer_id).is_some();
+                                        if removed {
+                                            st.bootstrap_removed =
+                                                st.bootstrap_removed.saturating_add(1);
+                                        }
+                                        (
+                                            removed,
+                                            st.bootstrap_path.clone(),
+                                            st.bootstrap.clone(),
+                                        )
                                     } else {
                                         let _ = reply.send(Err("state lock poisoned".into()));
                                         continue;
                                     };
-                                    let res = if persist.0.is_empty() {
-                                        Ok(())
+                                    if !persist.0 {
+                                        let _ = reply.send(Ok(false));
+                                        continue;
+                                    }
+                                    let res = if persist.1.is_empty() {
+                                        Ok(true)
                                     } else {
-                                        save_bootstrap_peers(Path::new(&persist.0), &persist.1)
+                                        save_bootstrap_peers(Path::new(&persist.1), &persist.2)
+                                            .map(|_| true)
                                     };
                                     let _ = reply.send(res);
                                 }
@@ -5046,7 +5062,8 @@ mod enabled {
             }
         }
 
-        fn bootstrap_remove(&self, peer_id: &str) -> PyResult<()> {
+        /// Slice BH: forget one bootstrap peer. Returns true if the peer was present.
+        fn bootstrap_remove(&self, peer_id: &str) -> PyResult<bool> {
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
                 .send(Cmd::BootstrapRemove {
@@ -5055,7 +5072,7 @@ mod enabled {
                 })
                 .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
             match rx.blocking_recv() {
-                Ok(Ok(())) => Ok(()),
+                Ok(Ok(removed)) => Ok(removed),
                 Ok(Err(e)) => Err(PyValueError::new_err(e)),
                 Err(_) => Err(PyRuntimeError::new_err("bootstrap_remove reply dropped")),
             }
@@ -5953,6 +5970,7 @@ mod enabled {
                     "libp2p_bootstrap_dials_attempted",
                     st.bootstrap_dials_attempted,
                 )?;
+                d.set_item("libp2p_bootstrap_removed", st.bootstrap_removed)?;
                 d.set_item(
                     "libp2p_bootstrap_dial_timeout_secs",
                     st.bootstrap_dial_timeout_secs,
@@ -6118,7 +6136,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 58)?;
+                d.set_item("phase", 59)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -6179,6 +6197,7 @@ mod enabled {
                 d.set_item("wire_omit_response", st.enable_wire_omit_response)?;
                 d.set_item("connection_manager", true)?;
                 d.set_item("bootstrap", true)?;
+                d.set_item("bootstrap_remove", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
                 d.set_item("idle_connection_timeout", true)?;
                 d.set_item("ipv6", true)?;
@@ -6431,6 +6450,7 @@ mod enabled {
                     "libp2p_bootstrap_dials_attempted",
                     st.bootstrap_dials_attempted,
                 )?;
+                d.set_item("libp2p_bootstrap_removed", st.bootstrap_removed)?;
                 d.set_item("libp2p_peerstore_peers", st.peerstore.len())?;
                 d.set_item("libp2p_peerstore_learned", st.peerstore_learned)?;
                 d.set_item("libp2p_peerstore_removed", st.peerstore_removed)?;

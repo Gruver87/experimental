@@ -234,12 +234,13 @@ class Libp2pTransportAdapter:
             raise TransportCapabilityError("rust libp2p node not available")
         node.bootstrap_add(str(peer_id), str(multiaddr))
 
-    def bootstrap_remove(self, peer_id: str) -> None:
+    def bootstrap_remove(self, peer_id: str) -> bool:
+        """Slice BH: forget bootstrap peer; True if it was present."""
         self.require_transport()
         node = self._ensure_node()
         if node is None:
             raise TransportCapabilityError("rust libp2p node not available")
-        node.bootstrap_remove(str(peer_id))
+        return bool(node.bootstrap_remove(str(peer_id)))
 
     def bootstrap_list(self) -> Mapping[str, list[str]]:
         self.require_transport()
