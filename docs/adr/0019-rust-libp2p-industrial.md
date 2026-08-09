@@ -90,6 +90,7 @@ feature `libp2p`), exposed to Python through the existing
 | Deny cause events | Slice AX: `dial_fail_denied_{block,allow,limit}` + `incoming_fail_denied_{block,allow,limit}`; `libp2p_rust_deny_cause_events_lab.py` |
 | Ping fail events | Slice AY: `ping_fail_{timeout,unsupported,other}` + `ABS_LIBP2P_PING_{INTERVAL,TIMEOUT}_MS` (`TIMEOUT_MS=0` forces timeout in lab); `libp2p_rust_ping_fail_events_lab.py` |
 | Wire fail events | Slice AZ: `wire_outbound_fail_{dial,timeout,connection_closed,unsupported,io}` + inbound taxonomy; `libp2p_rust_wire_fail_events_lab.py` |
+| Gossip validation | Slice BA: defer via `ABS_LIBP2P_GOSSIP_DEFER_VALIDATION` + `gossip_validation_{reject,ignore,pending}` / last message id; `libp2p_rust_gossip_validation_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -149,6 +150,7 @@ feature `libp2p`), exposed to Python through the existing
 | AX | Denied cause taxonomy (block/allow/limit) by direction; `libp2p_rust_deny_cause_events_lab.py` |
 | AY | Ping failure taxonomy metrics; `libp2p_rust_ping_fail_events_lab.py` |
 | AZ | Wire RR failure taxonomy metrics; `libp2p_rust_wire_fail_events_lab.py` |
+| BA | Deferred gossip validation + ignore/reject outcomes; `libp2p_rust_gossip_validation_lab.py` |
 
 ## Honesty
 
@@ -195,7 +197,8 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_dial_deny_events_lab.py`,
   `libp2p_rust_deny_cause_events_lab.py`,
   `libp2p_rust_ping_fail_events_lab.py`,
-  `libp2p_rust_wire_fail_events_lab.py`;
+  `libp2p_rust_wire_fail_events_lab.py`,
+  `libp2p_rust_gossip_validation_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -226,6 +229,7 @@ feature `libp2p`), exposed to Python through the existing
   Slice AX: deny cause events (`dial_fail_denied_block` / `incoming_fail_denied_allow` / …).
   Slice AY: ping fail events (`ping_fail_timeout` / `_unsupported` / `_other`).
   Slice AZ: wire fail events (`wire_outbound_fail_dial` / inbound `_timeout` / …).
+  Slice BA: gossip validation defer (`gossip_validation_ignore` / `_reject` / pending).
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.

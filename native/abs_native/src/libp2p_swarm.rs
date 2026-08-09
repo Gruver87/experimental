@@ -47,6 +47,7 @@
 //!   direction-specific (`dial_fail_denied_*` / `incoming_fail_denied_*`).
 //! Slice AY: ping failure taxonomy (`timeout` / `unsupported` / `other`).
 //! Slice AZ: wire RR outbound/inbound failure taxonomy.
+//! Slice BA: deferred gossip validation + ignore/reject outcome metrics.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -991,6 +992,13 @@ mod enabled {
         /// Slice Q: messages accepted after inbox enqueue (validate_messages path).
         gossip_validation_accept: u64,
         gossip_validation_reject: u64,
+        /// Slice BA: Ignore acceptance + deferred validation bookkeeping.
+        gossip_validation_ignore: u64,
+        gossip_validation_pending: u64,
+        /// When true, skip auto-Accept and wait for ``report_gossip_validation``.
+        enable_gossip_defer_validation: bool,
+        last_gossip_message_id: String,
+        last_gossip_propagation_peer: String,
         gossip_app_score_sets: u64,
         gossip_not_supported: u64,
         /// Slice AM: remote peer topic join/leave notifications.
@@ -1257,6 +1265,7 @@ mod enabled {
                 ping_max_rtt_ms: resolve_ping_max_rtt_ms(None),
                 enable_score_autoblock: resolve_score_autoblock(None),
                 score_graylist_threshold: resolve_score_graylist_threshold(None),
+                enable_gossip_defer_validation: resolve_gossip_defer_validation(None),
                 relay_max_reservations: relay_max_reservations.unwrap_or(0),
                 ..NodeState::default()
             }));
@@ -2854,7 +2863,18 @@ mod enabled {
                                                                     .gossip_validation_reject
                                                                     .saturating_add(1);
                                                             }
+                                                            "ignore" => {
+                                                                // Slice BA.
+                                                                st.gossip_validation_ignore = st
+                                                                    .gossip_validation_ignore
+                                                                    .saturating_add(1);
+                                                            }
                                                             _ => {}
+                                                        }
+                                                        if st.gossip_validation_pending > 0 {
+                                                            st.gossip_validation_pending = st
+                                                                .gossip_validation_pending
+                                                                .saturating_sub(1);
                                                         }
                                                     }
                                                     let _ = reply.send(Ok(forwarded));
@@ -3720,8 +3740,16 @@ mod enabled {
                                             message,
                                         } => {
                                             let topic = message.topic.to_string();
+                                            let defer = state_bg
+                                                .lock()
+                                                .map(|st| st.enable_gossip_defer_validation)
+                                                .unwrap_or(false);
                                             if let Ok(mut st) = state_bg.lock() {
                                                 st.gossip_recv = st.gossip_recv.saturating_add(1);
+                                                st.last_gossip_message_id =
+                                                    message_id.to_string();
+                                                st.last_gossip_propagation_peer =
+                                                    propagation_source.to_string();
                                                 if st.gossip_inbox.len() < 1024 {
                                                     st.gossip_inbox.push_back((
                                                         propagation_source.to_string(),
@@ -3729,30 +3757,39 @@ mod enabled {
                                                         message.data,
                                                     ));
                                                 }
-                                            }
-                                            // Default: accept after enqueue so existing labs keep
-                                            // forwarding; app can still use report_gossip_validation
-                                            // for explicit rejects on custom flows.
-                                            match swarm
-                                                .behaviour_mut()
-                                                .gossipsub
-                                                .report_message_validation_result(
-                                                    &message_id,
-                                                    &propagation_source,
-                                                    gossipsub::MessageAcceptance::Accept,
-                                                ) {
-                                                Ok(_) => {
-                                                    if let Ok(mut st) = state_bg.lock() {
-                                                        st.gossip_validation_accept = st
-                                                            .gossip_validation_accept
-                                                            .saturating_add(1);
-                                                    }
+                                                if defer {
+                                                    // Slice BA: app must call report_gossip_validation.
+                                                    st.gossip_validation_pending = st
+                                                        .gossip_validation_pending
+                                                        .saturating_add(1);
                                                 }
-                                                Err(e) => {
-                                                    if let Ok(mut st) = state_bg.lock() {
-                                                        st.last_error = format!(
-                                                            "gossip validate accept: {e}"
-                                                        );
+                                            }
+                                            if defer {
+                                                // Leave message pending until explicit Accept/Reject/Ignore.
+                                            } else {
+                                                // Default: accept after enqueue so existing labs keep
+                                                // forwarding.
+                                                match swarm
+                                                    .behaviour_mut()
+                                                    .gossipsub
+                                                    .report_message_validation_result(
+                                                        &message_id,
+                                                        &propagation_source,
+                                                        gossipsub::MessageAcceptance::Accept,
+                                                    ) {
+                                                    Ok(_) => {
+                                                        if let Ok(mut st) = state_bg.lock() {
+                                                            st.gossip_validation_accept = st
+                                                                .gossip_validation_accept
+                                                                .saturating_add(1);
+                                                        }
+                                                    }
+                                                    Err(e) => {
+                                                        if let Ok(mut st) = state_bg.lock() {
+                                                            st.last_error = format!(
+                                                                "gossip validate accept: {e}"
+                                                            );
+                                                        }
                                                     }
                                                 }
                                             }
@@ -5508,6 +5545,23 @@ mod enabled {
                     "libp2p_gossip_validation_reject",
                     st.gossip_validation_reject,
                 )?;
+                d.set_item(
+                    "libp2p_gossip_validation_ignore",
+                    st.gossip_validation_ignore,
+                )?;
+                d.set_item(
+                    "libp2p_gossip_validation_pending",
+                    st.gossip_validation_pending,
+                )?;
+                d.set_item(
+                    "libp2p_gossip_defer_validation",
+                    st.enable_gossip_defer_validation,
+                )?;
+                d.set_item("libp2p_last_gossip_message_id", &st.last_gossip_message_id)?;
+                d.set_item(
+                    "libp2p_last_gossip_propagation_peer",
+                    &st.last_gossip_propagation_peer,
+                )?;
                 d.set_item("libp2p_gossip_app_score_sets", st.gossip_app_score_sets)?;
                 d.set_item("libp2p_gossip_not_supported", st.gossip_not_supported)?;
                 d.set_item("libp2p_gossip_peer_subscribed", st.gossip_peer_subscribed)?;
@@ -5740,7 +5794,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 51)?;
+                d.set_item("phase", 52)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -5783,6 +5837,8 @@ mod enabled {
                 d.set_item("incoming_fail_events", true)?;
                 d.set_item("identify_events", true)?;
                 d.set_item("gossip_subscription_events", true)?;
+                d.set_item("gossip_validation_events", true)?;
+                d.set_item("gossip_defer_validation", st.enable_gossip_defer_validation)?;
                 d.set_item("wire_rr_events", true)?;
                 d.set_item("wire_fail_events", true)?;
                 d.set_item("connection_manager", true)?;
@@ -5939,6 +5995,23 @@ mod enabled {
                 d.set_item(
                     "libp2p_gossip_validation_reject",
                     st.gossip_validation_reject,
+                )?;
+                d.set_item(
+                    "libp2p_gossip_validation_ignore",
+                    st.gossip_validation_ignore,
+                )?;
+                d.set_item(
+                    "libp2p_gossip_validation_pending",
+                    st.gossip_validation_pending,
+                )?;
+                d.set_item(
+                    "libp2p_gossip_defer_validation",
+                    st.enable_gossip_defer_validation,
+                )?;
+                d.set_item("libp2p_last_gossip_message_id", &st.last_gossip_message_id)?;
+                d.set_item(
+                    "libp2p_last_gossip_propagation_peer",
+                    &st.last_gossip_propagation_peer,
                 )?;
                 d.set_item("libp2p_gossip_app_score_sets", st.gossip_app_score_sets)?;
                 d.set_item("libp2p_gossip_not_supported", st.gossip_not_supported)?;
@@ -6414,6 +6487,20 @@ mod enabled {
         match std::env::var("ABS_LIBP2P_PING_MAX_RTT_MS") {
             Ok(s) => s.trim().parse::<u64>().ok().unwrap_or(0),
             Err(_) => 0,
+        }
+    }
+
+    /// Slice BA: defer gossip Accept until ``report_gossip_validation``.
+    fn resolve_gossip_defer_validation(explicit: Option<bool>) -> bool {
+        if let Some(v) = explicit {
+            return v;
+        }
+        match std::env::var("ABS_LIBP2P_GOSSIP_DEFER_VALIDATION") {
+            Ok(s) => {
+                let t = s.trim().to_ascii_lowercase();
+                matches!(t.as_str(), "1" | "true" | "on" | "yes")
+            }
+            Err(_) => false,
         }
     }
 

@@ -24,6 +24,11 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_reconnect_ok" in empty
     assert "libp2p_gossip_peer_score" in empty
     assert "libp2p_gossip_validation_accept" in empty
+    assert "libp2p_gossip_validation_ignore" in empty
+    assert "libp2p_gossip_validation_pending" in empty
+    assert "libp2p_gossip_defer_validation" in empty
+    assert "libp2p_last_gossip_message_id" in empty
+    assert "libp2p_last_gossip_propagation_peer" in empty
     assert "libp2p_ping_ok" in empty
     assert "libp2p_ping_fail_timeout" in empty
     assert "libp2p_ping_fail_unsupported" in empty
