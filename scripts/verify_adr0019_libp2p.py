@@ -82,6 +82,7 @@ LABS = [
     ("AL", "scripts/libp2p_rust_identify_events_lab.py"),
     ("AM", "scripts/libp2p_rust_gossip_subscription_lab.py"),
     ("AN", "scripts/libp2p_rust_kad_events_lab.py"),
+    ("AO", "scripts/libp2p_rust_wire_rr_events_lab.py"),
 ]
 
 

@@ -48,6 +48,10 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_peer_external_addr",
     "libp2p_wire_sent",
     "libp2p_wire_recv",
+    "libp2p_wire_outbound_failure",
+    "libp2p_wire_inbound_failure",
+    "libp2p_wire_response_sent",
+    "libp2p_wire_response_ok",
     "libp2p_inbound_established",
     "libp2p_incoming_connections",
     "libp2p_connection_closed",
@@ -212,6 +216,7 @@ LABS = [
     ("AL", "scripts/libp2p_rust_identify_events_lab.py"),
     ("AM", "scripts/libp2p_rust_gossip_subscription_lab.py"),
     ("AN", "scripts/libp2p_rust_kad_events_lab.py"),
+    ("AO", "scripts/libp2p_rust_wire_rr_events_lab.py"),
 ]
 
 PROD_JSONS = (

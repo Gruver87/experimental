@@ -918,6 +918,11 @@ mod enabled {
         listener_error: u64,
         wire_sent: u64,
         wire_recv: u64,
+        /// Slice AO: request-response wire failure / response lifecycle.
+        wire_outbound_failure: u64,
+        wire_inbound_failure: u64,
+        wire_response_sent: u64,
+        wire_response_ok: u64,
         /// Slice AF: transport byte counters (BandwidthSinks snapshot).
         bytes_in: u64,
         bytes_out: u64,
@@ -3957,6 +3962,10 @@ mod enabled {
                                                 request_id,
                                                 response,
                                             } => {
+                                                if let Ok(mut st) = state_bg.lock() {
+                                                    st.wire_response_ok =
+                                                        st.wire_response_ok.saturating_add(1);
+                                                }
                                                 if let Some(reply) =
                                                     pending_wire.remove(&request_id)
                                                 {
@@ -3969,6 +3978,13 @@ mod enabled {
                                             error,
                                             ..
                                         } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.wire_outbound_failure = st
+                                                    .wire_outbound_failure
+                                                    .saturating_add(1);
+                                                st.last_error =
+                                                    format!("wire outbound: {error}");
+                                            }
                                             if let Some(reply) = pending_wire.remove(&request_id)
                                             {
                                                 let _ = reply
@@ -3977,11 +3993,19 @@ mod enabled {
                                         }
                                         Event::InboundFailure { error, .. } => {
                                             if let Ok(mut st) = state_bg.lock() {
+                                                st.wire_inbound_failure = st
+                                                    .wire_inbound_failure
+                                                    .saturating_add(1);
                                                 st.last_error =
                                                     format!("wire inbound: {error}");
                                             }
                                         }
-                                        Event::ResponseSent { .. } => {}
+                                        Event::ResponseSent { .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.wire_response_sent =
+                                                    st.wire_response_sent.saturating_add(1);
+                                            }
+                                        }
                                     }
                                 }
                                 _ => {}
@@ -4971,6 +4995,10 @@ mod enabled {
                 d.set_item("libp2p_listener_error", st.listener_error)?;
                 d.set_item("libp2p_wire_sent", st.wire_sent)?;
                 d.set_item("libp2p_wire_recv", st.wire_recv)?;
+                d.set_item("libp2p_wire_outbound_failure", st.wire_outbound_failure)?;
+                d.set_item("libp2p_wire_inbound_failure", st.wire_inbound_failure)?;
+                d.set_item("libp2p_wire_response_sent", st.wire_response_sent)?;
+                d.set_item("libp2p_wire_response_ok", st.wire_response_ok)?;
                 d.set_item("libp2p_bytes_in", bytes_in)?;
                 d.set_item("libp2p_bytes_out", bytes_out)?;
                 d.set_item("libp2p_external_addrs", st.external_addrs.len())?;
@@ -5175,7 +5203,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 39)?;
+                d.set_item("phase", 40)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -5208,6 +5236,7 @@ mod enabled {
                 d.set_item("connection_attempts", true)?;
                 d.set_item("identify_events", true)?;
                 d.set_item("gossip_subscription_events", true)?;
+                d.set_item("wire_rr_events", true)?;
                 d.set_item("connection_manager", true)?;
                 d.set_item("bootstrap", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
@@ -5257,6 +5286,10 @@ mod enabled {
                 d.set_item("libp2p_peer_external_addr", st.peer_external_addr)?;
                 d.set_item("libp2p_wire_sent", st.wire_sent)?;
                 d.set_item("libp2p_wire_recv", st.wire_recv)?;
+                d.set_item("libp2p_wire_outbound_failure", st.wire_outbound_failure)?;
+                d.set_item("libp2p_wire_inbound_failure", st.wire_inbound_failure)?;
+                d.set_item("libp2p_wire_response_sent", st.wire_response_sent)?;
+                d.set_item("libp2p_wire_response_ok", st.wire_response_ok)?;
                 d.set_item("libp2p_inbound_established", st.inbound_established)?;
                 d.set_item("libp2p_incoming_connections", st.incoming_connections)?;
                 d.set_item("libp2p_connection_closed", st.connection_closed)?;
