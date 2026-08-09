@@ -80,6 +80,10 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_allow_denied",
     "libp2p_allowed_peers",
     "libp2p_identify_peers",
+    "libp2p_identify_received",
+    "libp2p_identify_sent",
+    "libp2p_identify_pushed",
+    "libp2p_identify_error",
     "libp2p_abs_wire_v1_sent",
     "libp2p_abs_wire_v2_sent",
     "libp2p_abs_wire_v1_recv",
@@ -196,6 +200,7 @@ LABS = [
     ("AI", "scripts/libp2p_rust_connection_close_cause_lab.py"),
     ("AJ", "scripts/libp2p_rust_listener_lifecycle_lab.py"),
     ("AK", "scripts/libp2p_rust_connection_attempt_lab.py"),
+    ("AL", "scripts/libp2p_rust_identify_events_lab.py"),
 ]
 
 PROD_JSONS = (

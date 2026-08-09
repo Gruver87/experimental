@@ -993,6 +993,11 @@ mod enabled {
         gossip_inbox: VecDeque<(String, String, Vec<u8>)>,
         subscribed: HashSet<String>,
         identify: HashMap<String, IdentifySnap>,
+        /// Slice AL: identify protocol event counters.
+        identify_received: u64,
+        identify_sent: u64,
+        identify_pushed: u64,
+        identify_error: u64,
         /// peer_id -> last advertised multiaddr from mDNS
         discovered: HashMap<String, String>,
         kad_peers: HashSet<String>,
@@ -3371,32 +3376,58 @@ mod enabled {
                                     }
                                 }
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::Identify(ev)) => {
-                                    if let identify::Event::Received { peer_id, info, .. } = ev {
-                                        let snap = IdentifySnap {
-                                            protocol_version: info.protocol_version.clone(),
-                                            agent_version: info.agent_version.clone(),
-                                            listen_addrs: info
-                                                .listen_addrs
-                                                .iter()
-                                                .map(|a| a.to_string())
-                                                .collect(),
-                                            protocols: info
-                                                .protocols
-                                                .iter()
-                                                .map(|p| p.to_string())
-                                                .collect(),
-                                            observed_addr: info.observed_addr.to_string(),
-                                        };
-                                        // Slice N: AutoNAT servers are explicit-only via
-                                        // `autonat_add_server`. Auto-register from identify caused
-                                        // probe dials that raced reconnect_inflight (Slice U flake).
-                                        if let Ok(mut st) = state_bg.lock() {
-                                            st.identify.insert(peer_id.to_string(), snap);
+                                    match ev {
+                                        identify::Event::Received { peer_id, info, .. } => {
+                                            let snap = IdentifySnap {
+                                                protocol_version: info.protocol_version.clone(),
+                                                agent_version: info.agent_version.clone(),
+                                                listen_addrs: info
+                                                    .listen_addrs
+                                                    .iter()
+                                                    .map(|a| a.to_string())
+                                                    .collect(),
+                                                protocols: info
+                                                    .protocols
+                                                    .iter()
+                                                    .map(|p| p.to_string())
+                                                    .collect(),
+                                                observed_addr: info.observed_addr.to_string(),
+                                            };
+                                            // Slice N: AutoNAT servers are explicit-only via
+                                            // `autonat_add_server`. Auto-register from identify caused
+                                            // probe dials that raced reconnect_inflight (Slice U flake).
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.identify_received =
+                                                    st.identify_received.saturating_add(1);
+                                                st.identify.insert(peer_id.to_string(), snap);
+                                            }
+                                            // Slice T: learn identify listen addrs into peerstore.
+                                            let pid = peer_id.to_string();
+                                            for a in info.listen_addrs.iter().map(|a| a.to_string())
+                                            {
+                                                peerstore_note_addr(&state_bg, &pid, &a);
+                                            }
                                         }
-                                        // Slice T: learn identify listen addrs into peerstore.
-                                        let pid = peer_id.to_string();
-                                        for a in info.listen_addrs.iter().map(|a| a.to_string()) {
-                                            peerstore_note_addr(&state_bg, &pid, &a);
+                                        identify::Event::Sent { .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.identify_sent =
+                                                    st.identify_sent.saturating_add(1);
+                                            }
+                                        }
+                                        identify::Event::Pushed { .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.identify_pushed =
+                                                    st.identify_pushed.saturating_add(1);
+                                            }
+                                        }
+                                        identify::Event::Error { peer_id, error, .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.identify_error =
+                                                    st.identify_error.saturating_add(1);
+                                                st.last_error = format!(
+                                                    "identify error peer={peer_id}: {error}"
+                                                );
+                                            }
                                         }
                                     }
                                 }
@@ -4821,6 +4852,10 @@ mod enabled {
                 d.set_item("libp2p_gossip_peer_score", true)?;
                 d.set_item("libp2p_gossip_topics", st.subscribed.len())?;
                 d.set_item("libp2p_identify_peers", st.identify.len())?;
+                d.set_item("libp2p_identify_received", st.identify_received)?;
+                d.set_item("libp2p_identify_sent", st.identify_sent)?;
+                d.set_item("libp2p_identify_pushed", st.identify_pushed)?;
+                d.set_item("libp2p_identify_error", st.identify_error)?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
                 d.set_item("libp2p_discovered_peers", st.discovered.len())?;
                 d.set_item("libp2p_kad_peers", st.kad_peers.len())?;
@@ -4978,7 +5013,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 36)?;
+                d.set_item("phase", 37)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -5008,6 +5043,7 @@ mod enabled {
                 d.set_item("connection_close_causes", true)?;
                 d.set_item("listener_lifecycle", true)?;
                 d.set_item("connection_attempts", true)?;
+                d.set_item("identify_events", true)?;
                 d.set_item("connection_manager", true)?;
                 d.set_item("bootstrap", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
@@ -5098,6 +5134,11 @@ mod enabled {
                 d.set_item("libp2p_gossip_app_score_sets", st.gossip_app_score_sets)?;
                 d.set_item("libp2p_gossip_not_supported", st.gossip_not_supported)?;
                 d.set_item("libp2p_gossip_peer_score", true)?;
+                d.set_item("libp2p_identify_peers", st.identify.len())?;
+                d.set_item("libp2p_identify_received", st.identify_received)?;
+                d.set_item("libp2p_identify_sent", st.identify_sent)?;
+                d.set_item("libp2p_identify_pushed", st.identify_pushed)?;
+                d.set_item("libp2p_identify_error", st.identify_error)?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
                 d.set_item("libp2p_kad_peers", st.kad_peers.len())?;
                 d.set_item("libp2p_relay_reservations", st.relay_reservations)?;

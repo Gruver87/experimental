@@ -64,6 +64,10 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_dialing" in empty
     assert "libp2p_incoming_connection_error" in empty
     assert "libp2p_peer_external_addr" in empty
+    assert "libp2p_identify_received" in empty
+    assert "libp2p_identify_sent" in empty
+    assert "libp2p_identify_pushed" in empty
+    assert "libp2p_identify_error" in empty
 
 
 def test_merge_overwrites_present_keys_only() -> None:
