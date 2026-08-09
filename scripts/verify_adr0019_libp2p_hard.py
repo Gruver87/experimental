@@ -110,6 +110,7 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_rendezvous_server_registrations",
     "libp2p_dns_dial_ok",
     "libp2p_dns_dial_fail",
+    "libp2p_connection_limits_updates",
 )
 
 UNIT_TESTS = [
@@ -151,6 +152,7 @@ LABS = [
     ("X", "scripts/libp2p_rust_rendezvous_lab.py"),
     ("Y", "scripts/libp2p_rust_dns_lab.py"),
     ("Z", "scripts/libp2p_rust_prometheus_lab.py"),
+    ("AA", "scripts/libp2p_rust_connection_manager_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -259,6 +261,7 @@ def check_repo_honesty() -> tuple[bool, str]:
         "Slice X",
         "Slice Y",
         "Slice Z",
+        "Slice AA",
         "FEATURE_LIBP2P",
         "## Honesty",
     )

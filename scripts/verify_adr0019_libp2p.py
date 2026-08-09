@@ -68,6 +68,7 @@ LABS = [
     ("X", "scripts/libp2p_rust_rendezvous_lab.py"),
     ("Y", "scripts/libp2p_rust_dns_lab.py"),
     ("Z", "scripts/libp2p_rust_prometheus_lab.py"),
+    ("AA", "scripts/libp2p_rust_connection_manager_lab.py"),
 ]
 
 

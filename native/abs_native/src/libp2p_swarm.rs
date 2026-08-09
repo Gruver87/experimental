@@ -25,6 +25,7 @@
 //! Slice X: rendezvous server/client register + discover.
 //! Slice Y: DNS multiaddr dial (`/dns4` / `/dns6`) via rust-libp2p dns transport.
 //! Slice Z: Prometheus export of libp2p_* status metrics (Python /metrics edge).
+//! Slice AA: connection manager — full ConnectionLimits + runtime set_connection_limits.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -736,6 +737,16 @@ mod enabled {
             rendezvous_peer: String,
             reply: oneshot::Sender<Result<(), String>>,
         },
+        /// Slice AA: mutate ConnectionLimits (0 = unlimited; omitted fields unchanged).
+        SetConnectionLimits {
+            max_established_incoming: Option<u32>,
+            max_established_outgoing: Option<u32>,
+            max_established: Option<u32>,
+            max_established_per_peer: Option<u32>,
+            max_pending_incoming: Option<u32>,
+            max_pending_outgoing: Option<u32>,
+            reply: oneshot::Sender<Result<(), String>>,
+        },
         /// Slice O: persist bootstrap peer + multiaddr.
         BootstrapAdd {
             peer_id: String,
@@ -860,7 +871,13 @@ mod enabled {
         blocked: HashSet<String>,
         max_dials: u32,
         max_established_incoming: Option<u32>,
+        max_established_outgoing: Option<u32>,
         max_established: Option<u32>,
+        max_established_per_peer: Option<u32>,
+        max_pending_incoming: Option<u32>,
+        max_pending_outgoing: Option<u32>,
+        /// Slice AA: successful set_connection_limits calls.
+        connection_limits_updates: u64,
         enable_mdns: bool,
         /// Slice N: AutoNAT behaviour enabled (probe dials).
         enable_autonat: bool,
@@ -953,7 +970,11 @@ mod enabled {
             max_dials: u32,
             key_path: Option<String>,
             max_established_incoming: Option<u32>,
+            max_established_outgoing: Option<u32>,
             max_established: Option<u32>,
+            max_established_per_peer: Option<u32>,
+            max_pending_incoming: Option<u32>,
+            max_pending_outgoing: Option<u32>,
             enable_mdns: bool,
             wire_timeout_secs: u64,
             bootstrap_path: Option<String>,
@@ -990,7 +1011,11 @@ mod enabled {
             let state = Arc::new(Mutex::new(NodeState {
                 max_dials: max_dials.max(1),
                 max_established_incoming,
+                max_established_outgoing,
                 max_established,
+                max_established_per_peer,
+                max_pending_incoming,
+                max_pending_outgoing,
                 enable_mdns,
                 enable_autonat,
                 wire_timeout_secs,
@@ -1017,7 +1042,11 @@ mod enabled {
             let peer_id_cell = Arc::new(Mutex::new(String::new()));
             let peer_id_bg = Arc::clone(&peer_id_cell);
             let limits_incoming = max_established_incoming;
+            let limits_outgoing = max_established_outgoing;
             let limits_total = max_established;
+            let limits_per_peer = max_established_per_peer;
+            let limits_pending_in = max_pending_incoming;
+            let limits_pending_out = max_pending_outgoing;
             let want_mdns = enable_mdns;
             let want_autonat = enable_autonat;
             let wire_timeout = Duration::from_secs(wire_timeout_secs);
@@ -1143,8 +1172,20 @@ mod enabled {
                     if let Some(n) = limits_incoming {
                         limits = limits.with_max_established_incoming(Some(n));
                     }
+                    if let Some(n) = limits_outgoing {
+                        limits = limits.with_max_established_outgoing(Some(n));
+                    }
                     if let Some(n) = limits_total {
                         limits = limits.with_max_established(Some(n));
+                    }
+                    if let Some(n) = limits_per_peer {
+                        limits = limits.with_max_established_per_peer(Some(n));
+                    }
+                    if let Some(n) = limits_pending_in {
+                        limits = limits.with_max_pending_incoming(Some(n));
+                    }
+                    if let Some(n) = limits_pending_out {
+                        limits = limits.with_max_pending_outgoing(Some(n));
                     }
                     Ok(AbsBehaviour {
                         ping: ping::Behaviour::new(
@@ -2020,6 +2061,83 @@ mod enabled {
                                                 .send(Err(format!("bad peer_id: {e}")));
                                         }
                                     }
+                                }
+                                Some(Cmd::SetConnectionLimits {
+                                    max_established_incoming,
+                                    max_established_outgoing,
+                                    max_established,
+                                    max_established_per_peer,
+                                    max_pending_incoming,
+                                    max_pending_outgoing,
+                                    reply,
+                                }) => {
+                                    // None = no change; Some(0) = unlimited; Some(n>0) = cap.
+                                    let apply = |cur: Option<u32>, upd: Option<u32>| -> Option<u32> {
+                                        match upd {
+                                            None => cur,
+                                            Some(0) => None,
+                                            Some(n) => Some(n),
+                                        }
+                                    };
+                                    let snap = if let Ok(mut st) = state_bg.lock() {
+                                        st.max_established_incoming = apply(
+                                            st.max_established_incoming,
+                                            max_established_incoming,
+                                        );
+                                        st.max_established_outgoing = apply(
+                                            st.max_established_outgoing,
+                                            max_established_outgoing,
+                                        );
+                                        st.max_established =
+                                            apply(st.max_established, max_established);
+                                        st.max_established_per_peer = apply(
+                                            st.max_established_per_peer,
+                                            max_established_per_peer,
+                                        );
+                                        st.max_pending_incoming = apply(
+                                            st.max_pending_incoming,
+                                            max_pending_incoming,
+                                        );
+                                        st.max_pending_outgoing = apply(
+                                            st.max_pending_outgoing,
+                                            max_pending_outgoing,
+                                        );
+                                        st.connection_limits_updates = st
+                                            .connection_limits_updates
+                                            .saturating_add(1);
+                                        (
+                                            st.max_established_incoming,
+                                            st.max_established_outgoing,
+                                            st.max_established,
+                                            st.max_established_per_peer,
+                                            st.max_pending_incoming,
+                                            st.max_pending_outgoing,
+                                        )
+                                    } else {
+                                        let _ = reply.send(Err("state lock poisoned".into()));
+                                        continue;
+                                    };
+                                    let mut limits = connection_limits::ConnectionLimits::default();
+                                    if let Some(n) = snap.0 {
+                                        limits = limits.with_max_established_incoming(Some(n));
+                                    }
+                                    if let Some(n) = snap.1 {
+                                        limits = limits.with_max_established_outgoing(Some(n));
+                                    }
+                                    if let Some(n) = snap.2 {
+                                        limits = limits.with_max_established(Some(n));
+                                    }
+                                    if let Some(n) = snap.3 {
+                                        limits = limits.with_max_established_per_peer(Some(n));
+                                    }
+                                    if let Some(n) = snap.4 {
+                                        limits = limits.with_max_pending_incoming(Some(n));
+                                    }
+                                    if let Some(n) = snap.5 {
+                                        limits = limits.with_max_pending_outgoing(Some(n));
+                                    }
+                                    *swarm.behaviour_mut().connection_limits.limits_mut() = limits;
+                                    let _ = reply.send(Ok(()));
                                 }
                                 Some(Cmd::BootstrapAdd {
                                     peer_id,
@@ -3225,7 +3343,11 @@ mod enabled {
             max_dials = DEFAULT_MAX_DIALS,
             key_path = None,
             max_established_incoming = None,
+            max_established_outgoing = None,
             max_established = None,
+            max_established_per_peer = None,
+            max_pending_incoming = None,
+            max_pending_outgoing = None,
             enable_mdns = None,
             wire_timeout_secs = None,
             bootstrap_path = None,
@@ -3238,7 +3360,11 @@ mod enabled {
             max_dials: u32,
             key_path: Option<String>,
             max_established_incoming: Option<u32>,
+            max_established_outgoing: Option<u32>,
             max_established: Option<u32>,
+            max_established_per_peer: Option<u32>,
+            max_pending_incoming: Option<u32>,
+            max_pending_outgoing: Option<u32>,
             enable_mdns: Option<bool>,
             wire_timeout_secs: Option<u64>,
             bootstrap_path: Option<String>,
@@ -3250,8 +3376,21 @@ mod enabled {
             Self::spawn(
                 max_dials,
                 key_path,
-                max_established_incoming,
-                max_established,
+                resolve_u32_limit(
+                    max_established_incoming,
+                    "ABS_LIBP2P_MAX_ESTABLISHED_INCOMING",
+                ),
+                resolve_u32_limit(
+                    max_established_outgoing,
+                    "ABS_LIBP2P_MAX_ESTABLISHED_OUTGOING",
+                ),
+                resolve_u32_limit(max_established, "ABS_LIBP2P_MAX_ESTABLISHED"),
+                resolve_u32_limit(
+                    max_established_per_peer,
+                    "ABS_LIBP2P_MAX_ESTABLISHED_PER_PEER",
+                ),
+                resolve_u32_limit(max_pending_incoming, "ABS_LIBP2P_MAX_PENDING_INCOMING"),
+                resolve_u32_limit(max_pending_outgoing, "ABS_LIBP2P_MAX_PENDING_OUTGOING"),
                 resolve_enable_mdns(enable_mdns),
                 resolve_wire_timeout_secs(wire_timeout_secs),
                 resolve_bootstrap_path(bootstrap_path),
@@ -3339,6 +3478,48 @@ mod enabled {
                 Ok(Ok(())) => Ok(()),
                 Ok(Err(e)) => Err(PyValueError::new_err(e)),
                 Err(_) => Err(PyRuntimeError::new_err("autonat_add_server reply dropped")),
+            }
+        }
+
+        /// Slice AA: update ConnectionLimits at runtime.
+        ///
+        /// ``None`` = leave unchanged; ``0`` = unlimited; ``n>0`` = hard cap.
+        /// Existing connections are not shed (rust-libp2p policy).
+        #[pyo3(signature = (
+            max_established_incoming = None,
+            max_established_outgoing = None,
+            max_established = None,
+            max_established_per_peer = None,
+            max_pending_incoming = None,
+            max_pending_outgoing = None
+        ))]
+        fn set_connection_limits(
+            &self,
+            max_established_incoming: Option<u32>,
+            max_established_outgoing: Option<u32>,
+            max_established: Option<u32>,
+            max_established_per_peer: Option<u32>,
+            max_pending_incoming: Option<u32>,
+            max_pending_outgoing: Option<u32>,
+        ) -> PyResult<()> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::SetConnectionLimits {
+                    max_established_incoming,
+                    max_established_outgoing,
+                    max_established,
+                    max_established_per_peer,
+                    max_pending_incoming,
+                    max_pending_outgoing,
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err(
+                    "set_connection_limits reply dropped",
+                )),
             }
         }
 
@@ -4060,9 +4241,25 @@ mod enabled {
                 if let Some(n) = st.max_established_incoming {
                     d.set_item("libp2p_max_established_incoming", n)?;
                 }
+                if let Some(n) = st.max_established_outgoing {
+                    d.set_item("libp2p_max_established_outgoing", n)?;
+                }
                 if let Some(n) = st.max_established {
                     d.set_item("libp2p_max_established", n)?;
                 }
+                if let Some(n) = st.max_established_per_peer {
+                    d.set_item("libp2p_max_established_per_peer", n)?;
+                }
+                if let Some(n) = st.max_pending_incoming {
+                    d.set_item("libp2p_max_pending_incoming", n)?;
+                }
+                if let Some(n) = st.max_pending_outgoing {
+                    d.set_item("libp2p_max_pending_outgoing", n)?;
+                }
+                d.set_item(
+                    "libp2p_connection_limits_updates",
+                    st.connection_limits_updates,
+                )?;
                 d.set_item("libp2p_key_path", &st.key_path)?;
                 d.set_item("libp2p_bootstrap_path", &st.bootstrap_path)?;
                 d.set_item("libp2p_wire_protocol", ABS_WIRE_PROTOCOL)?;
@@ -4083,7 +4280,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 25)?;
+                d.set_item("phase", 26)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -4104,6 +4301,7 @@ mod enabled {
                 d.set_item("rendezvous", true)?;
                 d.set_item("dns", true)?;
                 d.set_item("prometheus", true)?;
+                d.set_item("connection_manager", true)?;
                 d.set_item("bootstrap", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
                 d.set_item("idle_connection_timeout", true)?;
@@ -4245,6 +4443,10 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_dns_dial_ok", st.dns_dial_ok)?;
                 d.set_item("libp2p_dns_dial_fail", st.dns_dial_fail)?;
+                d.set_item(
+                    "libp2p_connection_limits_updates",
+                    st.connection_limits_updates,
+                )?;
                 d.set_item("default_mesh", false)?;
                 d.set_item("honesty", "ADR0019_rust_libp2p_lab_not_prod_mesh")?;
                 d.set_item("error", st.last_error.clone())?;
@@ -4284,6 +4486,27 @@ mod enabled {
                 matches!(t.as_str(), "1" | "true" | "on" | "yes")
             }
             Err(_) => false,
+        }
+    }
+
+    /// Slice AA: optional u32 limit; ``0`` / empty env = unlimited (None).
+    fn resolve_u32_limit(explicit: Option<u32>, env_key: &str) -> Option<u32> {
+        if let Some(v) = explicit {
+            return if v == 0 { None } else { Some(v) };
+        }
+        match std::env::var(env_key) {
+            Ok(s) => {
+                let t = s.trim();
+                if t.is_empty() {
+                    return None;
+                }
+                let lower = t.to_ascii_lowercase();
+                if matches!(lower.as_str(), "0" | "none" | "off" | "unlimited") {
+                    return None;
+                }
+                t.parse::<u32>().ok().filter(|n| *n > 0)
+            }
+            Err(_) => None,
         }
     }
 
@@ -4487,7 +4710,11 @@ mod enabled {
         max_dials = DEFAULT_MAX_DIALS,
         key_path = None,
         max_established_incoming = None,
+        max_established_outgoing = None,
         max_established = None,
+        max_established_per_peer = None,
+        max_pending_incoming = None,
+        max_pending_outgoing = None,
         enable_mdns = None,
         wire_timeout_secs = None,
         bootstrap_path = None,
@@ -4500,7 +4727,11 @@ mod enabled {
         max_dials: u32,
         key_path: Option<String>,
         max_established_incoming: Option<u32>,
+        max_established_outgoing: Option<u32>,
         max_established: Option<u32>,
+        max_established_per_peer: Option<u32>,
+        max_pending_incoming: Option<u32>,
+        max_pending_outgoing: Option<u32>,
         enable_mdns: Option<bool>,
         wire_timeout_secs: Option<u64>,
         bootstrap_path: Option<String>,
@@ -4512,8 +4743,21 @@ mod enabled {
         Libp2pNode::spawn(
             max_dials,
             key_path,
-            max_established_incoming,
-            max_established,
+            resolve_u32_limit(
+                max_established_incoming,
+                "ABS_LIBP2P_MAX_ESTABLISHED_INCOMING",
+            ),
+            resolve_u32_limit(
+                max_established_outgoing,
+                "ABS_LIBP2P_MAX_ESTABLISHED_OUTGOING",
+            ),
+            resolve_u32_limit(max_established, "ABS_LIBP2P_MAX_ESTABLISHED"),
+            resolve_u32_limit(
+                max_established_per_peer,
+                "ABS_LIBP2P_MAX_ESTABLISHED_PER_PEER",
+            ),
+            resolve_u32_limit(max_pending_incoming, "ABS_LIBP2P_MAX_PENDING_INCOMING"),
+            resolve_u32_limit(max_pending_outgoing, "ABS_LIBP2P_MAX_PENDING_OUTGOING"),
             resolve_enable_mdns(enable_mdns),
             resolve_wire_timeout_secs(wire_timeout_secs),
             resolve_bootstrap_path(bootstrap_path),
