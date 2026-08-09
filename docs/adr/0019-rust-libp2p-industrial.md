@@ -77,6 +77,7 @@ feature `libp2p`), exposed to Python through the existing
 | Connection attempts | Slice AK: `dialing` + `incoming_connection_error` + `peer_external_addr`; `libp2p_rust_connection_attempt_lab.py` |
 | Identify events | Slice AL: `identify_{received,sent,pushed,error}` + snap; `libp2p_rust_identify_events_lab.py` |
 | Gossip subscriptions | Slice AM: remote subscribe/unsubscribe + `gossip_topic_peers`/`gossip_mesh_peers`; `libp2p_rust_gossip_subscription_lab.py` |
+| Kademlia events | Slice AN: `kad_query_{ok,fail}` + routable/inbound/mode counters; `libp2p_rust_kad_events_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -123,6 +124,7 @@ feature `libp2p`), exposed to Python through the existing
 | AK | Connection attempt metrics (`dialing` / inbound error / peer external addr); `libp2p_rust_connection_attempt_lab.py` |
 | AL | Identify event metrics; `libp2p_rust_identify_events_lab.py` |
 | AM | Gossip subscription events + mesh peers; `libp2p_rust_gossip_subscription_lab.py` |
+| AN | Kademlia event metrics; `libp2p_rust_kad_events_lab.py` |
 
 ## Honesty
 
@@ -156,7 +158,8 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_listener_lifecycle_lab.py`,
   `libp2p_rust_connection_attempt_lab.py`,
   `libp2p_rust_identify_events_lab.py`,
-  `libp2p_rust_gossip_subscription_lab.py`;
+  `libp2p_rust_gossip_subscription_lab.py`,
+  `libp2p_rust_kad_events_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -174,6 +177,7 @@ feature `libp2p`), exposed to Python through the existing
   Slice AK: connection attempts (`dialing`, `incoming_connection_error`, `peer_external_addr`).
   Slice AL: identify events (`identify_received` / `_sent` / `_pushed` / `_error`).
   Slice AM: gossip subscription events + `gossip_topic_peers` / `gossip_mesh_peers`.
+  Slice AN: Kademlia events (`kad_query_ok`/`_fail`, routable/inbound/mode).
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.

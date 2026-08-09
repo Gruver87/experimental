@@ -939,6 +939,14 @@ mod enabled {
         mdns_discovered: u64,
         kad_routing_updates: u64,
         kad_queries: u64,
+        /// Slice AN: Kademlia query / routing event counters.
+        kad_query_ok: u64,
+        kad_query_fail: u64,
+        kad_inbound_requests: u64,
+        kad_unroutable_peer: u64,
+        kad_routable_peer: u64,
+        kad_pending_routable_peer: u64,
+        kad_mode_changed: u64,
         relay_reservations: u64,
         relay_circuits: u64,
         autonat_probes: u64,
@@ -3603,10 +3611,20 @@ mod enabled {
                                                 continue;
                                             }
                                             if let kad::QueryResult::GetClosestPeers(res) = result {
+                                                let ok = res.is_ok();
+                                                if let Ok(mut st) = state_bg.lock() {
+                                                    if ok {
+                                                        st.kad_query_ok =
+                                                            st.kad_query_ok.saturating_add(1);
+                                                    } else {
+                                                        st.kad_query_fail =
+                                                            st.kad_query_fail.saturating_add(1);
+                                                    }
+                                                }
                                                 if let Some(reply) = pending_kad.remove(&id) {
                                                     match res {
-                                                        Ok(ok) => {
-                                                            let peers: Vec<String> = ok
+                                                        Ok(ok_peers) => {
+                                                            let peers: Vec<String> = ok_peers
                                                                 .peers
                                                                 .into_iter()
                                                                 .map(|p| p.peer_id.to_string())
@@ -3622,7 +3640,51 @@ mod enabled {
                                                 }
                                             }
                                         }
-                                        _ => {}
+                                        kad::Event::InboundRequest { .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.kad_inbound_requests = st
+                                                    .kad_inbound_requests
+                                                    .saturating_add(1);
+                                            }
+                                        }
+                                        kad::Event::UnroutablePeer { peer } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.kad_unroutable_peer = st
+                                                    .kad_unroutable_peer
+                                                    .saturating_add(1);
+                                                st.last_error =
+                                                    format!("kad unroutable peer={peer}");
+                                            }
+                                        }
+                                        kad::Event::RoutablePeer { peer, address } => {
+                                            let s = address.to_string();
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.kad_routable_peer =
+                                                    st.kad_routable_peer.saturating_add(1);
+                                                st.kad_peers.insert(peer.to_string());
+                                            }
+                                            peerstore_note_addr(
+                                                &state_bg,
+                                                &peer.to_string(),
+                                                &s,
+                                            );
+                                        }
+                                        kad::Event::PendingRoutablePeer { peer, .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.kad_pending_routable_peer = st
+                                                    .kad_pending_routable_peer
+                                                    .saturating_add(1);
+                                                st.kad_peers.insert(peer.to_string());
+                                            }
+                                        }
+                                        kad::Event::ModeChanged { new_mode } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.kad_mode_changed =
+                                                    st.kad_mode_changed.saturating_add(1);
+                                                st.last_error =
+                                                    format!("kad mode changed: {new_mode:?}");
+                                            }
+                                        }
                                     }
                                 }
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::Relay(ev)) => {
@@ -4951,6 +5013,16 @@ mod enabled {
                 d.set_item("libp2p_kad_peers", st.kad_peers.len())?;
                 d.set_item("libp2p_kad_routing_updates", st.kad_routing_updates)?;
                 d.set_item("libp2p_kad_queries", st.kad_queries)?;
+                d.set_item("libp2p_kad_query_ok", st.kad_query_ok)?;
+                d.set_item("libp2p_kad_query_fail", st.kad_query_fail)?;
+                d.set_item("libp2p_kad_inbound_requests", st.kad_inbound_requests)?;
+                d.set_item("libp2p_kad_unroutable_peer", st.kad_unroutable_peer)?;
+                d.set_item("libp2p_kad_routable_peer", st.kad_routable_peer)?;
+                d.set_item(
+                    "libp2p_kad_pending_routable_peer",
+                    st.kad_pending_routable_peer,
+                )?;
+                d.set_item("libp2p_kad_mode_changed", st.kad_mode_changed)?;
                 d.set_item("libp2p_relay_reservations", st.relay_reservations)?;
                 d.set_item("libp2p_relay_circuits", st.relay_circuits)?;
                 d.set_item("libp2p_autonat_probes", st.autonat_probes)?;
@@ -5103,7 +5175,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 38)?;
+                d.set_item("phase", 39)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -5118,6 +5190,7 @@ mod enabled {
                 )?;
                 d.set_item("mdns", st.enable_mdns)?;
                 d.set_item("kademlia", true)?;
+                d.set_item("kad_events", true)?;
                 d.set_item("relay", true)?;
                 d.set_item("autonat", st.enable_autonat)?;
                 d.set_item("upnp", st.enable_upnp)?;
@@ -5237,6 +5310,18 @@ mod enabled {
                 d.set_item("libp2p_identify_error", st.identify_error)?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
                 d.set_item("libp2p_kad_peers", st.kad_peers.len())?;
+                d.set_item("libp2p_kad_routing_updates", st.kad_routing_updates)?;
+                d.set_item("libp2p_kad_queries", st.kad_queries)?;
+                d.set_item("libp2p_kad_query_ok", st.kad_query_ok)?;
+                d.set_item("libp2p_kad_query_fail", st.kad_query_fail)?;
+                d.set_item("libp2p_kad_inbound_requests", st.kad_inbound_requests)?;
+                d.set_item("libp2p_kad_unroutable_peer", st.kad_unroutable_peer)?;
+                d.set_item("libp2p_kad_routable_peer", st.kad_routable_peer)?;
+                d.set_item(
+                    "libp2p_kad_pending_routable_peer",
+                    st.kad_pending_routable_peer,
+                )?;
+                d.set_item("libp2p_kad_mode_changed", st.kad_mode_changed)?;
                 d.set_item("libp2p_relay_reservations", st.relay_reservations)?;
                 d.set_item("libp2p_autonat_probes", st.autonat_probes)?;
                 d.set_item("libp2p_autonat_status_changes", st.autonat_status_changes)?;

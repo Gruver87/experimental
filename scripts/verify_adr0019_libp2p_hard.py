@@ -72,6 +72,13 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_mdns_discovered",
     "libp2p_kad_peers",
     "libp2p_kad_queries",
+    "libp2p_kad_query_ok",
+    "libp2p_kad_query_fail",
+    "libp2p_kad_inbound_requests",
+    "libp2p_kad_unroutable_peer",
+    "libp2p_kad_routable_peer",
+    "libp2p_kad_pending_routable_peer",
+    "libp2p_kad_mode_changed",
     "libp2p_relay_reservations",
     "libp2p_relay_circuits",
     "libp2p_conn_limit_denied",
@@ -204,6 +211,7 @@ LABS = [
     ("AK", "scripts/libp2p_rust_connection_attempt_lab.py"),
     ("AL", "scripts/libp2p_rust_identify_events_lab.py"),
     ("AM", "scripts/libp2p_rust_gossip_subscription_lab.py"),
+    ("AN", "scripts/libp2p_rust_kad_events_lab.py"),
 ]
 
 PROD_JSONS = (

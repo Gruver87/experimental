@@ -70,6 +70,10 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_identify_error" in empty
     assert "libp2p_gossip_peer_subscribed" in empty
     assert "libp2p_gossip_peer_unsubscribed" in empty
+    assert "libp2p_kad_query_ok" in empty
+    assert "libp2p_kad_query_fail" in empty
+    assert "libp2p_kad_inbound_requests" in empty
+    assert "libp2p_kad_mode_changed" in empty
 
 
 def test_merge_overwrites_present_keys_only() -> None:
