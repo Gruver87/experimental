@@ -45,6 +45,11 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_dial_fail",
     "libp2p_wire_sent",
     "libp2p_wire_recv",
+    "libp2p_inbound_established",
+    "libp2p_incoming_connections",
+    "libp2p_connection_closed",
+    "libp2p_established_in_ms_last",
+    "libp2p_established_in_ms_max",
     "libp2p_bytes_in",
     "libp2p_bytes_out",
     "libp2p_external_addrs",
@@ -177,6 +182,7 @@ LABS = [
     ("AE", "scripts/libp2p_rust_allowlist_lab.py"),
     ("AF", "scripts/libp2p_rust_bandwidth_lab.py"),
     ("AG", "scripts/libp2p_rust_external_addr_lab.py"),
+    ("AH", "scripts/libp2p_rust_connection_lifecycle_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -292,6 +298,7 @@ def check_repo_honesty() -> tuple[bool, str]:
         "Slice AE",
         "Slice AF",
         "Slice AG",
+        "Slice AH",
         "FEATURE_LIBP2P",
         "## Honesty",
     )

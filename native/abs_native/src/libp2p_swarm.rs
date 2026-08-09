@@ -32,6 +32,7 @@
 //! Slice AE: allow-list (whitelist) Toggle — opt-in complement to Slice I block-list.
 //! Slice AF: bandwidth accounting (`BandwidthSinks` → `libp2p_bytes_in` / `libp2p_bytes_out`).
 //! Slice AG: external address book (confirmed/expired/candidates + add/remove API).
+//! Slice AH: connection lifecycle metrics (inbound/outgoing established, closed, incoming).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -871,6 +872,15 @@ mod enabled {
         dial_fail: u64,
         dial_inflight: u32,
         dial_refused_budget: u64,
+        /// Slice AH: listener-side ConnectionEstablished.
+        inbound_established: u64,
+        /// Slice AH: IncomingConnection (pre-handshake).
+        incoming_connections: u64,
+        /// Slice AH: ConnectionClosed that dropped the last connection to a peer.
+        connection_closed: u64,
+        /// Slice AH: last / max ConnectionEstablished duration (ms).
+        established_in_ms_last: u64,
+        established_in_ms_max: u64,
         wire_sent: u64,
         wire_recv: u64,
         /// Slice AF: transport byte counters (BandwidthSinks snapshot).
@@ -2735,13 +2745,24 @@ mod enabled {
                                         let _ = reply.send(Ok(addrs));
                                     }
                                 }
+                                SwarmEvent::IncomingConnection { .. } => {
+                                    if let Ok(mut st) = state_bg.lock() {
+                                        st.incoming_connections =
+                                            st.incoming_connections.saturating_add(1);
+                                    }
+                                }
                                 SwarmEvent::ConnectionEstablished {
                                     peer_id,
                                     endpoint,
+                                    established_in,
                                     ..
                                 } => {
                                     let pid = peer_id.to_string();
                                     let is_dialer = endpoint.is_dialer();
+                                    let est_ms = established_in
+                                        .as_millis()
+                                        .min(u128::from(u64::MAX))
+                                        as u64;
                                     // Explicit peer so gossipsub mesh forms without mDNS.
                                     swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
                                     let kad_addr = match &endpoint {
@@ -2761,6 +2782,10 @@ mod enabled {
                                     if let Ok(mut st) = state_bg.lock() {
                                         st.connected.insert(pid.clone());
                                         st.kad_peers.insert(pid.clone());
+                                        st.established_in_ms_last = est_ms;
+                                        if est_ms > st.established_in_ms_max {
+                                            st.established_in_ms_max = est_ms;
+                                        }
                                         if is_dialer {
                                             st.outbound_peers.insert(pid.clone());
                                             st.dial_ok = st.dial_ok.saturating_add(1);
@@ -2772,6 +2797,9 @@ mod enabled {
                                                         st.ipv6_dial_ok.saturating_add(1);
                                                 }
                                             }
+                                        } else {
+                                            st.inbound_established =
+                                                st.inbound_established.saturating_add(1);
                                         }
                                     }
                                     // Slice T: remember connection endpoint in peerstore.
@@ -3072,6 +3100,8 @@ mod enabled {
                                         if !still {
                                             st.connected.remove(&pid);
                                             st.outbound_peers.remove(&pid);
+                                            st.connection_closed =
+                                                st.connection_closed.saturating_add(1);
                                         }
                                         if idle_close {
                                             st.idle_timeout_closes =
@@ -4577,6 +4607,11 @@ mod enabled {
                 d.set_item("libp2p_outbound_peers", st.outbound_peers.len())?;
                 d.set_item("libp2p_dial_refused_budget", st.dial_refused_budget)?;
                 d.set_item("libp2p_max_dials", st.max_dials)?;
+                d.set_item("libp2p_inbound_established", st.inbound_established)?;
+                d.set_item("libp2p_incoming_connections", st.incoming_connections)?;
+                d.set_item("libp2p_connection_closed", st.connection_closed)?;
+                d.set_item("libp2p_established_in_ms_last", st.established_in_ms_last)?;
+                d.set_item("libp2p_established_in_ms_max", st.established_in_ms_max)?;
                 d.set_item("libp2p_wire_sent", st.wire_sent)?;
                 d.set_item("libp2p_wire_recv", st.wire_recv)?;
                 d.set_item("libp2p_bytes_in", bytes_in)?;
@@ -4764,7 +4799,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 32)?;
+                d.set_item("phase", 33)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -4790,6 +4825,7 @@ mod enabled {
                 d.set_item("prometheus", true)?;
                 d.set_item("bandwidth", true)?;
                 d.set_item("external_addrs", true)?;
+                d.set_item("connection_lifecycle", true)?;
                 d.set_item("connection_manager", true)?;
                 d.set_item("bootstrap", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
@@ -4833,6 +4869,11 @@ mod enabled {
                 d.set_item("libp2p_dial_fail", st.dial_fail)?;
                 d.set_item("libp2p_wire_sent", st.wire_sent)?;
                 d.set_item("libp2p_wire_recv", st.wire_recv)?;
+                d.set_item("libp2p_inbound_established", st.inbound_established)?;
+                d.set_item("libp2p_incoming_connections", st.incoming_connections)?;
+                d.set_item("libp2p_connection_closed", st.connection_closed)?;
+                d.set_item("libp2p_established_in_ms_last", st.established_in_ms_last)?;
+                d.set_item("libp2p_established_in_ms_max", st.established_in_ms_max)?;
                 d.set_item("libp2p_bytes_in", st.bytes_in)?;
                 d.set_item("libp2p_bytes_out", st.bytes_out)?;
                 d.set_item("libp2p_external_addrs", st.external_addrs.len())?;
