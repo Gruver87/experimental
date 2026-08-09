@@ -46,6 +46,8 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_ws_dial_ok" in empty
     assert "libp2p_upnp_gateway_not_found" in empty
     assert "libp2p_upnp_external_addrs" in empty
+    assert "libp2p_allow_denied" in empty
+    assert "libp2p_allowed_peers" in empty
 
 
 def test_merge_overwrites_present_keys_only() -> None:

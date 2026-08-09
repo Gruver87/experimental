@@ -25,6 +25,8 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_conn_limit_denied",
     "libp2p_block_denied",
     "libp2p_blocked_peers",
+    "libp2p_allow_denied",
+    "libp2p_allowed_peers",
     "libp2p_identify_peers",
     "libp2p_mdns_enabled",
     "libp2p_wire_timeout_secs",

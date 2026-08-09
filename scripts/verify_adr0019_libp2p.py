@@ -72,6 +72,7 @@ LABS = [
     ("AB", "scripts/libp2p_rust_quic_lab.py"),
     ("AC", "scripts/libp2p_rust_websocket_lab.py"),
     ("AD", "scripts/libp2p_rust_upnp_lab.py"),
+    ("AE", "scripts/libp2p_rust_allowlist_lab.py"),
 ]
 
 

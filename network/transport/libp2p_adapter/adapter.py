@@ -510,6 +510,29 @@ class Libp2pTransportAdapter:
         except Exception:
             return []
 
+    def allow_peer(self, peer_id: str) -> None:
+        """Slice AE: push PeerId into native allow-list (requires enable_allow_list)."""
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        node.allow_peer(str(peer_id))
+
+    def disallow_peer(self, peer_id: str) -> None:
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        node.disallow_peer(str(peer_id))
+
+    def allowed_peers(self) -> list[str]:
+        if self._node is None:
+            return []
+        try:
+            return [str(p) for p in self._node.allowed_peers()]
+        except Exception:
+            return []
+
     def metrics(self) -> Mapping[str, Any]:
         if self._node is None:
             return {"rust_backend": bool(self._native_capable), "libp2p_peers": 0}

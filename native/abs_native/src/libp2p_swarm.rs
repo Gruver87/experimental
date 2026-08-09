@@ -29,6 +29,7 @@
 //! Slice AB: QUIC transport (`/udp/.../quic-v1`) alongside TCP (lab opt-in listen/dial).
 //! Slice AC: WebSocket transport (`/tcp/.../ws`) alongside TCP/QUIC (lab opt-in).
 //! Slice AD: UPnP / IGD port mapping (opt-in; default off — no gateway required for CI).
+//! Slice AE: allow-list (whitelist) Toggle — opt-in complement to Slice I block-list.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -131,7 +132,7 @@ mod enabled {
     use libp2p::multiaddr::Protocol;
     use libp2p::{
         allow_block_list,
-        allow_block_list::BlockedPeers,
+        allow_block_list::{AllowedPeers, BlockedPeers},
         autonat, connection_limits, dcutr, gossipsub, identify,
         identity::Keypair,
         kad::{self, store::MemoryStore},
@@ -654,6 +655,8 @@ mod enabled {
         autonat: Toggle<autonat::Behaviour>,
         /// Slice AD: off by default — needs IGD gateway; CI expects GatewayNotFound.
         upnp: Toggle<upnp::tokio::Behaviour>,
+        /// Slice AE: off by default — empty allow-list denies all until allow_peer.
+        allowed_peers: Toggle<allow_block_list::Behaviour<AllowedPeers>>,
         dcutr: dcutr::Behaviour,
         /// Slice X: rendezvous point (always on; lab register/discover).
         rendezvous_server: rendezvous::server::Behaviour,
@@ -714,6 +717,15 @@ mod enabled {
             reply: oneshot::Sender<Result<(), String>>,
         },
         UnblockPeer {
+            peer_id: String,
+            reply: oneshot::Sender<Result<(), String>>,
+        },
+        /// Slice AE: allow-list allow / disallow (requires enable_allow_list).
+        AllowPeer {
+            peer_id: String,
+            reply: oneshot::Sender<Result<(), String>>,
+        },
+        DisallowPeer {
             peer_id: String,
             reply: oneshot::Sender<Result<(), String>>,
         },
@@ -874,6 +886,11 @@ mod enabled {
         conn_limit_denied: u64,
         block_denied: u64,
         blocked: HashSet<String>,
+        /// Slice AE: allow-list denied connections.
+        allow_denied: u64,
+        allowed: HashSet<String>,
+        /// Slice AE: allow-list Toggle enabled.
+        enable_allow_list: bool,
         max_dials: u32,
         max_established_incoming: Option<u32>,
         max_established_outgoing: Option<u32>,
@@ -1002,6 +1019,7 @@ mod enabled {
             peerstore_path: Option<String>,
             enable_autonat: bool,
             enable_upnp: bool,
+            enable_allow_list: bool,
             idle_connection_timeout_secs: u64,
         ) -> PyResult<Self> {
             let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -1040,6 +1058,7 @@ mod enabled {
                 enable_mdns,
                 enable_autonat,
                 enable_upnp,
+                enable_allow_list,
                 wire_timeout_secs,
                 idle_connection_timeout_secs,
                 key_path: key_path_str.clone(),
@@ -1072,6 +1091,7 @@ mod enabled {
             let want_mdns = enable_mdns;
             let want_autonat = enable_autonat;
             let want_upnp = enable_upnp;
+            let want_allow_list = enable_allow_list;
             let wire_timeout = Duration::from_secs(wire_timeout_secs);
             let idle_timeout = Duration::from_secs(idle_connection_timeout_secs);
             let ping_interval = Duration::from_secs(resolve_ping_interval_secs(None));
@@ -1255,6 +1275,11 @@ mod enabled {
                         },
                         upnp: if want_upnp {
                             Toggle::from(Some(upnp::tokio::Behaviour::default()))
+                        } else {
+                            Toggle::from(None)
+                        },
+                        allowed_peers: if want_allow_list {
+                            Toggle::from(Some(allow_block_list::Behaviour::default()))
                         } else {
                             Toggle::from(None)
                         },
@@ -1980,6 +2005,54 @@ mod enabled {
                                         }
                                     }
                                 }
+                                Some(Cmd::AllowPeer { peer_id, reply }) => {
+                                    match peer_id.parse::<PeerId>() {
+                                        Ok(pid) => {
+                                            match swarm.behaviour_mut().allowed_peers.as_mut() {
+                                                Some(al) => {
+                                                    al.allow_peer(pid);
+                                                    if let Ok(mut st) = state_bg.lock() {
+                                                        st.allowed.insert(pid.to_string());
+                                                    }
+                                                    let _ = reply.send(Ok(()));
+                                                }
+                                                None => {
+                                                    let _ = reply.send(Err(
+                                                        "allow_list disabled (enable_allow_list=true)"
+                                                            .into(),
+                                                    ));
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!("bad peer_id: {e}")));
+                                        }
+                                    }
+                                }
+                                Some(Cmd::DisallowPeer { peer_id, reply }) => {
+                                    match peer_id.parse::<PeerId>() {
+                                        Ok(pid) => {
+                                            match swarm.behaviour_mut().allowed_peers.as_mut() {
+                                                Some(al) => {
+                                                    al.disallow_peer(pid);
+                                                    if let Ok(mut st) = state_bg.lock() {
+                                                        st.allowed.remove(&pid.to_string());
+                                                    }
+                                                    let _ = reply.send(Ok(()));
+                                                }
+                                                None => {
+                                                    let _ = reply.send(Err(
+                                                        "allow_list disabled (enable_allow_list=true)"
+                                                            .into(),
+                                                    ));
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!("bad peer_id: {e}")));
+                                        }
+                                    }
+                                }
                                 Some(Cmd::AutonatAddServer {
                                     peer_id,
                                     addr,
@@ -2694,6 +2767,13 @@ mod enabled {
                                                 .downcast_ref::<allow_block_list::Blocked>()
                                                 .is_some()
                                     );
+                                    let allow_denied = matches!(
+                                        &error,
+                                        DialError::Denied { cause }
+                                            if cause
+                                                .downcast_ref::<allow_block_list::NotAllowed>()
+                                                .is_some()
+                                    );
                                     let pid = peer_id.map(|p| p.to_string()).unwrap_or_default();
                                     let abandoned = !pid.is_empty()
                                         && bootstrap_job
@@ -2713,6 +2793,9 @@ mod enabled {
                                         }
                                         if block_denied {
                                             st.block_denied = st.block_denied.saturating_add(1);
+                                        }
+                                        if allow_denied {
+                                            st.allow_denied = st.allow_denied.saturating_add(1);
                                         }
                                     }
                                     if let Some(reply) = pending_dial.take() {
@@ -2739,6 +2822,8 @@ mod enabled {
                                         }
                                         let msg = if block_denied {
                                             "peer_blocked".into()
+                                        } else if allow_denied {
+                                            "peer_not_allowed".into()
                                         } else {
                                             format!("outgoing: {error}")
                                         };
@@ -2819,6 +2904,13 @@ mod enabled {
                                                 .downcast_ref::<allow_block_list::Blocked>()
                                                 .is_some()
                                     );
+                                    let allow_denied = matches!(
+                                        &error,
+                                        ListenError::Denied { cause }
+                                            if cause
+                                                .downcast_ref::<allow_block_list::NotAllowed>()
+                                                .is_some()
+                                    );
                                     if let Ok(mut st) = state_bg.lock() {
                                         st.last_error = format!("incoming: {error}");
                                         if limit_denied {
@@ -2827,6 +2919,9 @@ mod enabled {
                                         }
                                         if block_denied {
                                             st.block_denied = st.block_denied.saturating_add(1);
+                                        }
+                                        if allow_denied {
+                                            st.allow_denied = st.allow_denied.saturating_add(1);
                                         }
                                     }
                                 }
@@ -3505,6 +3600,7 @@ mod enabled {
             peerstore_path = None,
             enable_autonat = None,
             enable_upnp = None,
+            enable_allow_list = None,
             idle_connection_timeout_secs = None
         ))]
         fn new_py(
@@ -3523,6 +3619,7 @@ mod enabled {
             peerstore_path: Option<String>,
             enable_autonat: Option<bool>,
             enable_upnp: Option<bool>,
+            enable_allow_list: Option<bool>,
             idle_connection_timeout_secs: Option<u64>,
         ) -> PyResult<Self> {
             Self::spawn(
@@ -3550,6 +3647,7 @@ mod enabled {
                 resolve_peerstore_path(peerstore_path),
                 resolve_enable_autonat(enable_autonat),
                 resolve_enable_upnp(enable_upnp),
+                resolve_enable_allow_list(enable_allow_list),
                 resolve_idle_connection_timeout_secs(idle_connection_timeout_secs),
             )
         }
@@ -4234,6 +4332,50 @@ mod enabled {
                 .unwrap_or_default()
         }
 
+        /// Allow a PeerId (Slice AE allow-list). Requires ``enable_allow_list=true``.
+        fn allow_peer(&self, peer_id: &str) -> PyResult<()> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::AllowPeer {
+                    peer_id: peer_id.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("allow_peer reply dropped")),
+            }
+        }
+
+        /// Remove PeerId from the allow-list (Slice AE). Closes existing connections.
+        fn disallow_peer(&self, peer_id: &str) -> PyResult<()> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::DisallowPeer {
+                    peer_id: peer_id.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("disallow_peer reply dropped")),
+            }
+        }
+
+        /// Currently allowed PeerIds (Slice AE). Empty when allow-list disabled.
+        fn allowed_peers(&self) -> Vec<String> {
+            self.state
+                .lock()
+                .map(|s| {
+                    let mut v: Vec<String> = s.allowed.iter().cloned().collect();
+                    v.sort();
+                    v
+                })
+                .unwrap_or_default()
+        }
+
         /// Identify snapshot for a peer (empty dict if not yet received).
         fn identify_info(&self, peer_id: &str) -> PyResult<PyObject> {
             Python::with_gil(|py| {
@@ -4360,7 +4502,9 @@ mod enabled {
                 d.set_item("libp2p_score_sweep_ticks", st.score_sweep_ticks)?;
                 d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
                 d.set_item("libp2p_block_denied", st.block_denied)?;
+                d.set_item("libp2p_allow_denied", st.allow_denied)?;
                 d.set_item("libp2p_blocked_peers", st.blocked.len())?;
+                d.set_item("libp2p_allowed_peers", st.allowed.len())?;
                 d.set_item("libp2p_circuit_addrs", st.circuit_addrs.len())?;
                 d.set_item("libp2p_mdns_enabled", st.enable_mdns)?;
                 d.set_item("libp2p_wire_timeout_secs", st.wire_timeout_secs)?;
@@ -4449,7 +4593,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 29)?;
+                d.set_item("phase", 30)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -4480,6 +4624,7 @@ mod enabled {
                 d.set_item("ipv6", true)?;
                 d.set_item("connection_limits", true)?;
                 d.set_item("block_list", true)?;
+                d.set_item("allow_list", st.enable_allow_list)?;
                 d.set_item("abs_wire_codecs", true)?;
                 d.set_item("wire_timeout_secs", st.wire_timeout_secs)?;
                 d.set_item(
@@ -4587,7 +4732,9 @@ mod enabled {
                 d.set_item("libp2p_score_sweep_ticks", st.score_sweep_ticks)?;
                 d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
                 d.set_item("libp2p_block_denied", st.block_denied)?;
+                d.set_item("libp2p_allow_denied", st.allow_denied)?;
                 d.set_item("libp2p_blocked_peers", st.blocked.len())?;
+                d.set_item("libp2p_allowed_peers", st.allowed.len())?;
                 d.set_item(
                     "libp2p_idle_connection_timeout_secs",
                     st.idle_connection_timeout_secs,
@@ -4683,6 +4830,20 @@ mod enabled {
             return v;
         }
         match std::env::var("ABS_LIBP2P_UPNP") {
+            Ok(s) => {
+                let t = s.trim().to_ascii_lowercase();
+                matches!(t.as_str(), "1" | "true" | "on" | "yes")
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// Allow-list default off — empty set denies all peers (Slice AE).
+    fn resolve_enable_allow_list(explicit: Option<bool>) -> bool {
+        if let Some(v) = explicit {
+            return v;
+        }
+        match std::env::var("ABS_LIBP2P_ALLOW_LIST") {
             Ok(s) => {
                 let t = s.trim().to_ascii_lowercase();
                 matches!(t.as_str(), "1" | "true" | "on" | "yes")
@@ -4924,6 +5085,7 @@ mod enabled {
         peerstore_path = None,
         enable_autonat = None,
         enable_upnp = None,
+        enable_allow_list = None,
         idle_connection_timeout_secs = None
     ))]
     fn libp2p_node_new(
@@ -4942,6 +5104,7 @@ mod enabled {
         peerstore_path: Option<String>,
         enable_autonat: Option<bool>,
         enable_upnp: Option<bool>,
+        enable_allow_list: Option<bool>,
         idle_connection_timeout_secs: Option<u64>,
     ) -> PyResult<Libp2pNode> {
         Libp2pNode::spawn(
@@ -4969,6 +5132,7 @@ mod enabled {
             resolve_peerstore_path(peerstore_path),
             resolve_enable_autonat(enable_autonat),
             resolve_enable_upnp(enable_upnp),
+            resolve_enable_allow_list(enable_allow_list),
             resolve_idle_connection_timeout_secs(idle_connection_timeout_secs),
         )
     }
