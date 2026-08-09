@@ -33,6 +33,21 @@ def test_parse_multiaddr_ipv6_roundtrip() -> None:
     assert ma.to_string() == "/ip6/::1/tcp/4401/p2p/lab-w"
 
 
+def test_parse_multiaddr_dns4_roundtrip() -> None:
+    ma = parse_multiaddr("/dns4/localhost/tcp/4402/p2p/lab-y")
+    assert ma.host == "localhost"
+    assert ma.port == 4402
+    assert ma.peer_id == "lab-y"
+    assert ma.dns == "dns4"
+    assert ma.to_string() == "/dns4/localhost/tcp/4402/p2p/lab-y"
+
+
+def test_hostname_formats_as_dns4() -> None:
+    from network.transport.libp2p_adapter.multiaddr import Multiaddr
+
+    assert Multiaddr(host="example.com", port=9).to_string() == "/dns4/example.com/tcp/9"
+
+
 def test_parse_multiaddr_rejects_junk() -> None:
     with pytest.raises(ValueError):
         parse_multiaddr("127.0.0.1:4001")

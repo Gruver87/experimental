@@ -80,6 +80,8 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_rendezvous_discovered_peers",
     "libp2p_rendezvous_discover_fail",
     "libp2p_rendezvous_server_registrations",
+    "libp2p_dns_dial_ok",
+    "libp2p_dns_dial_fail",
 )
 
 

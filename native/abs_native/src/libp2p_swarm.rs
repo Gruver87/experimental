@@ -23,6 +23,7 @@
 //! Slice V: idle connection timeout policy (swarm keep-alive / idle close).
 //! Slice W: IPv6 dual-stack listen/dial (`/ip6/.../tcp/...`) + metrics.
 //! Slice X: rendezvous server/client register + discover.
+//! Slice Y: DNS multiaddr dial (`/dns4` / `/dns6`) via rust-libp2p dns transport.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -878,6 +879,9 @@ mod enabled {
         rendezvous_discovered_peers: u64,
         rendezvous_discover_fail: u64,
         rendezvous_server_registrations: u64,
+        /// Slice Y: dials that used `/dns4/` or `/dns6/`.
+        dns_dial_ok: u64,
+        dns_dial_fail: u64,
         last_error: String,
         inbox: VecDeque<(String, Vec<u8>)>,
         gossip_inbox: VecDeque<(String, String, Vec<u8>)>,
@@ -1035,20 +1039,37 @@ mod enabled {
                     }
                 };
 
-                let built = SwarmBuilder::with_existing_identity(keypair)
+                let tcp_built = match SwarmBuilder::with_existing_identity(keypair)
                     .with_tokio()
                     .with_tcp(
                         tcp::Config::default(),
                         noise::Config::new,
                         yamux::Config::default,
-                    )
-                    .and_then(|b| b.with_relay_client(noise::Config::new, yamux::Config::default));
-
-                let builder = match built {
+                    ) {
                     Ok(b) => b,
                     Err(e) => {
                         if let Ok(mut st) = state_bg.lock() {
-                            st.last_error = format!("tcp/relay transport: {e}");
+                            st.last_error = format!("tcp transport: {e}");
+                        }
+                        return;
+                    }
+                };
+                let dns_built = match tcp_built.with_dns() {
+                    Ok(b) => b,
+                    Err(e) => {
+                        if let Ok(mut st) = state_bg.lock() {
+                            st.last_error = format!("dns transport: {e}");
+                        }
+                        return;
+                    }
+                };
+                let builder = match dns_built
+                    .with_relay_client(noise::Config::new, yamux::Config::default)
+                {
+                    Ok(b) => b,
+                    Err(e) => {
+                        if let Ok(mut st) = state_bg.lock() {
+                            st.last_error = format!("relay transport: {e}");
                         }
                         return;
                     }
@@ -1184,6 +1205,7 @@ mod enabled {
                     None;
                 let mut relay_listen_deadline: Option<tokio::time::Instant> = None;
                 let mut pending_dial: Option<oneshot::Sender<Result<String, String>>> = None;
+                let mut pending_dial_dns = false;
                 let mut bootstrap_job: Option<BootstrapDialJob> = None;
                 let mut pending_reconnects: HashMap<String, PendingReconnect> = HashMap::new();
                 let mut reconnect_inflight: Option<String> = None;
@@ -1605,6 +1627,8 @@ mod enabled {
                                     }
                                 }
                                 Some(Cmd::Dial { addr, reply }) => {
+                                    let is_dns =
+                                        addr.contains("/dns4/") || addr.contains("/dns6/");
                                     // Fast-fail if multiaddr targets a blocked PeerId (Slice I).
                                     if let Ok(ma) = addr.parse::<Multiaddr>() {
                                         let target = ma.iter().find_map(|p| match p {
@@ -1621,6 +1645,10 @@ mod enabled {
                                                     st.block_denied =
                                                         st.block_denied.saturating_add(1);
                                                     st.last_error = "peer_blocked".into();
+                                                    if is_dns {
+                                                        st.dns_dial_fail =
+                                                            st.dns_dial_fail.saturating_add(1);
+                                                    }
                                                 }
                                                 let _ = reply.send(Err("peer_blocked".into()));
                                                 continue;
@@ -1655,16 +1683,25 @@ mod enabled {
                                                     st.dial_fail = st.dial_fail.saturating_add(1);
                                                     st.dial_inflight =
                                                         st.dial_inflight.saturating_sub(1);
+                                                    if is_dns {
+                                                        st.dns_dial_fail =
+                                                            st.dns_dial_fail.saturating_add(1);
+                                                    }
                                                 }
                                                 let _ = reply.send(Err(format!("dial: {e}")));
                                             } else {
                                                 pending_dial = Some(reply);
+                                                pending_dial_dns = is_dns;
                                             }
                                         }
                                         Err(e) => {
                                             if let Ok(mut st) = state_bg.lock() {
                                                 st.dial_inflight =
                                                     st.dial_inflight.saturating_sub(1);
+                                                if is_dns {
+                                                    st.dns_dial_fail =
+                                                        st.dns_dial_fail.saturating_add(1);
+                                                }
                                             }
                                             let _ = reply.send(Err(format!("bad multiaddr: {e}")));
                                         }
@@ -2393,7 +2430,16 @@ mod enabled {
                                     );
                                     if is_dialer {
                                         if let Some(reply) = pending_dial.take() {
+                                            if pending_dial_dns {
+                                                if let Ok(mut st) = state_bg.lock() {
+                                                    st.dns_dial_ok =
+                                                        st.dns_dial_ok.saturating_add(1);
+                                                }
+                                                pending_dial_dns = false;
+                                            }
                                             let _ = reply.send(Ok(pid.clone()));
+                                        } else {
+                                            pending_dial_dns = false;
                                         }
                                         let is_current = bootstrap_job
                                             .as_ref()
@@ -2452,12 +2498,21 @@ mod enabled {
                                         }
                                     }
                                     if let Some(reply) = pending_dial.take() {
+                                        if pending_dial_dns {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.dns_dial_fail =
+                                                    st.dns_dial_fail.saturating_add(1);
+                                            }
+                                            pending_dial_dns = false;
+                                        }
                                         let msg = if block_denied {
                                             "peer_blocked".into()
                                         } else {
                                             format!("outgoing: {error}")
                                         };
                                         let _ = reply.send(Err(msg));
+                                    } else {
+                                        pending_dial_dns = false;
                                     }
                                     if !pid.is_empty() && !abandoned {
                                         let is_current = bootstrap_job
@@ -3999,6 +4054,8 @@ mod enabled {
                     "libp2p_rendezvous_server_registrations",
                     st.rendezvous_server_registrations,
                 )?;
+                d.set_item("libp2p_dns_dial_ok", st.dns_dial_ok)?;
+                d.set_item("libp2p_dns_dial_fail", st.dns_dial_fail)?;
                 if let Some(n) = st.max_established_incoming {
                     d.set_item("libp2p_max_established_incoming", n)?;
                 }
@@ -4025,7 +4082,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 23)?;
+                d.set_item("phase", 24)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -4044,6 +4101,7 @@ mod enabled {
                 d.set_item("autonat", st.enable_autonat)?;
                 d.set_item("dcutr", true)?;
                 d.set_item("rendezvous", true)?;
+                d.set_item("dns", true)?;
                 d.set_item("bootstrap", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
                 d.set_item("idle_connection_timeout", true)?;
@@ -4183,6 +4241,8 @@ mod enabled {
                     "libp2p_rendezvous_server_registrations",
                     st.rendezvous_server_registrations,
                 )?;
+                d.set_item("libp2p_dns_dial_ok", st.dns_dial_ok)?;
+                d.set_item("libp2p_dns_dial_fail", st.dns_dial_fail)?;
                 d.set_item("default_mesh", false)?;
                 d.set_item("honesty", "ADR0019_rust_libp2p_lab_not_prod_mesh")?;
                 d.set_item("error", st.last_error.clone())?;
