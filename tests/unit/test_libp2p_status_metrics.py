@@ -80,6 +80,16 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_kad_inbound_requests" in empty
     assert "libp2p_kad_mode_changed" in empty
     assert "libp2p_wire_outbound_failure" in empty
+    assert "libp2p_wire_outbound_fail_dial" in empty
+    assert "libp2p_wire_outbound_fail_timeout" in empty
+    assert "libp2p_wire_outbound_fail_connection_closed" in empty
+    assert "libp2p_wire_outbound_fail_unsupported" in empty
+    assert "libp2p_wire_outbound_fail_io" in empty
+    assert "libp2p_wire_inbound_fail_timeout" in empty
+    assert "libp2p_wire_inbound_fail_connection_closed" in empty
+    assert "libp2p_wire_inbound_fail_unsupported" in empty
+    assert "libp2p_wire_inbound_fail_response_omission" in empty
+    assert "libp2p_wire_inbound_fail_io" in empty
     assert "libp2p_wire_inbound_failure" in empty
     assert "libp2p_wire_response_sent" in empty
     assert "libp2p_wire_response_ok" in empty

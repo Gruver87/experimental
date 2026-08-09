@@ -67,7 +67,17 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_wire_sent",
     "libp2p_wire_recv",
     "libp2p_wire_outbound_failure",
+    "libp2p_wire_outbound_fail_dial",
+    "libp2p_wire_outbound_fail_timeout",
+    "libp2p_wire_outbound_fail_connection_closed",
+    "libp2p_wire_outbound_fail_unsupported",
+    "libp2p_wire_outbound_fail_io",
     "libp2p_wire_inbound_failure",
+    "libp2p_wire_inbound_fail_timeout",
+    "libp2p_wire_inbound_fail_connection_closed",
+    "libp2p_wire_inbound_fail_unsupported",
+    "libp2p_wire_inbound_fail_response_omission",
+    "libp2p_wire_inbound_fail_io",
     "libp2p_wire_response_sent",
     "libp2p_wire_response_ok",
     "libp2p_inbound_established",
@@ -269,6 +279,7 @@ LABS = [
     ("AW", "scripts/libp2p_rust_dial_deny_events_lab.py"),
     ("AX", "scripts/libp2p_rust_deny_cause_events_lab.py"),
     ("AY", "scripts/libp2p_rust_ping_fail_events_lab.py"),
+    ("AZ", "scripts/libp2p_rust_wire_fail_events_lab.py"),
 ]
 
 PROD_JSONS = (

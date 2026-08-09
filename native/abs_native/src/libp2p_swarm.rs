@@ -46,6 +46,7 @@
 //! Slice AX: Denied cause taxonomy (block / allow / connection-limits),
 //!   direction-specific (`dial_fail_denied_*` / `incoming_fail_denied_*`).
 //! Slice AY: ping failure taxonomy (`timeout` / `unsupported` / `other`).
+//! Slice AZ: wire RR outbound/inbound failure taxonomy.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -962,7 +963,19 @@ mod enabled {
         wire_recv: u64,
         /// Slice AO: request-response wire failure / response lifecycle.
         wire_outbound_failure: u64,
+        /// Slice AZ: request_response::OutboundFailure taxonomy.
+        wire_outbound_fail_dial: u64,
+        wire_outbound_fail_timeout: u64,
+        wire_outbound_fail_connection_closed: u64,
+        wire_outbound_fail_unsupported: u64,
+        wire_outbound_fail_io: u64,
         wire_inbound_failure: u64,
+        /// Slice AZ: request_response::InboundFailure taxonomy.
+        wire_inbound_fail_timeout: u64,
+        wire_inbound_fail_connection_closed: u64,
+        wire_inbound_fail_unsupported: u64,
+        wire_inbound_fail_response_omission: u64,
+        wire_inbound_fail_io: u64,
         wire_response_sent: u64,
         wire_response_ok: u64,
         /// Slice AF: transport byte counters (BandwidthSinks snapshot).
@@ -4329,6 +4342,34 @@ mod enabled {
                                                 st.wire_outbound_failure = st
                                                     .wire_outbound_failure
                                                     .saturating_add(1);
+                                                // Slice AZ: OutboundFailure taxonomy.
+                                                match &error {
+                                                    request_response::OutboundFailure::DialFailure => {
+                                                        st.wire_outbound_fail_dial = st
+                                                            .wire_outbound_fail_dial
+                                                            .saturating_add(1);
+                                                    }
+                                                    request_response::OutboundFailure::Timeout => {
+                                                        st.wire_outbound_fail_timeout = st
+                                                            .wire_outbound_fail_timeout
+                                                            .saturating_add(1);
+                                                    }
+                                                    request_response::OutboundFailure::ConnectionClosed => {
+                                                        st.wire_outbound_fail_connection_closed = st
+                                                            .wire_outbound_fail_connection_closed
+                                                            .saturating_add(1);
+                                                    }
+                                                    request_response::OutboundFailure::UnsupportedProtocols => {
+                                                        st.wire_outbound_fail_unsupported = st
+                                                            .wire_outbound_fail_unsupported
+                                                            .saturating_add(1);
+                                                    }
+                                                    request_response::OutboundFailure::Io(_) => {
+                                                        st.wire_outbound_fail_io = st
+                                                            .wire_outbound_fail_io
+                                                            .saturating_add(1);
+                                                    }
+                                                }
                                                 st.last_error =
                                                     format!("wire outbound: {error}");
                                             }
@@ -4343,6 +4384,34 @@ mod enabled {
                                                 st.wire_inbound_failure = st
                                                     .wire_inbound_failure
                                                     .saturating_add(1);
+                                                // Slice AZ: InboundFailure taxonomy.
+                                                match &error {
+                                                    request_response::InboundFailure::Timeout => {
+                                                        st.wire_inbound_fail_timeout = st
+                                                            .wire_inbound_fail_timeout
+                                                            .saturating_add(1);
+                                                    }
+                                                    request_response::InboundFailure::ConnectionClosed => {
+                                                        st.wire_inbound_fail_connection_closed = st
+                                                            .wire_inbound_fail_connection_closed
+                                                            .saturating_add(1);
+                                                    }
+                                                    request_response::InboundFailure::UnsupportedProtocols => {
+                                                        st.wire_inbound_fail_unsupported = st
+                                                            .wire_inbound_fail_unsupported
+                                                            .saturating_add(1);
+                                                    }
+                                                    request_response::InboundFailure::ResponseOmission => {
+                                                        st.wire_inbound_fail_response_omission = st
+                                                            .wire_inbound_fail_response_omission
+                                                            .saturating_add(1);
+                                                    }
+                                                    request_response::InboundFailure::Io(_) => {
+                                                        st.wire_inbound_fail_io = st
+                                                            .wire_inbound_fail_io
+                                                            .saturating_add(1);
+                                                    }
+                                                }
                                                 st.last_error =
                                                     format!("wire inbound: {error}");
                                             }
@@ -5382,7 +5451,38 @@ mod enabled {
                 d.set_item("libp2p_wire_sent", st.wire_sent)?;
                 d.set_item("libp2p_wire_recv", st.wire_recv)?;
                 d.set_item("libp2p_wire_outbound_failure", st.wire_outbound_failure)?;
+                d.set_item("libp2p_wire_outbound_fail_dial", st.wire_outbound_fail_dial)?;
+                d.set_item(
+                    "libp2p_wire_outbound_fail_timeout",
+                    st.wire_outbound_fail_timeout,
+                )?;
+                d.set_item(
+                    "libp2p_wire_outbound_fail_connection_closed",
+                    st.wire_outbound_fail_connection_closed,
+                )?;
+                d.set_item(
+                    "libp2p_wire_outbound_fail_unsupported",
+                    st.wire_outbound_fail_unsupported,
+                )?;
+                d.set_item("libp2p_wire_outbound_fail_io", st.wire_outbound_fail_io)?;
                 d.set_item("libp2p_wire_inbound_failure", st.wire_inbound_failure)?;
+                d.set_item(
+                    "libp2p_wire_inbound_fail_timeout",
+                    st.wire_inbound_fail_timeout,
+                )?;
+                d.set_item(
+                    "libp2p_wire_inbound_fail_connection_closed",
+                    st.wire_inbound_fail_connection_closed,
+                )?;
+                d.set_item(
+                    "libp2p_wire_inbound_fail_unsupported",
+                    st.wire_inbound_fail_unsupported,
+                )?;
+                d.set_item(
+                    "libp2p_wire_inbound_fail_response_omission",
+                    st.wire_inbound_fail_response_omission,
+                )?;
+                d.set_item("libp2p_wire_inbound_fail_io", st.wire_inbound_fail_io)?;
                 d.set_item("libp2p_wire_response_sent", st.wire_response_sent)?;
                 d.set_item("libp2p_wire_response_ok", st.wire_response_ok)?;
                 d.set_item("libp2p_bytes_in", bytes_in)?;
@@ -5640,7 +5740,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 50)?;
+                d.set_item("phase", 51)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -5684,6 +5784,7 @@ mod enabled {
                 d.set_item("identify_events", true)?;
                 d.set_item("gossip_subscription_events", true)?;
                 d.set_item("wire_rr_events", true)?;
+                d.set_item("wire_fail_events", true)?;
                 d.set_item("connection_manager", true)?;
                 d.set_item("bootstrap", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
@@ -5767,7 +5868,38 @@ mod enabled {
                 d.set_item("libp2p_wire_sent", st.wire_sent)?;
                 d.set_item("libp2p_wire_recv", st.wire_recv)?;
                 d.set_item("libp2p_wire_outbound_failure", st.wire_outbound_failure)?;
+                d.set_item("libp2p_wire_outbound_fail_dial", st.wire_outbound_fail_dial)?;
+                d.set_item(
+                    "libp2p_wire_outbound_fail_timeout",
+                    st.wire_outbound_fail_timeout,
+                )?;
+                d.set_item(
+                    "libp2p_wire_outbound_fail_connection_closed",
+                    st.wire_outbound_fail_connection_closed,
+                )?;
+                d.set_item(
+                    "libp2p_wire_outbound_fail_unsupported",
+                    st.wire_outbound_fail_unsupported,
+                )?;
+                d.set_item("libp2p_wire_outbound_fail_io", st.wire_outbound_fail_io)?;
                 d.set_item("libp2p_wire_inbound_failure", st.wire_inbound_failure)?;
+                d.set_item(
+                    "libp2p_wire_inbound_fail_timeout",
+                    st.wire_inbound_fail_timeout,
+                )?;
+                d.set_item(
+                    "libp2p_wire_inbound_fail_connection_closed",
+                    st.wire_inbound_fail_connection_closed,
+                )?;
+                d.set_item(
+                    "libp2p_wire_inbound_fail_unsupported",
+                    st.wire_inbound_fail_unsupported,
+                )?;
+                d.set_item(
+                    "libp2p_wire_inbound_fail_response_omission",
+                    st.wire_inbound_fail_response_omission,
+                )?;
+                d.set_item("libp2p_wire_inbound_fail_io", st.wire_inbound_fail_io)?;
                 d.set_item("libp2p_wire_response_sent", st.wire_response_sent)?;
                 d.set_item("libp2p_wire_response_ok", st.wire_response_ok)?;
                 d.set_item("libp2p_inbound_established", st.inbound_established)?;
