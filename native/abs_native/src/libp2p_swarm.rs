@@ -133,6 +133,7 @@ mod enabled {
     use futures::prelude::*;
     #[allow(deprecated)]
     use libp2p::bandwidth::BandwidthSinks;
+    use libp2p::core::transport::ListenerId;
     use libp2p::core::ConnectedPoint;
     use libp2p::multiaddr::Protocol;
     use libp2p::{
@@ -680,6 +681,11 @@ mod enabled {
             relay_addr: String,
             reply: oneshot::Sender<Result<Vec<String>, String>>,
         },
+        /// Slice AJ: stop a listener by reported listen multiaddr.
+        RemoveListener {
+            addr: String,
+            reply: oneshot::Sender<Result<bool, String>>,
+        },
         Dial {
             addr: String,
             reply: oneshot::Sender<Result<String, String>>,
@@ -885,6 +891,11 @@ mod enabled {
         /// Slice AH: last / max ConnectionEstablished duration (ms).
         established_in_ms_last: u64,
         established_in_ms_max: u64,
+        /// Slice AJ: listener lifecycle counters.
+        new_listen_addr: u64,
+        expired_listen_addr: u64,
+        listener_closed: u64,
+        listener_error: u64,
         wire_sent: u64,
         wire_recv: u64,
         /// Slice AF: transport byte counters (BandwidthSinks snapshot).
@@ -1367,6 +1378,8 @@ mod enabled {
                 let mut pending_dial_quic = false;
                 let mut pending_dial_ws = false;
                 let mut bootstrap_job: Option<BootstrapDialJob> = None;
+                // Slice AJ: listen multiaddr → ListenerId for remove_listener.
+                let mut listen_ids: HashMap<String, ListenerId> = HashMap::new();
                 let mut pending_reconnects: HashMap<String, PendingReconnect> = HashMap::new();
                 let mut reconnect_inflight: Option<String> = None;
                 let mut reconnect_inflight_deadline: Option<tokio::time::Instant> = None;
@@ -1788,6 +1801,33 @@ mod enabled {
                                         }
                                         Err(e) => {
                                             let _ = reply.send(Err(format!("bad multiaddr: {e}")));
+                                        }
+                                    }
+                                }
+                                Some(Cmd::RemoveListener { addr, reply }) => {
+                                    // Slice AJ: prefer exact listen multiaddr book match.
+                                    let id = listen_ids.get(&addr).copied().or_else(|| {
+                                        // Tolerate trailing /p2p/<self> variants by prefix match.
+                                        listen_ids.iter().find_map(|(known, id)| {
+                                            if known == &addr
+                                                || known.starts_with(&addr)
+                                                || addr.starts_with(known)
+                                            {
+                                                Some(*id)
+                                            } else {
+                                                None
+                                            }
+                                        })
+                                    });
+                                    match id {
+                                        Some(listener_id) => {
+                                            let removed = swarm.remove_listener(listener_id);
+                                            let _ = reply.send(Ok(removed));
+                                        }
+                                        None => {
+                                            let _ = reply.send(Err(format!(
+                                                "no listener for addr: {addr}"
+                                            )));
                                         }
                                     }
                                 }
@@ -2694,7 +2734,10 @@ mod enabled {
                         }
                         event = swarm.select_next_some() => {
                             match event {
-                                SwarmEvent::NewListenAddr { address, .. } => {
+                                SwarmEvent::NewListenAddr {
+                                    listener_id,
+                                    address,
+                                } => {
                                     let s = address.to_string();
                                     let is_circuit = address
                                         .iter()
@@ -2703,11 +2746,14 @@ mod enabled {
                                     let is_quic =
                                         s.contains("/quic-v1") || s.contains("/quic/");
                                     let is_ws = s.contains("/ws");
+                                    listen_ids.insert(s.clone(), listener_id);
                                     // Slice X/AG: listen addrs become external so register has material.
                                     if !is_circuit {
                                         swarm.add_external_address(address.clone());
                                     }
                                     if let Ok(mut st) = state_bg.lock() {
+                                        st.new_listen_addr =
+                                            st.new_listen_addr.saturating_add(1);
                                         if !st.listen_addrs.contains(&s) {
                                             st.listen_addrs.push(s.clone());
                                         }
@@ -2747,6 +2793,49 @@ mod enabled {
                                             .map(|st| st.listen_addrs.clone())
                                             .unwrap_or_else(|_| vec![s]);
                                         let _ = reply.send(Ok(addrs));
+                                    }
+                                }
+                                SwarmEvent::ExpiredListenAddr {
+                                    listener_id,
+                                    address,
+                                } => {
+                                    let s = address.to_string();
+                                    listen_ids.retain(|addr, id| {
+                                        !(*id == listener_id && addr == &s)
+                                    });
+                                    if let Ok(mut st) = state_bg.lock() {
+                                        st.expired_listen_addr =
+                                            st.expired_listen_addr.saturating_add(1);
+                                        st.listen_addrs.retain(|a| a != &s);
+                                        st.circuit_addrs.retain(|a| a != &s);
+                                        st.external_addrs.retain(|a| a != &s);
+                                    }
+                                }
+                                SwarmEvent::ListenerClosed {
+                                    listener_id,
+                                    addresses,
+                                    reason,
+                                } => {
+                                    listen_ids.retain(|_, id| *id != listener_id);
+                                    if let Ok(mut st) = state_bg.lock() {
+                                        st.listener_closed =
+                                            st.listener_closed.saturating_add(1);
+                                        for a in addresses.iter().map(|x| x.to_string()) {
+                                            st.listen_addrs.retain(|x| x != &a);
+                                            st.circuit_addrs.retain(|x| x != &a);
+                                            st.external_addrs.retain(|x| x != &a);
+                                        }
+                                        if let Err(e) = reason {
+                                            st.last_error = format!("listener_closed: {e}");
+                                        }
+                                    }
+                                }
+                                SwarmEvent::ListenerError { listener_id, error } => {
+                                    let _ = listener_id;
+                                    if let Ok(mut st) = state_bg.lock() {
+                                        st.listener_error =
+                                            st.listener_error.saturating_add(1);
+                                        st.last_error = format!("listener_error: {error}");
                                     }
                                 }
                                 SwarmEvent::IncomingConnection { .. } => {
@@ -3835,6 +3924,22 @@ mod enabled {
             }
         }
 
+        /// Slice AJ: remove a listener by its reported listen multiaddr.
+        fn remove_listener(&self, multiaddr: &str) -> PyResult<bool> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::RemoveListener {
+                    addr: multiaddr.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(v)) => Ok(v),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("remove_listener reply dropped")),
+            }
+        }
+
         fn dial(&self, multiaddr: &str) -> PyResult<String> {
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
@@ -4640,6 +4745,10 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_established_in_ms_last", st.established_in_ms_last)?;
                 d.set_item("libp2p_established_in_ms_max", st.established_in_ms_max)?;
+                d.set_item("libp2p_new_listen_addr", st.new_listen_addr)?;
+                d.set_item("libp2p_expired_listen_addr", st.expired_listen_addr)?;
+                d.set_item("libp2p_listener_closed", st.listener_closed)?;
+                d.set_item("libp2p_listener_error", st.listener_error)?;
                 d.set_item("libp2p_wire_sent", st.wire_sent)?;
                 d.set_item("libp2p_wire_recv", st.wire_recv)?;
                 d.set_item("libp2p_bytes_in", bytes_in)?;
@@ -4827,7 +4936,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 34)?;
+                d.set_item("phase", 35)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -4855,6 +4964,7 @@ mod enabled {
                 d.set_item("external_addrs", true)?;
                 d.set_item("connection_lifecycle", true)?;
                 d.set_item("connection_close_causes", true)?;
+                d.set_item("listener_lifecycle", true)?;
                 d.set_item("connection_manager", true)?;
                 d.set_item("bootstrap", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
@@ -4909,6 +5019,10 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_established_in_ms_last", st.established_in_ms_last)?;
                 d.set_item("libp2p_established_in_ms_max", st.established_in_ms_max)?;
+                d.set_item("libp2p_new_listen_addr", st.new_listen_addr)?;
+                d.set_item("libp2p_expired_listen_addr", st.expired_listen_addr)?;
+                d.set_item("libp2p_listener_closed", st.listener_closed)?;
+                d.set_item("libp2p_listener_error", st.listener_error)?;
                 d.set_item("libp2p_bytes_in", st.bytes_in)?;
                 d.set_item("libp2p_bytes_out", st.bytes_out)?;
                 d.set_item("libp2p_external_addrs", st.external_addrs.len())?;

@@ -53,6 +53,10 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_connection_closed_keep_alive",
     "libp2p_established_in_ms_last",
     "libp2p_established_in_ms_max",
+    "libp2p_new_listen_addr",
+    "libp2p_expired_listen_addr",
+    "libp2p_listener_closed",
+    "libp2p_listener_error",
     "libp2p_bytes_in",
     "libp2p_bytes_out",
     "libp2p_external_addrs",
@@ -187,6 +191,7 @@ LABS = [
     ("AG", "scripts/libp2p_rust_external_addr_lab.py"),
     ("AH", "scripts/libp2p_rust_connection_lifecycle_lab.py"),
     ("AI", "scripts/libp2p_rust_connection_close_cause_lab.py"),
+    ("AJ", "scripts/libp2p_rust_listener_lifecycle_lab.py"),
 ]
 
 PROD_JSONS = (
