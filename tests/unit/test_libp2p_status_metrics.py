@@ -40,6 +40,8 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_dns_dial_ok" in empty
     assert "libp2p_dns_dial_fail" in empty
     assert "libp2p_connection_limits_updates" in empty
+    assert "libp2p_quic_listens" in empty
+    assert "libp2p_quic_dial_ok" in empty
 
 
 def test_merge_overwrites_present_keys_only() -> None:

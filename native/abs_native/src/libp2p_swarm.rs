@@ -26,6 +26,7 @@
 //! Slice Y: DNS multiaddr dial (`/dns4` / `/dns6`) via rust-libp2p dns transport.
 //! Slice Z: Prometheus export of libp2p_* status metrics (Python /metrics edge).
 //! Slice AA: connection manager — full ConnectionLimits + runtime set_connection_limits.
+//! Slice AB: QUIC transport (`/udp/.../quic-v1`) alongside TCP (lab opt-in listen/dial).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -900,6 +901,10 @@ mod enabled {
         /// Slice Y: dials that used `/dns4/` or `/dns6/`.
         dns_dial_ok: u64,
         dns_dial_fail: u64,
+        /// Slice AB: QUIC listen/dial counters.
+        quic_listens: u64,
+        quic_dial_ok: u64,
+        quic_dial_fail: u64,
         last_error: String,
         inbox: VecDeque<(String, Vec<u8>)>,
         gossip_inbox: VecDeque<(String, String, Vec<u8>)>,
@@ -1084,7 +1089,9 @@ mod enabled {
                         return;
                     }
                 };
-                let dns_built = match tcp_built.with_dns() {
+                // Slice AB: QUIC beside TCP; listen/dial via /udp/.../quic-v1.
+                let quic_built = tcp_built.with_quic();
+                let dns_built = match quic_built.with_dns() {
                     Ok(b) => b,
                     Err(e) => {
                         if let Ok(mut st) = state_bg.lock() {
@@ -1248,6 +1255,7 @@ mod enabled {
                 let mut relay_listen_deadline: Option<tokio::time::Instant> = None;
                 let mut pending_dial: Option<oneshot::Sender<Result<String, String>>> = None;
                 let mut pending_dial_dns = false;
+                let mut pending_dial_quic = false;
                 let mut bootstrap_job: Option<BootstrapDialJob> = None;
                 let mut pending_reconnects: HashMap<String, PendingReconnect> = HashMap::new();
                 let mut reconnect_inflight: Option<String> = None;
@@ -1671,6 +1679,8 @@ mod enabled {
                                 Some(Cmd::Dial { addr, reply }) => {
                                     let is_dns =
                                         addr.contains("/dns4/") || addr.contains("/dns6/");
+                                    let is_quic = addr.contains("/quic-v1")
+                                        || addr.contains("/quic/");
                                     // Fast-fail if multiaddr targets a blocked PeerId (Slice I).
                                     if let Ok(ma) = addr.parse::<Multiaddr>() {
                                         let target = ma.iter().find_map(|p| match p {
@@ -1690,6 +1700,10 @@ mod enabled {
                                                     if is_dns {
                                                         st.dns_dial_fail =
                                                             st.dns_dial_fail.saturating_add(1);
+                                                    }
+                                                    if is_quic {
+                                                        st.quic_dial_fail =
+                                                            st.quic_dial_fail.saturating_add(1);
                                                     }
                                                 }
                                                 let _ = reply.send(Err("peer_blocked".into()));
@@ -1729,11 +1743,16 @@ mod enabled {
                                                         st.dns_dial_fail =
                                                             st.dns_dial_fail.saturating_add(1);
                                                     }
+                                                    if is_quic {
+                                                        st.quic_dial_fail =
+                                                            st.quic_dial_fail.saturating_add(1);
+                                                    }
                                                 }
                                                 let _ = reply.send(Err(format!("dial: {e}")));
                                             } else {
                                                 pending_dial = Some(reply);
                                                 pending_dial_dns = is_dns;
+                                                pending_dial_quic = is_quic;
                                             }
                                         }
                                         Err(e) => {
@@ -1743,6 +1762,10 @@ mod enabled {
                                                 if is_dns {
                                                     st.dns_dial_fail =
                                                         st.dns_dial_fail.saturating_add(1);
+                                                }
+                                                if is_quic {
+                                                    st.quic_dial_fail =
+                                                        st.quic_dial_fail.saturating_add(1);
                                                 }
                                             }
                                             let _ = reply.send(Err(format!("bad multiaddr: {e}")));
@@ -2462,6 +2485,8 @@ mod enabled {
                                         .iter()
                                         .any(|p| matches!(p, Protocol::P2pCircuit));
                                     let is_ip6 = s.contains("/ip6/");
+                                    let is_quic =
+                                        s.contains("/quic-v1") || s.contains("/quic/");
                                     // Slice X: listen addrs become external so register has material.
                                     if !is_circuit {
                                         swarm.add_external_address(address.clone());
@@ -2475,6 +2500,9 @@ mod enabled {
                                         }
                                         if is_ip6 && !is_circuit {
                                             st.ipv6_listens = st.ipv6_listens.saturating_add(1);
+                                        }
+                                        if is_quic && !is_circuit {
+                                            st.quic_listens = st.quic_listens.saturating_add(1);
                                         }
                                     }
                                     if is_circuit {
@@ -2556,9 +2584,17 @@ mod enabled {
                                                 }
                                                 pending_dial_dns = false;
                                             }
+                                            if pending_dial_quic {
+                                                if let Ok(mut st) = state_bg.lock() {
+                                                    st.quic_dial_ok =
+                                                        st.quic_dial_ok.saturating_add(1);
+                                                }
+                                                pending_dial_quic = false;
+                                            }
                                             let _ = reply.send(Ok(pid.clone()));
                                         } else {
                                             pending_dial_dns = false;
+                                            pending_dial_quic = false;
                                         }
                                         let is_current = bootstrap_job
                                             .as_ref()
@@ -2624,6 +2660,13 @@ mod enabled {
                                             }
                                             pending_dial_dns = false;
                                         }
+                                        if pending_dial_quic {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.quic_dial_fail =
+                                                    st.quic_dial_fail.saturating_add(1);
+                                            }
+                                            pending_dial_quic = false;
+                                        }
                                         let msg = if block_denied {
                                             "peer_blocked".into()
                                         } else {
@@ -2632,6 +2675,7 @@ mod enabled {
                                         let _ = reply.send(Err(msg));
                                     } else {
                                         pending_dial_dns = false;
+                                        pending_dial_quic = false;
                                     }
                                     if !pid.is_empty() && !abandoned {
                                         let is_current = bootstrap_job
@@ -4238,6 +4282,9 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_dns_dial_ok", st.dns_dial_ok)?;
                 d.set_item("libp2p_dns_dial_fail", st.dns_dial_fail)?;
+                d.set_item("libp2p_quic_listens", st.quic_listens)?;
+                d.set_item("libp2p_quic_dial_ok", st.quic_dial_ok)?;
+                d.set_item("libp2p_quic_dial_fail", st.quic_dial_fail)?;
                 if let Some(n) = st.max_established_incoming {
                     d.set_item("libp2p_max_established_incoming", n)?;
                 }
@@ -4280,7 +4327,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 26)?;
+                d.set_item("phase", 27)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -4300,6 +4347,7 @@ mod enabled {
                 d.set_item("dcutr", true)?;
                 d.set_item("rendezvous", true)?;
                 d.set_item("dns", true)?;
+                d.set_item("quic", true)?;
                 d.set_item("prometheus", true)?;
                 d.set_item("connection_manager", true)?;
                 d.set_item("bootstrap", true)?;
@@ -4443,6 +4491,9 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_dns_dial_ok", st.dns_dial_ok)?;
                 d.set_item("libp2p_dns_dial_fail", st.dns_dial_fail)?;
+                d.set_item("libp2p_quic_listens", st.quic_listens)?;
+                d.set_item("libp2p_quic_dial_ok", st.quic_dial_ok)?;
+                d.set_item("libp2p_quic_dial_fail", st.quic_dial_fail)?;
                 d.set_item(
                     "libp2p_connection_limits_updates",
                     st.connection_limits_updates,

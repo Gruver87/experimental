@@ -5,6 +5,7 @@ Supports a narrow subset used by in-process / dual-stack labs:
   /ip6/<host>/tcp/<port>[/p2p/<peer_id>]   (Slice W)
   /dns4/<name>/tcp/<port>[/p2p/<peer_id>]  (Slice Y)
   /dns6/<name>/tcp/<port>[/p2p/<peer_id>]  (Slice Y)
+  /ip4|ip6/<host>/udp/<port>/quic-v1[/p2p/<peer_id>]  (Slice AB)
 
 Not a full multiaddr codec — honesty: lab convenience only.
 """
@@ -37,11 +38,16 @@ class Multiaddr:
     port: int
     peer_id: str = ""
     dns: str = ""  # "", "dns4", or "dns6" — empty = auto from host
+    transport: str = "tcp"  # "tcp" or "quic-v1"
 
     def to_string(self) -> str:
         host = str(self.host).strip().strip("[]")
         proto = _addr_proto(host, dns=self.dns)
-        base = f"/{proto}/{host}/tcp/{int(self.port)}"
+        transport = str(self.transport or "tcp").strip().lower()
+        if transport in ("quic-v1", "quic"):
+            base = f"/{proto}/{host}/udp/{int(self.port)}/quic-v1"
+        else:
+            base = f"/{proto}/{host}/tcp/{int(self.port)}"
         if self.peer_id:
             return f"{base}/p2p/{self.peer_id}"
         return base
@@ -53,7 +59,7 @@ class Multiaddr:
 
 
 def parse_multiaddr(value: str) -> Multiaddr:
-    """Parse ``/ip4|ip6|dns4|dns6/.../tcp/...[/p2p/...]`` into :class:`Multiaddr`."""
+    """Parse ip/dns + tcp or udp/quic-v1 multiaddrs into :class:`Multiaddr`."""
     raw = str(value or "").strip()
     if not raw.startswith("/"):
         raise ValueError("multiaddr must start with /")
@@ -62,6 +68,7 @@ def parse_multiaddr(value: str) -> Multiaddr:
     port: Optional[int] = None
     peer_id = ""
     dns = ""
+    transport = "tcp"
     i = 0
     while i < len(parts):
         proto = parts[i]
@@ -83,8 +90,24 @@ def parse_multiaddr(value: str) -> Multiaddr:
             if i + 1 >= len(parts):
                 raise ValueError("tcp requires port")
             port = int(parts[i + 1])
+            transport = "tcp"
             i += 2
             continue
+        if proto == "udp":
+            if i + 1 >= len(parts):
+                raise ValueError("udp requires port")
+            port = int(parts[i + 1])
+            i += 2
+            # Expect /quic-v1 next for Slice AB.
+            if i < len(parts) and parts[i] in ("quic-v1", "quic"):
+                transport = "quic-v1"
+                i += 1
+            else:
+                raise ValueError("udp multiaddr requires /quic-v1 (Slice AB)")
+            continue
+        if proto in ("quic-v1", "quic"):
+            # Allow after udp already consumed; orphan quic is invalid.
+            raise ValueError("quic-v1 must follow /udp/<port>")
         if proto == "p2p":
             if i + 1 >= len(parts):
                 raise ValueError("p2p requires peer id")
@@ -93,8 +116,12 @@ def parse_multiaddr(value: str) -> Multiaddr:
             continue
         raise ValueError(f"unsupported multiaddr protocol: {proto}")
     if not host or port is None or port <= 0:
-        raise ValueError("multiaddr requires /ip4|ip6|dns4|dns6/<host>/tcp/<port>")
-    return Multiaddr(host=host, port=port, peer_id=peer_id, dns=dns)
+        raise ValueError(
+            "multiaddr requires /ip4|ip6|dns4|dns6/<host>/(tcp|udp)/<port>[/quic-v1]"
+        )
+    return Multiaddr(
+        host=host, port=port, peer_id=peer_id, dns=dns, transport=transport
+    )
 
 
 def endpoint_to_multiaddr(endpoint: PeerEndpoint) -> str:

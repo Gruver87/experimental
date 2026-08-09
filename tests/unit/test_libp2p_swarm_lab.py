@@ -48,6 +48,21 @@ def test_hostname_formats_as_dns4() -> None:
     assert Multiaddr(host="example.com", port=9).to_string() == "/dns4/example.com/tcp/9"
 
 
+def test_parse_multiaddr_quic_roundtrip() -> None:
+    from network.transport.libp2p_adapter.multiaddr import Multiaddr, parse_multiaddr
+
+    ma = parse_multiaddr("/ip4/127.0.0.1/udp/4403/quic-v1/p2p/lab-ab")
+    assert ma.host == "127.0.0.1"
+    assert ma.port == 4403
+    assert ma.peer_id == "lab-ab"
+    assert ma.transport == "quic-v1"
+    assert ma.to_string() == "/ip4/127.0.0.1/udp/4403/quic-v1/p2p/lab-ab"
+    assert (
+        Multiaddr(host="127.0.0.1", port=9, transport="quic-v1").to_string()
+        == "/ip4/127.0.0.1/udp/9/quic-v1"
+    )
+
+
 def test_parse_multiaddr_rejects_junk() -> None:
     with pytest.raises(ValueError):
         parse_multiaddr("127.0.0.1:4001")
