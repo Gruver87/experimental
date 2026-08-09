@@ -43,6 +43,9 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_peers",
     "libp2p_dial_ok",
     "libp2p_dial_fail",
+    "libp2p_dialing",
+    "libp2p_incoming_connection_error",
+    "libp2p_peer_external_addr",
     "libp2p_wire_sent",
     "libp2p_wire_recv",
     "libp2p_inbound_established",
@@ -192,6 +195,7 @@ LABS = [
     ("AH", "scripts/libp2p_rust_connection_lifecycle_lab.py"),
     ("AI", "scripts/libp2p_rust_connection_close_cause_lab.py"),
     ("AJ", "scripts/libp2p_rust_listener_lifecycle_lab.py"),
+    ("AK", "scripts/libp2p_rust_connection_attempt_lab.py"),
 ]
 
 PROD_JSONS = (

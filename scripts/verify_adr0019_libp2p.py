@@ -78,6 +78,7 @@ LABS = [
     ("AH", "scripts/libp2p_rust_connection_lifecycle_lab.py"),
     ("AI", "scripts/libp2p_rust_connection_close_cause_lab.py"),
     ("AJ", "scripts/libp2p_rust_listener_lifecycle_lab.py"),
+    ("AK", "scripts/libp2p_rust_connection_attempt_lab.py"),
 ]
 
 

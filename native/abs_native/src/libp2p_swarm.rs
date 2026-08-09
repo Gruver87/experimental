@@ -517,6 +517,10 @@ mod enabled {
                 continue;
             }
 
+            if let Ok(mut st) = state.lock() {
+                st.dialing = st.dialing.saturating_add(1);
+            }
+
             j.current_peer = Some(pid);
             j.per_dial_deadline = Some(tokio::time::Instant::now() + timeout);
             return false;
@@ -878,6 +882,12 @@ mod enabled {
         dial_fail: u64,
         dial_inflight: u32,
         dial_refused_budget: u64,
+        /// Slice AK: SwarmEvent::Dialing (outbound attempt started).
+        dialing: u64,
+        /// Slice AK: IncomingConnectionError total (any handshake deny/fail).
+        incoming_connection_error: u64,
+        /// Slice AK: NewExternalAddrOfPeer discoveries.
+        peer_external_addr: u64,
         /// Slice AH: listener-side ConnectionEstablished.
         inbound_established: u64,
         /// Slice AH: IncomingConnection (pre-handshake).
@@ -1709,6 +1719,12 @@ mod enabled {
                                                                     }
                                                                 }
                                                             } else {
+                                                                // Slice AK: reconnect dial attempt.
+                                                                if let Ok(mut st) = state_bg.lock()
+                                                                {
+                                                                    st.dialing =
+                                                                        st.dialing.saturating_add(1);
+                                                                }
                                                                 reconnect_inflight =
                                                                     Some(pid.clone());
                                                                 // Dedicated reconnect dial timeout
@@ -1914,6 +1930,10 @@ mod enabled {
                                                 }
                                                 let _ = reply.send(Err(format!("dial: {e}")));
                                             } else {
+                                                // Slice AK: direct swarm.dial does not emit Dialing.
+                                                if let Ok(mut st) = state_bg.lock() {
+                                                    st.dialing = st.dialing.saturating_add(1);
+                                                }
                                                 pending_dial = Some(reply);
                                                 pending_dial_dns = is_dns;
                                                 pending_dial_quic = is_quic;
@@ -2844,6 +2864,20 @@ mod enabled {
                                             st.incoming_connections.saturating_add(1);
                                     }
                                 }
+                                SwarmEvent::Dialing { .. } => {
+                                    if let Ok(mut st) = state_bg.lock() {
+                                        st.dialing = st.dialing.saturating_add(1);
+                                    }
+                                }
+                                SwarmEvent::NewExternalAddrOfPeer { peer_id, address } => {
+                                    let pid = peer_id.to_string();
+                                    let s = address.to_string();
+                                    if let Ok(mut st) = state_bg.lock() {
+                                        st.peer_external_addr =
+                                            st.peer_external_addr.saturating_add(1);
+                                    }
+                                    peerstore_note_addr(&state_bg, &pid, &s);
+                                }
                                 SwarmEvent::ConnectionEstablished {
                                     peer_id,
                                     endpoint,
@@ -3118,6 +3152,8 @@ mod enabled {
                                                 .is_some()
                                     );
                                     if let Ok(mut st) = state_bg.lock() {
+                                        st.incoming_connection_error =
+                                            st.incoming_connection_error.saturating_add(1);
                                         st.last_error = format!("incoming: {error}");
                                         if limit_denied {
                                             st.conn_limit_denied =
@@ -4734,6 +4770,12 @@ mod enabled {
                 d.set_item("libp2p_outbound_peers", st.outbound_peers.len())?;
                 d.set_item("libp2p_dial_refused_budget", st.dial_refused_budget)?;
                 d.set_item("libp2p_max_dials", st.max_dials)?;
+                d.set_item("libp2p_dialing", st.dialing)?;
+                d.set_item(
+                    "libp2p_incoming_connection_error",
+                    st.incoming_connection_error,
+                )?;
+                d.set_item("libp2p_peer_external_addr", st.peer_external_addr)?;
                 d.set_item("libp2p_inbound_established", st.inbound_established)?;
                 d.set_item("libp2p_incoming_connections", st.incoming_connections)?;
                 d.set_item("libp2p_connection_closed", st.connection_closed)?;
@@ -4936,7 +4978,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 35)?;
+                d.set_item("phase", 36)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -4965,6 +5007,7 @@ mod enabled {
                 d.set_item("connection_lifecycle", true)?;
                 d.set_item("connection_close_causes", true)?;
                 d.set_item("listener_lifecycle", true)?;
+                d.set_item("connection_attempts", true)?;
                 d.set_item("connection_manager", true)?;
                 d.set_item("bootstrap", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
@@ -5006,6 +5049,12 @@ mod enabled {
                 d.set_item("libp2p_peers", st.connected.len())?;
                 d.set_item("libp2p_dial_ok", st.dial_ok)?;
                 d.set_item("libp2p_dial_fail", st.dial_fail)?;
+                d.set_item("libp2p_dialing", st.dialing)?;
+                d.set_item(
+                    "libp2p_incoming_connection_error",
+                    st.incoming_connection_error,
+                )?;
+                d.set_item("libp2p_peer_external_addr", st.peer_external_addr)?;
                 d.set_item("libp2p_wire_sent", st.wire_sent)?;
                 d.set_item("libp2p_wire_recv", st.wire_recv)?;
                 d.set_item("libp2p_inbound_established", st.inbound_established)?;
