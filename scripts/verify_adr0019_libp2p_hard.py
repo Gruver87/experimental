@@ -51,6 +51,11 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_dial_fail_condition",
     "libp2p_dialing",
     "libp2p_incoming_connection_error",
+    "libp2p_incoming_fail_transport",
+    "libp2p_incoming_fail_wrong_peer_id",
+    "libp2p_incoming_fail_aborted",
+    "libp2p_incoming_fail_local_peer_id",
+    "libp2p_incoming_fail_denied",
     "libp2p_peer_external_addr",
     "libp2p_wire_sent",
     "libp2p_wire_recv",
@@ -248,6 +253,7 @@ LABS = [
     ("AS", "scripts/libp2p_rust_mdns_events_lab.py"),
     ("AT", "scripts/libp2p_rust_relay_client_events_lab.py"),
     ("AU", "scripts/libp2p_rust_dial_fail_events_lab.py"),
+    ("AV", "scripts/libp2p_rust_incoming_fail_events_lab.py"),
 ]
 
 PROD_JSONS = (

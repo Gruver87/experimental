@@ -41,6 +41,7 @@
 //! Slice AS: mDNS discover/expire event metrics + lab TTL override.
 //! Slice AT: relay client circuit direction taxonomy (inbound/outbound).
 //! Slice AU: outbound dial failure taxonomy (transport / wrong peer / …).
+//! Slice AV: inbound ListenError taxonomy (mirror of AU).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -913,6 +914,12 @@ mod enabled {
         dialing: u64,
         /// Slice AK: IncomingConnectionError total (any handshake deny/fail).
         incoming_connection_error: u64,
+        /// Slice AV: ListenError taxonomy (counted with incoming_connection_error).
+        incoming_fail_transport: u64,
+        incoming_fail_wrong_peer_id: u64,
+        incoming_fail_aborted: u64,
+        incoming_fail_local_peer_id: u64,
+        incoming_fail_denied: u64,
         /// Slice AK: NewExternalAddrOfPeer discoveries.
         peer_external_addr: u64,
         /// Slice AH: listener-side ConnectionEstablished.
@@ -3305,6 +3312,34 @@ mod enabled {
                                         st.incoming_connection_error =
                                             st.incoming_connection_error.saturating_add(1);
                                         st.last_error = format!("incoming: {error}");
+                                        // Slice AV: ListenError taxonomy.
+                                        match &error {
+                                            ListenError::Transport(_) => {
+                                                st.incoming_fail_transport = st
+                                                    .incoming_fail_transport
+                                                    .saturating_add(1);
+                                            }
+                                            ListenError::WrongPeerId { .. } => {
+                                                st.incoming_fail_wrong_peer_id = st
+                                                    .incoming_fail_wrong_peer_id
+                                                    .saturating_add(1);
+                                            }
+                                            ListenError::Aborted => {
+                                                st.incoming_fail_aborted = st
+                                                    .incoming_fail_aborted
+                                                    .saturating_add(1);
+                                            }
+                                            ListenError::LocalPeerId { .. } => {
+                                                st.incoming_fail_local_peer_id = st
+                                                    .incoming_fail_local_peer_id
+                                                    .saturating_add(1);
+                                            }
+                                            ListenError::Denied { .. } => {
+                                                st.incoming_fail_denied = st
+                                                    .incoming_fail_denied
+                                                    .saturating_add(1);
+                                            }
+                                        }
                                         if limit_denied {
                                             st.conn_limit_denied =
                                                 st.conn_limit_denied.saturating_add(1);
@@ -5213,6 +5248,17 @@ mod enabled {
                     "libp2p_incoming_connection_error",
                     st.incoming_connection_error,
                 )?;
+                d.set_item("libp2p_incoming_fail_transport", st.incoming_fail_transport)?;
+                d.set_item(
+                    "libp2p_incoming_fail_wrong_peer_id",
+                    st.incoming_fail_wrong_peer_id,
+                )?;
+                d.set_item("libp2p_incoming_fail_aborted", st.incoming_fail_aborted)?;
+                d.set_item(
+                    "libp2p_incoming_fail_local_peer_id",
+                    st.incoming_fail_local_peer_id,
+                )?;
+                d.set_item("libp2p_incoming_fail_denied", st.incoming_fail_denied)?;
                 d.set_item("libp2p_peer_external_addr", st.peer_external_addr)?;
                 d.set_item("libp2p_inbound_established", st.inbound_established)?;
                 d.set_item("libp2p_incoming_connections", st.incoming_connections)?;
@@ -5485,7 +5531,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 46)?;
+                d.set_item("phase", 47)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -5522,6 +5568,7 @@ mod enabled {
                 d.set_item("listener_lifecycle", true)?;
                 d.set_item("connection_attempts", true)?;
                 d.set_item("dial_fail_events", true)?;
+                d.set_item("incoming_fail_events", true)?;
                 d.set_item("identify_events", true)?;
                 d.set_item("gossip_subscription_events", true)?;
                 d.set_item("wire_rr_events", true)?;
@@ -5577,6 +5624,17 @@ mod enabled {
                     "libp2p_incoming_connection_error",
                     st.incoming_connection_error,
                 )?;
+                d.set_item("libp2p_incoming_fail_transport", st.incoming_fail_transport)?;
+                d.set_item(
+                    "libp2p_incoming_fail_wrong_peer_id",
+                    st.incoming_fail_wrong_peer_id,
+                )?;
+                d.set_item("libp2p_incoming_fail_aborted", st.incoming_fail_aborted)?;
+                d.set_item(
+                    "libp2p_incoming_fail_local_peer_id",
+                    st.incoming_fail_local_peer_id,
+                )?;
+                d.set_item("libp2p_incoming_fail_denied", st.incoming_fail_denied)?;
                 d.set_item("libp2p_peer_external_addr", st.peer_external_addr)?;
                 d.set_item("libp2p_wire_sent", st.wire_sent)?;
                 d.set_item("libp2p_wire_recv", st.wire_recv)?;
