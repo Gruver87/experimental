@@ -1,0 +1,5 @@
+OK: libp2p_rust_abs_announce_lab PASS
+  topic: abs/blocks/1.0.0
+  publish_id: 35353338333933353035303137353636373431
+  admitted: new_block
+  honesty: announce lab; not tip proof / not prod gossip mesh

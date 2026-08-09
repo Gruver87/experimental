@@ -1,0 +1,5 @@
+OK: libp2p_rust_soak_lab PASS
+  budget: max_dials=1, second dial refused, refused_metric=1
+  dialer: outbound=1 wire_sent=20
+  listener wire_recv: 20
+  honesty: FEATURE_LIBP2P lab; not prod TCP+TLS mesh

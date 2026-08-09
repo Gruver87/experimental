@@ -72,3 +72,33 @@ class CheckpointCertificate:
             "issued_at_height": self.issued_at_height,
             "digest": self.digest,
         }
+
+    @staticmethod
+    def from_dict(data: Mapping[str, Any]) -> "CheckpointCertificate":
+        """Rehydrate a certificate and re-verify digest (fail-closed)."""
+        if not isinstance(data, Mapping):
+            raise ValueError("checkpoint must be a mapping")
+        cert = CheckpointCertificate.issue(
+            height=int(data["height"]),
+            block_hash=str(data["block_hash"]),
+            epoch=int(data.get("epoch") or 0),
+            issuer=str(data.get("issuer") or "lab"),
+            issued_at_height=int(
+                data["issued_at_height"]
+                if data.get("issued_at_height") is not None
+                else data["height"]
+            ),
+        )
+        expected = str(data.get("digest") or "").lower()
+        if expected and expected != cert.digest:
+            raise ValueError("checkpoint digest mismatch")
+        if not cert.verify_digest():
+            raise ValueError("checkpoint digest invalid")
+        return cert
+
+    def to_json(self) -> str:
+        return json.dumps(dict(self.to_dict()), sort_keys=True)
+
+    @staticmethod
+    def from_json(raw: str) -> "CheckpointCertificate":
+        return CheckpointCertificate.from_dict(json.loads(raw))

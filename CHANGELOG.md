@@ -16,6 +16,13 @@
 - EVM compat matrix + RPC wave: `eth_call` ABI word encode, `eth_estimateGas` create path, richer receipts
 - CI fast lane: `.github/workflows/experimental-rd.yml` (no tip-v2 48h soak hard gate)
 - Wave-2: WS `CheckpointCertificate` + AncestryWindow bridge; `DualStackDialer` + `libp2p_two_node_lab.py`; EVM precompiles sha256/identity
+- Wave-3: EVM ecrecover (0x01); libp2p multiaddr + in-process swarm lab; optional WS tip-import gate on TipSafetyService / shadow (`FEATURE_LONG_RANGE` + optional `ABS_WS_ANCHOR_*`)
+- Wave-4: EVM ripemd160 (0x03); libp2p 3-node in-process mesh lab; WS checkpoint JSON export/import
+- Wave-5: EVM modexp (0x05, EIP-2565 gas); libp2p request/response lab; TipSafety WS tip-import gate in `long_range_lab`
+- Wave-6: EVM blake2f (0x09 EIP-152); libp2p multi-hop relay lab; WS `CheckpointStore` rotation
+- Wave-7: EVM bn254 ecAdd/ecMul/ecPairing (0x06–0x08 via `py_ecc`); libp2p discovery stub; `CheckpointStore.apply_latest`
+- Wave-8: receipt `logsBloom`; `evm_precompile_lab`; libp2p Identify + `dial_discovered`; CheckpointStore JSON persist; `verify_experimental_rd`
+- ADR 0019: rust-libp2p industrial path (Cargo feature `libp2p`, Noise/Yamux/Identify/Ping, `Libp2pNode` PyO3, `libp2p_rust_two_node_lab.py`); TCP+TLS remains default
 
 ### Industrial harden (no new features)
 

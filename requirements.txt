@@ -7,6 +7,9 @@
 # Криптография SECP256K1 (cryptography/OpenSSL — без CVE-2024-23342 в python-ecdsa)
 cryptography>=42.0.0
 
+# BN254 / alt_bn128 for EVM precompiles 0x06–0x08 (experimental R&D)
+py_ecc>=7.0.0
+
 # ── Опциональные (WebSocket + тесты) ─────────────────────────────────────────
 
 # WebSocket поддержка (для будущего ws_server)

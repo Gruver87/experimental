@@ -43,12 +43,17 @@ jobs:
         run: cargo install cargo-audit --locked
 
       - name: Audit native/abs_native
-        # Scoped ignores: unused pyo3 APIs until Dependabot PR #7 (0.29) merges.
-        # See .cargo/audit.toml + docs/DEPENDABOT_TRIAGE.md
+        # Scoped ignores: unused pyo3 APIs + ADR 0019 libp2p transitive (mdns/hickory,
+        # stale libp2p-tls lock edges). See .cargo/audit.toml + docs/DEPENDABOT_TRIAGE.md
         run: >
           cargo audit --file native/abs_native/Cargo.lock
           --ignore RUSTSEC-2025-0020
           --ignore RUSTSEC-2026-0177
+          --ignore RUSTSEC-2026-0119
+          --ignore RUSTSEC-2025-0009
+          --ignore RUSTSEC-2026-0098
+          --ignore RUSTSEC-2026-0099
+          --ignore RUSTSEC-2026-0104
 
       - name: Audit bridge/rust_bridge
         run: >

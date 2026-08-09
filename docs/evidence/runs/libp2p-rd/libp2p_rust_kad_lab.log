@@ -1,0 +1,5 @@
+OK: libp2p_rust_kad_lab PASS
+  protocol: /absolute/kad/1.0.0
+  closest_count: 2
+  kad_peers: 2 queries=1
+  honesty: FEATURE_LIBP2P lab; not IPFS public DHT; not prod mesh

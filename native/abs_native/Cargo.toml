@@ -11,6 +11,8 @@ crate-type = ["cdylib", "rlib"]
 [features]
 default = ["extension-module"]
 extension-module = ["pyo3/extension-module"]
+# ADR 0019 — optional rust-libp2p swarm (experimental; not default industrial mesh)
+libp2p = ["dep:libp2p", "dep:tokio", "dep:futures", "dep:async-trait"]
 
 [dependencies]
 hex = "0.4"
@@ -29,6 +31,30 @@ primitive-types = "0.12"
 num-bigint = "0.4"
 num-traits = "0.2"
 rust_decimal = { version = "1", default-features = false, features = ["std"] }
+libp2p = { version = "0.54", optional = true, default-features = false, features = [
+    "tokio",
+    "tcp",
+    "noise",
+    "yamux",
+    "ping",
+    "identify",
+    "request-response",
+    "gossipsub",
+    "mdns",
+    "kad",
+    "relay",
+    "autonat",
+    "dcutr",
+    "rendezvous",
+    "dns",
+    "quic",
+    "websocket",
+    "upnp",
+    "macros",
+] }
+tokio = { version = "1", optional = true, features = ["rt-multi-thread", "macros", "sync", "time"] }
+futures = { version = "0.3", optional = true }
+async-trait = { version = "0.1", optional = true }
 
 [dev-dependencies]
 rand = "0.8"

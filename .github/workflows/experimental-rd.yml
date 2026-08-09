@@ -32,7 +32,9 @@ jobs:
             tests/unit/test_evm_precompiles.py \
             tests/unit/test_long_range_ws.py \
             tests/unit/test_long_range_wave2.py \
+            tests/unit/test_long_range_wave3.py \
             tests/unit/test_libp2p_adapter.py \
+            tests/unit/test_libp2p_swarm_lab.py \
             tests/unit/test_dual_stack.py \
             tests/unit/test_prod_mesh_feature_freeze.py
       - name: Long-Range lab
@@ -41,3 +43,176 @@ jobs:
         run: python scripts/libp2p_lab_smoke.py
       - name: libp2p 2-node dual-stack lab
         run: python scripts/libp2p_two_node_lab.py
+      - name: libp2p in-process swarm lab
+        run: python scripts/libp2p_swarm_lab.py
+      - name: libp2p 3-node swarm lab
+        run: python scripts/libp2p_three_node_lab.py
+      - name: libp2p request/response lab
+        run: python scripts/libp2p_reqresp_lab.py
+      - name: libp2p multi-hop relay lab
+        run: python scripts/libp2p_relay_lab.py
+      - name: libp2p discovery lab
+        run: python scripts/libp2p_discovery_lab.py
+      - name: libp2p identify lab
+        run: python scripts/libp2p_identify_lab.py
+      - name: EVM precompile lab
+        run: python scripts/evm_precompile_lab.py
+      - name: Local R&D verify aggregator
+        run: python scripts/verify_experimental_rd.py -q
+
+  rd-libp2p-rust:
+    name: ADR 0019 rust-libp2p lab
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install maturin
+        run: python -m pip install --upgrade pip maturin
+      - name: Build abs_native wheel with libp2p feature
+        working-directory: native/abs_native
+        run: maturin build --release --features "pyo3/extension-module,libp2p"
+      - name: Install wheel
+        run: |
+          set -euo pipefail
+          WHL=$(find . -path '*/wheels/abs_native-*.whl' | head -n1)
+          test -n "$WHL"
+          echo "Installing $WHL"
+          python -m pip install --force-reinstall --no-deps "$WHL"
+      - name: cargo test libp2p feature
+        working-directory: native/abs_native
+        run: cargo test --features libp2p --lib
+      - name: rust-libp2p 2-node lab
+        run: python scripts/libp2p_rust_two_node_lab.py
+      - name: rust-libp2p wire lab (Slice B)
+        run: python scripts/libp2p_rust_wire_lab.py
+      - name: rust-libp2p 3-node metrics lab (Slice B)
+        run: python scripts/libp2p_rust_three_node_lab.py
+      - name: rust-libp2p soak / dial budget lab (Slice C)
+        run: python scripts/libp2p_rust_soak_lab.py
+      - name: mixed dual-stack lab (Slice D)
+        run: python scripts/libp2p_mixed_dual_stack_lab.py
+      - name: rust-libp2p gossipsub lab (Slice E)
+        run: python scripts/libp2p_rust_gossip_lab.py
+      - name: rust-libp2p identity + mDNS lab (Slice F)
+        run: python scripts/libp2p_rust_identity_mdns_lab.py
+      - name: rust-libp2p Kademlia lab (Slice G)
+        run: python scripts/libp2p_rust_kad_lab.py
+      - name: Absolute gossip announce admit lab (Slice G)
+        run: python scripts/libp2p_rust_abs_announce_lab.py
+      - name: rust-libp2p relay + connection limits lab (Slice H)
+        run: python scripts/libp2p_rust_relay_limits_lab.py
+      - name: rust-libp2p block-list lab (Slice I)
+        run: python scripts/libp2p_rust_blocklist_lab.py
+      - name: rust-libp2p status surface lab (Slice J)
+        run: python scripts/libp2p_rust_status_surface_lab.py
+      - name: rust-libp2p mDNS toggle lab (Slice K)
+        run: python scripts/libp2p_rust_mdns_toggle_lab.py
+      - name: rust-libp2p wire timeout + adapter parity lab (Slice L)
+        run: python scripts/libp2p_rust_wire_timeout_lab.py
+      - name: rust-libp2p Absolute ADR 0008 wire lab (Slice M)
+        run: python scripts/libp2p_rust_abs_wire_lab.py
+      - name: rust-libp2p AutoNAT + DCUtR lab (Slice N)
+        run: python scripts/libp2p_rust_autonat_dcutr_lab.py
+      - name: rust-libp2p bootstrap peer book lab (Slice O)
+        run: python scripts/libp2p_rust_bootstrap_lab.py
+      - name: rust-libp2p bootstrap reconnect policy lab (Slice P)
+        run: python scripts/libp2p_rust_reconnect_lab.py
+      - name: rust-libp2p gossipsub peer scoring lab (Slice Q)
+        run: python scripts/libp2p_rust_peer_score_lab.py
+      - name: rust-libp2p ping RTT / unhealthy disconnect lab (Slice R)
+        run: python scripts/libp2p_rust_ping_lab.py
+      - name: rust-libp2p gossip score auto-block lab (Slice S)
+        run: python scripts/libp2p_rust_score_autoblock_lab.py
+      - name: rust-libp2p learned peerstore lab (Slice T)
+        run: python scripts/libp2p_rust_peerstore_lab.py
+      - name: rust-libp2p peerstore reconnect lab (Slice U)
+        run: python scripts/libp2p_rust_peerstore_reconnect_lab.py
+      - name: rust-libp2p idle connection timeout lab (Slice V)
+        run: python scripts/libp2p_rust_idle_timeout_lab.py
+      - name: rust-libp2p IPv6 dual-stack lab (Slice W)
+        run: python scripts/libp2p_rust_ipv6_lab.py
+      - name: rust-libp2p rendezvous lab (Slice X)
+        run: python scripts/libp2p_rust_rendezvous_lab.py
+      - name: rust-libp2p DNS multiaddr lab (Slice Y)
+        run: python scripts/libp2p_rust_dns_lab.py
+      - name: rust-libp2p Prometheus export lab (Slice Z)
+        run: python scripts/libp2p_rust_prometheus_lab.py
+      - name: rust-libp2p connection manager lab (Slice AA)
+        run: python scripts/libp2p_rust_connection_manager_lab.py
+      - name: rust-libp2p QUIC lab (Slice AB)
+        run: python scripts/libp2p_rust_quic_lab.py
+      - name: rust-libp2p WebSocket lab (Slice AC)
+        run: python scripts/libp2p_rust_websocket_lab.py
+      - name: rust-libp2p UPnP lab (Slice AD)
+        run: python scripts/libp2p_rust_upnp_lab.py
+      - name: rust-libp2p allow-list lab (Slice AE)
+        run: python scripts/libp2p_rust_allowlist_lab.py
+      - name: rust-libp2p bandwidth lab (Slice AF)
+        run: python scripts/libp2p_rust_bandwidth_lab.py
+      - name: rust-libp2p external address lab (Slice AG)
+        run: python scripts/libp2p_rust_external_addr_lab.py
+      - name: rust-libp2p connection lifecycle lab (Slice AH)
+        run: python scripts/libp2p_rust_connection_lifecycle_lab.py
+      - name: rust-libp2p connection close-cause lab (Slice AI)
+        run: python scripts/libp2p_rust_connection_close_cause_lab.py
+      - name: rust-libp2p listener lifecycle lab (Slice AJ)
+        run: python scripts/libp2p_rust_listener_lifecycle_lab.py
+      - name: rust-libp2p connection attempt lab (Slice AK)
+        run: python scripts/libp2p_rust_connection_attempt_lab.py
+      - name: rust-libp2p identify events lab (Slice AL)
+        run: python scripts/libp2p_rust_identify_events_lab.py
+      - name: rust-libp2p gossip subscription lab (Slice AM)
+        run: python scripts/libp2p_rust_gossip_subscription_lab.py
+      - name: rust-libp2p kad events lab (Slice AN)
+        run: python scripts/libp2p_rust_kad_events_lab.py
+      - name: rust-libp2p wire RR events lab (Slice AO)
+        run: python scripts/libp2p_rust_wire_rr_events_lab.py
+      - name: rust-libp2p relay events lab (Slice AP)
+        run: python scripts/libp2p_rust_relay_events_lab.py
+      - name: rust-libp2p rendezvous events lab (Slice AQ)
+        run: python scripts/libp2p_rust_rendezvous_events_lab.py
+      - name: rust-libp2p autonat events lab (Slice AR)
+        run: python scripts/libp2p_rust_autonat_events_lab.py
+      - name: rust-libp2p mdns events lab (Slice AS)
+        run: python scripts/libp2p_rust_mdns_events_lab.py
+      - name: rust-libp2p relay client events lab (Slice AT)
+        run: python scripts/libp2p_rust_relay_client_events_lab.py
+      - name: rust-libp2p dial fail events lab (Slice AU)
+        run: python scripts/libp2p_rust_dial_fail_events_lab.py
+      - name: rust-libp2p incoming fail events lab (Slice AV)
+        run: python scripts/libp2p_rust_incoming_fail_events_lab.py
+      - name: rust-libp2p dial deny events lab (Slice AW)
+        run: python scripts/libp2p_rust_dial_deny_events_lab.py
+      - name: rust-libp2p deny cause events lab (Slice AX)
+        run: python scripts/libp2p_rust_deny_cause_events_lab.py
+      - name: rust-libp2p ping fail events lab (Slice AY)
+        run: python scripts/libp2p_rust_ping_fail_events_lab.py
+      - name: rust-libp2p wire fail events lab (Slice AZ)
+        run: python scripts/libp2p_rust_wire_fail_events_lab.py
+      - name: rust-libp2p gossip validation lab (Slice BA)
+        run: python scripts/libp2p_rust_gossip_validation_lab.py
+      - name: rust-libp2p wire omit-response lab (Slice BB)
+        run: python scripts/libp2p_rust_wire_omit_response_lab.py
+      - name: rust-libp2p identify push lab (Slice BC)
+        run: python scripts/libp2p_rust_identify_push_lab.py
+      - name: rust-libp2p identify interval lab (Slice BD)
+        run: python scripts/libp2p_rust_identify_interval_lab.py
+      - name: rust-libp2p peerstore remove lab (Slice BE)
+        run: python scripts/libp2p_rust_peerstore_remove_lab.py
+      - name: rust-libp2p peerstore allow-learn lab (Slice BF)
+        run: python scripts/libp2p_rust_peerstore_allow_learn_lab.py
+      - name: rust-libp2p identify observed-addr lab (Slice BG)
+        run: python scripts/libp2p_rust_identify_observed_addr_lab.py
+      - name: rust-libp2p bootstrap remove lab (Slice BH)
+        run: python scripts/libp2p_rust_bootstrap_remove_lab.py
+      - name: rust-libp2p confirm observed-addr auto lab (Slice BI)
+        run: python scripts/libp2p_rust_confirm_observed_addr_auto_lab.py
+      - name: rust-libp2p bootstrap clear lab (Slice BJ)
+        run: python scripts/libp2p_rust_bootstrap_clear_lab.py
+      - name: adapter + wire-bridge units
+        run: pytest -q tests/unit/test_libp2p_adapter.py tests/unit/test_libp2p_wire_bridge.py tests/unit/test_libp2p_status_metrics.py
+      - name: package ADR 0019 evidence pack
+        run: python scripts/package_libp2p_evidence.py

@@ -2,6 +2,11 @@
 """Long-Range / weak-subjectivity lab (ADR 0017).
 
 Wave-2: checkpoint certificate + AncestryWindow walk.
+Wave-4: JSON export/import round-trip of the WS checkpoint.
+Wave-5: TipSafetyService WS tip-import gate (below-anchor refuse).
+Wave-6: CheckpointStore rotation (bounded history).
+Wave-7: CheckpointStore.apply_latest → WeakSubjectivityService.
+Wave-8: CheckpointStore save/load JSON persistence.
 
 Usage:
   python scripts/long_range_lab.py
@@ -10,6 +15,7 @@ Usage:
 from __future__ import annotations
 
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,11 +24,14 @@ if str(ROOT) not in sys.path:
 
 from consensus.long_range import (
     CheckpointCertificate,
+    CheckpointStore,
     WeakSubjectivityService,
     evaluate_with_window,
 )
+from consensus.tip_safety import TipSafetyService
 from consensus.tip_safety.ancestry_window import AncestryWindow
-from consensus.tip_safety.types import BlockRef
+from consensus.tip_safety.tip_state import TipState
+from consensus.tip_safety.types import ApplyOutcome, BlockRef
 
 
 def main() -> int:
@@ -55,11 +64,79 @@ def main() -> int:
     bad = evaluate_with_window(svc, window, candidate_hash=stale, candidate_height=3)
     below = evaluate_with_window(svc, window, candidate_hash=a1, candidate_height=1)
 
-    print("Long-Range lab wave-2 (checkpoint + AncestryWindow)")
-    print(f"  cert digest: {cert.digest[:16]}… verify={cert.verify_digest()}")
+    # Wave-4: export/import checkpoint (lab peer handoff simulation)
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "ws_checkpoint.json"
+        path.write_text(cert.to_json(), encoding="utf-8")
+        restored = CheckpointCertificate.from_json(path.read_text(encoding="utf-8"))
+    if restored.digest != cert.digest or not restored.verify_digest():
+        print("FAIL: checkpoint export/import")
+        return 1
+    svc2 = WeakSubjectivityService()
+    svc2.set_anchor(restored.anchor)
+    ok2 = evaluate_with_window(svc2, window, candidate_hash=child, candidate_height=3)
+    if not ok2.accept:
+        print("FAIL: restored anchor rejected valid child")
+        return 1
+
+    # Wave-5: TipSafety tip-import gate with WS ahead of tip
+    tip_w = AncestryWindow(max_blocks=64)
+    tip_block = BlockRef(height=2, block_hash=anchor_h, parent_hash=a1)
+    tip_w.record(BlockRef(height=0, block_hash=g, parent_hash=""))
+    tip_w.record(BlockRef(height=1, block_hash=a1, parent_hash=g))
+    tip_w.record(tip_block)
+    ws_ahead = WeakSubjectivityService()
+    ws_ahead.set_anchor(
+        CheckpointCertificate.issue(height=10, block_hash="ff" * 32).anchor
+    )
+    tip_svc = TipSafetyService(
+        TipState(head=tip_block), ancestry=tip_w, ws_service=ws_ahead
+    )
+    tip_child = BlockRef(height=3, block_hash=child, parent_hash=anchor_h)
+    tip_dec = tip_svc.evaluate_candidate(tip_child)
+    if tip_dec.outcome != ApplyOutcome.REJECT or tip_dec.reason_code != "ws_below_ws_anchor":
+        print(
+            f"FAIL: tip gate expected ws_below_ws_anchor got "
+            f"{tip_dec.outcome}/{tip_dec.reason_code}"
+        )
+        return 1
+
+    # Wave-6: rotate checkpoints in a bounded store
+    store = CheckpointStore(max_history=3)
+    store.push(cert)
+    later = CheckpointCertificate.issue(
+        height=3, block_hash=child, epoch=2, issuer="lab-node1"
+    )
+    store.push(later)
+    if store.latest() is None or store.latest().digest != later.digest:
+        print("FAIL: checkpoint store latest")
+        return 1
+    if len(store.history()) != 2:
+        print("FAIL: checkpoint store history")
+        return 1
+    svc3 = WeakSubjectivityService()
+    if not store.apply_latest(svc3):
+        print("FAIL: apply_latest")
+        return 1
+    if svc3.get_anchor() is None or svc3.get_anchor().height != 3:
+        print("FAIL: apply_latest anchor height")
+        return 1
+    with tempfile.TemporaryDirectory() as tmp:
+        store_path = Path(tmp) / "ws_store.json"
+        store.save(store_path)
+        loaded = CheckpointStore.load(store_path)
+    if len(loaded) != len(store) or loaded.latest().digest != store.latest().digest:
+        print("FAIL: checkpoint store save/load")
+        return 1
+
+    print("Long-Range lab wave-8 (store persist + tip-import WS gate)")
+    print(f"  cert digest: {cert.digest[:16]}... verify={cert.verify_digest()}")
     print(f"  WS child:   accept={ok.accept} reason={ok.reason}")
     print(f"  stale fork: accept={bad.accept} reason={bad.reason}")
     print(f"  below:      accept={below.accept} reason={below.reason}")
+    print(f"  import:     digest_match={restored.digest == cert.digest}")
+    print(f"  tip gate:   reject={tip_dec.reason_code}")
+    print(f"  store:      history={len(store)} latest_h={store.latest().anchor.height}")
 
     if not ok.accept or bad.accept or below.accept:
         print("FAIL: unexpected policy outcomes")

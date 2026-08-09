@@ -1,6 +1,6 @@
 # Dependabot triage (industrial harden)
 
-**Updated:** 2026-08-04  
+**Updated:** 2026-08-08  
 **Rule:** no kitchen-sink merges — only bumps that keep CI green and reduce risk.
 
 ## Hold (do not merge until migration PR is green)
@@ -9,6 +9,8 @@
 |----|---------|----------|
 | [#7](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/pull/7) | pyo3 0.22→0.29 | Required for pyo3 RUSTSEC clear; ~386 compile breaks (`new_bound` / `with_gil` API). Tracked; interim ignores in [`.cargo/audit.toml`](../.cargo/audit.toml) |
 | — | rkyv via rust_decimal | `RUSTSEC-2026-0235` ignored interim (optional feature unused; `default-features=false` + `std` only). Prefer dropping optional lock edges later rather than enabling `rkyv` feature. |
+| — | hickory-proto via libp2p-mdns | `RUSTSEC-2026-0119` ignored interim (ADR 0019 opt-in mDNS lab; needs upstream libp2p-mdns → hickory≥0.26). Prod mesh stays TCP+TLS. |
+| — | ring 0.16 / rustls-webpki 0.101 via libp2p-tls | `RUSTSEC-2025-0009`, `0098/0099/0104` ignored interim (stale optional tls lock edges; Noise+TCP path only). Prefer lockfile prune or upstream libp2p-tls bump. |
 | [#2](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/pull/2) | rand 0.8→0.10 | Dev-dep churn; wait for pyo3 wave |
 | [#10](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/pull/10) | socket2 0.5→0.6 | Native P2P surface; needs soak |
 | [#8](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/pull/8) | wasmtime major | R&D FEATURE only; prod OFF |

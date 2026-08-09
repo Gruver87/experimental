@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from consensus.long_range import (
     CheckpointCertificate,
+    CheckpointStore,
     WeakSubjectivityService,
     evaluate_with_window,
     shares_ancestor_with_anchor,
@@ -26,6 +27,58 @@ def test_checkpoint_digest_stable() -> None:
     c = CheckpointCertificate.issue(height=2, block_hash="aa" * 32, issuer="x")
     assert c.verify_digest()
     assert len(c.digest) == 64
+
+
+def test_checkpoint_json_roundtrip() -> None:
+    c = CheckpointCertificate.issue(height=2, block_hash="aa" * 32, issuer="x", epoch=7)
+    again = CheckpointCertificate.from_json(c.to_json())
+    assert again.digest == c.digest
+    assert again.anchor.epoch == 7
+    assert again.verify_digest()
+
+
+def test_checkpoint_from_dict_digest_mismatch() -> None:
+    import pytest
+
+    c = CheckpointCertificate.issue(height=1, block_hash="bb" * 32)
+    bad = dict(c.to_dict())
+    bad["digest"] = "00" * 32
+    with pytest.raises(ValueError, match="digest mismatch"):
+        CheckpointCertificate.from_dict(bad)
+
+
+def test_checkpoint_store_rotation() -> None:
+    store = CheckpointStore(max_history=2)
+    a = CheckpointCertificate.issue(height=1, block_hash="aa" * 32)
+    b = CheckpointCertificate.issue(height=2, block_hash="bb" * 32)
+    c = CheckpointCertificate.issue(height=3, block_hash="cc" * 32)
+    store.push(a)
+    store.push(b)
+    store.push(c)
+    assert len(store) == 2
+    assert store.latest().digest == c.digest
+    assert store.history()[0].digest == b.digest
+
+
+def test_checkpoint_store_apply_latest() -> None:
+    store = CheckpointStore()
+    svc = WeakSubjectivityService()
+    assert store.apply_latest(svc) is False
+    store.push(CheckpointCertificate.issue(height=4, block_hash="dd" * 32))
+    assert store.apply_latest(svc) is True
+    assert svc.get_anchor() is not None
+    assert svc.get_anchor().height == 4
+
+
+def test_checkpoint_store_save_load(tmp_path) -> None:
+    store = CheckpointStore(max_history=4)
+    store.push(CheckpointCertificate.issue(height=1, block_hash="aa" * 32))
+    store.push(CheckpointCertificate.issue(height=2, block_hash="bb" * 32))
+    path = tmp_path / "ws.json"
+    store.save(path)
+    loaded = CheckpointStore.load(path)
+    assert len(loaded) == 2
+    assert loaded.latest().digest == store.latest().digest
 
 
 def test_shares_ancestor_walk() -> None:

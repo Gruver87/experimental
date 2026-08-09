@@ -1,0 +1,5 @@
+OK: libp2p_mixed_dual_stack_lab PASS
+  native_kind: native_tcp_tls
+  libp2p_kind: libp2p rust=True
+  wire: ADR0008 ping admitted; dial_ok=1
+  honesty: FEATURE_LIBP2P lab; not prod TCP+TLS mesh
