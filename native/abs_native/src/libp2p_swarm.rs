@@ -49,6 +49,7 @@
 //! Slice AZ: wire RR outbound/inbound failure taxonomy.
 //! Slice BA: deferred gossip validation + ignore/reject outcome metrics.
 //! Slice BB: wire omit-response lab path (`ResponseOmission` inbound fail).
+//! Slice BC: identify push API + agent version + listen-addr push toggle.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -57,6 +58,8 @@ use pyo3::prelude::*;
 // Used under feature=libp2p; default Hybrid clippy build has feature off.
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const ABS_WIRE_PROTOCOL: &str = "/abs/wire/1.0.0";
+/// Identify protocol family version advertised on the wire (Slice BC).
+pub const ABS_IDENTIFY_PROTOCOL_VERSION: &str = "/absolute/1.0.0";
 /// Default gossip topic for Absolute block announce labs (Slice E).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const ABS_GOSSIP_BLOCKS_TOPIC: &str = "abs/blocks/1.0.0";
@@ -139,8 +142,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(feature = "libp2p")]
 mod enabled {
     use super::{
-        libp2p_available, ABS_GOSSIP_BLOCKS_TOPIC, ABS_KAD_PROTOCOL, ABS_RENDEZVOUS_NAMESPACE,
-        ABS_WIRE_PROTOCOL, DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS,
+        libp2p_available, ABS_GOSSIP_BLOCKS_TOPIC, ABS_IDENTIFY_PROTOCOL_VERSION, ABS_KAD_PROTOCOL,
+        ABS_RENDEZVOUS_NAMESPACE, ABS_WIRE_PROTOCOL, DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS,
         DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_MDNS_TTL_SECS,
         DEFAULT_PING_INTERVAL_SECS, DEFAULT_PING_MAX_FAILS, DEFAULT_PING_TIMEOUT_SECS,
         DEFAULT_RECONNECT_BASE_MS, DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS,
@@ -855,6 +858,11 @@ mod enabled {
             peer_id: String,
             reply: oneshot::Sender<Result<(), String>>,
         },
+        /// Slice BC: active identify push to one peer or all connected peers.
+        IdentifyPush {
+            peer_id: Option<String>,
+            reply: oneshot::Sender<Result<usize, String>>,
+        },
         /// Slice Q: read gossipsub peer score (None if scoring inactive / unknown peer).
         GossipPeerScore {
             peer_id: String,
@@ -1116,6 +1124,11 @@ mod enabled {
         identify_sent: u64,
         identify_pushed: u64,
         identify_error: u64,
+        /// Slice BC: push-on-listen-addr-change + branding / API bookkeeping.
+        enable_identify_push: bool,
+        agent_version: String,
+        protocol_version: String,
+        identify_push_requests: u64,
         /// peer_id -> last advertised multiaddr from mDNS
         discovered: HashMap<String, String>,
         kad_peers: HashSet<String>,
@@ -1270,6 +1283,9 @@ mod enabled {
                 score_graylist_threshold: resolve_score_graylist_threshold(None),
                 enable_gossip_defer_validation: resolve_gossip_defer_validation(None),
                 enable_wire_omit_response: resolve_wire_omit_response(None),
+                enable_identify_push: resolve_identify_push(None),
+                agent_version: resolve_agent_version(None),
+                protocol_version: ABS_IDENTIFY_PROTOCOL_VERSION.to_string(),
                 relay_max_reservations: relay_max_reservations.unwrap_or(0),
                 ..NodeState::default()
             }));
@@ -1296,6 +1312,14 @@ mod enabled {
             let idle_timeout = Duration::from_secs(idle_connection_timeout_secs);
             let ping_interval = resolve_ping_interval();
             let ping_timeout = resolve_ping_timeout();
+            let want_identify_push = state
+                .lock()
+                .map(|st| st.enable_identify_push)
+                .unwrap_or(false);
+            let identify_agent_version = state
+                .lock()
+                .map(|st| st.agent_version.clone())
+                .unwrap_or_else(|_| format!("absolute-experimental/{}", env!("CARGO_PKG_VERSION")));
             if let Ok(mut st) = state.lock() {
                 st.ping_interval_ms = ping_interval.as_millis().min(u128::from(u64::MAX)) as u64;
                 st.ping_timeout_ms = ping_timeout.as_millis().min(u128::from(u64::MAX)) as u64;
@@ -1462,10 +1486,15 @@ mod enabled {
                                 .with_interval(ping_interval)
                                 .with_timeout(ping_timeout),
                         ),
-                        identify: identify::Behaviour::new(identify::Config::new(
-                            "/absolute/1.0.0".into(),
-                            key.public(),
-                        )),
+                        // Slice BC: Absolute agent branding + optional listen-addr push.
+                        identify: identify::Behaviour::new(
+                            identify::Config::new(
+                                ABS_IDENTIFY_PROTOCOL_VERSION.into(),
+                                key.public(),
+                            )
+                            .with_agent_version(identify_agent_version.clone())
+                            .with_push_listen_addr_updates(want_identify_push),
+                        ),
                         wire,
                         gossipsub,
                         mdns,
@@ -2794,6 +2823,39 @@ mod enabled {
                                         }
                                         Err(e) => {
                                             let _ = reply.send(Err(format!("bad peer_id: {e}")));
+                                        }
+                                    }
+                                }
+                                Some(Cmd::IdentifyPush { peer_id, reply }) => {
+                                    // Slice BC: active identify push.
+                                    let peers: Result<Vec<PeerId>, String> = match peer_id {
+                                        Some(pid) => pid
+                                            .parse::<PeerId>()
+                                            .map(|p| vec![p])
+                                            .map_err(|e| format!("bad peer_id: {e}")),
+                                        None => Ok(state_bg
+                                            .lock()
+                                            .map(|st| {
+                                                st.connected
+                                                    .iter()
+                                                    .filter_map(|s| s.parse::<PeerId>().ok())
+                                                    .collect::<Vec<_>>()
+                                            })
+                                            .unwrap_or_default()),
+                                    };
+                                    match peers {
+                                        Ok(list) => {
+                                            let n = list.len();
+                                            swarm.behaviour_mut().identify.push(list);
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.identify_push_requests = st
+                                                    .identify_push_requests
+                                                    .saturating_add(1);
+                                            }
+                                            let _ = reply.send(Ok(n));
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(e));
                                         }
                                     }
                                 }
@@ -4960,6 +5022,25 @@ mod enabled {
             }
         }
 
+        /// Slice BC: push local identify info to ``peer_id`` or all connected peers.
+        ///
+        /// Returns the number of peers targeted (connected filter may drop some).
+        #[pyo3(signature = (peer_id=None))]
+        fn identify_push(&self, peer_id: Option<&str>) -> PyResult<usize> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::IdentifyPush {
+                    peer_id: peer_id.map(|s| s.to_string()),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(n)) => Ok(n),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("identify_push reply dropped")),
+            }
+        }
+
         /// Slice Q: gossipsub peer score, or None if unknown / scoring inactive.
         fn gossip_peer_score(&self, peer_id: &str) -> PyResult<Option<f64>> {
             let (tx, rx) = oneshot::channel();
@@ -5590,6 +5671,10 @@ mod enabled {
                 d.set_item("libp2p_identify_sent", st.identify_sent)?;
                 d.set_item("libp2p_identify_pushed", st.identify_pushed)?;
                 d.set_item("libp2p_identify_error", st.identify_error)?;
+                d.set_item("libp2p_identify_push", st.enable_identify_push)?;
+                d.set_item("libp2p_identify_push_requests", st.identify_push_requests)?;
+                d.set_item("libp2p_agent_version", &st.agent_version)?;
+                d.set_item("libp2p_protocol_version", &st.protocol_version)?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
                 d.set_item("libp2p_mdns_expired", st.mdns_expired)?;
                 d.set_item("libp2p_mdns_ttl_secs", st.mdns_ttl_secs)?;
@@ -5808,7 +5893,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 53)?;
+                d.set_item("phase", 54)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -5850,6 +5935,10 @@ mod enabled {
                 d.set_item("deny_cause_events", true)?;
                 d.set_item("incoming_fail_events", true)?;
                 d.set_item("identify_events", true)?;
+                d.set_item("identify_push", true)?;
+                d.set_item("identify_push_listen_addr", st.enable_identify_push)?;
+                d.set_item("agent_version", &st.agent_version)?;
+                d.set_item("protocol_version", &st.protocol_version)?;
                 d.set_item("gossip_subscription_events", true)?;
                 d.set_item("gossip_validation_events", true)?;
                 d.set_item("gossip_defer_validation", st.enable_gossip_defer_validation)?;
@@ -6042,6 +6131,10 @@ mod enabled {
                 d.set_item("libp2p_identify_sent", st.identify_sent)?;
                 d.set_item("libp2p_identify_pushed", st.identify_pushed)?;
                 d.set_item("libp2p_identify_error", st.identify_error)?;
+                d.set_item("libp2p_identify_push", st.enable_identify_push)?;
+                d.set_item("libp2p_identify_push_requests", st.identify_push_requests)?;
+                d.set_item("libp2p_agent_version", &st.agent_version)?;
+                d.set_item("libp2p_protocol_version", &st.protocol_version)?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
                 d.set_item("libp2p_mdns_expired", st.mdns_expired)?;
                 d.set_item("libp2p_mdns_ttl_secs", st.mdns_ttl_secs)?;
@@ -6534,6 +6627,38 @@ mod enabled {
         }
     }
 
+    /// Slice BC: push identify on local listen-addr changes.
+    fn resolve_identify_push(explicit: Option<bool>) -> bool {
+        if let Some(v) = explicit {
+            return v;
+        }
+        match std::env::var("ABS_LIBP2P_IDENTIFY_PUSH") {
+            Ok(s) => {
+                let t = s.trim().to_ascii_lowercase();
+                matches!(t.as_str(), "1" | "true" | "on" | "yes")
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// Slice BC: identify ``agent_version`` (User-Agent analogue).
+    fn resolve_agent_version(explicit: Option<String>) -> String {
+        if let Some(v) = explicit {
+            return v;
+        }
+        match std::env::var("ABS_LIBP2P_AGENT_VERSION") {
+            Ok(s) => {
+                let t = s.trim();
+                if t.is_empty() {
+                    format!("absolute-experimental/{}", env!("CARGO_PKG_VERSION"))
+                } else {
+                    t.to_string()
+                }
+            }
+            Err(_) => format!("absolute-experimental/{}", env!("CARGO_PKG_VERSION")),
+        }
+    }
+
     fn resolve_score_autoblock(explicit: Option<bool>) -> bool {
         if let Some(v) = explicit {
             return v;
@@ -6675,6 +6800,10 @@ mod enabled {
         m.add_function(wrap_pyfunction!(libp2p_pack_wire, m)?)?;
         m.add_function(wrap_pyfunction!(libp2p_unpack_wire, m)?)?;
         m.add("ABS_WIRE_PROTOCOL", ABS_WIRE_PROTOCOL)?;
+        m.add(
+            "ABS_IDENTIFY_PROTOCOL_VERSION",
+            ABS_IDENTIFY_PROTOCOL_VERSION,
+        )?;
         m.add("ABS_GOSSIP_BLOCKS_TOPIC", ABS_GOSSIP_BLOCKS_TOPIC)?;
         m.add("ABS_KAD_PROTOCOL", ABS_KAD_PROTOCOL)?;
         m.add("ABS_RENDEZVOUS_NAMESPACE", ABS_RENDEZVOUS_NAMESPACE)?;

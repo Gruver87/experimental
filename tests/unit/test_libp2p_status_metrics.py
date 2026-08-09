@@ -28,6 +28,10 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_gossip_validation_pending" in empty
     assert "libp2p_gossip_defer_validation" in empty
     assert "libp2p_wire_omit_response" in empty
+    assert "libp2p_identify_push" in empty
+    assert "libp2p_identify_push_requests" in empty
+    assert "libp2p_agent_version" in empty
+    assert "libp2p_protocol_version" in empty
     assert "libp2p_last_gossip_message_id" in empty
     assert "libp2p_last_gossip_propagation_peer" in empty
     assert "libp2p_ping_ok" in empty
