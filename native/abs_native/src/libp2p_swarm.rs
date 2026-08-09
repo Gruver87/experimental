@@ -45,6 +45,7 @@
 //! Slice AW: outbound DialError::Denied taxonomy (`dial_fail_denied`).
 //! Slice AX: Denied cause taxonomy (block / allow / connection-limits),
 //!   direction-specific (`dial_fail_denied_*` / `incoming_fail_denied_*`).
+//! Slice AY: ping failure taxonomy (`timeout` / `unsupported` / `other`).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -1132,6 +1133,13 @@ mod enabled {
         /// Slice R: ping / liveness.
         ping_ok: u64,
         ping_fail: u64,
+        /// Slice AY: ping::Failure taxonomy.
+        ping_fail_timeout: u64,
+        ping_fail_unsupported: u64,
+        ping_fail_other: u64,
+        /// Effective ping timing (ms) after env resolve.
+        ping_interval_ms: u64,
+        ping_timeout_ms: u64,
         ping_rtt_ms_last: u64,
         ping_rtt_ms_max: u64,
         ping_unhealthy_disconnects: u64,
@@ -1260,8 +1268,12 @@ mod enabled {
             let relay_cap = relay_max_reservations;
             let wire_timeout = Duration::from_secs(wire_timeout_secs);
             let idle_timeout = Duration::from_secs(idle_connection_timeout_secs);
-            let ping_interval = Duration::from_secs(resolve_ping_interval_secs(None));
-            let ping_timeout = Duration::from_secs(resolve_ping_timeout_secs(None));
+            let ping_interval = resolve_ping_interval();
+            let ping_timeout = resolve_ping_timeout();
+            if let Ok(mut st) = state.lock() {
+                st.ping_interval_ms = ping_interval.as_millis().min(u128::from(u64::MAX)) as u64;
+                st.ping_timeout_ms = ping_timeout.as_millis().min(u128::from(u64::MAX)) as u64;
+            }
 
             runtime.spawn(async move {
                 let keypair = if key_path_str.is_empty() {
@@ -3591,6 +3603,24 @@ mod enabled {
                                         Err(e) => {
                                             if let Ok(mut st) = state_bg.lock() {
                                                 st.ping_fail = st.ping_fail.saturating_add(1);
+                                                // Slice AY: Failure taxonomy.
+                                                match &e {
+                                                    ping::Failure::Timeout => {
+                                                        st.ping_fail_timeout = st
+                                                            .ping_fail_timeout
+                                                            .saturating_add(1);
+                                                    }
+                                                    ping::Failure::Unsupported => {
+                                                        st.ping_fail_unsupported = st
+                                                            .ping_fail_unsupported
+                                                            .saturating_add(1);
+                                                    }
+                                                    ping::Failure::Other { .. } => {
+                                                        st.ping_fail_other = st
+                                                            .ping_fail_other
+                                                            .saturating_add(1);
+                                                    }
+                                                }
                                                 st.last_error = format!("ping fail {pid}: {e}");
                                                 let streak = st
                                                     .ping_fail_streak
@@ -5472,6 +5502,11 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_ping_ok", st.ping_ok)?;
                 d.set_item("libp2p_ping_fail", st.ping_fail)?;
+                d.set_item("libp2p_ping_fail_timeout", st.ping_fail_timeout)?;
+                d.set_item("libp2p_ping_fail_unsupported", st.ping_fail_unsupported)?;
+                d.set_item("libp2p_ping_fail_other", st.ping_fail_other)?;
+                d.set_item("libp2p_ping_interval_ms", st.ping_interval_ms)?;
+                d.set_item("libp2p_ping_timeout_ms", st.ping_timeout_ms)?;
                 d.set_item("libp2p_ping_rtt_ms_last", st.ping_rtt_ms_last)?;
                 d.set_item("libp2p_ping_rtt_ms_max", st.ping_rtt_ms_max)?;
                 d.set_item(
@@ -5605,7 +5640,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 49)?;
+                d.set_item("phase", 50)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -5614,6 +5649,7 @@ mod enabled {
                 d.set_item("peerstore", !st.peerstore_path.is_empty())?;
                 d.set_item("peerstore_reconnect", st.enable_reconnect)?;
                 d.set_item("ping", true)?;
+                d.set_item("ping_fail_events", true)?;
                 d.set_item(
                     "ping_unhealthy_disconnect",
                     st.enable_ping_unhealthy_disconnect,
@@ -5858,6 +5894,11 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_ping_ok", st.ping_ok)?;
                 d.set_item("libp2p_ping_fail", st.ping_fail)?;
+                d.set_item("libp2p_ping_fail_timeout", st.ping_fail_timeout)?;
+                d.set_item("libp2p_ping_fail_unsupported", st.ping_fail_unsupported)?;
+                d.set_item("libp2p_ping_fail_other", st.ping_fail_other)?;
+                d.set_item("libp2p_ping_interval_ms", st.ping_interval_ms)?;
+                d.set_item("libp2p_ping_timeout_ms", st.ping_timeout_ms)?;
                 d.set_item("libp2p_ping_rtt_ms_last", st.ping_rtt_ms_last)?;
                 d.set_item("libp2p_ping_rtt_ms_max", st.ping_rtt_ms_max)?;
                 d.set_item(
@@ -6183,6 +6224,27 @@ mod enabled {
                 .max(1),
             Err(_) => DEFAULT_PING_TIMEOUT_SECS,
         }
+    }
+
+    /// Slice AY: lab-friendly ms override via ``ABS_LIBP2P_PING_INTERVAL_MS``.
+    fn resolve_ping_interval() -> Duration {
+        if let Ok(s) = std::env::var("ABS_LIBP2P_PING_INTERVAL_MS") {
+            if let Ok(ms) = s.trim().parse::<u64>() {
+                return Duration::from_millis(ms.max(1));
+            }
+        }
+        Duration::from_secs(resolve_ping_interval_secs(None))
+    }
+
+    /// Slice AY: lab-friendly ms override via ``ABS_LIBP2P_PING_TIMEOUT_MS``.
+    /// ``0`` keeps ``Duration::ZERO`` so labs can force ``Failure::Timeout``.
+    fn resolve_ping_timeout() -> Duration {
+        if let Ok(s) = std::env::var("ABS_LIBP2P_PING_TIMEOUT_MS") {
+            if let Ok(ms) = s.trim().parse::<u64>() {
+                return Duration::from_millis(ms);
+            }
+        }
+        Duration::from_secs(resolve_ping_timeout_secs(None))
     }
 
     fn resolve_ping_unhealthy_disconnect(explicit: Option<bool>) -> bool {

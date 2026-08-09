@@ -152,6 +152,11 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_gossip_peer_score",
     "libp2p_ping_ok",
     "libp2p_ping_fail",
+    "libp2p_ping_fail_timeout",
+    "libp2p_ping_fail_unsupported",
+    "libp2p_ping_fail_other",
+    "libp2p_ping_interval_ms",
+    "libp2p_ping_timeout_ms",
     "libp2p_ping_rtt_ms_last",
     "libp2p_ping_rtt_ms_max",
     "libp2p_ping_unhealthy_disconnects",
@@ -263,6 +268,7 @@ LABS = [
     ("AV", "scripts/libp2p_rust_incoming_fail_events_lab.py"),
     ("AW", "scripts/libp2p_rust_dial_deny_events_lab.py"),
     ("AX", "scripts/libp2p_rust_deny_cause_events_lab.py"),
+    ("AY", "scripts/libp2p_rust_ping_fail_events_lab.py"),
 ]
 
 PROD_JSONS = (

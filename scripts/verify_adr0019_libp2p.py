@@ -92,6 +92,7 @@ LABS = [
     ("AV", "scripts/libp2p_rust_incoming_fail_events_lab.py"),
     ("AW", "scripts/libp2p_rust_dial_deny_events_lab.py"),
     ("AX", "scripts/libp2p_rust_deny_cause_events_lab.py"),
+    ("AY", "scripts/libp2p_rust_ping_fail_events_lab.py"),
 ]
 
 
