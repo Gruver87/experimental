@@ -31,6 +31,7 @@
 //! Slice AD: UPnP / IGD port mapping (opt-in; default off — no gateway required for CI).
 //! Slice AE: allow-list (whitelist) Toggle — opt-in complement to Slice I block-list.
 //! Slice AF: bandwidth accounting (`BandwidthSinks` → `libp2p_bytes_in` / `libp2p_bytes_out`).
+//! Slice AG: external address book (confirmed/expired/candidates + add/remove API).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -757,6 +758,15 @@ mod enabled {
             rendezvous_peer: String,
             reply: oneshot::Sender<Result<(), String>>,
         },
+        /// Slice AG: mark multiaddr as externally reachable / expire it.
+        AddExternalAddress {
+            addr: String,
+            reply: oneshot::Sender<Result<(), String>>,
+        },
+        RemoveExternalAddress {
+            addr: String,
+            reply: oneshot::Sender<Result<(), String>>,
+        },
         /// Slice AA: mutate ConnectionLimits (0 = unlimited; omitted fields unchanged).
         SetConnectionLimits {
             max_established_incoming: Option<u32>,
@@ -954,6 +964,11 @@ mod enabled {
         key_path: String,
         /// Circuit listen addrs observed after reservation (Slice H).
         circuit_addrs: Vec<String>,
+        /// Slice AG: confirmed external multiaddrs (swarm.add_external_address book).
+        external_addrs: Vec<String>,
+        external_addr_confirmed: u64,
+        external_addr_expired: u64,
+        external_addr_candidates: u64,
         /// Persistent bootstrap book path (Slice O; empty = memory-only).
         bootstrap_path: String,
         bootstrap: HashMap<String, Vec<String>>,
@@ -2233,6 +2248,44 @@ mod enabled {
                                         }
                                     }
                                 }
+                                Some(Cmd::AddExternalAddress { addr, reply }) => {
+                                    match addr.parse::<Multiaddr>() {
+                                        Ok(ma) => {
+                                            let s = ma.to_string();
+                                            swarm.add_external_address(ma);
+                                            // add_external_address does not emit SwarmEvent.
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.external_addr_confirmed =
+                                                    st.external_addr_confirmed.saturating_add(1);
+                                                if !st.external_addrs.contains(&s) {
+                                                    st.external_addrs.push(s);
+                                                }
+                                            }
+                                            let _ = reply.send(Ok(()));
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!("bad multiaddr: {e}")));
+                                        }
+                                    }
+                                }
+                                Some(Cmd::RemoveExternalAddress { addr, reply }) => {
+                                    match addr.parse::<Multiaddr>() {
+                                        Ok(ma) => {
+                                            let s = ma.to_string();
+                                            swarm.remove_external_address(&ma);
+                                            // remove_external_address does not emit SwarmEvent.
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.external_addr_expired =
+                                                    st.external_addr_expired.saturating_add(1);
+                                                st.external_addrs.retain(|a| a != &s);
+                                            }
+                                            let _ = reply.send(Ok(()));
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!("bad multiaddr: {e}")));
+                                        }
+                                    }
+                                }
                                 Some(Cmd::SetConnectionLimits {
                                     max_established_incoming,
                                     max_established_outgoing,
@@ -2636,13 +2689,21 @@ mod enabled {
                                     let is_quic =
                                         s.contains("/quic-v1") || s.contains("/quic/");
                                     let is_ws = s.contains("/ws");
-                                    // Slice X: listen addrs become external so register has material.
+                                    // Slice X/AG: listen addrs become external so register has material.
                                     if !is_circuit {
                                         swarm.add_external_address(address.clone());
                                     }
                                     if let Ok(mut st) = state_bg.lock() {
                                         if !st.listen_addrs.contains(&s) {
                                             st.listen_addrs.push(s.clone());
+                                        }
+                                        // Slice AG: Swarm.add_external_address does not emit SwarmEvent.
+                                        if !is_circuit {
+                                            st.external_addr_confirmed =
+                                                st.external_addr_confirmed.saturating_add(1);
+                                            if !st.external_addrs.contains(&s) {
+                                                st.external_addrs.push(s.clone());
+                                            }
                                         }
                                         if is_circuit && !st.circuit_addrs.contains(&s) {
                                             st.circuit_addrs.push(s.clone());
@@ -2951,8 +3012,16 @@ mod enabled {
                                 }
                                 SwarmEvent::ExternalAddrConfirmed { address } => {
                                     let s = address.to_string();
-                                    if address.iter().any(|p| matches!(p, Protocol::P2pCircuit)) {
-                                        if let Ok(mut st) = state_bg.lock() {
+                                    let is_circuit = address
+                                        .iter()
+                                        .any(|p| matches!(p, Protocol::P2pCircuit));
+                                    if let Ok(mut st) = state_bg.lock() {
+                                        st.external_addr_confirmed =
+                                            st.external_addr_confirmed.saturating_add(1);
+                                        if !st.external_addrs.contains(&s) {
+                                            st.external_addrs.push(s.clone());
+                                        }
+                                        if is_circuit {
                                             if !st.circuit_addrs.contains(&s) {
                                                 st.circuit_addrs.push(s.clone());
                                             }
@@ -2960,6 +3029,8 @@ mod enabled {
                                                 st.listen_addrs.push(s.clone());
                                             }
                                         }
+                                    }
+                                    if is_circuit {
                                         if let Some(reply) = pending_relay_listen.take() {
                                             relay_listen_deadline = None;
                                             let addrs = state_bg
@@ -2968,6 +3039,21 @@ mod enabled {
                                                 .unwrap_or_else(|_| vec![s]);
                                             let _ = reply.send(Ok(addrs));
                                         }
+                                    }
+                                }
+                                SwarmEvent::ExternalAddrExpired { address } => {
+                                    let s = address.to_string();
+                                    if let Ok(mut st) = state_bg.lock() {
+                                        st.external_addr_expired =
+                                            st.external_addr_expired.saturating_add(1);
+                                        st.external_addrs.retain(|a| a != &s);
+                                    }
+                                }
+                                SwarmEvent::NewExternalAddrCandidate { address } => {
+                                    let _ = address;
+                                    if let Ok(mut st) = state_bg.lock() {
+                                        st.external_addr_candidates =
+                                            st.external_addr_candidates.saturating_add(1);
                                     }
                                 }
                                 SwarmEvent::ConnectionClosed {
@@ -4180,6 +4266,50 @@ mod enabled {
                 .unwrap_or_default()
         }
 
+        /// Slice AG: confirmed external multiaddrs.
+        fn external_addrs(&self) -> Vec<String> {
+            self.state
+                .lock()
+                .map(|s| s.external_addrs.clone())
+                .unwrap_or_default()
+        }
+
+        /// Slice AG: mark multiaddr as externally reachable.
+        fn add_external_address(&self, multiaddr: &str) -> PyResult<()> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::AddExternalAddress {
+                    addr: multiaddr.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err(
+                    "add_external_address reply dropped",
+                )),
+            }
+        }
+
+        /// Slice AG: expire a previously confirmed external multiaddr.
+        fn remove_external_address(&self, multiaddr: &str) -> PyResult<()> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::RemoveExternalAddress {
+                    addr: multiaddr.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err(
+                    "remove_external_address reply dropped",
+                )),
+            }
+        }
+
         fn connected_peers(&self) -> Vec<String> {
             self.state
                 .lock()
@@ -4451,6 +4581,13 @@ mod enabled {
                 d.set_item("libp2p_wire_recv", st.wire_recv)?;
                 d.set_item("libp2p_bytes_in", bytes_in)?;
                 d.set_item("libp2p_bytes_out", bytes_out)?;
+                d.set_item("libp2p_external_addrs", st.external_addrs.len())?;
+                d.set_item("libp2p_external_addr_confirmed", st.external_addr_confirmed)?;
+                d.set_item("libp2p_external_addr_expired", st.external_addr_expired)?;
+                d.set_item(
+                    "libp2p_external_addr_candidates",
+                    st.external_addr_candidates,
+                )?;
                 d.set_item("libp2p_abs_wire_v1_sent", st.abs_wire_v1_sent)?;
                 d.set_item("libp2p_abs_wire_v2_sent", st.abs_wire_v2_sent)?;
                 d.set_item("libp2p_abs_wire_v1_recv", st.abs_wire_v1_recv)?;
@@ -4627,7 +4764,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 31)?;
+                d.set_item("phase", 32)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -4652,6 +4789,7 @@ mod enabled {
                 d.set_item("websocket", true)?;
                 d.set_item("prometheus", true)?;
                 d.set_item("bandwidth", true)?;
+                d.set_item("external_addrs", true)?;
                 d.set_item("connection_manager", true)?;
                 d.set_item("bootstrap", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
@@ -4688,6 +4826,7 @@ mod enabled {
                 d.set_item("key_path", &st.key_path)?;
                 d.set_item("listen_addrs", st.listen_addrs.clone())?;
                 d.set_item("circuit_addrs", st.circuit_addrs.clone())?;
+                d.set_item("external_addrs", st.external_addrs.clone())?;
                 d.set_item("connected", st.connected.len())?;
                 d.set_item("libp2p_peers", st.connected.len())?;
                 d.set_item("libp2p_dial_ok", st.dial_ok)?;
@@ -4696,6 +4835,13 @@ mod enabled {
                 d.set_item("libp2p_wire_recv", st.wire_recv)?;
                 d.set_item("libp2p_bytes_in", st.bytes_in)?;
                 d.set_item("libp2p_bytes_out", st.bytes_out)?;
+                d.set_item("libp2p_external_addrs", st.external_addrs.len())?;
+                d.set_item("libp2p_external_addr_confirmed", st.external_addr_confirmed)?;
+                d.set_item("libp2p_external_addr_expired", st.external_addr_expired)?;
+                d.set_item(
+                    "libp2p_external_addr_candidates",
+                    st.external_addr_candidates,
+                )?;
                 d.set_item("libp2p_abs_wire_v1_sent", st.abs_wire_v1_sent)?;
                 d.set_item("libp2p_abs_wire_v2_sent", st.abs_wire_v2_sent)?;
                 d.set_item("libp2p_abs_wire_v1_recv", st.abs_wire_v1_recv)?;

@@ -533,6 +533,29 @@ class Libp2pTransportAdapter:
         except Exception:
             return []
 
+    def external_addrs(self) -> list[str]:
+        """Slice AG: confirmed external multiaddrs."""
+        if self._node is None:
+            return []
+        try:
+            return [str(a) for a in self._node.external_addrs()]
+        except Exception:
+            return []
+
+    def add_external_address(self, multiaddr: str) -> None:
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        node.add_external_address(str(multiaddr))
+
+    def remove_external_address(self, multiaddr: str) -> None:
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        node.remove_external_address(str(multiaddr))
+
     def metrics(self) -> Mapping[str, Any]:
         if self._node is None:
             return {"rust_backend": bool(self._native_capable), "libp2p_peers": 0}
