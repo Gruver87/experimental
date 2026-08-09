@@ -150,6 +150,7 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_bootstrap_dials_timeout",
     "libp2p_bootstrap_dials_attempted",
     "libp2p_bootstrap_removed",
+    "libp2p_bootstrap_cleared",
     "libp2p_reconnect_scheduled",
     "libp2p_reconnect_ok",
     "libp2p_reconnect_fail",
@@ -311,6 +312,7 @@ LABS = [
     ("BG", "scripts/libp2p_rust_identify_observed_addr_lab.py"),
     ("BH", "scripts/libp2p_rust_bootstrap_remove_lab.py"),
     ("BI", "scripts/libp2p_rust_confirm_observed_addr_auto_lab.py"),
+    ("BJ", "scripts/libp2p_rust_bootstrap_clear_lab.py"),
 ]
 
 PROD_JSONS = (
