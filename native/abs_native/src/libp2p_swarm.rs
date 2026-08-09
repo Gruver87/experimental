@@ -3297,9 +3297,7 @@ mod enabled {
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
                 .send(Cmd::RendezvousRegister {
-                    namespace: namespace
-                        .unwrap_or(ABS_RENDEZVOUS_NAMESPACE)
-                        .to_string(),
+                    namespace: namespace.unwrap_or(ABS_RENDEZVOUS_NAMESPACE).to_string(),
                     rendezvous_peer: rendezvous_peer_id.to_string(),
                     ttl,
                     reply: tx,
@@ -3324,11 +3322,7 @@ mod enabled {
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
                 .send(Cmd::RendezvousDiscover {
-                    namespace: Some(
-                        namespace
-                            .unwrap_or(ABS_RENDEZVOUS_NAMESPACE)
-                            .to_string(),
-                    ),
+                    namespace: Some(namespace.unwrap_or(ABS_RENDEZVOUS_NAMESPACE).to_string()),
                     rendezvous_peer: rendezvous_peer_id.to_string(),
                     limit,
                     reply: tx,
@@ -3337,11 +3331,7 @@ mod enabled {
             let snap = match rx.blocking_recv() {
                 Ok(Ok(v)) => v,
                 Ok(Err(e)) => return Err(PyValueError::new_err(e)),
-                Err(_) => {
-                    return Err(PyRuntimeError::new_err(
-                        "rendezvous_discover reply dropped",
-                    ))
-                }
+                Err(_) => return Err(PyRuntimeError::new_err("rendezvous_discover reply dropped")),
             };
             Python::with_gil(|py| {
                 let d = pyo3::types::PyDict::new_bound(py);
@@ -3362,9 +3352,7 @@ mod enabled {
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
                 .send(Cmd::RendezvousUnregister {
-                    namespace: namespace
-                        .unwrap_or(ABS_RENDEZVOUS_NAMESPACE)
-                        .to_string(),
+                    namespace: namespace.unwrap_or(ABS_RENDEZVOUS_NAMESPACE).to_string(),
                     rendezvous_peer: rendezvous_peer_id.to_string(),
                     reply: tx,
                 })
