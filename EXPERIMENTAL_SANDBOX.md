@@ -29,7 +29,7 @@ Profile F: [docs/sprouts/EXPERIMENTAL_RD_PROFILE.md](docs/sprouts/EXPERIMENTAL_R
 | EVM compat | [EVM_COMPAT_MATRIX.md](docs/sprouts/EVM_COMPAT_MATRIX.md) · precompiles lab |
 | Long-Range | `python scripts/long_range_lab.py` · ADR 0017 |
 | libp2p (Python dual-stack) | `python scripts/libp2p_lab_smoke.py` · ADR 0018 |
-| libp2p (rust industrial) | [ADR 0019](docs/adr/0019-rust-libp2p-industrial.md) Slices **A–BJ** · `scripts/verify_adr0019_libp2p_hard.ps1` |
+| libp2p (rust industrial) | [ADR 0019](docs/adr/0019-rust-libp2p-industrial.md) Slices **A–BK** · `scripts/verify_adr0019_libp2p_hard.ps1` |
 
 ## Verify
 
@@ -39,7 +39,7 @@ cd $env:USERPROFILE\Desktop\Absolute_Blockchain_Experimental
 # Profile F units + Python labs
 python scripts\verify_experimental_rd.py
 
-# ADR 0019 rust-libp2p hard gate (72 steps after Slice BJ)
+# ADR 0019 rust-libp2p hard gate (73 steps after Slice BK)
 powershell -ExecutionPolicy Bypass -File scripts\verify_adr0019_libp2p_hard.ps1
 
 # Optional: Hybrid (sibling) + Experimental as one operator view

@@ -57,6 +57,7 @@
 //! Slice BH: bootstrap_remove returns bool + removed counter.
 //! Slice BI: auto-confirm observed-addr (`ABS_LIBP2P_CONFIRM_OBSERVED_ADDR`).
 //! Slice BJ: bootstrap_clear (wipe book + persist; returns peers cleared).
+//! Slice BK: peerstore_clear returns peers cleared + cleared counter.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -863,8 +864,9 @@ mod enabled {
         PeerstoreList {
             reply: oneshot::Sender<HashMap<String, Vec<String>>>,
         },
+        /// Slice BK: wipe learned peerstore (returns peers cleared).
         PeerstoreClear {
-            reply: oneshot::Sender<Result<(), String>>,
+            reply: oneshot::Sender<Result<usize, String>>,
         },
         /// Slice BE: forget one learned peer (and persist if path set).
         PeerstoreRemove {
@@ -1206,6 +1208,8 @@ mod enabled {
         peerstore_learned: u64,
         /// Slice BE: successful peerstore_remove calls.
         peerstore_removed: u64,
+        /// Slice BK: peers removed via peerstore_clear.
+        peerstore_cleared: u64,
         /// Slice BF: successful peerstore_allow_learn (was forgotten).
         peerstore_allow_learn: u64,
         peerstore_dials_ok: u64,
@@ -2859,18 +2863,35 @@ mod enabled {
                                     let _ = reply.send(snap);
                                 }
                                 Some(Cmd::PeerstoreClear { reply }) => {
+                                    // Slice BK: wipe learned peerstore (+ persist).
+                                    // Cleared peer ids enter the forget set so identify
+                                    // cannot re-learn while still connected (BE parity).
                                     let persist = if let Ok(mut st) = state_bg.lock() {
+                                        let keys: Vec<String> =
+                                            st.peerstore.keys().cloned().collect();
+                                        let n = keys.len();
                                         st.peerstore.clear();
-                                        st.peerstore_forgotten.clear();
-                                        (st.peerstore_path.clone(), st.peerstore.clone())
+                                        for k in &keys {
+                                            st.peerstore_forgotten.insert(k.clone());
+                                        }
+                                        if n > 0 {
+                                            st.peerstore_cleared =
+                                                st.peerstore_cleared.saturating_add(n as u64);
+                                        }
+                                        (n, st.peerstore_path.clone(), st.peerstore.clone())
                                     } else {
                                         let _ = reply.send(Err("state lock poisoned".into()));
                                         continue;
                                     };
-                                    let res = if persist.0.is_empty() {
-                                        Ok(())
+                                    if persist.0 == 0 {
+                                        let _ = reply.send(Ok(0));
+                                        continue;
+                                    }
+                                    let res = if persist.1.is_empty() {
+                                        Ok(persist.0)
                                     } else {
-                                        save_bootstrap_peers(Path::new(&persist.0), &persist.1)
+                                        save_bootstrap_peers(Path::new(&persist.1), &persist.2)
+                                            .map(|_| persist.0)
                                     };
                                     let _ = reply.send(res);
                                 }
@@ -5210,13 +5231,14 @@ mod enabled {
             })
         }
 
-        fn peerstore_clear(&self) -> PyResult<()> {
+        /// Slice BK: wipe the learned peerstore. Returns the number of peers cleared.
+        fn peerstore_clear(&self) -> PyResult<usize> {
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
                 .send(Cmd::PeerstoreClear { reply: tx })
                 .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
             match rx.blocking_recv() {
-                Ok(Ok(())) => Ok(()),
+                Ok(Ok(n)) => Ok(n),
                 Ok(Err(e)) => Err(PyValueError::new_err(e)),
                 Err(_) => Err(PyRuntimeError::new_err("peerstore_clear reply dropped")),
             }
@@ -6055,6 +6077,7 @@ mod enabled {
                 d.set_item("libp2p_peerstore_peers", st.peerstore.len())?;
                 d.set_item("libp2p_peerstore_learned", st.peerstore_learned)?;
                 d.set_item("libp2p_peerstore_removed", st.peerstore_removed)?;
+                d.set_item("libp2p_peerstore_cleared", st.peerstore_cleared)?;
                 d.set_item("libp2p_peerstore_allow_learn", st.peerstore_allow_learn)?;
                 d.set_item("libp2p_peerstore_dials_ok", st.peerstore_dials_ok)?;
                 d.set_item("libp2p_peerstore_dials_fail", st.peerstore_dials_fail)?;
@@ -6213,7 +6236,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 61)?;
+                d.set_item("phase", 62)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -6221,6 +6244,7 @@ mod enabled {
                 d.set_item("score_autoblock", st.enable_score_autoblock)?;
                 d.set_item("peerstore", !st.peerstore_path.is_empty())?;
                 d.set_item("peerstore_remove", true)?;
+                d.set_item("peerstore_clear", true)?;
                 d.set_item("peerstore_allow_learn", true)?;
                 d.set_item("peerstore_reconnect", st.enable_reconnect)?;
                 d.set_item("ping", true)?;
@@ -6542,6 +6566,7 @@ mod enabled {
                 d.set_item("libp2p_peerstore_peers", st.peerstore.len())?;
                 d.set_item("libp2p_peerstore_learned", st.peerstore_learned)?;
                 d.set_item("libp2p_peerstore_removed", st.peerstore_removed)?;
+                d.set_item("libp2p_peerstore_cleared", st.peerstore_cleared)?;
                 d.set_item("libp2p_peerstore_allow_learn", st.peerstore_allow_learn)?;
                 d.set_item("libp2p_peerstore_dials_ok", st.peerstore_dials_ok)?;
                 d.set_item("libp2p_peerstore_dials_fail", st.peerstore_dials_fail)?;
