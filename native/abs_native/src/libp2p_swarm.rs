@@ -58,6 +58,7 @@
 //! Slice BI: auto-confirm observed-addr (`ABS_LIBP2P_CONFIRM_OBSERVED_ADDR`).
 //! Slice BJ: bootstrap_clear (wipe book + persist; returns peers cleared).
 //! Slice BK: peerstore_clear returns peers cleared + cleared counter.
+//! Slice BL: clear_observed_addr (wipe last_observed surface + counter).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -898,6 +899,10 @@ mod enabled {
         ConfirmObservedAddr {
             reply: oneshot::Sender<Result<String, String>>,
         },
+        /// Slice BL: wipe ``last_observed_addr`` surface (returns previous value).
+        ClearObservedAddr {
+            reply: oneshot::Sender<Result<String, String>>,
+        },
         /// Slice Q: read gossipsub peer score (None if scoring inactive / unknown peer).
         GossipPeerScore {
             peer_id: String,
@@ -1170,6 +1175,8 @@ mod enabled {
         last_observed_addr: String,
         observed_addr_updates: u64,
         observed_addr_confirmed: u64,
+        /// Slice BL: successful clear_observed_addr (non-empty prior value).
+        observed_addr_cleared: u64,
         /// Slice BI: auto ``add_external_address`` on each new observed addr.
         enable_confirm_observed_addr: bool,
         /// Slice BC: push-on-listen-addr-change + branding / API bookkeeping.
@@ -3062,6 +3069,22 @@ mod enabled {
                                             )));
                                         }
                                     }
+                                }
+                                Some(Cmd::ClearObservedAddr { reply }) => {
+                                    // Slice BL: wipe last_observed surface (not external book).
+                                    let prev = if let Ok(mut st) = state_bg.lock() {
+                                        let prev = st.last_observed_addr.clone();
+                                        if !prev.trim().is_empty() {
+                                            st.last_observed_addr.clear();
+                                            st.observed_addr_cleared =
+                                                st.observed_addr_cleared.saturating_add(1);
+                                        }
+                                        prev
+                                    } else {
+                                        let _ = reply.send(Err("state lock poisoned".into()));
+                                        continue;
+                                    };
+                                    let _ = reply.send(Ok(prev));
                                 }
                                 Some(Cmd::GossipPeerScore { peer_id, reply }) => {
                                     let score = peer_id
@@ -5364,6 +5387,21 @@ mod enabled {
             }
         }
 
+        /// Slice BL: wipe ``last_observed_addr``. Returns the previous value ("" if empty).
+        ///
+        /// Does not remove confirmed external addresses.
+        fn clear_observed_addr(&self) -> PyResult<String> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::ClearObservedAddr { reply: tx })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(addr)) => Ok(addr),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("clear_observed_addr reply dropped")),
+            }
+        }
+
         /// Slice Q: gossipsub peer score, or None if unknown / scoring inactive.
         fn gossip_peer_score(&self, peer_id: &str) -> PyResult<Option<f64>> {
             let (tx, rx) = oneshot::channel();
@@ -6007,6 +6045,7 @@ mod enabled {
                 d.set_item("libp2p_last_observed_addr", &st.last_observed_addr)?;
                 d.set_item("libp2p_observed_addr_updates", st.observed_addr_updates)?;
                 d.set_item("libp2p_observed_addr_confirmed", st.observed_addr_confirmed)?;
+                d.set_item("libp2p_observed_addr_cleared", st.observed_addr_cleared)?;
                 d.set_item(
                     "libp2p_confirm_observed_addr",
                     st.enable_confirm_observed_addr,
@@ -6236,7 +6275,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 62)?;
+                d.set_item("phase", 63)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -6287,6 +6326,7 @@ mod enabled {
                 d.set_item("identify_fail_events", true)?;
                 d.set_item("identify_observed_addr", true)?;
                 d.set_item("confirm_observed_addr", true)?;
+                d.set_item("clear_observed_addr", true)?;
                 d.set_item(
                     "confirm_observed_addr_auto",
                     st.enable_confirm_observed_addr,
@@ -6502,6 +6542,7 @@ mod enabled {
                 d.set_item("libp2p_last_observed_addr", &st.last_observed_addr)?;
                 d.set_item("libp2p_observed_addr_updates", st.observed_addr_updates)?;
                 d.set_item("libp2p_observed_addr_confirmed", st.observed_addr_confirmed)?;
+                d.set_item("libp2p_observed_addr_cleared", st.observed_addr_cleared)?;
                 d.set_item(
                     "libp2p_confirm_observed_addr",
                     st.enable_confirm_observed_addr,

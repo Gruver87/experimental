@@ -143,6 +143,7 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_last_observed_addr",
     "libp2p_observed_addr_updates",
     "libp2p_observed_addr_confirmed",
+    "libp2p_observed_addr_cleared",
     "libp2p_confirm_observed_addr",
     "libp2p_agent_version",
     "libp2p_protocol_version",

@@ -214,6 +214,8 @@ jobs:
         run: python scripts/libp2p_rust_bootstrap_clear_lab.py
       - name: rust-libp2p peerstore clear lab (Slice BK)
         run: python scripts/libp2p_rust_peerstore_clear_lab.py
+      - name: rust-libp2p clear observed-addr lab (Slice BL)
+        run: python scripts/libp2p_rust_clear_observed_addr_lab.py
       - name: adapter + wire-bridge units
         run: pytest -q tests/unit/test_libp2p_adapter.py tests/unit/test_libp2p_wire_bridge.py tests/unit/test_libp2p_status_metrics.py
       - name: package ADR 0019 evidence pack
