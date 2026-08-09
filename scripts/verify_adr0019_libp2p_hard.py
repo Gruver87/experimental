@@ -74,6 +74,8 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_gossip_pub",
     "libp2p_gossip_recv",
     "libp2p_mdns_discovered",
+    "libp2p_mdns_expired",
+    "libp2p_mdns_ttl_secs",
     "libp2p_kad_peers",
     "libp2p_kad_queries",
     "libp2p_kad_query_ok",
@@ -235,6 +237,7 @@ LABS = [
     ("AP", "scripts/libp2p_rust_relay_events_lab.py"),
     ("AQ", "scripts/libp2p_rust_rendezvous_events_lab.py"),
     ("AR", "scripts/libp2p_rust_autonat_events_lab.py"),
+    ("AS", "scripts/libp2p_rust_mdns_events_lab.py"),
 ]
 
 PROD_JSONS = (

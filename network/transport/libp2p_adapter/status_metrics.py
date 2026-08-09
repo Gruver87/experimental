@@ -43,6 +43,8 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_gossip_pub",
     "libp2p_gossip_recv",
     "libp2p_mdns_discovered",
+    "libp2p_mdns_expired",
+    "libp2p_mdns_ttl_secs",
     "libp2p_kad_peers",
     "libp2p_kad_queries",
     "libp2p_kad_query_ok",

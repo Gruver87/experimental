@@ -38,6 +38,7 @@
 //! Slice AP: relay server event taxonomy (deny / timeout / circuit closed).
 //! Slice AQ: rendezvous server/client event taxonomy (discover served / unregister).
 //! Slice AR: AutoNAT probe event taxonomy (inbound/outbound + errors).
+//! Slice AS: mDNS discover/expire event metrics + lab TTL override.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -64,6 +65,8 @@ pub const MAX_WIRE_BYTES: usize = 1024 * 1024;
 /// Default `/abs/wire/1.0.0` request-response timeout (Slice L).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_WIRE_TIMEOUT_SECS: u64 = 10;
+/// Default mDNS record TTL (Slice F / AS).
+pub const DEFAULT_MDNS_TTL_SECS: u64 = 60;
 /// Swarm idle connection timeout (Slice V; was hardcoded 60s).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS: u64 = 60;
@@ -128,11 +131,11 @@ mod enabled {
     use super::{
         libp2p_available, ABS_GOSSIP_BLOCKS_TOPIC, ABS_KAD_PROTOCOL, ABS_RENDEZVOUS_NAMESPACE,
         ABS_WIRE_PROTOCOL, DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS,
-        DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_PING_INTERVAL_SECS,
-        DEFAULT_PING_MAX_FAILS, DEFAULT_PING_TIMEOUT_SECS, DEFAULT_RECONNECT_BASE_MS,
-        DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS, DEFAULT_RECONNECT_MAX_ATTEMPTS,
-        DEFAULT_RECONNECT_MAX_MS, DEFAULT_SCORE_GRAYLIST_THRESHOLD, DEFAULT_WIRE_TIMEOUT_SECS,
-        MAX_WIRE_BYTES,
+        DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_MDNS_TTL_SECS,
+        DEFAULT_PING_INTERVAL_SECS, DEFAULT_PING_MAX_FAILS, DEFAULT_PING_TIMEOUT_SECS,
+        DEFAULT_RECONNECT_BASE_MS, DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS,
+        DEFAULT_RECONNECT_MAX_ATTEMPTS, DEFAULT_RECONNECT_MAX_MS, DEFAULT_SCORE_GRAYLIST_THRESHOLD,
+        DEFAULT_WIRE_TIMEOUT_SECS, MAX_WIRE_BYTES,
     };
     use async_trait::async_trait;
     use futures::prelude::*;
@@ -947,6 +950,10 @@ mod enabled {
         gossip_peer_subscribed: u64,
         gossip_peer_unsubscribed: u64,
         mdns_discovered: u64,
+        /// Slice AS: mDNS Expired (loopback hygiene, same as Discovered).
+        mdns_expired: u64,
+        /// Slice AS: configured mDNS TTL seconds (lab override).
+        mdns_ttl_secs: u64,
         kad_routing_updates: u64,
         kad_queries: u64,
         /// Slice AN: Kademlia query / routing event counters.
@@ -1136,6 +1143,7 @@ mod enabled {
             enable_allow_list: bool,
             idle_connection_timeout_secs: u64,
             relay_max_reservations: Option<u32>,
+            mdns_ttl_secs: u64,
         ) -> PyResult<Self> {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -1176,6 +1184,7 @@ mod enabled {
                 enable_allow_list,
                 wire_timeout_secs,
                 idle_connection_timeout_secs,
+                mdns_ttl_secs,
                 key_path: key_path_str.clone(),
                 bootstrap_path: bootstrap_path_str.clone(),
                 bootstrap: bootstrap_peers,
@@ -1208,6 +1217,7 @@ mod enabled {
             let limits_pending_in = max_pending_incoming;
             let limits_pending_out = max_pending_outgoing;
             let want_mdns = enable_mdns;
+            let mdns_ttl = mdns_ttl_secs.max(1);
             let want_autonat = enable_autonat;
             let want_upnp = enable_upnp;
             let want_allow_list = enable_allow_list;
@@ -1336,7 +1346,7 @@ mod enabled {
                         Toggle::from(Some(
                             mdns::tokio::Behaviour::new(
                                 mdns::Config {
-                                    ttl: Duration::from_secs(60),
+                                    ttl: Duration::from_secs(mdns_ttl),
                                     query_interval: Duration::from_secs(1),
                                     enable_ipv6: false,
                                 },
@@ -3623,7 +3633,18 @@ mod enabled {
                                     }
                                     mdns::Event::Expired(list) => {
                                         for (peer, addr) in list {
+                                            // Slice AS / K: same loopback hygiene as Discovered.
+                                            let loopback = addr.iter().any(|p| match p {
+                                                Protocol::Ip4(ip) => ip.is_loopback(),
+                                                Protocol::Ip6(ip) => ip.is_loopback(),
+                                                _ => false,
+                                            });
+                                            if !loopback {
+                                                continue;
+                                            }
                                             if let Ok(mut st) = state_bg.lock() {
+                                                st.mdns_expired =
+                                                    st.mdns_expired.saturating_add(1);
                                                 if st.discovered.get(&peer.to_string())
                                                     == Some(&addr.to_string())
                                                 {
@@ -4212,7 +4233,8 @@ mod enabled {
             enable_upnp = None,
             enable_allow_list = None,
             idle_connection_timeout_secs = None,
-            relay_max_reservations = None
+            relay_max_reservations = None,
+            mdns_ttl_secs = None
         ))]
         fn new_py(
             max_dials: u32,
@@ -4233,6 +4255,7 @@ mod enabled {
             enable_allow_list: Option<bool>,
             idle_connection_timeout_secs: Option<u64>,
             relay_max_reservations: Option<u32>,
+            mdns_ttl_secs: Option<u64>,
         ) -> PyResult<Self> {
             Self::spawn(
                 max_dials,
@@ -4262,6 +4285,7 @@ mod enabled {
                 resolve_enable_allow_list(enable_allow_list),
                 resolve_idle_connection_timeout_secs(idle_connection_timeout_secs),
                 resolve_u32_limit(relay_max_reservations, "ABS_LIBP2P_RELAY_MAX_RESERVATIONS"),
+                resolve_mdns_ttl_secs(mdns_ttl_secs),
             )
         }
 
@@ -5186,6 +5210,8 @@ mod enabled {
                 d.set_item("libp2p_identify_pushed", st.identify_pushed)?;
                 d.set_item("libp2p_identify_error", st.identify_error)?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
+                d.set_item("libp2p_mdns_expired", st.mdns_expired)?;
+                d.set_item("libp2p_mdns_ttl_secs", st.mdns_ttl_secs)?;
                 d.set_item("libp2p_discovered_peers", st.discovered.len())?;
                 d.set_item("libp2p_kad_peers", st.kad_peers.len())?;
                 d.set_item("libp2p_kad_routing_updates", st.kad_routing_updates)?;
@@ -5394,7 +5420,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 43)?;
+                d.set_item("phase", 44)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -5408,6 +5434,7 @@ mod enabled {
                     st.enable_ping_unhealthy_disconnect,
                 )?;
                 d.set_item("mdns", st.enable_mdns)?;
+                d.set_item("mdns_events", true)?;
                 d.set_item("kademlia", true)?;
                 d.set_item("kad_events", true)?;
                 d.set_item("relay", true)?;
@@ -5536,6 +5563,8 @@ mod enabled {
                 d.set_item("libp2p_identify_pushed", st.identify_pushed)?;
                 d.set_item("libp2p_identify_error", st.identify_error)?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
+                d.set_item("libp2p_mdns_expired", st.mdns_expired)?;
+                d.set_item("libp2p_mdns_ttl_secs", st.mdns_ttl_secs)?;
                 d.set_item("libp2p_kad_peers", st.kad_peers.len())?;
                 d.set_item("libp2p_kad_routing_updates", st.kad_routing_updates)?;
                 d.set_item("libp2p_kad_queries", st.kad_queries)?;
@@ -5721,6 +5750,21 @@ mod enabled {
                 !matches!(t.as_str(), "0" | "false" | "off" | "no")
             }
             Err(_) => true,
+        }
+    }
+
+    fn resolve_mdns_ttl_secs(explicit: Option<u64>) -> u64 {
+        if let Some(v) = explicit {
+            return v.max(1);
+        }
+        match std::env::var("ABS_LIBP2P_MDNS_TTL_SECS") {
+            Ok(s) => s
+                .trim()
+                .parse::<u64>()
+                .ok()
+                .unwrap_or(DEFAULT_MDNS_TTL_SECS)
+                .max(1),
+            Err(_) => DEFAULT_MDNS_TTL_SECS,
         }
     }
 
@@ -6001,7 +6045,8 @@ mod enabled {
         enable_upnp = None,
         enable_allow_list = None,
         idle_connection_timeout_secs = None,
-        relay_max_reservations = None
+        relay_max_reservations = None,
+        mdns_ttl_secs = None
     ))]
     fn libp2p_node_new(
         max_dials: u32,
@@ -6022,6 +6067,7 @@ mod enabled {
         enable_allow_list: Option<bool>,
         idle_connection_timeout_secs: Option<u64>,
         relay_max_reservations: Option<u32>,
+        mdns_ttl_secs: Option<u64>,
     ) -> PyResult<Libp2pNode> {
         Libp2pNode::spawn(
             max_dials,
@@ -6051,6 +6097,7 @@ mod enabled {
             resolve_enable_allow_list(enable_allow_list),
             resolve_idle_connection_timeout_secs(idle_connection_timeout_secs),
             resolve_u32_limit(relay_max_reservations, "ABS_LIBP2P_RELAY_MAX_RESERVATIONS"),
+            resolve_mdns_ttl_secs(mdns_ttl_secs),
         )
     }
 
