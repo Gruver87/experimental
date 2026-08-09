@@ -30,7 +30,9 @@ Compatibility gaps: [EVM_COMPAT_MATRIX.md](EVM_COMPAT_MATRIX.md).
   `scripts/libp2p_rust_wire_lab.py`, `scripts/libp2p_rust_gossip_lab.py`,
   `scripts/package_libp2p_evidence.py`
   (rust labs require `maturin build --features pyo3/extension-module,libp2p`).
-- Rust industrial path: [ADR 0019](../adr/0019-rust-libp2p-industrial.md) Slices A–G.
+- Rust industrial path: [ADR 0019](../adr/0019-rust-libp2p-industrial.md) Slices **A–BJ** (phase 61).
+- Hard gate: `scripts/verify_adr0019_libp2p_hard.ps1` (± `-Rebuild`).
+- Unified Hybrid+Experimental operator view: `scripts/verify_absolute_unified.ps1`.
 - Long-Range tip gate (when `FEATURE_LONG_RANGE=true`): optional
   `ABS_WS_ANCHOR_HEIGHT` + `ABS_WS_ANCHOR_HASH` on tip-safety shadow sync.
   Without an anchor, tip import is **not** blocked (`no_anchor` is informational).
