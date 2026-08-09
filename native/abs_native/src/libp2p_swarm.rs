@@ -37,6 +37,7 @@
 //!   kad / wire RR event metrics (see ADR 0019).
 //! Slice AP: relay server event taxonomy (deny / timeout / circuit closed).
 //! Slice AQ: rendezvous server/client event taxonomy (discover served / unregister).
+//! Slice AR: AutoNAT probe event taxonomy (inbound/outbound + errors).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -967,6 +968,11 @@ mod enabled {
         relay_max_reservations: u32,
         autonat_probes: u64,
         autonat_status_changes: u64,
+        /// Slice AR: AutoNAT probe direction / error taxonomy.
+        autonat_inbound_probe: u64,
+        autonat_outbound_probe: u64,
+        autonat_inbound_probe_error: u64,
+        autonat_outbound_probe_error: u64,
         /// 0=unknown, 1=public, 2=private (Slice N).
         autonat_status: u8,
         dcutr_upgrade_success: u64,
@@ -3819,11 +3825,42 @@ mod enabled {
                                 }
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::Autonat(ev)) => {
                                     match ev {
-                                        autonat::Event::InboundProbe(_)
-                                        | autonat::Event::OutboundProbe(_) => {
+                                        autonat::Event::InboundProbe(ref probe) => {
                                             if let Ok(mut st) = state_bg.lock() {
                                                 st.autonat_probes =
                                                     st.autonat_probes.saturating_add(1);
+                                                st.autonat_inbound_probe = st
+                                                    .autonat_inbound_probe
+                                                    .saturating_add(1);
+                                                if matches!(
+                                                    probe,
+                                                    autonat::InboundProbeEvent::Error { .. }
+                                                ) {
+                                                    st.autonat_inbound_probe_error = st
+                                                        .autonat_inbound_probe_error
+                                                        .saturating_add(1);
+                                                    st.last_error =
+                                                        "autonat inbound probe error".into();
+                                                }
+                                            }
+                                        }
+                                        autonat::Event::OutboundProbe(ref probe) => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.autonat_probes =
+                                                    st.autonat_probes.saturating_add(1);
+                                                st.autonat_outbound_probe = st
+                                                    .autonat_outbound_probe
+                                                    .saturating_add(1);
+                                                if matches!(
+                                                    probe,
+                                                    autonat::OutboundProbeEvent::Error { .. }
+                                                ) {
+                                                    st.autonat_outbound_probe_error = st
+                                                        .autonat_outbound_probe_error
+                                                        .saturating_add(1);
+                                                    st.last_error =
+                                                        "autonat outbound probe error".into();
+                                                }
                                             }
                                         }
                                         autonat::Event::StatusChanged { new, .. } => {
@@ -5178,6 +5215,16 @@ mod enabled {
                 d.set_item("libp2p_relay_max_reservations", st.relay_max_reservations)?;
                 d.set_item("libp2p_autonat_probes", st.autonat_probes)?;
                 d.set_item("libp2p_autonat_status_changes", st.autonat_status_changes)?;
+                d.set_item("libp2p_autonat_inbound_probe", st.autonat_inbound_probe)?;
+                d.set_item("libp2p_autonat_outbound_probe", st.autonat_outbound_probe)?;
+                d.set_item(
+                    "libp2p_autonat_inbound_probe_error",
+                    st.autonat_inbound_probe_error,
+                )?;
+                d.set_item(
+                    "libp2p_autonat_outbound_probe_error",
+                    st.autonat_outbound_probe_error,
+                )?;
                 d.set_item("libp2p_autonat_status", st.autonat_status)?;
                 d.set_item("libp2p_dcutr_upgrade_success", st.dcutr_upgrade_success)?;
                 d.set_item("libp2p_dcutr_upgrade_fail", st.dcutr_upgrade_fail)?;
@@ -5347,7 +5394,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 42)?;
+                d.set_item("phase", 43)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -5366,6 +5413,7 @@ mod enabled {
                 d.set_item("relay", true)?;
                 d.set_item("relay_events", true)?;
                 d.set_item("autonat", st.enable_autonat)?;
+                d.set_item("autonat_events", true)?;
                 d.set_item("upnp", st.enable_upnp)?;
                 d.set_item("dcutr", true)?;
                 d.set_item("rendezvous", true)?;
@@ -5516,6 +5564,16 @@ mod enabled {
                 d.set_item("libp2p_relay_max_reservations", st.relay_max_reservations)?;
                 d.set_item("libp2p_autonat_probes", st.autonat_probes)?;
                 d.set_item("libp2p_autonat_status_changes", st.autonat_status_changes)?;
+                d.set_item("libp2p_autonat_inbound_probe", st.autonat_inbound_probe)?;
+                d.set_item("libp2p_autonat_outbound_probe", st.autonat_outbound_probe)?;
+                d.set_item(
+                    "libp2p_autonat_inbound_probe_error",
+                    st.autonat_inbound_probe_error,
+                )?;
+                d.set_item(
+                    "libp2p_autonat_outbound_probe_error",
+                    st.autonat_outbound_probe_error,
+                )?;
                 d.set_item("libp2p_dcutr_upgrade_success", st.dcutr_upgrade_success)?;
                 d.set_item("libp2p_dcutr_upgrade_fail", st.dcutr_upgrade_fail)?;
                 d.set_item("libp2p_bootstrap_peers", st.bootstrap.len())?;

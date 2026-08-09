@@ -106,6 +106,10 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_abs_wire_v2_recv",
     "libp2p_autonat_probes",
     "libp2p_autonat_status_changes",
+    "libp2p_autonat_inbound_probe",
+    "libp2p_autonat_outbound_probe",
+    "libp2p_autonat_inbound_probe_error",
+    "libp2p_autonat_outbound_probe_error",
     "libp2p_dcutr_upgrade_success",
     "libp2p_dcutr_upgrade_fail",
     "libp2p_bootstrap_peers",
@@ -230,6 +234,7 @@ LABS = [
     ("AO", "scripts/libp2p_rust_wire_rr_events_lab.py"),
     ("AP", "scripts/libp2p_rust_relay_events_lab.py"),
     ("AQ", "scripts/libp2p_rust_rendezvous_events_lab.py"),
+    ("AR", "scripts/libp2p_rust_autonat_events_lab.py"),
 ]
 
 PROD_JSONS = (
