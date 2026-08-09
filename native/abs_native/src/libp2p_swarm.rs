@@ -48,6 +48,7 @@
 //! Slice AY: ping failure taxonomy (`timeout` / `unsupported` / `other`).
 //! Slice AZ: wire RR outbound/inbound failure taxonomy.
 //! Slice BA: deferred gossip validation + ignore/reject outcome metrics.
+//! Slice BB: wire omit-response lab path (`ResponseOmission` inbound fail).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -997,6 +998,8 @@ mod enabled {
         gossip_validation_pending: u64,
         /// When true, skip auto-Accept and wait for ``report_gossip_validation``.
         enable_gossip_defer_validation: bool,
+        /// Slice BB: drop RR response channel → ``InboundFailure::ResponseOmission``.
+        enable_wire_omit_response: bool,
         last_gossip_message_id: String,
         last_gossip_propagation_peer: String,
         gossip_app_score_sets: u64,
@@ -1266,6 +1269,7 @@ mod enabled {
                 enable_score_autoblock: resolve_score_autoblock(None),
                 score_graylist_threshold: resolve_score_graylist_threshold(None),
                 enable_gossip_defer_validation: resolve_gossip_defer_validation(None),
+                enable_wire_omit_response: resolve_wire_omit_response(None),
                 relay_max_reservations: relay_max_reservations.unwrap_or(0),
                 ..NodeState::default()
             }));
@@ -4322,6 +4326,10 @@ mod enabled {
                                             } => {
                                                 let codec =
                                                     super::classify_abs_wire_codec(&request);
+                                                let omit = state_bg
+                                                    .lock()
+                                                    .map(|st| st.enable_wire_omit_response)
+                                                    .unwrap_or(false);
                                                 if let Ok(mut st) = state_bg.lock() {
                                                     st.wire_recv =
                                                         st.wire_recv.saturating_add(1);
@@ -4345,15 +4353,20 @@ mod enabled {
                                                         ));
                                                     }
                                                 }
-                                                // Echo ack: same payload prefix "OK:" + len
-                                                let mut ack = b"OK:".to_vec();
-                                                ack.extend_from_slice(
-                                                    &(request.len() as u32).to_be_bytes(),
-                                                );
-                                                let _ = swarm
-                                                    .behaviour_mut()
-                                                    .wire
-                                                    .send_response(channel, ack);
+                                                if omit {
+                                                    // Slice BB: drop channel → ResponseOmission.
+                                                    drop(channel);
+                                                } else {
+                                                    // Echo ack: same payload prefix "OK:" + len
+                                                    let mut ack = b"OK:".to_vec();
+                                                    ack.extend_from_slice(
+                                                        &(request.len() as u32).to_be_bytes(),
+                                                    );
+                                                    let _ = swarm
+                                                        .behaviour_mut()
+                                                        .wire
+                                                        .send_response(channel, ack);
+                                                }
                                             }
                                             Message::Response {
                                                 request_id,
@@ -5557,6 +5570,7 @@ mod enabled {
                     "libp2p_gossip_defer_validation",
                     st.enable_gossip_defer_validation,
                 )?;
+                d.set_item("libp2p_wire_omit_response", st.enable_wire_omit_response)?;
                 d.set_item("libp2p_last_gossip_message_id", &st.last_gossip_message_id)?;
                 d.set_item(
                     "libp2p_last_gossip_propagation_peer",
@@ -5794,7 +5808,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 52)?;
+                d.set_item("phase", 53)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -5841,6 +5855,7 @@ mod enabled {
                 d.set_item("gossip_defer_validation", st.enable_gossip_defer_validation)?;
                 d.set_item("wire_rr_events", true)?;
                 d.set_item("wire_fail_events", true)?;
+                d.set_item("wire_omit_response", st.enable_wire_omit_response)?;
                 d.set_item("connection_manager", true)?;
                 d.set_item("bootstrap", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
@@ -6008,6 +6023,7 @@ mod enabled {
                     "libp2p_gossip_defer_validation",
                     st.enable_gossip_defer_validation,
                 )?;
+                d.set_item("libp2p_wire_omit_response", st.enable_wire_omit_response)?;
                 d.set_item("libp2p_last_gossip_message_id", &st.last_gossip_message_id)?;
                 d.set_item(
                     "libp2p_last_gossip_propagation_peer",
@@ -6496,6 +6512,20 @@ mod enabled {
             return v;
         }
         match std::env::var("ABS_LIBP2P_GOSSIP_DEFER_VALIDATION") {
+            Ok(s) => {
+                let t = s.trim().to_ascii_lowercase();
+                matches!(t.as_str(), "1" | "true" | "on" | "yes")
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// Slice BB: omit wire RR responses (lab path for ``ResponseOmission``).
+    fn resolve_wire_omit_response(explicit: Option<bool>) -> bool {
+        if let Some(v) = explicit {
+            return v;
+        }
+        match std::env::var("ABS_LIBP2P_WIRE_OMIT_RESPONSE") {
             Ok(s) => {
                 let t = s.trim().to_ascii_lowercase();
                 matches!(t.as_str(), "1" | "true" | "on" | "yes")

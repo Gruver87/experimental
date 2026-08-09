@@ -130,6 +130,7 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_gossip_validation_ignore",
     "libp2p_gossip_validation_pending",
     "libp2p_gossip_defer_validation",
+    "libp2p_wire_omit_response",
     "libp2p_last_gossip_message_id",
     "libp2p_last_gossip_propagation_peer",
     "libp2p_gossip_app_score_sets",
