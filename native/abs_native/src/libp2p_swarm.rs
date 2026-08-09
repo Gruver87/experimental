@@ -20,6 +20,7 @@
 //! Slice S: low gossip peer-score auto-block (graylist bridge to allow/block-list).
 //! Slice T: persistent learned peerstore (identify/connection → JSON) + warm dial.
 //! Slice U: reconnect policy also covers learned peerstore peers (not only bootstrap).
+//! Slice V: idle connection timeout policy (swarm keep-alive / idle close).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -43,6 +44,9 @@ pub const MAX_WIRE_BYTES: usize = 1024 * 1024;
 /// Default `/abs/wire/1.0.0` request-response timeout (Slice L).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_WIRE_TIMEOUT_SECS: u64 = 10;
+/// Swarm idle connection timeout (Slice V; was hardcoded 60s).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub const DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS: u64 = 60;
 /// Per-entry bootstrap dial settle timeout (Slice O industrial).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS: u64 = 8;
@@ -103,11 +107,11 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 mod enabled {
     use super::{
         libp2p_available, ABS_GOSSIP_BLOCKS_TOPIC, ABS_KAD_PROTOCOL, ABS_WIRE_PROTOCOL,
-        DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_PING_INTERVAL_SECS,
-        DEFAULT_PING_MAX_FAILS, DEFAULT_PING_TIMEOUT_SECS, DEFAULT_RECONNECT_BASE_MS,
-        DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS, DEFAULT_RECONNECT_MAX_ATTEMPTS,
-        DEFAULT_RECONNECT_MAX_MS, DEFAULT_SCORE_GRAYLIST_THRESHOLD, DEFAULT_WIRE_TIMEOUT_SECS,
-        MAX_WIRE_BYTES,
+        DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS,
+        DEFAULT_MAX_DIALS, DEFAULT_PING_INTERVAL_SECS, DEFAULT_PING_MAX_FAILS,
+        DEFAULT_PING_TIMEOUT_SECS, DEFAULT_RECONNECT_BASE_MS, DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS,
+        DEFAULT_RECONNECT_MAX_ATTEMPTS, DEFAULT_RECONNECT_MAX_MS, DEFAULT_SCORE_GRAYLIST_THRESHOLD,
+        DEFAULT_WIRE_TIMEOUT_SECS, MAX_WIRE_BYTES,
     };
     use async_trait::async_trait;
     use futures::prelude::*;
@@ -120,7 +124,10 @@ mod enabled {
         identity::Keypair,
         kad::{self, store::MemoryStore},
         mdns, noise, ping, relay, request_response,
-        swarm::{behaviour::toggle::Toggle, DialError, ListenError, NetworkBehaviour, SwarmEvent},
+        swarm::{
+            behaviour::toggle::Toggle, ConnectionError, DialError, ListenError, NetworkBehaviour,
+            SwarmEvent,
+        },
         tcp, yamux, Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
     };
     use pyo3::exceptions::{PyRuntimeError, PyValueError};
@@ -828,6 +835,10 @@ mod enabled {
         /// Slice N: AutoNAT behaviour enabled (probe dials).
         enable_autonat: bool,
         wire_timeout_secs: u64,
+        /// Slice V: swarm idle connection timeout.
+        idle_connection_timeout_secs: u64,
+        /// Slice V: ConnectionClosed caused by keep-alive / idle timeout.
+        idle_timeout_closes: u64,
         last_error: String,
         inbox: VecDeque<(String, Vec<u8>)>,
         gossip_inbox: VecDeque<(String, String, Vec<u8>)>,
@@ -905,6 +916,7 @@ mod enabled {
             enable_reconnect: bool,
             peerstore_path: Option<String>,
             enable_autonat: bool,
+            idle_connection_timeout_secs: u64,
         ) -> PyResult<Self> {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -928,6 +940,7 @@ mod enabled {
                     .map_err(|e| PyRuntimeError::new_err(format!("peerstore load: {e}")))?
             };
             let wire_timeout_secs = wire_timeout_secs.max(1);
+            let idle_connection_timeout_secs = idle_connection_timeout_secs.max(1);
             let bootstrap_dial_timeout_secs = resolve_bootstrap_dial_timeout_secs(None);
             let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel::<Cmd>();
             let state = Arc::new(Mutex::new(NodeState {
@@ -937,6 +950,7 @@ mod enabled {
                 enable_mdns,
                 enable_autonat,
                 wire_timeout_secs,
+                idle_connection_timeout_secs,
                 key_path: key_path_str.clone(),
                 bootstrap_path: bootstrap_path_str.clone(),
                 bootstrap: bootstrap_peers,
@@ -963,6 +977,7 @@ mod enabled {
             let want_mdns = enable_mdns;
             let want_autonat = enable_autonat;
             let wire_timeout = Duration::from_secs(wire_timeout_secs);
+            let idle_timeout = Duration::from_secs(idle_connection_timeout_secs);
             let ping_interval = Duration::from_secs(resolve_ping_interval_secs(None));
             let ping_timeout = Duration::from_secs(resolve_ping_timeout_secs(None));
 
@@ -1105,7 +1120,7 @@ mod enabled {
                 }) {
                     Ok(b) => b
                         .with_swarm_config(|cfg| {
-                            cfg.with_idle_connection_timeout(Duration::from_secs(60))
+                            cfg.with_idle_connection_timeout(idle_timeout)
                         })
                         .build(),
                     Err(e) => {
@@ -2365,8 +2380,14 @@ mod enabled {
                                         }
                                     }
                                 }
-                                SwarmEvent::ConnectionClosed { peer_id, .. } => {
+                                SwarmEvent::ConnectionClosed {
+                                    peer_id,
+                                    cause,
+                                    ..
+                                } => {
                                     let pid = peer_id.to_string();
+                                    let idle_close =
+                                        matches!(cause, Some(ConnectionError::KeepAliveTimeout));
                                     let still = swarm.is_connected(&peer_id);
                                     if !still {
                                         swarm.behaviour_mut().gossipsub.remove_explicit_peer(&peer_id);
@@ -2375,6 +2396,12 @@ mod enabled {
                                         if !still {
                                             st.connected.remove(&pid);
                                             st.outbound_peers.remove(&pid);
+                                        }
+                                        if idle_close {
+                                            st.idle_timeout_closes =
+                                                st.idle_timeout_closes.saturating_add(1);
+                                            st.last_error =
+                                                format!("idle connection timeout peer={pid}");
                                         }
                                     }
                                     // Slice P/U: schedule reconnect after full disconnect for
@@ -2874,7 +2901,8 @@ mod enabled {
             bootstrap_path = None,
             enable_reconnect = None,
             peerstore_path = None,
-            enable_autonat = None
+            enable_autonat = None,
+            idle_connection_timeout_secs = None
         ))]
         fn new_py(
             max_dials: u32,
@@ -2887,6 +2915,7 @@ mod enabled {
             enable_reconnect: Option<bool>,
             peerstore_path: Option<String>,
             enable_autonat: Option<bool>,
+            idle_connection_timeout_secs: Option<u64>,
         ) -> PyResult<Self> {
             Self::spawn(
                 max_dials,
@@ -2899,6 +2928,7 @@ mod enabled {
                 resolve_enable_reconnect(enable_reconnect),
                 resolve_peerstore_path(peerstore_path),
                 resolve_enable_autonat(enable_autonat),
+                resolve_idle_connection_timeout_secs(idle_connection_timeout_secs),
             )
         }
 
@@ -3590,6 +3620,11 @@ mod enabled {
                 d.set_item("libp2p_circuit_addrs", st.circuit_addrs.len())?;
                 d.set_item("libp2p_mdns_enabled", st.enable_mdns)?;
                 d.set_item("libp2p_wire_timeout_secs", st.wire_timeout_secs)?;
+                d.set_item(
+                    "libp2p_idle_connection_timeout_secs",
+                    st.idle_connection_timeout_secs,
+                )?;
+                d.set_item("libp2p_idle_timeout_closes", st.idle_timeout_closes)?;
                 if let Some(n) = st.max_established_incoming {
                     d.set_item("libp2p_max_established_incoming", n)?;
                 }
@@ -3615,7 +3650,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 20)?;
+                d.set_item("phase", 21)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -3635,10 +3670,15 @@ mod enabled {
                 d.set_item("dcutr", true)?;
                 d.set_item("bootstrap", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
+                d.set_item("idle_connection_timeout", true)?;
                 d.set_item("connection_limits", true)?;
                 d.set_item("block_list", true)?;
                 d.set_item("abs_wire_codecs", true)?;
                 d.set_item("wire_timeout_secs", st.wire_timeout_secs)?;
+                d.set_item(
+                    "idle_connection_timeout_secs",
+                    st.idle_connection_timeout_secs,
+                )?;
                 d.set_item(
                     "autonat_status",
                     match st.autonat_status {
@@ -3741,6 +3781,11 @@ mod enabled {
                 d.set_item("libp2p_conn_limit_denied", st.conn_limit_denied)?;
                 d.set_item("libp2p_block_denied", st.block_denied)?;
                 d.set_item("libp2p_blocked_peers", st.blocked.len())?;
+                d.set_item(
+                    "libp2p_idle_connection_timeout_secs",
+                    st.idle_connection_timeout_secs,
+                )?;
+                d.set_item("libp2p_idle_timeout_closes", st.idle_timeout_closes)?;
                 d.set_item("default_mesh", false)?;
                 d.set_item("honesty", "ADR0019_rust_libp2p_lab_not_prod_mesh")?;
                 d.set_item("error", st.last_error.clone())?;
@@ -3795,6 +3840,21 @@ mod enabled {
                 .unwrap_or(DEFAULT_WIRE_TIMEOUT_SECS)
                 .max(1),
             Err(_) => DEFAULT_WIRE_TIMEOUT_SECS,
+        }
+    }
+
+    fn resolve_idle_connection_timeout_secs(explicit: Option<u64>) -> u64 {
+        if let Some(v) = explicit {
+            return v.max(1);
+        }
+        match std::env::var("ABS_LIBP2P_IDLE_CONNECTION_TIMEOUT_SECS") {
+            Ok(s) => s
+                .trim()
+                .parse::<u64>()
+                .ok()
+                .unwrap_or(DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS)
+                .max(1),
+            Err(_) => DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS,
         }
     }
 
@@ -3974,7 +4034,8 @@ mod enabled {
         bootstrap_path = None,
         enable_reconnect = None,
         peerstore_path = None,
-        enable_autonat = None
+        enable_autonat = None,
+        idle_connection_timeout_secs = None
     ))]
     fn libp2p_node_new(
         max_dials: u32,
@@ -3987,6 +4048,7 @@ mod enabled {
         enable_reconnect: Option<bool>,
         peerstore_path: Option<String>,
         enable_autonat: Option<bool>,
+        idle_connection_timeout_secs: Option<u64>,
     ) -> PyResult<Libp2pNode> {
         Libp2pNode::spawn(
             max_dials,
@@ -3999,6 +4061,7 @@ mod enabled {
             resolve_enable_reconnect(enable_reconnect),
             resolve_peerstore_path(peerstore_path),
             resolve_enable_autonat(enable_autonat),
+            resolve_idle_connection_timeout_secs(idle_connection_timeout_secs),
         )
     }
 

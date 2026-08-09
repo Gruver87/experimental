@@ -98,6 +98,8 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_peerstore_dials_timeout",
     "libp2p_peerstore_dials_attempted",
     "libp2p_reconnect_from_peerstore",
+    "libp2p_idle_connection_timeout_secs",
+    "libp2p_idle_timeout_closes",
 )
 
 UNIT_TESTS = [
@@ -133,6 +135,7 @@ LABS = [
     ("S", "scripts/libp2p_rust_score_autoblock_lab.py"),
     ("T", "scripts/libp2p_rust_peerstore_lab.py"),
     ("U", "scripts/libp2p_rust_peerstore_reconnect_lab.py"),
+    ("V", "scripts/libp2p_rust_idle_timeout_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -236,6 +239,7 @@ def check_repo_honesty() -> tuple[bool, str]:
         "tip proof",
         "Gruver87/experimental",
         "Slice U",
+        "Slice V",
         "FEATURE_LIBP2P",
         "## Honesty",
     )

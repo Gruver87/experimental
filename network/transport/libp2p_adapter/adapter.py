@@ -36,6 +36,7 @@ class Libp2pTransportAdapter:
         bootstrap_path: Optional[str] = None,
         enable_reconnect: Optional[bool] = None,
         peerstore_path: Optional[str] = None,
+        idle_connection_timeout_secs: Optional[int] = None,
     ) -> None:
         self._enabled = bool(enabled)
         self._dial_count = 0
@@ -52,6 +53,11 @@ class Libp2pTransportAdapter:
         self._enable_reconnect = enable_reconnect
         self._peerstore_path = (
             str(peerstore_path).strip() if peerstore_path is not None else None
+        )
+        self._idle_connection_timeout_secs = (
+            int(idle_connection_timeout_secs)
+            if idle_connection_timeout_secs is not None
+            else None
         )
 
     def set_peer_policy(self, policy: Any) -> None:
@@ -95,6 +101,10 @@ class Libp2pTransportAdapter:
                 )
             if store:
                 kwargs["peerstore_path"] = str(store)
+            if self._idle_connection_timeout_secs is not None:
+                kwargs["idle_connection_timeout_secs"] = int(
+                    self._idle_connection_timeout_secs
+                )
             self._node = abs_native.libp2p_node_new(**kwargs)
             if self._peer_policy is not None and hasattr(self._peer_policy, "attach_native"):
                 try:

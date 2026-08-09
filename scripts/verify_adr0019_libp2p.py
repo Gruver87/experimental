@@ -62,6 +62,7 @@ LABS = [
     ("S", "scripts/libp2p_rust_score_autoblock_lab.py"),
     ("T", "scripts/libp2p_rust_peerstore_lab.py"),
     ("U", "scripts/libp2p_rust_peerstore_reconnect_lab.py"),
+    ("V", "scripts/libp2p_rust_idle_timeout_lab.py"),
 ]
 
 
