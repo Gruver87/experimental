@@ -85,6 +85,11 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_kad_mode_changed",
     "libp2p_relay_reservations",
     "libp2p_relay_circuits",
+    "libp2p_relay_reservation_denied",
+    "libp2p_relay_reservation_timed_out",
+    "libp2p_relay_circuit_denied",
+    "libp2p_relay_circuit_closed",
+    "libp2p_relay_max_reservations",
     "libp2p_conn_limit_denied",
     "libp2p_block_denied",
     "libp2p_blocked_peers",
@@ -217,6 +222,7 @@ LABS = [
     ("AM", "scripts/libp2p_rust_gossip_subscription_lab.py"),
     ("AN", "scripts/libp2p_rust_kad_events_lab.py"),
     ("AO", "scripts/libp2p_rust_wire_rr_events_lab.py"),
+    ("AP", "scripts/libp2p_rust_relay_events_lab.py"),
 ]
 
 PROD_JSONS = (

@@ -78,6 +78,11 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_wire_inbound_failure" in empty
     assert "libp2p_wire_response_sent" in empty
     assert "libp2p_wire_response_ok" in empty
+    assert "libp2p_relay_reservation_denied" in empty
+    assert "libp2p_relay_reservation_timed_out" in empty
+    assert "libp2p_relay_circuit_denied" in empty
+    assert "libp2p_relay_circuit_closed" in empty
+    assert "libp2p_relay_max_reservations" in empty
 
 
 def test_merge_overwrites_present_keys_only() -> None:

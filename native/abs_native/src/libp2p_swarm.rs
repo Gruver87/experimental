@@ -33,6 +33,9 @@
 //! Slice AF: bandwidth accounting (`BandwidthSinks` → `libp2p_bytes_in` / `libp2p_bytes_out`).
 //! Slice AG: external address book (confirmed/expired/candidates + add/remove API).
 //! Slice AH: connection lifecycle metrics (inbound/outgoing established, closed, incoming).
+//! Slice AI–AO: close-cause / listener / dial attempt / identify / gossip sub /
+//!   kad / wire RR event metrics (see ADR 0019).
+//! Slice AP: relay server event taxonomy (deny / timeout / circuit closed).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -954,6 +957,13 @@ mod enabled {
         kad_mode_changed: u64,
         relay_reservations: u64,
         relay_circuits: u64,
+        /// Slice AP: relay server event taxonomy.
+        relay_reservation_denied: u64,
+        relay_reservation_timed_out: u64,
+        relay_circuit_denied: u64,
+        relay_circuit_closed: u64,
+        /// Slice AP: optional capacity override (lab deny path); 0 = default.
+        relay_max_reservations: u32,
         autonat_probes: u64,
         autonat_status_changes: u64,
         /// 0=unknown, 1=public, 2=private (Slice N).
@@ -1111,6 +1121,7 @@ mod enabled {
             enable_upnp: bool,
             enable_allow_list: bool,
             idle_connection_timeout_secs: u64,
+            relay_max_reservations: Option<u32>,
         ) -> PyResult<Self> {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -1166,6 +1177,7 @@ mod enabled {
                 ping_max_rtt_ms: resolve_ping_max_rtt_ms(None),
                 enable_score_autoblock: resolve_score_autoblock(None),
                 score_graylist_threshold: resolve_score_graylist_threshold(None),
+                relay_max_reservations: relay_max_reservations.unwrap_or(0),
                 ..NodeState::default()
             }));
             let state_bg = Arc::clone(&state);
@@ -1185,6 +1197,7 @@ mod enabled {
             let want_autonat = enable_autonat;
             let want_upnp = enable_upnp;
             let want_allow_list = enable_allow_list;
+            let relay_cap = relay_max_reservations;
             let wire_timeout = Duration::from_secs(wire_timeout_secs);
             let idle_timeout = Duration::from_secs(idle_connection_timeout_secs);
             let ping_interval = Duration::from_secs(resolve_ping_interval_secs(None));
@@ -1359,7 +1372,16 @@ mod enabled {
                         gossipsub,
                         mdns,
                         kademlia,
-                        relay: relay::Behaviour::new(local, relay::Config::default()),
+                        relay: {
+                            let mut relay_cfg = relay::Config::default();
+                            if let Some(n) = relay_cap {
+                                relay_cfg.max_reservations = (n.max(1)) as usize;
+                                // Lab predictability: capacity only (Slice AP deny path).
+                                relay_cfg.reservation_rate_limiters.clear();
+                                relay_cfg.circuit_src_rate_limiters.clear();
+                            }
+                            relay::Behaviour::new(local, relay_cfg)
+                        },
                         relay_client,
                         autonat: if want_autonat {
                             // Lab-friendly AutoNAT: allow private/loopback peers (Slice N).
@@ -3693,16 +3715,31 @@ mod enabled {
                                     }
                                 }
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::Relay(ev)) => {
+                                    #[allow(deprecated)]
                                     match ev {
-                                        relay::Event::ReservationReqAccepted { .. } => {
+                                        relay::Event::ReservationReqAccepted { renewed, .. } => {
                                             if let Ok(mut st) = state_bg.lock() {
                                                 st.relay_reservations =
                                                     st.relay_reservations.saturating_add(1);
+                                                if renewed {
+                                                    // renewals still count as accepted reservations
+                                                    let _ = renewed;
+                                                }
                                             }
                                         }
                                         relay::Event::ReservationReqDenied { .. } => {
                                             if let Ok(mut st) = state_bg.lock() {
+                                                st.relay_reservation_denied = st
+                                                    .relay_reservation_denied
+                                                    .saturating_add(1);
                                                 st.last_error = "relay reservation denied".into();
+                                            }
+                                        }
+                                        relay::Event::ReservationTimedOut { .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.relay_reservation_timed_out = st
+                                                    .relay_reservation_timed_out
+                                                    .saturating_add(1);
                                             }
                                         }
                                         relay::Event::CircuitReqAccepted { .. } => {
@@ -3711,7 +3748,30 @@ mod enabled {
                                                     st.relay_circuits.saturating_add(1);
                                             }
                                         }
-                                        _ => {}
+                                        relay::Event::CircuitReqDenied { .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.relay_circuit_denied = st
+                                                    .relay_circuit_denied
+                                                    .saturating_add(1);
+                                                st.last_error = "relay circuit denied".into();
+                                            }
+                                        }
+                                        relay::Event::CircuitClosed { .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.relay_circuit_closed = st
+                                                    .relay_circuit_closed
+                                                    .saturating_add(1);
+                                            }
+                                        }
+                                        relay::Event::ReservationReqAcceptFailed { .. }
+                                        | relay::Event::ReservationReqDenyFailed { .. }
+                                        | relay::Event::CircuitReqDenyFailed { .. }
+                                        | relay::Event::CircuitReqOutboundConnectFailed { .. }
+                                        | relay::Event::CircuitReqAcceptFailed { .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.last_error = "relay hop internal failure".into();
+                                            }
+                                        }
                                     }
                                 }
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::RelayClient(ev)) => {
@@ -4065,7 +4125,8 @@ mod enabled {
             enable_autonat = None,
             enable_upnp = None,
             enable_allow_list = None,
-            idle_connection_timeout_secs = None
+            idle_connection_timeout_secs = None,
+            relay_max_reservations = None
         ))]
         fn new_py(
             max_dials: u32,
@@ -4085,6 +4146,7 @@ mod enabled {
             enable_upnp: Option<bool>,
             enable_allow_list: Option<bool>,
             idle_connection_timeout_secs: Option<u64>,
+            relay_max_reservations: Option<u32>,
         ) -> PyResult<Self> {
             Self::spawn(
                 max_dials,
@@ -4113,6 +4175,7 @@ mod enabled {
                 resolve_enable_upnp(enable_upnp),
                 resolve_enable_allow_list(enable_allow_list),
                 resolve_idle_connection_timeout_secs(idle_connection_timeout_secs),
+                resolve_u32_limit(relay_max_reservations, "ABS_LIBP2P_RELAY_MAX_RESERVATIONS"),
             )
         }
 
@@ -5053,6 +5116,17 @@ mod enabled {
                 d.set_item("libp2p_kad_mode_changed", st.kad_mode_changed)?;
                 d.set_item("libp2p_relay_reservations", st.relay_reservations)?;
                 d.set_item("libp2p_relay_circuits", st.relay_circuits)?;
+                d.set_item(
+                    "libp2p_relay_reservation_denied",
+                    st.relay_reservation_denied,
+                )?;
+                d.set_item(
+                    "libp2p_relay_reservation_timed_out",
+                    st.relay_reservation_timed_out,
+                )?;
+                d.set_item("libp2p_relay_circuit_denied", st.relay_circuit_denied)?;
+                d.set_item("libp2p_relay_circuit_closed", st.relay_circuit_closed)?;
+                d.set_item("libp2p_relay_max_reservations", st.relay_max_reservations)?;
                 d.set_item("libp2p_autonat_probes", st.autonat_probes)?;
                 d.set_item("libp2p_autonat_status_changes", st.autonat_status_changes)?;
                 d.set_item("libp2p_autonat_status", st.autonat_status)?;
@@ -5203,7 +5277,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 40)?;
+                d.set_item("phase", 41)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -5220,6 +5294,7 @@ mod enabled {
                 d.set_item("kademlia", true)?;
                 d.set_item("kad_events", true)?;
                 d.set_item("relay", true)?;
+                d.set_item("relay_events", true)?;
                 d.set_item("autonat", st.enable_autonat)?;
                 d.set_item("upnp", st.enable_upnp)?;
                 d.set_item("dcutr", true)?;
@@ -5356,6 +5431,18 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_kad_mode_changed", st.kad_mode_changed)?;
                 d.set_item("libp2p_relay_reservations", st.relay_reservations)?;
+                d.set_item("libp2p_relay_circuits", st.relay_circuits)?;
+                d.set_item(
+                    "libp2p_relay_reservation_denied",
+                    st.relay_reservation_denied,
+                )?;
+                d.set_item(
+                    "libp2p_relay_reservation_timed_out",
+                    st.relay_reservation_timed_out,
+                )?;
+                d.set_item("libp2p_relay_circuit_denied", st.relay_circuit_denied)?;
+                d.set_item("libp2p_relay_circuit_closed", st.relay_circuit_closed)?;
+                d.set_item("libp2p_relay_max_reservations", st.relay_max_reservations)?;
                 d.set_item("libp2p_autonat_probes", st.autonat_probes)?;
                 d.set_item("libp2p_autonat_status_changes", st.autonat_status_changes)?;
                 d.set_item("libp2p_dcutr_upgrade_success", st.dcutr_upgrade_success)?;
@@ -5763,7 +5850,8 @@ mod enabled {
         enable_autonat = None,
         enable_upnp = None,
         enable_allow_list = None,
-        idle_connection_timeout_secs = None
+        idle_connection_timeout_secs = None,
+        relay_max_reservations = None
     ))]
     fn libp2p_node_new(
         max_dials: u32,
@@ -5783,6 +5871,7 @@ mod enabled {
         enable_upnp: Option<bool>,
         enable_allow_list: Option<bool>,
         idle_connection_timeout_secs: Option<u64>,
+        relay_max_reservations: Option<u32>,
     ) -> PyResult<Libp2pNode> {
         Libp2pNode::spawn(
             max_dials,
@@ -5811,6 +5900,7 @@ mod enabled {
             resolve_enable_upnp(enable_upnp),
             resolve_enable_allow_list(enable_allow_list),
             resolve_idle_connection_timeout_secs(idle_connection_timeout_secs),
+            resolve_u32_limit(relay_max_reservations, "ABS_LIBP2P_RELAY_MAX_RESERVATIONS"),
         )
     }
 
