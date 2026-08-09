@@ -98,6 +98,7 @@ feature `libp2p`), exposed to Python through the existing
 | Peerstore allow-learn | Slice BF: `peerstore_allow_learn` clears forget → re-learn; `libp2p_rust_peerstore_allow_learn_lab.py` |
 | Identify observed-addr | Slice BG: `last_observed_addr` / `confirm_observed_addr`; `libp2p_rust_identify_observed_addr_lab.py` |
 | Bootstrap remove | Slice BH: `bootstrap_remove` → bool + `bootstrap_removed`; `libp2p_rust_bootstrap_remove_lab.py` |
+| Confirm observed auto | Slice BI: `ABS_LIBP2P_CONFIRM_OBSERVED_ADDR` auto-promotes observed addr; `libp2p_rust_confirm_observed_addr_auto_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -165,6 +166,7 @@ feature `libp2p`), exposed to Python through the existing
 | BF | Peerstore allow-learn (clear forget); `libp2p_rust_peerstore_allow_learn_lab.py` |
 | BG | Identify observed-addr + confirm; `libp2p_rust_identify_observed_addr_lab.py` |
 | BH | Bootstrap remove (bool + counter); `libp2p_rust_bootstrap_remove_lab.py` |
+| BI | Auto-confirm observed-addr; `libp2p_rust_confirm_observed_addr_auto_lab.py` |
 
 ## Honesty
 
@@ -219,7 +221,8 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_peerstore_remove_lab.py`,
   `libp2p_rust_peerstore_allow_learn_lab.py`,
   `libp2p_rust_identify_observed_addr_lab.py`,
-  `libp2p_rust_bootstrap_remove_lab.py`;
+  `libp2p_rust_bootstrap_remove_lab.py`,
+  `libp2p_rust_confirm_observed_addr_auto_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -258,6 +261,7 @@ feature `libp2p`), exposed to Python through the existing
   Slice BF: peerstore allow-learn (`peerstore_allow_learn` / clears forget for re-learn).
   Slice BG: identify observed-addr (`last_observed_addr` / `confirm_observed_addr`).
   Slice BH: bootstrap remove (`bootstrap_remove` → bool / `bootstrap_removed`).
+  Slice BI: auto-confirm observed-addr (`ABS_LIBP2P_CONFIRM_OBSERVED_ADDR`).
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.

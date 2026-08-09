@@ -55,6 +55,7 @@
 //! Slice BF: peerstore_allow_learn (clear forget → re-learn allowed).
 //! Slice BG: identify observed-addr surface + confirm_observed_addr.
 //! Slice BH: bootstrap_remove returns bool + removed counter.
+//! Slice BI: auto-confirm observed-addr (`ABS_LIBP2P_CONFIRM_OBSERVED_ADDR`).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -1162,6 +1163,8 @@ mod enabled {
         last_observed_addr: String,
         observed_addr_updates: u64,
         observed_addr_confirmed: u64,
+        /// Slice BI: auto ``add_external_address`` on each new observed addr.
+        enable_confirm_observed_addr: bool,
         /// Slice BC: push-on-listen-addr-change + branding / API bookkeeping.
         enable_identify_push: bool,
         agent_version: String,
@@ -1330,6 +1333,7 @@ mod enabled {
                 enable_gossip_defer_validation: resolve_gossip_defer_validation(None),
                 enable_wire_omit_response: resolve_wire_omit_response(None),
                 enable_identify_push: resolve_identify_push(None),
+                enable_confirm_observed_addr: resolve_confirm_observed_addr(None),
                 agent_version: resolve_agent_version(None),
                 protocol_version: ABS_IDENTIFY_PROTOCOL_VERSION.to_string(),
                 identify_interval_ms: resolve_identify_interval_ms(None),
@@ -3910,16 +3914,38 @@ mod enabled {
                                             // `autonat_add_server`. Auto-register from identify caused
                                             // probe dials that raced reconnect_inflight (Slice U flake).
                                             let obs = info.observed_addr.to_string();
+                                            let auto_confirm = state_bg
+                                                .lock()
+                                                .map(|st| st.enable_confirm_observed_addr)
+                                                .unwrap_or(false);
                                             if let Ok(mut st) = state_bg.lock() {
                                                 st.identify_received =
                                                     st.identify_received.saturating_add(1);
                                                 st.identify.insert(peer_id.to_string(), snap);
                                                 // Slice BG: remote's view of our dialable address.
                                                 if !obs.is_empty() {
-                                                    st.last_observed_addr = obs;
+                                                    st.last_observed_addr = obs.clone();
                                                     st.observed_addr_updates = st
                                                         .observed_addr_updates
                                                         .saturating_add(1);
+                                                }
+                                            }
+                                            // Slice BI: opt-in trust observed addr as external.
+                                            if auto_confirm && !obs.is_empty() {
+                                                if let Ok(ma) = obs.parse::<Multiaddr>() {
+                                                    let s = ma.to_string();
+                                                    swarm.add_external_address(ma);
+                                                    if let Ok(mut st) = state_bg.lock() {
+                                                        st.external_addr_confirmed = st
+                                                            .external_addr_confirmed
+                                                            .saturating_add(1);
+                                                        st.observed_addr_confirmed = st
+                                                            .observed_addr_confirmed
+                                                            .saturating_add(1);
+                                                        if !st.external_addrs.contains(&s) {
+                                                            st.external_addrs.push(s);
+                                                        }
+                                                    }
                                                 }
                                             }
                                             // Slice T: learn identify listen addrs into peerstore.
@@ -5913,6 +5939,10 @@ mod enabled {
                 d.set_item("libp2p_last_observed_addr", &st.last_observed_addr)?;
                 d.set_item("libp2p_observed_addr_updates", st.observed_addr_updates)?;
                 d.set_item("libp2p_observed_addr_confirmed", st.observed_addr_confirmed)?;
+                d.set_item(
+                    "libp2p_confirm_observed_addr",
+                    st.enable_confirm_observed_addr,
+                )?;
                 d.set_item("libp2p_agent_version", &st.agent_version)?;
                 d.set_item("libp2p_protocol_version", &st.protocol_version)?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
@@ -6136,7 +6166,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 59)?;
+                d.set_item("phase", 60)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -6185,6 +6215,11 @@ mod enabled {
                 d.set_item("identify_interval", true)?;
                 d.set_item("identify_fail_events", true)?;
                 d.set_item("identify_observed_addr", true)?;
+                d.set_item("confirm_observed_addr", true)?;
+                d.set_item(
+                    "confirm_observed_addr_auto",
+                    st.enable_confirm_observed_addr,
+                )?;
                 d.set_item("identify_interval_ms", st.identify_interval_ms)?;
                 d.set_item("last_observed_addr", &st.last_observed_addr)?;
                 d.set_item("agent_version", &st.agent_version)?;
@@ -6395,6 +6430,10 @@ mod enabled {
                 d.set_item("libp2p_last_observed_addr", &st.last_observed_addr)?;
                 d.set_item("libp2p_observed_addr_updates", st.observed_addr_updates)?;
                 d.set_item("libp2p_observed_addr_confirmed", st.observed_addr_confirmed)?;
+                d.set_item(
+                    "libp2p_confirm_observed_addr",
+                    st.enable_confirm_observed_addr,
+                )?;
                 d.set_item("libp2p_agent_version", &st.agent_version)?;
                 d.set_item("libp2p_protocol_version", &st.protocol_version)?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
@@ -6884,6 +6923,20 @@ mod enabled {
             return v;
         }
         match std::env::var("ABS_LIBP2P_WIRE_OMIT_RESPONSE") {
+            Ok(s) => {
+                let t = s.trim().to_ascii_lowercase();
+                matches!(t.as_str(), "1" | "true" | "on" | "yes")
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// Slice BI: auto-confirm identify observed addrs into external book.
+    fn resolve_confirm_observed_addr(explicit: Option<bool>) -> bool {
+        if let Some(v) = explicit {
+            return v;
+        }
+        match std::env::var("ABS_LIBP2P_CONFIRM_OBSERVED_ADDR") {
             Ok(s) => {
                 let t = s.trim().to_ascii_lowercase();
                 matches!(t.as_str(), "1" | "true" | "on" | "yes")
