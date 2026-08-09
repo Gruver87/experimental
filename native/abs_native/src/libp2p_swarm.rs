@@ -30,6 +30,7 @@
 //! Slice AC: WebSocket transport (`/tcp/.../ws`) alongside TCP/QUIC (lab opt-in).
 //! Slice AD: UPnP / IGD port mapping (opt-in; default off — no gateway required for CI).
 //! Slice AE: allow-list (whitelist) Toggle — opt-in complement to Slice I block-list.
+//! Slice AF: bandwidth accounting (`BandwidthSinks` → `libp2p_bytes_in` / `libp2p_bytes_out`).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -128,6 +129,8 @@ mod enabled {
     };
     use async_trait::async_trait;
     use futures::prelude::*;
+    #[allow(deprecated)]
+    use libp2p::bandwidth::BandwidthSinks;
     use libp2p::core::ConnectedPoint;
     use libp2p::multiaddr::Protocol;
     use libp2p::{
@@ -860,6 +863,9 @@ mod enabled {
         dial_refused_budget: u64,
         wire_sent: u64,
         wire_recv: u64,
+        /// Slice AF: transport byte counters (BandwidthSinks snapshot).
+        bytes_in: u64,
+        bytes_out: u64,
         /// Absolute ADR 0008 codec counters (Slice M; lab pack_wire stays in wire_* only).
         abs_wire_v1_sent: u64,
         abs_wire_v2_sent: u64,
@@ -999,6 +1005,9 @@ mod enabled {
         peer_id: String,
         cmd_tx: mpsc::UnboundedSender<Cmd>,
         state: Arc<Mutex<NodeState>>,
+        /// Slice AF: live bandwidth counters (filled once swarm transport is built).
+        #[allow(deprecated)]
+        bandwidth: Arc<Mutex<Option<Arc<BandwidthSinks>>>>,
         _runtime: tokio::runtime::Runtime,
     }
 
@@ -1082,6 +1091,9 @@ mod enabled {
 
             let peer_id_cell = Arc::new(Mutex::new(String::new()));
             let peer_id_bg = Arc::clone(&peer_id_cell);
+            #[allow(deprecated)]
+            let bandwidth = Arc::new(Mutex::new(None::<Arc<BandwidthSinks>>));
+            let bandwidth_bg = Arc::clone(&bandwidth);
             let limits_incoming = max_established_incoming;
             let limits_outgoing = max_established_outgoing;
             let limits_total = max_established;
@@ -1151,7 +1163,7 @@ mod enabled {
                         return;
                     }
                 };
-                let builder = match ws_built
+                let relay_built = match ws_built
                     .with_relay_client(noise::Config::new, yamux::Config::default)
                 {
                     Ok(b) => b,
@@ -1162,6 +1174,13 @@ mod enabled {
                         return;
                     }
                 };
+                // Slice AF: count stream bytes via BandwidthSinks (deprecated API; metrics feature later).
+                #[allow(deprecated)]
+                let (builder, bandwidth_sinks): (_, Arc<BandwidthSinks>) =
+                    relay_built.with_bandwidth_logging();
+                if let Ok(mut slot) = bandwidth_bg.lock() {
+                    *slot = Some(Arc::clone(&bandwidth_sinks));
+                }
 
                 let mut swarm = match builder.with_behaviour(|key, relay_client| {
                     let wire = request_response::Behaviour::with_codec(
@@ -1355,6 +1374,11 @@ mod enabled {
                         _ = tokio::time::sleep_until(score_sweep_at) => {
                             score_sweep_at =
                                 tokio::time::Instant::now() + Duration::from_secs(1);
+                            // Slice AF: refresh bandwidth counters into status surface.
+                            if let Ok(mut st) = state_bg.lock() {
+                                st.bytes_in = bandwidth_sinks.total_inbound();
+                                st.bytes_out = bandwidth_sinks.total_outbound();
+                            }
                             // Slice S: periodic gossip score → native block sweep.
                             let (enabled, threshold, peers) = state_bg
                                 .lock()
@@ -3576,6 +3600,7 @@ mod enabled {
                 peer_id,
                 cmd_tx,
                 state,
+                bandwidth,
                 _runtime: runtime,
             })
         }
@@ -4403,10 +4428,17 @@ mod enabled {
         /// Metrics for /status / security status (ADR 0019).
         fn metrics(&self) -> PyResult<PyObject> {
             Python::with_gil(|py| {
+                // Slice AF: prefer live BandwidthSinks; fall back to last sweep snapshot.
+                let live = self
+                    .bandwidth
+                    .lock()
+                    .ok()
+                    .and_then(|g| g.as_ref().map(|s| (s.total_inbound(), s.total_outbound())));
                 let st = self
                     .state
                     .lock()
                     .map_err(|e| PyRuntimeError::new_err(format!("state lock poisoned: {e}")))?;
+                let (bytes_in, bytes_out) = live.unwrap_or((st.bytes_in, st.bytes_out));
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("libp2p_peers", st.connected.len())?;
                 d.set_item("libp2p_dial_ok", st.dial_ok)?;
@@ -4417,6 +4449,8 @@ mod enabled {
                 d.set_item("libp2p_max_dials", st.max_dials)?;
                 d.set_item("libp2p_wire_sent", st.wire_sent)?;
                 d.set_item("libp2p_wire_recv", st.wire_recv)?;
+                d.set_item("libp2p_bytes_in", bytes_in)?;
+                d.set_item("libp2p_bytes_out", bytes_out)?;
                 d.set_item("libp2p_abs_wire_v1_sent", st.abs_wire_v1_sent)?;
                 d.set_item("libp2p_abs_wire_v2_sent", st.abs_wire_v2_sent)?;
                 d.set_item("libp2p_abs_wire_v1_recv", st.abs_wire_v1_recv)?;
@@ -4593,7 +4627,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 30)?;
+                d.set_item("phase", 31)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -4617,6 +4651,7 @@ mod enabled {
                 d.set_item("quic", true)?;
                 d.set_item("websocket", true)?;
                 d.set_item("prometheus", true)?;
+                d.set_item("bandwidth", true)?;
                 d.set_item("connection_manager", true)?;
                 d.set_item("bootstrap", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
@@ -4659,6 +4694,8 @@ mod enabled {
                 d.set_item("libp2p_dial_fail", st.dial_fail)?;
                 d.set_item("libp2p_wire_sent", st.wire_sent)?;
                 d.set_item("libp2p_wire_recv", st.wire_recv)?;
+                d.set_item("libp2p_bytes_in", st.bytes_in)?;
+                d.set_item("libp2p_bytes_out", st.bytes_out)?;
                 d.set_item("libp2p_abs_wire_v1_sent", st.abs_wire_v1_sent)?;
                 d.set_item("libp2p_abs_wire_v2_sent", st.abs_wire_v2_sent)?;
                 d.set_item("libp2p_abs_wire_v1_recv", st.abs_wire_v1_recv)?;

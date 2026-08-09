@@ -14,6 +14,8 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_dial_fail",
     "libp2p_wire_sent",
     "libp2p_wire_recv",
+    "libp2p_bytes_in",
+    "libp2p_bytes_out",
     "libp2p_dial_refused_budget",
     "libp2p_gossip_pub",
     "libp2p_gossip_recv",

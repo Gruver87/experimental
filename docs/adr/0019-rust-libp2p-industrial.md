@@ -69,6 +69,7 @@ feature `libp2p`), exposed to Python through the existing
 | WebSocket | Slice AC: `/tcp/.../ws` listen/dial beside TCP/QUIC + `libp2p_ws_*`; `libp2p_rust_websocket_lab.py` |
 | UPnP | Slice AD: opt-in IGD mapping (`enable_upnp` / `ABS_LIBP2P_UPNP`) + `libp2p_upnp_*`; `libp2p_rust_upnp_lab.py` |
 | Allow-list | Slice AE: opt-in whitelist (`enable_allow_list` / `ABS_LIBP2P_ALLOW_LIST`) + `allow_peer`/`disallow_peer`; `libp2p_rust_allowlist_lab.py` |
+| Bandwidth | Slice AF: stream byte counters (`libp2p_bytes_in` / `libp2p_bytes_out` via BandwidthSinks); `libp2p_rust_bandwidth_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -107,6 +108,7 @@ feature `libp2p`), exposed to Python through the existing
 | AC | WebSocket listen/dial (`/ws`); `libp2p_rust_websocket_lab.py` |
 | AD | UPnP / IGD port mapping (opt-in); `libp2p_rust_upnp_lab.py` |
 | AE | Allow-list whitelist (opt-in); `libp2p_rust_allowlist_lab.py` |
+| AF | Bandwidth byte counters; `libp2p_rust_bandwidth_lab.py` |
 
 ## Honesty
 
@@ -134,7 +136,7 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_dns_lab.py`,   `libp2p_rust_prometheus_lab.py`,
   `libp2p_rust_connection_manager_lab.py`, `libp2p_rust_quic_lab.py`,
   `libp2p_rust_websocket_lab.py`, `libp2p_rust_upnp_lab.py`,
-  `libp2p_rust_allowlist_lab.py`;
+  `libp2p_rust_allowlist_lab.py`, `libp2p_rust_bandwidth_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -144,6 +146,7 @@ feature `libp2p`), exposed to Python through the existing
   Slice AC: `/tcp/.../ws` multiaddr + WebSocket transport (lab; TCP+TLS default).
   Slice AD: UPnP Toggle + `libp2p_upnp_*` (lab; default off; no gateway → GatewayNotFound).
   Slice AE: allow-list Toggle + `allow_peer`/`disallow_peer` (lab; default off; empty denies all).
+  Slice AF: BandwidthSinks → `libp2p_bytes_in`/`libp2p_bytes_out` (lab counters; not prod mesh SLA).
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.

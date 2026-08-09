@@ -45,6 +45,8 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_dial_fail",
     "libp2p_wire_sent",
     "libp2p_wire_recv",
+    "libp2p_bytes_in",
+    "libp2p_bytes_out",
     "libp2p_dial_refused_budget",
     "libp2p_gossip_pub",
     "libp2p_gossip_recv",
@@ -169,6 +171,7 @@ LABS = [
     ("AC", "scripts/libp2p_rust_websocket_lab.py"),
     ("AD", "scripts/libp2p_rust_upnp_lab.py"),
     ("AE", "scripts/libp2p_rust_allowlist_lab.py"),
+    ("AF", "scripts/libp2p_rust_bandwidth_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -282,6 +285,7 @@ def check_repo_honesty() -> tuple[bool, str]:
         "Slice AC",
         "Slice AD",
         "Slice AE",
+        "Slice AF",
         "FEATURE_LIBP2P",
         "## Honesty",
     )
