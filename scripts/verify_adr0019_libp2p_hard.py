@@ -166,6 +166,9 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_identify_error_apply",
     "libp2p_identify_error_io",
     "libp2p_identify_interval_ms",
+    "libp2p_last_observed_addr",
+    "libp2p_observed_addr_updates",
+    "libp2p_observed_addr_confirmed",
     "libp2p_agent_version",
     "libp2p_protocol_version",
     "libp2p_last_gossip_message_id",
@@ -303,6 +306,7 @@ LABS = [
     ("BD", "scripts/libp2p_rust_identify_interval_lab.py"),
     ("BE", "scripts/libp2p_rust_peerstore_remove_lab.py"),
     ("BF", "scripts/libp2p_rust_peerstore_allow_learn_lab.py"),
+    ("BG", "scripts/libp2p_rust_identify_observed_addr_lab.py"),
 ]
 
 PROD_JSONS = (

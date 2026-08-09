@@ -96,6 +96,7 @@ feature `libp2p`), exposed to Python through the existing
 | Identify interval | Slice BD: `ABS_LIBP2P_IDENTIFY_INTERVAL_MS` + `identify_error_{timeout,negotiation,apply,io}`; `libp2p_rust_identify_interval_lab.py` |
 | Peerstore remove | Slice BE: `peerstore_remove` + `peerstore_removed`; `libp2p_rust_peerstore_remove_lab.py` |
 | Peerstore allow-learn | Slice BF: `peerstore_allow_learn` clears forget → re-learn; `libp2p_rust_peerstore_allow_learn_lab.py` |
+| Identify observed-addr | Slice BG: `last_observed_addr` / `confirm_observed_addr`; `libp2p_rust_identify_observed_addr_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -161,6 +162,7 @@ feature `libp2p`), exposed to Python through the existing
 | BD | Identify interval + error taxonomy; `libp2p_rust_identify_interval_lab.py` |
 | BE | Peerstore remove (forget peer); `libp2p_rust_peerstore_remove_lab.py` |
 | BF | Peerstore allow-learn (clear forget); `libp2p_rust_peerstore_allow_learn_lab.py` |
+| BG | Identify observed-addr + confirm; `libp2p_rust_identify_observed_addr_lab.py` |
 
 ## Honesty
 
@@ -213,7 +215,8 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_identify_push_lab.py`,
   `libp2p_rust_identify_interval_lab.py`,
   `libp2p_rust_peerstore_remove_lab.py`,
-  `libp2p_rust_peerstore_allow_learn_lab.py`;
+  `libp2p_rust_peerstore_allow_learn_lab.py`,
+  `libp2p_rust_identify_observed_addr_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -250,6 +253,7 @@ feature `libp2p`), exposed to Python through the existing
   Slice BD: identify interval (`ABS_LIBP2P_IDENTIFY_INTERVAL_MS`) + `identify_error_*` taxonomy.
   Slice BE: peerstore remove (`peerstore_remove` / `peerstore_removed`; runtime forget suppresses re-learn).
   Slice BF: peerstore allow-learn (`peerstore_allow_learn` / clears forget for re-learn).
+  Slice BG: identify observed-addr (`last_observed_addr` / `confirm_observed_addr`).
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.

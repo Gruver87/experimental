@@ -53,6 +53,7 @@
 //! Slice BD: identify interval + identify error taxonomy.
 //! Slice BE: peerstore remove (forget peer) + removed counter.
 //! Slice BF: peerstore_allow_learn (clear forget → re-learn allowed).
+//! Slice BG: identify observed-addr surface + confirm_observed_addr.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -883,6 +884,10 @@ mod enabled {
             peer_id: Option<String>,
             reply: oneshot::Sender<Result<usize, String>>,
         },
+        /// Slice BG: promote ``last_observed_addr`` via ``add_external_address``.
+        ConfirmObservedAddr {
+            reply: oneshot::Sender<Result<String, String>>,
+        },
         /// Slice Q: read gossipsub peer score (None if scoring inactive / unknown peer).
         GossipPeerScore {
             peer_id: String,
@@ -1151,6 +1156,10 @@ mod enabled {
         identify_error_io: u64,
         /// Slice BD: configured identify re-request interval.
         identify_interval_ms: u64,
+        /// Slice BG: how remotes observe this node (from identify Received).
+        last_observed_addr: String,
+        observed_addr_updates: u64,
+        observed_addr_confirmed: u64,
         /// Slice BC: push-on-listen-addr-change + branding / API bookkeeping.
         enable_identify_push: bool,
         agent_version: String,
@@ -2944,6 +2953,42 @@ mod enabled {
                                         }
                                     }
                                 }
+                                Some(Cmd::ConfirmObservedAddr { reply }) => {
+                                    // Slice BG: trust last identify observed addr as external.
+                                    let addr = state_bg
+                                        .lock()
+                                        .map(|st| st.last_observed_addr.clone())
+                                        .unwrap_or_default();
+                                    if addr.trim().is_empty() {
+                                        let _ = reply.send(Err(
+                                            "no observed addr yet (wait for identify)".into(),
+                                        ));
+                                        continue;
+                                    }
+                                    match addr.parse::<Multiaddr>() {
+                                        Ok(ma) => {
+                                            let s = ma.to_string();
+                                            swarm.add_external_address(ma);
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.external_addr_confirmed = st
+                                                    .external_addr_confirmed
+                                                    .saturating_add(1);
+                                                st.observed_addr_confirmed = st
+                                                    .observed_addr_confirmed
+                                                    .saturating_add(1);
+                                                if !st.external_addrs.contains(&s) {
+                                                    st.external_addrs.push(s.clone());
+                                                }
+                                            }
+                                            let _ = reply.send(Ok(s));
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(Err(format!(
+                                                "bad observed multiaddr: {e}"
+                                            )));
+                                        }
+                                    }
+                                }
                                 Some(Cmd::GossipPeerScore { peer_id, reply }) => {
                                     let score = peer_id
                                         .parse::<PeerId>()
@@ -3848,10 +3893,18 @@ mod enabled {
                                             // Slice N: AutoNAT servers are explicit-only via
                                             // `autonat_add_server`. Auto-register from identify caused
                                             // probe dials that raced reconnect_inflight (Slice U flake).
+                                            let obs = info.observed_addr.to_string();
                                             if let Ok(mut st) = state_bg.lock() {
                                                 st.identify_received =
                                                     st.identify_received.saturating_add(1);
                                                 st.identify.insert(peer_id.to_string(), snap);
+                                                // Slice BG: remote's view of our dialable address.
+                                                if !obs.is_empty() {
+                                                    st.last_observed_addr = obs;
+                                                    st.observed_addr_updates = st
+                                                        .observed_addr_updates
+                                                        .saturating_add(1);
+                                                }
                                             }
                                             // Slice T: learn identify listen addrs into peerstore.
                                             let pid = peer_id.to_string();
@@ -5183,6 +5236,23 @@ mod enabled {
             }
         }
 
+        /// Slice BG: promote ``last_observed_addr`` into the external address book.
+        ///
+        /// Returns the confirmed multiaddr string.
+        fn confirm_observed_addr(&self) -> PyResult<String> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::ConfirmObservedAddr { reply: tx })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(addr)) => Ok(addr),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err(
+                    "confirm_observed_addr reply dropped",
+                )),
+            }
+        }
+
         /// Slice Q: gossipsub peer score, or None if unknown / scoring inactive.
         fn gossip_peer_score(&self, peer_id: &str) -> PyResult<Option<f64>> {
             let (tx, rx) = oneshot::channel();
@@ -5823,6 +5893,9 @@ mod enabled {
                 d.set_item("libp2p_identify_interval_ms", st.identify_interval_ms)?;
                 d.set_item("libp2p_identify_push", st.enable_identify_push)?;
                 d.set_item("libp2p_identify_push_requests", st.identify_push_requests)?;
+                d.set_item("libp2p_last_observed_addr", &st.last_observed_addr)?;
+                d.set_item("libp2p_observed_addr_updates", st.observed_addr_updates)?;
+                d.set_item("libp2p_observed_addr_confirmed", st.observed_addr_confirmed)?;
                 d.set_item("libp2p_agent_version", &st.agent_version)?;
                 d.set_item("libp2p_protocol_version", &st.protocol_version)?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
@@ -6045,7 +6118,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 57)?;
+                d.set_item("phase", 58)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -6093,7 +6166,9 @@ mod enabled {
                 d.set_item("identify_push_listen_addr", st.enable_identify_push)?;
                 d.set_item("identify_interval", true)?;
                 d.set_item("identify_fail_events", true)?;
+                d.set_item("identify_observed_addr", true)?;
                 d.set_item("identify_interval_ms", st.identify_interval_ms)?;
+                d.set_item("last_observed_addr", &st.last_observed_addr)?;
                 d.set_item("agent_version", &st.agent_version)?;
                 d.set_item("protocol_version", &st.protocol_version)?;
                 d.set_item("gossip_subscription_events", true)?;
@@ -6298,6 +6373,9 @@ mod enabled {
                 d.set_item("libp2p_identify_interval_ms", st.identify_interval_ms)?;
                 d.set_item("libp2p_identify_push", st.enable_identify_push)?;
                 d.set_item("libp2p_identify_push_requests", st.identify_push_requests)?;
+                d.set_item("libp2p_last_observed_addr", &st.last_observed_addr)?;
+                d.set_item("libp2p_observed_addr_updates", st.observed_addr_updates)?;
+                d.set_item("libp2p_observed_addr_confirmed", st.observed_addr_confirmed)?;
                 d.set_item("libp2p_agent_version", &st.agent_version)?;
                 d.set_item("libp2p_protocol_version", &st.protocol_version)?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
