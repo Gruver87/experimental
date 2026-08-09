@@ -89,6 +89,10 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_ws_listens",
     "libp2p_ws_dial_ok",
     "libp2p_ws_dial_fail",
+    "libp2p_upnp_external_addrs",
+    "libp2p_upnp_expired_external_addrs",
+    "libp2p_upnp_gateway_not_found",
+    "libp2p_upnp_non_routable_gateway",
 )
 
 

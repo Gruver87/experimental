@@ -28,6 +28,7 @@
 //! Slice AA: connection manager — full ConnectionLimits + runtime set_connection_limits.
 //! Slice AB: QUIC transport (`/udp/.../quic-v1`) alongside TCP (lab opt-in listen/dial).
 //! Slice AC: WebSocket transport (`/tcp/.../ws`) alongside TCP/QUIC (lab opt-in).
+//! Slice AD: UPnP / IGD port mapping (opt-in; default off — no gateway required for CI).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -139,7 +140,7 @@ mod enabled {
             behaviour::toggle::Toggle, ConnectionError, DialError, ListenError, NetworkBehaviour,
             SwarmEvent,
         },
-        tcp, yamux, Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
+        tcp, upnp, yamux, Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
     };
     use pyo3::exceptions::{PyRuntimeError, PyValueError};
     use pyo3::prelude::*;
@@ -651,6 +652,8 @@ mod enabled {
         relay_client: relay::client::Behaviour,
         /// Slice N: off by default — AutoNAT probe dials raced reconnect (Slice U).
         autonat: Toggle<autonat::Behaviour>,
+        /// Slice AD: off by default — needs IGD gateway; CI expects GatewayNotFound.
+        upnp: Toggle<upnp::tokio::Behaviour>,
         dcutr: dcutr::Behaviour,
         /// Slice X: rendezvous point (always on; lab register/discover).
         rendezvous_server: rendezvous::server::Behaviour,
@@ -883,6 +886,13 @@ mod enabled {
         enable_mdns: bool,
         /// Slice N: AutoNAT behaviour enabled (probe dials).
         enable_autonat: bool,
+        /// Slice AD: UPnP / IGD port mapping (default off).
+        enable_upnp: bool,
+        /// Slice AD: UPnP event counters.
+        upnp_external_addrs: u64,
+        upnp_expired_external_addrs: u64,
+        upnp_gateway_not_found: u64,
+        upnp_non_routable_gateway: u64,
         wire_timeout_secs: u64,
         /// Slice V: swarm idle connection timeout.
         idle_connection_timeout_secs: u64,
@@ -991,6 +1001,7 @@ mod enabled {
             enable_reconnect: bool,
             peerstore_path: Option<String>,
             enable_autonat: bool,
+            enable_upnp: bool,
             idle_connection_timeout_secs: u64,
         ) -> PyResult<Self> {
             let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -1028,6 +1039,7 @@ mod enabled {
                 max_pending_outgoing,
                 enable_mdns,
                 enable_autonat,
+                enable_upnp,
                 wire_timeout_secs,
                 idle_connection_timeout_secs,
                 key_path: key_path_str.clone(),
@@ -1059,6 +1071,7 @@ mod enabled {
             let limits_pending_out = max_pending_outgoing;
             let want_mdns = enable_mdns;
             let want_autonat = enable_autonat;
+            let want_upnp = enable_upnp;
             let wire_timeout = Duration::from_secs(wire_timeout_secs);
             let idle_timeout = Duration::from_secs(idle_connection_timeout_secs);
             let ping_interval = Duration::from_secs(resolve_ping_interval_secs(None));
@@ -1237,6 +1250,11 @@ mod enabled {
                             cfg.refresh_interval = Duration::from_secs(10);
                             cfg.throttle_server_period = Duration::from_secs(1);
                             Toggle::from(Some(autonat::Behaviour::new(local, cfg)))
+                        } else {
+                            Toggle::from(None)
+                        },
+                        upnp: if want_upnp {
+                            Toggle::from(Some(upnp::tokio::Behaviour::default()))
                         } else {
                             Toggle::from(None)
                         },
@@ -3215,6 +3233,41 @@ mod enabled {
                                         }
                                     }
                                 }
+                                SwarmEvent::Behaviour(AbsBehaviourEvent::Upnp(ev)) => match ev {
+                                    upnp::Event::NewExternalAddr(addr) => {
+                                        swarm.add_external_address(addr.clone());
+                                        let s = addr.to_string();
+                                        if let Ok(mut st) = state_bg.lock() {
+                                            st.upnp_external_addrs =
+                                                st.upnp_external_addrs.saturating_add(1);
+                                            if !st.listen_addrs.contains(&s) {
+                                                st.listen_addrs.push(s);
+                                            }
+                                        }
+                                    }
+                                    upnp::Event::ExpiredExternalAddr(_) => {
+                                        if let Ok(mut st) = state_bg.lock() {
+                                            st.upnp_expired_external_addrs = st
+                                                .upnp_expired_external_addrs
+                                                .saturating_add(1);
+                                        }
+                                    }
+                                    upnp::Event::GatewayNotFound => {
+                                        if let Ok(mut st) = state_bg.lock() {
+                                            st.upnp_gateway_not_found =
+                                                st.upnp_gateway_not_found.saturating_add(1);
+                                            st.last_error = "upnp_gateway_not_found".into();
+                                        }
+                                    }
+                                    upnp::Event::NonRoutableGateway => {
+                                        if let Ok(mut st) = state_bg.lock() {
+                                            st.upnp_non_routable_gateway = st
+                                                .upnp_non_routable_gateway
+                                                .saturating_add(1);
+                                            st.last_error = "upnp_non_routable_gateway".into();
+                                        }
+                                    }
+                                },
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::Dcutr(ev)) => {
                                     if let Ok(mut st) = state_bg.lock() {
                                         match ev.result {
@@ -3451,6 +3504,7 @@ mod enabled {
             enable_reconnect = None,
             peerstore_path = None,
             enable_autonat = None,
+            enable_upnp = None,
             idle_connection_timeout_secs = None
         ))]
         fn new_py(
@@ -3468,6 +3522,7 @@ mod enabled {
             enable_reconnect: Option<bool>,
             peerstore_path: Option<String>,
             enable_autonat: Option<bool>,
+            enable_upnp: Option<bool>,
             idle_connection_timeout_secs: Option<u64>,
         ) -> PyResult<Self> {
             Self::spawn(
@@ -3494,6 +3549,7 @@ mod enabled {
                 resolve_enable_reconnect(enable_reconnect),
                 resolve_peerstore_path(peerstore_path),
                 resolve_enable_autonat(enable_autonat),
+                resolve_enable_upnp(enable_upnp),
                 resolve_idle_connection_timeout_secs(idle_connection_timeout_secs),
             )
         }
@@ -4341,6 +4397,16 @@ mod enabled {
                 d.set_item("libp2p_ws_listens", st.ws_listens)?;
                 d.set_item("libp2p_ws_dial_ok", st.ws_dial_ok)?;
                 d.set_item("libp2p_ws_dial_fail", st.ws_dial_fail)?;
+                d.set_item("libp2p_upnp_external_addrs", st.upnp_external_addrs)?;
+                d.set_item(
+                    "libp2p_upnp_expired_external_addrs",
+                    st.upnp_expired_external_addrs,
+                )?;
+                d.set_item("libp2p_upnp_gateway_not_found", st.upnp_gateway_not_found)?;
+                d.set_item(
+                    "libp2p_upnp_non_routable_gateway",
+                    st.upnp_non_routable_gateway,
+                )?;
                 if let Some(n) = st.max_established_incoming {
                     d.set_item("libp2p_max_established_incoming", n)?;
                 }
@@ -4383,7 +4449,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 28)?;
+                d.set_item("phase", 29)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -4400,6 +4466,7 @@ mod enabled {
                 d.set_item("kademlia", true)?;
                 d.set_item("relay", true)?;
                 d.set_item("autonat", st.enable_autonat)?;
+                d.set_item("upnp", st.enable_upnp)?;
                 d.set_item("dcutr", true)?;
                 d.set_item("rendezvous", true)?;
                 d.set_item("dns", true)?;
@@ -4554,6 +4621,16 @@ mod enabled {
                 d.set_item("libp2p_ws_listens", st.ws_listens)?;
                 d.set_item("libp2p_ws_dial_ok", st.ws_dial_ok)?;
                 d.set_item("libp2p_ws_dial_fail", st.ws_dial_fail)?;
+                d.set_item("libp2p_upnp_external_addrs", st.upnp_external_addrs)?;
+                d.set_item(
+                    "libp2p_upnp_expired_external_addrs",
+                    st.upnp_expired_external_addrs,
+                )?;
+                d.set_item("libp2p_upnp_gateway_not_found", st.upnp_gateway_not_found)?;
+                d.set_item(
+                    "libp2p_upnp_non_routable_gateway",
+                    st.upnp_non_routable_gateway,
+                )?;
                 d.set_item(
                     "libp2p_connection_limits_updates",
                     st.connection_limits_updates,
@@ -4592,6 +4669,20 @@ mod enabled {
             return v;
         }
         match std::env::var("ABS_LIBP2P_AUTONAT") {
+            Ok(s) => {
+                let t = s.trim().to_ascii_lowercase();
+                matches!(t.as_str(), "1" | "true" | "on" | "yes")
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// UPnP default off — needs IGD; CI/labs without gateway expect GatewayNotFound (Slice AD).
+    fn resolve_enable_upnp(explicit: Option<bool>) -> bool {
+        if let Some(v) = explicit {
+            return v;
+        }
+        match std::env::var("ABS_LIBP2P_UPNP") {
             Ok(s) => {
                 let t = s.trim().to_ascii_lowercase();
                 matches!(t.as_str(), "1" | "true" | "on" | "yes")
@@ -4832,6 +4923,7 @@ mod enabled {
         enable_reconnect = None,
         peerstore_path = None,
         enable_autonat = None,
+        enable_upnp = None,
         idle_connection_timeout_secs = None
     ))]
     fn libp2p_node_new(
@@ -4849,6 +4941,7 @@ mod enabled {
         enable_reconnect: Option<bool>,
         peerstore_path: Option<String>,
         enable_autonat: Option<bool>,
+        enable_upnp: Option<bool>,
         idle_connection_timeout_secs: Option<u64>,
     ) -> PyResult<Libp2pNode> {
         Libp2pNode::spawn(
@@ -4875,6 +4968,7 @@ mod enabled {
             resolve_enable_reconnect(enable_reconnect),
             resolve_peerstore_path(peerstore_path),
             resolve_enable_autonat(enable_autonat),
+            resolve_enable_upnp(enable_upnp),
             resolve_idle_connection_timeout_secs(idle_connection_timeout_secs),
         )
     }

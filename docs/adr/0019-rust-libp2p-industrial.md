@@ -67,6 +67,7 @@ feature `libp2p`), exposed to Python through the existing
 | Connection manager | Slice AA: full ConnectionLimits + runtime `set_connection_limits`; `libp2p_rust_connection_manager_lab.py` |
 | QUIC | Slice AB: `/udp/.../quic-v1` listen/dial beside TCP + `libp2p_quic_*`; `libp2p_rust_quic_lab.py` |
 | WebSocket | Slice AC: `/tcp/.../ws` listen/dial beside TCP/QUIC + `libp2p_ws_*`; `libp2p_rust_websocket_lab.py` |
+| UPnP | Slice AD: opt-in IGD mapping (`enable_upnp` / `ABS_LIBP2P_UPNP`) + `libp2p_upnp_*`; `libp2p_rust_upnp_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -103,6 +104,7 @@ feature `libp2p`), exposed to Python through the existing
 | AA | Connection manager (full limits + runtime set); `libp2p_rust_connection_manager_lab.py` |
 | AB | QUIC listen/dial (`quic-v1`); `libp2p_rust_quic_lab.py` |
 | AC | WebSocket listen/dial (`/ws`); `libp2p_rust_websocket_lab.py` |
+| AD | UPnP / IGD port mapping (opt-in); `libp2p_rust_upnp_lab.py` |
 
 ## Honesty
 
@@ -129,7 +131,7 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_ipv6_lab.py`, `libp2p_rust_rendezvous_lab.py`,
   `libp2p_rust_dns_lab.py`,   `libp2p_rust_prometheus_lab.py`,
   `libp2p_rust_connection_manager_lab.py`, `libp2p_rust_quic_lab.py`,
-  `libp2p_rust_websocket_lab.py`;
+  `libp2p_rust_websocket_lab.py`, `libp2p_rust_upnp_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -137,6 +139,7 @@ feature `libp2p`), exposed to Python through the existing
   Slice AA: `set_connection_limits` runtime ConnectionLimits mutate.
   Slice AB: `/udp/.../quic-v1` multiaddr + QUIC transport (lab; TCP+TLS default).
   Slice AC: `/tcp/.../ws` multiaddr + WebSocket transport (lab; TCP+TLS default).
+  Slice AD: UPnP Toggle + `libp2p_upnp_*` (lab; default off; no gateway → GatewayNotFound).
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.

@@ -117,6 +117,10 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_ws_listens",
     "libp2p_ws_dial_ok",
     "libp2p_ws_dial_fail",
+    "libp2p_upnp_external_addrs",
+    "libp2p_upnp_expired_external_addrs",
+    "libp2p_upnp_gateway_not_found",
+    "libp2p_upnp_non_routable_gateway",
 )
 
 UNIT_TESTS = [
@@ -161,6 +165,7 @@ LABS = [
     ("AA", "scripts/libp2p_rust_connection_manager_lab.py"),
     ("AB", "scripts/libp2p_rust_quic_lab.py"),
     ("AC", "scripts/libp2p_rust_websocket_lab.py"),
+    ("AD", "scripts/libp2p_rust_upnp_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -272,6 +277,7 @@ def check_repo_honesty() -> tuple[bool, str]:
         "Slice AA",
         "Slice AB",
         "Slice AC",
+        "Slice AD",
         "FEATURE_LIBP2P",
         "## Honesty",
     )
