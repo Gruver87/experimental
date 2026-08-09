@@ -153,6 +153,12 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_rendezvous_discovered_peers",
     "libp2p_rendezvous_discover_fail",
     "libp2p_rendezvous_server_registrations",
+    "libp2p_rendezvous_server_unregistrations",
+    "libp2p_rendezvous_server_discover_served",
+    "libp2p_rendezvous_server_discover_not_served",
+    "libp2p_rendezvous_server_not_registered",
+    "libp2p_rendezvous_server_registration_expired",
+    "libp2p_rendezvous_expired",
     "libp2p_dns_dial_ok",
     "libp2p_dns_dial_fail",
     "libp2p_connection_limits_updates",
@@ -223,6 +229,7 @@ LABS = [
     ("AN", "scripts/libp2p_rust_kad_events_lab.py"),
     ("AO", "scripts/libp2p_rust_wire_rr_events_lab.py"),
     ("AP", "scripts/libp2p_rust_relay_events_lab.py"),
+    ("AQ", "scripts/libp2p_rust_rendezvous_events_lab.py"),
 ]
 
 PROD_JSONS = (

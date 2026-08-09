@@ -36,6 +36,7 @@
 //! Slice AI–AO: close-cause / listener / dial attempt / identify / gossip sub /
 //!   kad / wire RR event metrics (see ADR 0019).
 //! Slice AP: relay server event taxonomy (deny / timeout / circuit closed).
+//! Slice AQ: rendezvous server/client event taxonomy (discover served / unregister).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -1013,6 +1014,13 @@ mod enabled {
         rendezvous_discovered_peers: u64,
         rendezvous_discover_fail: u64,
         rendezvous_server_registrations: u64,
+        /// Slice AQ: rendezvous server/client event taxonomy.
+        rendezvous_server_unregistrations: u64,
+        rendezvous_server_discover_served: u64,
+        rendezvous_server_discover_not_served: u64,
+        rendezvous_server_not_registered: u64,
+        rendezvous_server_registration_expired: u64,
+        rendezvous_expired: u64,
         /// Slice Y: dials that used `/dns4/` or `/dns6/`.
         dns_dial_ok: u64,
         dns_dial_fail: u64,
@@ -3891,7 +3899,43 @@ mod enabled {
                                                     .saturating_add(1);
                                             }
                                         }
-                                        _ => {}
+                                        rendezvous::server::Event::PeerUnregistered { .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.rendezvous_server_unregistrations = st
+                                                    .rendezvous_server_unregistrations
+                                                    .saturating_add(1);
+                                            }
+                                        }
+                                        rendezvous::server::Event::DiscoverServed { .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.rendezvous_server_discover_served = st
+                                                    .rendezvous_server_discover_served
+                                                    .saturating_add(1);
+                                            }
+                                        }
+                                        rendezvous::server::Event::DiscoverNotServed { .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.rendezvous_server_discover_not_served = st
+                                                    .rendezvous_server_discover_not_served
+                                                    .saturating_add(1);
+                                            }
+                                        }
+                                        rendezvous::server::Event::PeerNotRegistered { .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.rendezvous_server_not_registered = st
+                                                    .rendezvous_server_not_registered
+                                                    .saturating_add(1);
+                                                st.last_error =
+                                                    "rendezvous peer not registered".into();
+                                            }
+                                        }
+                                        rendezvous::server::Event::RegistrationExpired(_) => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.rendezvous_server_registration_expired = st
+                                                    .rendezvous_server_registration_expired
+                                                    .saturating_add(1);
+                                            }
+                                        }
                                     }
                                 }
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::RendezvousClient(ev)) => {
@@ -3971,7 +4015,12 @@ mod enabled {
                                                 )));
                                             }
                                         }
-                                        rendezvous::client::Event::Expired { .. } => {}
+                                        rendezvous::client::Event::Expired { .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.rendezvous_expired =
+                                                    st.rendezvous_expired.saturating_add(1);
+                                            }
+                                        }
                                     }
                                 }
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::Wire(ev)) => {
@@ -5217,6 +5266,27 @@ mod enabled {
                     "libp2p_rendezvous_server_registrations",
                     st.rendezvous_server_registrations,
                 )?;
+                d.set_item(
+                    "libp2p_rendezvous_server_unregistrations",
+                    st.rendezvous_server_unregistrations,
+                )?;
+                d.set_item(
+                    "libp2p_rendezvous_server_discover_served",
+                    st.rendezvous_server_discover_served,
+                )?;
+                d.set_item(
+                    "libp2p_rendezvous_server_discover_not_served",
+                    st.rendezvous_server_discover_not_served,
+                )?;
+                d.set_item(
+                    "libp2p_rendezvous_server_not_registered",
+                    st.rendezvous_server_not_registered,
+                )?;
+                d.set_item(
+                    "libp2p_rendezvous_server_registration_expired",
+                    st.rendezvous_server_registration_expired,
+                )?;
+                d.set_item("libp2p_rendezvous_expired", st.rendezvous_expired)?;
                 d.set_item("libp2p_dns_dial_ok", st.dns_dial_ok)?;
                 d.set_item("libp2p_dns_dial_fail", st.dns_dial_fail)?;
                 d.set_item("libp2p_quic_listens", st.quic_listens)?;
@@ -5277,7 +5347,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 41)?;
+                d.set_item("phase", 42)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -5299,6 +5369,7 @@ mod enabled {
                 d.set_item("upnp", st.enable_upnp)?;
                 d.set_item("dcutr", true)?;
                 d.set_item("rendezvous", true)?;
+                d.set_item("rendezvous_events", true)?;
                 d.set_item("dns", true)?;
                 d.set_item("quic", true)?;
                 d.set_item("websocket", true)?;
@@ -5524,6 +5595,27 @@ mod enabled {
                     "libp2p_rendezvous_server_registrations",
                     st.rendezvous_server_registrations,
                 )?;
+                d.set_item(
+                    "libp2p_rendezvous_server_unregistrations",
+                    st.rendezvous_server_unregistrations,
+                )?;
+                d.set_item(
+                    "libp2p_rendezvous_server_discover_served",
+                    st.rendezvous_server_discover_served,
+                )?;
+                d.set_item(
+                    "libp2p_rendezvous_server_discover_not_served",
+                    st.rendezvous_server_discover_not_served,
+                )?;
+                d.set_item(
+                    "libp2p_rendezvous_server_not_registered",
+                    st.rendezvous_server_not_registered,
+                )?;
+                d.set_item(
+                    "libp2p_rendezvous_server_registration_expired",
+                    st.rendezvous_server_registration_expired,
+                )?;
+                d.set_item("libp2p_rendezvous_expired", st.rendezvous_expired)?;
                 d.set_item("libp2p_dns_dial_ok", st.dns_dial_ok)?;
                 d.set_item("libp2p_dns_dial_fail", st.dns_dial_fail)?;
                 d.set_item("libp2p_quic_listens", st.quic_listens)?;

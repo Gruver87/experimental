@@ -83,6 +83,12 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_relay_circuit_denied" in empty
     assert "libp2p_relay_circuit_closed" in empty
     assert "libp2p_relay_max_reservations" in empty
+    assert "libp2p_rendezvous_server_unregistrations" in empty
+    assert "libp2p_rendezvous_server_discover_served" in empty
+    assert "libp2p_rendezvous_server_discover_not_served" in empty
+    assert "libp2p_rendezvous_server_not_registered" in empty
+    assert "libp2p_rendezvous_server_registration_expired" in empty
+    assert "libp2p_rendezvous_expired" in empty
 
 
 def test_merge_overwrites_present_keys_only() -> None:

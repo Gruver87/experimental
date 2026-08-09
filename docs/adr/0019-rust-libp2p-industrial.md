@@ -80,6 +80,7 @@ feature `libp2p`), exposed to Python through the existing
 | Kademlia events | Slice AN: `kad_query_{ok,fail}` + routable/inbound/mode counters; `libp2p_rust_kad_events_lab.py` |
 | Wire RR events | Slice AO: `wire_{outbound,inbound}_failure` + `response_{sent,ok}`; `libp2p_rust_wire_rr_events_lab.py` |
 | Relay events | Slice AP: `relay_{reservation_denied,reservation_timed_out,circuit_denied,circuit_closed}` + `relay_max_reservations`; `libp2p_rust_relay_events_lab.py` |
+| Rendezvous events | Slice AQ: `rendezvous_server_{unregistrations,discover_served,...}` + client `rendezvous_expired`; `libp2p_rust_rendezvous_events_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -129,6 +130,7 @@ feature `libp2p`), exposed to Python through the existing
 | AN | Kademlia event metrics; `libp2p_rust_kad_events_lab.py` |
 | AO | Wire request-response event metrics; `libp2p_rust_wire_rr_events_lab.py` |
 | AP | Relay event taxonomy metrics; `libp2p_rust_relay_events_lab.py` |
+| AQ | Rendezvous event taxonomy metrics; `libp2p_rust_rendezvous_events_lab.py` |
 
 ## Honesty
 
@@ -165,7 +167,8 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_gossip_subscription_lab.py`,
   `libp2p_rust_kad_events_lab.py`,
   `libp2p_rust_wire_rr_events_lab.py`,
-  `libp2p_rust_relay_events_lab.py`;
+  `libp2p_rust_relay_events_lab.py`,
+  `libp2p_rust_rendezvous_events_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -186,6 +189,7 @@ feature `libp2p`), exposed to Python through the existing
   Slice AN: Kademlia events (`kad_query_ok`/`_fail`, routable/inbound/mode).
   Slice AO: wire RR events (`wire_outbound_failure`, `wire_response_sent`/`_ok`).
   Slice AP: relay events (`relay_reservation_denied` / `_timed_out`, `relay_circuit_denied` / `_closed`).
+  Slice AQ: rendezvous events (`rendezvous_server_discover_served` / `_unregistrations` / …).
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.
