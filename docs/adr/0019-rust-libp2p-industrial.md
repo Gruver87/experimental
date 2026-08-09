@@ -84,6 +84,7 @@ feature `libp2p`), exposed to Python through the existing
 | AutoNAT events | Slice AR: `autonat_{inbound,outbound}_probe` + `_error`; `libp2p_rust_autonat_events_lab.py` |
 | mDNS events | Slice AS: `mdns_expired` + `mdns_ttl_secs` override; `libp2p_rust_mdns_events_lab.py` |
 | Relay client events | Slice AT: `relay_{inbound,outbound}_circuit`; `libp2p_rust_relay_client_events_lab.py` |
+| Dial fail events | Slice AU: `dial_fail_{transport,wrong_peer_id,no_addresses,aborted,local_peer_id,condition}`; `libp2p_rust_dial_fail_events_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -137,6 +138,7 @@ feature `libp2p`), exposed to Python through the existing
 | AR | AutoNAT probe event taxonomy; `libp2p_rust_autonat_events_lab.py` |
 | AS | mDNS discover/expire event metrics; `libp2p_rust_mdns_events_lab.py` |
 | AT | Relay client circuit direction metrics; `libp2p_rust_relay_client_events_lab.py` |
+| AU | Dial failure taxonomy metrics; `libp2p_rust_dial_fail_events_lab.py` |
 
 ## Honesty
 
@@ -177,7 +179,8 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_rendezvous_events_lab.py`,
   `libp2p_rust_autonat_events_lab.py`,
   `libp2p_rust_mdns_events_lab.py`,
-  `libp2p_rust_relay_client_events_lab.py`;
+  `libp2p_rust_relay_client_events_lab.py`,
+  `libp2p_rust_dial_fail_events_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -202,6 +205,7 @@ feature `libp2p`), exposed to Python through the existing
   Slice AR: AutoNAT events (`autonat_inbound_probe` / `_outbound_probe` + `_error`).
   Slice AS: mDNS events (`mdns_expired`, `mdns_ttl_secs`).
   Slice AT: relay client events (`relay_inbound_circuit` / `relay_outbound_circuit`).
+  Slice AU: dial fail events (`dial_fail_transport` / `_wrong_peer_id` / …).
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.

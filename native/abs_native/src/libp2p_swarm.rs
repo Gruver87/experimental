@@ -40,6 +40,7 @@
 //! Slice AR: AutoNAT probe event taxonomy (inbound/outbound + errors).
 //! Slice AS: mDNS discover/expire event metrics + lab TTL override.
 //! Slice AT: relay client circuit direction taxonomy (inbound/outbound).
+//! Slice AU: outbound dial failure taxonomy (transport / wrong peer / …).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -899,6 +900,13 @@ mod enabled {
         outbound_peers: HashSet<String>,
         dial_ok: u64,
         dial_fail: u64,
+        /// Slice AU: DialError taxonomy (counted with dial_fail).
+        dial_fail_transport: u64,
+        dial_fail_wrong_peer_id: u64,
+        dial_fail_no_addresses: u64,
+        dial_fail_aborted: u64,
+        dial_fail_local_peer_id: u64,
+        dial_fail_condition: u64,
         dial_inflight: u32,
         dial_refused_budget: u64,
         /// Slice AK: SwarmEvent::Dialing (outbound attempt started).
@@ -3134,6 +3142,40 @@ mod enabled {
                                             st.dial_fail = st.dial_fail.saturating_add(1);
                                             st.dial_inflight =
                                                 st.dial_inflight.saturating_sub(1);
+                                            // Slice AU: DialError taxonomy.
+                                            match &error {
+                                                DialError::Transport(_) => {
+                                                    st.dial_fail_transport = st
+                                                        .dial_fail_transport
+                                                        .saturating_add(1);
+                                                }
+                                                DialError::WrongPeerId { .. } => {
+                                                    st.dial_fail_wrong_peer_id = st
+                                                        .dial_fail_wrong_peer_id
+                                                        .saturating_add(1);
+                                                }
+                                                DialError::NoAddresses => {
+                                                    st.dial_fail_no_addresses = st
+                                                        .dial_fail_no_addresses
+                                                        .saturating_add(1);
+                                                }
+                                                DialError::Aborted => {
+                                                    st.dial_fail_aborted = st
+                                                        .dial_fail_aborted
+                                                        .saturating_add(1);
+                                                }
+                                                DialError::LocalPeerId { .. } => {
+                                                    st.dial_fail_local_peer_id = st
+                                                        .dial_fail_local_peer_id
+                                                        .saturating_add(1);
+                                                }
+                                                DialError::DialPeerConditionFalse(_) => {
+                                                    st.dial_fail_condition = st
+                                                        .dial_fail_condition
+                                                        .saturating_add(1);
+                                                }
+                                                DialError::Denied { .. } => {}
+                                            }
                                         }
                                         if limit_denied {
                                             st.conn_limit_denied =
@@ -5156,6 +5198,12 @@ mod enabled {
                 d.set_item("libp2p_peers", st.connected.len())?;
                 d.set_item("libp2p_dial_ok", st.dial_ok)?;
                 d.set_item("libp2p_dial_fail", st.dial_fail)?;
+                d.set_item("libp2p_dial_fail_transport", st.dial_fail_transport)?;
+                d.set_item("libp2p_dial_fail_wrong_peer_id", st.dial_fail_wrong_peer_id)?;
+                d.set_item("libp2p_dial_fail_no_addresses", st.dial_fail_no_addresses)?;
+                d.set_item("libp2p_dial_fail_aborted", st.dial_fail_aborted)?;
+                d.set_item("libp2p_dial_fail_local_peer_id", st.dial_fail_local_peer_id)?;
+                d.set_item("libp2p_dial_fail_condition", st.dial_fail_condition)?;
                 d.set_item("libp2p_dial_inflight", st.dial_inflight)?;
                 d.set_item("libp2p_outbound_peers", st.outbound_peers.len())?;
                 d.set_item("libp2p_dial_refused_budget", st.dial_refused_budget)?;
@@ -5437,7 +5485,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 45)?;
+                d.set_item("phase", 46)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -5473,6 +5521,7 @@ mod enabled {
                 d.set_item("connection_close_causes", true)?;
                 d.set_item("listener_lifecycle", true)?;
                 d.set_item("connection_attempts", true)?;
+                d.set_item("dial_fail_events", true)?;
                 d.set_item("identify_events", true)?;
                 d.set_item("gossip_subscription_events", true)?;
                 d.set_item("wire_rr_events", true)?;
@@ -5517,6 +5566,12 @@ mod enabled {
                 d.set_item("libp2p_peers", st.connected.len())?;
                 d.set_item("libp2p_dial_ok", st.dial_ok)?;
                 d.set_item("libp2p_dial_fail", st.dial_fail)?;
+                d.set_item("libp2p_dial_fail_transport", st.dial_fail_transport)?;
+                d.set_item("libp2p_dial_fail_wrong_peer_id", st.dial_fail_wrong_peer_id)?;
+                d.set_item("libp2p_dial_fail_no_addresses", st.dial_fail_no_addresses)?;
+                d.set_item("libp2p_dial_fail_aborted", st.dial_fail_aborted)?;
+                d.set_item("libp2p_dial_fail_local_peer_id", st.dial_fail_local_peer_id)?;
+                d.set_item("libp2p_dial_fail_condition", st.dial_fail_condition)?;
                 d.set_item("libp2p_dialing", st.dialing)?;
                 d.set_item(
                     "libp2p_incoming_connection_error",

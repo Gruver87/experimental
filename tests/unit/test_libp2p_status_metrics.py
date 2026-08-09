@@ -97,6 +97,12 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_mdns_ttl_secs" in empty
     assert "libp2p_relay_inbound_circuit" in empty
     assert "libp2p_relay_outbound_circuit" in empty
+    assert "libp2p_dial_fail_transport" in empty
+    assert "libp2p_dial_fail_wrong_peer_id" in empty
+    assert "libp2p_dial_fail_no_addresses" in empty
+    assert "libp2p_dial_fail_aborted" in empty
+    assert "libp2p_dial_fail_local_peer_id" in empty
+    assert "libp2p_dial_fail_condition" in empty
 
 
 def test_merge_overwrites_present_keys_only() -> None:
