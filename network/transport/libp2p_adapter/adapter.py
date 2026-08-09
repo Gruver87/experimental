@@ -274,12 +274,13 @@ class Libp2pTransportAdapter:
         raw = dict(node.peerstore_list())
         return {str(k): [str(a) for a in (v or [])] for k, v in raw.items()}
 
-    def peerstore_clear(self) -> None:
+    def peerstore_clear(self) -> int:
+        """Slice BK: wipe learned peerstore; returns peers cleared."""
         self.require_transport()
         node = self._ensure_node()
         if node is None:
             raise TransportCapabilityError("rust libp2p node not available")
-        node.peerstore_clear()
+        return int(node.peerstore_clear())
 
     def peerstore_dial(self) -> list[tuple[str, str]]:
         self.require_transport()
