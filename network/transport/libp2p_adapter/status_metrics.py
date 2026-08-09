@@ -18,6 +18,7 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_dial_fail_aborted",
     "libp2p_dial_fail_local_peer_id",
     "libp2p_dial_fail_condition",
+    "libp2p_dial_fail_denied",
     "libp2p_dialing",
     "libp2p_incoming_connection_error",
     "libp2p_incoming_fail_transport",

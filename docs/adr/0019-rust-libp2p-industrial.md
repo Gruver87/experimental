@@ -86,6 +86,7 @@ feature `libp2p`), exposed to Python through the existing
 | Relay client events | Slice AT: `relay_{inbound,outbound}_circuit`; `libp2p_rust_relay_client_events_lab.py` |
 | Dial fail events | Slice AU: `dial_fail_{transport,wrong_peer_id,no_addresses,aborted,local_peer_id,condition}`; `libp2p_rust_dial_fail_events_lab.py` |
 | Incoming fail events | Slice AV: `incoming_fail_{transport,wrong_peer_id,aborted,local_peer_id,denied}`; `libp2p_rust_incoming_fail_events_lab.py` |
+| Dial deny events | Slice AW: `dial_fail_denied` (+ cause in `block_denied` / `allow_denied` / `conn_limit_denied`); `libp2p_rust_dial_deny_events_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -141,6 +142,7 @@ feature `libp2p`), exposed to Python through the existing
 | AT | Relay client circuit direction metrics; `libp2p_rust_relay_client_events_lab.py` |
 | AU | Dial failure taxonomy metrics; `libp2p_rust_dial_fail_events_lab.py` |
 | AV | Incoming ListenError taxonomy metrics; `libp2p_rust_incoming_fail_events_lab.py` |
+| AW | Dial Denied taxonomy metrics; `libp2p_rust_dial_deny_events_lab.py` |
 
 ## Honesty
 
@@ -183,7 +185,8 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_mdns_events_lab.py`,
   `libp2p_rust_relay_client_events_lab.py`,
   `libp2p_rust_dial_fail_events_lab.py`,
-  `libp2p_rust_incoming_fail_events_lab.py`;
+  `libp2p_rust_incoming_fail_events_lab.py`,
+  `libp2p_rust_dial_deny_events_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -210,6 +213,7 @@ feature `libp2p`), exposed to Python through the existing
   Slice AT: relay client events (`relay_inbound_circuit` / `relay_outbound_circuit`).
   Slice AU: dial fail events (`dial_fail_transport` / `_wrong_peer_id` / …).
   Slice AV: incoming fail events (`incoming_fail_denied` / `_transport` / …).
+  Slice AW: dial deny events (`dial_fail_denied` + block/allow/limit causes).
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.

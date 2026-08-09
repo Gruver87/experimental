@@ -42,6 +42,7 @@
 //! Slice AT: relay client circuit direction taxonomy (inbound/outbound).
 //! Slice AU: outbound dial failure taxonomy (transport / wrong peer / …).
 //! Slice AV: inbound ListenError taxonomy (mirror of AU).
+//! Slice AW: outbound DialError::Denied taxonomy (`dial_fail_denied`).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -481,6 +482,9 @@ mod enabled {
                     book_bump_attempted(&mut st, j.kind);
                     book_bump_fail(&mut st, j.kind);
                     st.block_denied = st.block_denied.saturating_add(1);
+                    // Slice AW: Denied taxonomy on bootstrap/peerstore dial skip.
+                    st.dial_fail = st.dial_fail.saturating_add(1);
+                    st.dial_fail_denied = st.dial_fail_denied.saturating_add(1);
                 }
                 j.results.push((pid, "peer_blocked".into()));
                 continue;
@@ -908,6 +912,8 @@ mod enabled {
         dial_fail_aborted: u64,
         dial_fail_local_peer_id: u64,
         dial_fail_condition: u64,
+        /// Slice AW: DialError::Denied (block / allow / connection-limits).
+        dial_fail_denied: u64,
         dial_inflight: u32,
         dial_refused_budget: u64,
         /// Slice AK: SwarmEvent::Dialing (outbound attempt started).
@@ -1964,6 +1970,12 @@ mod enabled {
                                                 if let Ok(mut st) = state_bg.lock() {
                                                     st.block_denied =
                                                         st.block_denied.saturating_add(1);
+                                                    // Slice AW: fast-fail Denied taxonomy.
+                                                    st.dial_fail =
+                                                        st.dial_fail.saturating_add(1);
+                                                    st.dial_fail_denied = st
+                                                        .dial_fail_denied
+                                                        .saturating_add(1);
                                                     st.last_error = "peer_blocked".into();
                                                     if is_dns {
                                                         st.dns_dial_fail =
@@ -3181,7 +3193,13 @@ mod enabled {
                                                         .dial_fail_condition
                                                         .saturating_add(1);
                                                 }
-                                                DialError::Denied { .. } => {}
+                                                DialError::Denied { .. } => {
+                                                    // Slice AW: Denied taxonomy (cause also in
+                                                    // block_denied / allow_denied / conn_limit_denied).
+                                                    st.dial_fail_denied = st
+                                                        .dial_fail_denied
+                                                        .saturating_add(1);
+                                                }
                                             }
                                         }
                                         if limit_denied {
@@ -5239,6 +5257,7 @@ mod enabled {
                 d.set_item("libp2p_dial_fail_aborted", st.dial_fail_aborted)?;
                 d.set_item("libp2p_dial_fail_local_peer_id", st.dial_fail_local_peer_id)?;
                 d.set_item("libp2p_dial_fail_condition", st.dial_fail_condition)?;
+                d.set_item("libp2p_dial_fail_denied", st.dial_fail_denied)?;
                 d.set_item("libp2p_dial_inflight", st.dial_inflight)?;
                 d.set_item("libp2p_outbound_peers", st.outbound_peers.len())?;
                 d.set_item("libp2p_dial_refused_budget", st.dial_refused_budget)?;
@@ -5531,7 +5550,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 47)?;
+                d.set_item("phase", 48)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -5568,6 +5587,7 @@ mod enabled {
                 d.set_item("listener_lifecycle", true)?;
                 d.set_item("connection_attempts", true)?;
                 d.set_item("dial_fail_events", true)?;
+                d.set_item("dial_deny_events", true)?;
                 d.set_item("incoming_fail_events", true)?;
                 d.set_item("identify_events", true)?;
                 d.set_item("gossip_subscription_events", true)?;
@@ -5619,6 +5639,7 @@ mod enabled {
                 d.set_item("libp2p_dial_fail_aborted", st.dial_fail_aborted)?;
                 d.set_item("libp2p_dial_fail_local_peer_id", st.dial_fail_local_peer_id)?;
                 d.set_item("libp2p_dial_fail_condition", st.dial_fail_condition)?;
+                d.set_item("libp2p_dial_fail_denied", st.dial_fail_denied)?;
                 d.set_item("libp2p_dialing", st.dialing)?;
                 d.set_item(
                     "libp2p_incoming_connection_error",

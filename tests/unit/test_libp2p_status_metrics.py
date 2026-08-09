@@ -103,6 +103,7 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_dial_fail_aborted" in empty
     assert "libp2p_dial_fail_local_peer_id" in empty
     assert "libp2p_dial_fail_condition" in empty
+    assert "libp2p_dial_fail_denied" in empty
     assert "libp2p_incoming_fail_transport" in empty
     assert "libp2p_incoming_fail_wrong_peer_id" in empty
     assert "libp2p_incoming_fail_aborted" in empty
