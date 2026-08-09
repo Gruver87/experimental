@@ -161,6 +161,11 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_wire_omit_response",
     "libp2p_identify_push",
     "libp2p_identify_push_requests",
+    "libp2p_identify_error_timeout",
+    "libp2p_identify_error_negotiation",
+    "libp2p_identify_error_apply",
+    "libp2p_identify_error_io",
+    "libp2p_identify_interval_ms",
     "libp2p_agent_version",
     "libp2p_protocol_version",
     "libp2p_last_gossip_message_id",
@@ -293,6 +298,7 @@ LABS = [
     ("BA", "scripts/libp2p_rust_gossip_validation_lab.py"),
     ("BB", "scripts/libp2p_rust_wire_omit_response_lab.py"),
     ("BC", "scripts/libp2p_rust_identify_push_lab.py"),
+    ("BD", "scripts/libp2p_rust_identify_interval_lab.py"),
 ]
 
 PROD_JSONS = (

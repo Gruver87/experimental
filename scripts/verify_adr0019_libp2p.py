@@ -97,6 +97,7 @@ LABS = [
     ("BA", "scripts/libp2p_rust_gossip_validation_lab.py"),
     ("BB", "scripts/libp2p_rust_wire_omit_response_lab.py"),
     ("BC", "scripts/libp2p_rust_identify_push_lab.py"),
+    ("BD", "scripts/libp2p_rust_identify_interval_lab.py"),
 ]
 
 

@@ -30,6 +30,11 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_wire_omit_response" in empty
     assert "libp2p_identify_push" in empty
     assert "libp2p_identify_push_requests" in empty
+    assert "libp2p_identify_error_timeout" in empty
+    assert "libp2p_identify_error_negotiation" in empty
+    assert "libp2p_identify_error_apply" in empty
+    assert "libp2p_identify_error_io" in empty
+    assert "libp2p_identify_interval_ms" in empty
     assert "libp2p_agent_version" in empty
     assert "libp2p_protocol_version" in empty
     assert "libp2p_last_gossip_message_id" in empty

@@ -50,6 +50,7 @@
 //! Slice BA: deferred gossip validation + ignore/reject outcome metrics.
 //! Slice BB: wire omit-response lab path (`ResponseOmission` inbound fail).
 //! Slice BC: identify push API + agent version + listen-addr push toggle.
+//! Slice BD: identify interval + identify error taxonomy.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -106,6 +107,9 @@ pub const DEFAULT_PING_MAX_FAILS: u32 = 3;
 /// Slice S: default gossip graylist threshold (matches PeerScoreThresholds::default).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_SCORE_GRAYLIST_THRESHOLD: f64 = -80.0;
+/// Slice BD: default identify re-request interval (libp2p identify default = 5 min).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub const DEFAULT_IDENTIFY_INTERVAL_MS: u64 = 5 * 60 * 1000;
 
 /// Classify Absolute ADR 0008 payload on `/abs/wire` (Slice M).
 ///
@@ -144,9 +148,9 @@ mod enabled {
     use super::{
         libp2p_available, ABS_GOSSIP_BLOCKS_TOPIC, ABS_IDENTIFY_PROTOCOL_VERSION, ABS_KAD_PROTOCOL,
         ABS_RENDEZVOUS_NAMESPACE, ABS_WIRE_PROTOCOL, DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS,
-        DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_MDNS_TTL_SECS,
-        DEFAULT_PING_INTERVAL_SECS, DEFAULT_PING_MAX_FAILS, DEFAULT_PING_TIMEOUT_SECS,
-        DEFAULT_RECONNECT_BASE_MS, DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS,
+        DEFAULT_IDENTIFY_INTERVAL_MS, DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS, DEFAULT_MAX_DIALS,
+        DEFAULT_MDNS_TTL_SECS, DEFAULT_PING_INTERVAL_SECS, DEFAULT_PING_MAX_FAILS,
+        DEFAULT_PING_TIMEOUT_SECS, DEFAULT_RECONNECT_BASE_MS, DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS,
         DEFAULT_RECONNECT_MAX_ATTEMPTS, DEFAULT_RECONNECT_MAX_MS, DEFAULT_SCORE_GRAYLIST_THRESHOLD,
         DEFAULT_WIRE_TIMEOUT_SECS, MAX_WIRE_BYTES,
     };
@@ -166,7 +170,7 @@ mod enabled {
         mdns, noise, ping, relay, rendezvous, request_response,
         swarm::{
             behaviour::toggle::Toggle, ConnectionError, DialError, ListenError, NetworkBehaviour,
-            SwarmEvent,
+            StreamUpgradeError, SwarmEvent,
         },
         tcp, upnp, yamux, Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
     };
@@ -1124,6 +1128,13 @@ mod enabled {
         identify_sent: u64,
         identify_pushed: u64,
         identify_error: u64,
+        /// Slice BD: identify StreamUpgradeError taxonomy.
+        identify_error_timeout: u64,
+        identify_error_negotiation: u64,
+        identify_error_apply: u64,
+        identify_error_io: u64,
+        /// Slice BD: configured identify re-request interval.
+        identify_interval_ms: u64,
         /// Slice BC: push-on-listen-addr-change + branding / API bookkeeping.
         enable_identify_push: bool,
         agent_version: String,
@@ -1286,6 +1297,7 @@ mod enabled {
                 enable_identify_push: resolve_identify_push(None),
                 agent_version: resolve_agent_version(None),
                 protocol_version: ABS_IDENTIFY_PROTOCOL_VERSION.to_string(),
+                identify_interval_ms: resolve_identify_interval_ms(None),
                 relay_max_reservations: relay_max_reservations.unwrap_or(0),
                 ..NodeState::default()
             }));
@@ -1320,9 +1332,13 @@ mod enabled {
                 .lock()
                 .map(|st| st.agent_version.clone())
                 .unwrap_or_else(|_| format!("absolute-experimental/{}", env!("CARGO_PKG_VERSION")));
+            let identify_interval =
+                Duration::from_millis(resolve_identify_interval_ms(None).max(1));
             if let Ok(mut st) = state.lock() {
                 st.ping_interval_ms = ping_interval.as_millis().min(u128::from(u64::MAX)) as u64;
                 st.ping_timeout_ms = ping_timeout.as_millis().min(u128::from(u64::MAX)) as u64;
+                st.identify_interval_ms =
+                    identify_interval.as_millis().min(u128::from(u64::MAX)) as u64;
             }
 
             runtime.spawn(async move {
@@ -1486,14 +1502,15 @@ mod enabled {
                                 .with_interval(ping_interval)
                                 .with_timeout(ping_timeout),
                         ),
-                        // Slice BC: Absolute agent branding + optional listen-addr push.
+                        // Slice BC/BD: branding, listen-addr push, re-identify interval.
                         identify: identify::Behaviour::new(
                             identify::Config::new(
                                 ABS_IDENTIFY_PROTOCOL_VERSION.into(),
                                 key.public(),
                             )
                             .with_agent_version(identify_agent_version.clone())
-                            .with_push_listen_addr_updates(want_identify_push),
+                            .with_push_listen_addr_updates(want_identify_push)
+                            .with_interval(identify_interval),
                         ),
                         wire,
                         gossipsub,
@@ -3791,6 +3808,29 @@ mod enabled {
                                             if let Ok(mut st) = state_bg.lock() {
                                                 st.identify_error =
                                                     st.identify_error.saturating_add(1);
+                                                // Slice BD: StreamUpgradeError taxonomy.
+                                                match &error {
+                                                    StreamUpgradeError::Timeout => {
+                                                        st.identify_error_timeout = st
+                                                            .identify_error_timeout
+                                                            .saturating_add(1);
+                                                    }
+                                                    StreamUpgradeError::NegotiationFailed => {
+                                                        st.identify_error_negotiation = st
+                                                            .identify_error_negotiation
+                                                            .saturating_add(1);
+                                                    }
+                                                    StreamUpgradeError::Apply(_) => {
+                                                        st.identify_error_apply = st
+                                                            .identify_error_apply
+                                                            .saturating_add(1);
+                                                    }
+                                                    StreamUpgradeError::Io(_) => {
+                                                        st.identify_error_io = st
+                                                            .identify_error_io
+                                                            .saturating_add(1);
+                                                    }
+                                                }
                                                 st.last_error = format!(
                                                     "identify error peer={peer_id}: {error}"
                                                 );
@@ -5671,6 +5711,14 @@ mod enabled {
                 d.set_item("libp2p_identify_sent", st.identify_sent)?;
                 d.set_item("libp2p_identify_pushed", st.identify_pushed)?;
                 d.set_item("libp2p_identify_error", st.identify_error)?;
+                d.set_item("libp2p_identify_error_timeout", st.identify_error_timeout)?;
+                d.set_item(
+                    "libp2p_identify_error_negotiation",
+                    st.identify_error_negotiation,
+                )?;
+                d.set_item("libp2p_identify_error_apply", st.identify_error_apply)?;
+                d.set_item("libp2p_identify_error_io", st.identify_error_io)?;
+                d.set_item("libp2p_identify_interval_ms", st.identify_interval_ms)?;
                 d.set_item("libp2p_identify_push", st.enable_identify_push)?;
                 d.set_item("libp2p_identify_push_requests", st.identify_push_requests)?;
                 d.set_item("libp2p_agent_version", &st.agent_version)?;
@@ -5893,7 +5941,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 54)?;
+                d.set_item("phase", 55)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -5937,6 +5985,9 @@ mod enabled {
                 d.set_item("identify_events", true)?;
                 d.set_item("identify_push", true)?;
                 d.set_item("identify_push_listen_addr", st.enable_identify_push)?;
+                d.set_item("identify_interval", true)?;
+                d.set_item("identify_fail_events", true)?;
+                d.set_item("identify_interval_ms", st.identify_interval_ms)?;
                 d.set_item("agent_version", &st.agent_version)?;
                 d.set_item("protocol_version", &st.protocol_version)?;
                 d.set_item("gossip_subscription_events", true)?;
@@ -6131,6 +6182,14 @@ mod enabled {
                 d.set_item("libp2p_identify_sent", st.identify_sent)?;
                 d.set_item("libp2p_identify_pushed", st.identify_pushed)?;
                 d.set_item("libp2p_identify_error", st.identify_error)?;
+                d.set_item("libp2p_identify_error_timeout", st.identify_error_timeout)?;
+                d.set_item(
+                    "libp2p_identify_error_negotiation",
+                    st.identify_error_negotiation,
+                )?;
+                d.set_item("libp2p_identify_error_apply", st.identify_error_apply)?;
+                d.set_item("libp2p_identify_error_io", st.identify_error_io)?;
+                d.set_item("libp2p_identify_interval_ms", st.identify_interval_ms)?;
                 d.set_item("libp2p_identify_push", st.enable_identify_push)?;
                 d.set_item("libp2p_identify_push_requests", st.identify_push_requests)?;
                 d.set_item("libp2p_agent_version", &st.agent_version)?;
@@ -6656,6 +6715,22 @@ mod enabled {
                 }
             }
             Err(_) => format!("absolute-experimental/{}", env!("CARGO_PKG_VERSION")),
+        }
+    }
+
+    /// Slice BD: identify re-request interval after the first exchange.
+    fn resolve_identify_interval_ms(explicit: Option<u64>) -> u64 {
+        if let Some(v) = explicit {
+            return v.max(1);
+        }
+        match std::env::var("ABS_LIBP2P_IDENTIFY_INTERVAL_MS") {
+            Ok(s) => s
+                .trim()
+                .parse::<u64>()
+                .ok()
+                .unwrap_or(DEFAULT_IDENTIFY_INTERVAL_MS)
+                .max(1),
+            Err(_) => DEFAULT_IDENTIFY_INTERVAL_MS,
         }
     }
 
