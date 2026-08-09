@@ -50,6 +50,9 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_dial_fail_local_peer_id",
     "libp2p_dial_fail_condition",
     "libp2p_dial_fail_denied",
+    "libp2p_dial_fail_denied_block",
+    "libp2p_dial_fail_denied_allow",
+    "libp2p_dial_fail_denied_limit",
     "libp2p_dialing",
     "libp2p_incoming_connection_error",
     "libp2p_incoming_fail_transport",
@@ -57,6 +60,9 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_incoming_fail_aborted",
     "libp2p_incoming_fail_local_peer_id",
     "libp2p_incoming_fail_denied",
+    "libp2p_incoming_fail_denied_block",
+    "libp2p_incoming_fail_denied_allow",
+    "libp2p_incoming_fail_denied_limit",
     "libp2p_peer_external_addr",
     "libp2p_wire_sent",
     "libp2p_wire_recv",
@@ -256,6 +262,7 @@ LABS = [
     ("AU", "scripts/libp2p_rust_dial_fail_events_lab.py"),
     ("AV", "scripts/libp2p_rust_incoming_fail_events_lab.py"),
     ("AW", "scripts/libp2p_rust_dial_deny_events_lab.py"),
+    ("AX", "scripts/libp2p_rust_deny_cause_events_lab.py"),
 ]
 
 PROD_JSONS = (
