@@ -87,6 +87,7 @@ LABS = [
     ("AQ", "scripts/libp2p_rust_rendezvous_events_lab.py"),
     ("AR", "scripts/libp2p_rust_autonat_events_lab.py"),
     ("AS", "scripts/libp2p_rust_mdns_events_lab.py"),
+    ("AT", "scripts/libp2p_rust_relay_client_events_lab.py"),
 ]
 
 

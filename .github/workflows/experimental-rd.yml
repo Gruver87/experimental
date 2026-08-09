@@ -178,6 +178,8 @@ jobs:
         run: python scripts/libp2p_rust_autonat_events_lab.py
       - name: rust-libp2p mdns events lab (Slice AS)
         run: python scripts/libp2p_rust_mdns_events_lab.py
+      - name: rust-libp2p relay client events lab (Slice AT)
+        run: python scripts/libp2p_rust_relay_client_events_lab.py
       - name: adapter + wire-bridge units
         run: pytest -q tests/unit/test_libp2p_adapter.py tests/unit/test_libp2p_wire_bridge.py tests/unit/test_libp2p_status_metrics.py
       - name: package ADR 0019 evidence pack

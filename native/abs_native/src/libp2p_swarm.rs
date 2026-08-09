@@ -39,6 +39,7 @@
 //! Slice AQ: rendezvous server/client event taxonomy (discover served / unregister).
 //! Slice AR: AutoNAT probe event taxonomy (inbound/outbound + errors).
 //! Slice AS: mDNS discover/expire event metrics + lab TTL override.
+//! Slice AT: relay client circuit direction taxonomy (inbound/outbound).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -971,6 +972,9 @@ mod enabled {
         relay_reservation_timed_out: u64,
         relay_circuit_denied: u64,
         relay_circuit_closed: u64,
+        /// Slice AT: relay client circuit direction.
+        relay_inbound_circuit: u64,
+        relay_outbound_circuit: u64,
         /// Slice AP: optional capacity override (lab deny path); 0 = default.
         relay_max_reservations: u32,
         autonat_probes: u64,
@@ -3833,13 +3837,24 @@ mod enabled {
                                         }
                                         relay::client::Event::InboundCircuitEstablished {
                                             ..
+                                        } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.relay_circuits =
+                                                    st.relay_circuits.saturating_add(1);
+                                                st.relay_inbound_circuit = st
+                                                    .relay_inbound_circuit
+                                                    .saturating_add(1);
+                                            }
                                         }
-                                        | relay::client::Event::OutboundCircuitEstablished {
+                                        relay::client::Event::OutboundCircuitEstablished {
                                             ..
                                         } => {
                                             if let Ok(mut st) = state_bg.lock() {
                                                 st.relay_circuits =
                                                     st.relay_circuits.saturating_add(1);
+                                                st.relay_outbound_circuit = st
+                                                    .relay_outbound_circuit
+                                                    .saturating_add(1);
                                             }
                                         }
                                     }
@@ -5238,6 +5253,8 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_relay_circuit_denied", st.relay_circuit_denied)?;
                 d.set_item("libp2p_relay_circuit_closed", st.relay_circuit_closed)?;
+                d.set_item("libp2p_relay_inbound_circuit", st.relay_inbound_circuit)?;
+                d.set_item("libp2p_relay_outbound_circuit", st.relay_outbound_circuit)?;
                 d.set_item("libp2p_relay_max_reservations", st.relay_max_reservations)?;
                 d.set_item("libp2p_autonat_probes", st.autonat_probes)?;
                 d.set_item("libp2p_autonat_status_changes", st.autonat_status_changes)?;
@@ -5420,7 +5437,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 44)?;
+                d.set_item("phase", 45)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -5439,6 +5456,7 @@ mod enabled {
                 d.set_item("kad_events", true)?;
                 d.set_item("relay", true)?;
                 d.set_item("relay_events", true)?;
+                d.set_item("relay_client_events", true)?;
                 d.set_item("autonat", st.enable_autonat)?;
                 d.set_item("autonat_events", true)?;
                 d.set_item("upnp", st.enable_upnp)?;
@@ -5590,6 +5608,8 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_relay_circuit_denied", st.relay_circuit_denied)?;
                 d.set_item("libp2p_relay_circuit_closed", st.relay_circuit_closed)?;
+                d.set_item("libp2p_relay_inbound_circuit", st.relay_inbound_circuit)?;
+                d.set_item("libp2p_relay_outbound_circuit", st.relay_outbound_circuit)?;
                 d.set_item("libp2p_relay_max_reservations", st.relay_max_reservations)?;
                 d.set_item("libp2p_autonat_probes", st.autonat_probes)?;
                 d.set_item("libp2p_autonat_status_changes", st.autonat_status_changes)?;
