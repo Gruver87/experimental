@@ -48,6 +48,7 @@ libp2p = { version = "0.54", optional = true, default-features = false, features
     "rendezvous",
     "dns",
     "quic",
+    "websocket",
     "macros",
 ] }
 tokio = { version = "1", optional = true, features = ["rt-multi-thread", "macros", "sync", "time"] }

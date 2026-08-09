@@ -114,6 +114,9 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_quic_listens",
     "libp2p_quic_dial_ok",
     "libp2p_quic_dial_fail",
+    "libp2p_ws_listens",
+    "libp2p_ws_dial_ok",
+    "libp2p_ws_dial_fail",
 )
 
 UNIT_TESTS = [
@@ -157,6 +160,7 @@ LABS = [
     ("Z", "scripts/libp2p_rust_prometheus_lab.py"),
     ("AA", "scripts/libp2p_rust_connection_manager_lab.py"),
     ("AB", "scripts/libp2p_rust_quic_lab.py"),
+    ("AC", "scripts/libp2p_rust_websocket_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -267,6 +271,7 @@ def check_repo_honesty() -> tuple[bool, str]:
         "Slice Z",
         "Slice AA",
         "Slice AB",
+        "Slice AC",
         "FEATURE_LIBP2P",
         "## Honesty",
     )

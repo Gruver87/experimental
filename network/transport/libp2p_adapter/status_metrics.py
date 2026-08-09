@@ -86,6 +86,9 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_quic_listens",
     "libp2p_quic_dial_ok",
     "libp2p_quic_dial_fail",
+    "libp2p_ws_listens",
+    "libp2p_ws_dial_ok",
+    "libp2p_ws_dial_fail",
 )
 
 

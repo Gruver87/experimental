@@ -63,6 +63,21 @@ def test_parse_multiaddr_quic_roundtrip() -> None:
     )
 
 
+def test_parse_multiaddr_ws_roundtrip() -> None:
+    from network.transport.libp2p_adapter.multiaddr import Multiaddr, parse_multiaddr
+
+    ma = parse_multiaddr("/ip4/127.0.0.1/tcp/4404/ws/p2p/lab-ac")
+    assert ma.host == "127.0.0.1"
+    assert ma.port == 4404
+    assert ma.peer_id == "lab-ac"
+    assert ma.transport == "ws"
+    assert ma.to_string() == "/ip4/127.0.0.1/tcp/4404/ws/p2p/lab-ac"
+    assert (
+        Multiaddr(host="127.0.0.1", port=9, transport="ws").to_string()
+        == "/ip4/127.0.0.1/tcp/9/ws"
+    )
+
+
 def test_parse_multiaddr_rejects_junk() -> None:
     with pytest.raises(ValueError):
         parse_multiaddr("127.0.0.1:4001")
