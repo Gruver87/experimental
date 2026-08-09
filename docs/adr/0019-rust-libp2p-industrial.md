@@ -63,6 +63,7 @@ feature `libp2p`), exposed to Python through the existing
 | IPv6 dual-stack | Slice W: `/ip6/.../tcp/...` listen/dial + `libp2p_ipv6_*` metrics; `libp2p_rust_ipv6_lab.py` |
 | Rendezvous | Slice X: server/client register+discover + `libp2p_rendezvous_*` metrics; `libp2p_rust_rendezvous_lab.py` |
 | DNS multiaddr | Slice Y: `/dns4|/dns6` parse/dial + rust `dns` transport + `libp2p_dns_dial_*`; `libp2p_rust_dns_lab.py` |
+| Prometheus export | Slice Z: `abs_libp2p_*` series on `/metrics` + `adapter.prometheus_text`; `libp2p_rust_prometheus_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -95,6 +96,7 @@ feature `libp2p`), exposed to Python through the existing
 | W | IPv6 dual-stack listen/dial; `libp2p_rust_ipv6_lab.py` |
 | X | Rendezvous register/discover; `libp2p_rust_rendezvous_lab.py` |
 | Y | DNS multiaddr dial (`/dns4`/`/dns6`); `libp2p_rust_dns_lab.py` |
+| Z | Prometheus `abs_libp2p_*` export; `libp2p_rust_prometheus_lab.py` |
 
 ## Honesty
 
@@ -119,10 +121,11 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_score_autoblock_lab.py`, `libp2p_rust_peerstore_lab.py`,
   `libp2p_rust_peerstore_reconnect_lab.py`, `libp2p_rust_idle_timeout_lab.py`,
   `libp2p_rust_ipv6_lab.py`, `libp2p_rust_rendezvous_lab.py`,
-  `libp2p_rust_dns_lab.py`;
+  `libp2p_rust_dns_lab.py`, `libp2p_rust_prometheus_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
+  Slice Z: `prometheus_export.render_libp2p_prometheus` → `/metrics`.
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.

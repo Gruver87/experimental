@@ -116,6 +116,7 @@ UNIT_TESTS = [
     "tests/unit/test_libp2p_adapter.py",
     "tests/unit/test_libp2p_wire_bridge.py",
     "tests/unit/test_libp2p_status_metrics.py",
+    "tests/unit/test_libp2p_prometheus_export.py",
     "tests/unit/test_libp2p_swarm_lab.py",
     "tests/unit/test_dual_stack.py",
     "tests/unit/test_prod_mesh_feature_freeze.py",
@@ -149,6 +150,7 @@ LABS = [
     ("W", "scripts/libp2p_rust_ipv6_lab.py"),
     ("X", "scripts/libp2p_rust_rendezvous_lab.py"),
     ("Y", "scripts/libp2p_rust_dns_lab.py"),
+    ("Z", "scripts/libp2p_rust_prometheus_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -256,6 +258,7 @@ def check_repo_honesty() -> tuple[bool, str]:
         "Slice W",
         "Slice X",
         "Slice Y",
+        "Slice Z",
         "FEATURE_LIBP2P",
         "## Honesty",
     )

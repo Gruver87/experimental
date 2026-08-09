@@ -24,6 +24,7 @@
 //! Slice W: IPv6 dual-stack listen/dial (`/ip6/.../tcp/...`) + metrics.
 //! Slice X: rendezvous server/client register + discover.
 //! Slice Y: DNS multiaddr dial (`/dns4` / `/dns6`) via rust-libp2p dns transport.
+//! Slice Z: Prometheus export of libp2p_* status metrics (Python /metrics edge).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -4082,7 +4083,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 24)?;
+                d.set_item("phase", 25)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -4102,6 +4103,7 @@ mod enabled {
                 d.set_item("dcutr", true)?;
                 d.set_item("rendezvous", true)?;
                 d.set_item("dns", true)?;
+                d.set_item("prometheus", true)?;
                 d.set_item("bootstrap", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
                 d.set_item("idle_connection_timeout", true)?;

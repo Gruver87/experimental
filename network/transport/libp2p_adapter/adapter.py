@@ -545,9 +545,18 @@ class Libp2pTransportAdapter:
         out.update(empty_libp2p_status_metrics())
         merge_libp2p_status_metrics(out, dict(self.capability_status() or {}))
         merge_libp2p_status_metrics(out, dict(self.metrics() or {}))
+        out["prometheus_export"] = True
         if self._node is not None:
             out["peer_id"] = str(self._node.peer_id)
         return out
+
+    def prometheus_text(self, node_id: str = "lab") -> str:
+        """ADR 0019 Slice Z: Prometheus text for current libp2p status snapshot."""
+        from network.transport.libp2p_adapter.prometheus_export import (
+            render_libp2p_prometheus,
+        )
+
+        return render_libp2p_prometheus(self.status_snapshot(), node_id=node_id)
 
     def close(self) -> None:
         if self._node is not None:

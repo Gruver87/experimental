@@ -19,6 +19,10 @@ from network.transport.libp2p_adapter.status_metrics import (
     empty_libp2p_status_metrics,
     merge_libp2p_status_metrics,
 )
+from network.transport.libp2p_adapter.prometheus_export import (
+    append_libp2p_prometheus_lines,
+    render_libp2p_prometheus,
+)
 from network.transport.libp2p_adapter.wire_bridge import (
     admit_abs_inbox,
     admit_abs_wire_frame,
@@ -43,6 +47,8 @@ __all__ = [
     "LIBP2P_STATUS_METRIC_KEYS",
     "empty_libp2p_status_metrics",
     "merge_libp2p_status_metrics",
+    "append_libp2p_prometheus_lines",
+    "render_libp2p_prometheus",
     "encode_abs_wire_frame",
     "admit_abs_wire_frame",
     "prepare_abs_wire_frame",
