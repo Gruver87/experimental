@@ -21,6 +21,7 @@
 //! Slice T: persistent learned peerstore (identify/connection → JSON) + warm dial.
 //! Slice U: reconnect policy also covers learned peerstore peers (not only bootstrap).
 //! Slice V: idle connection timeout policy (swarm keep-alive / idle close).
+//! Slice W: IPv6 dual-stack listen/dial (`/ip6/.../tcp/...`) + metrics.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -839,6 +840,10 @@ mod enabled {
         idle_connection_timeout_secs: u64,
         /// Slice V: ConnectionClosed caused by keep-alive / idle timeout.
         idle_timeout_closes: u64,
+        /// Slice W: listen addrs that included `/ip6/`.
+        ipv6_listens: u64,
+        /// Slice W: successful dialer ConnectionEstablished over `/ip6/`.
+        ipv6_dial_ok: u64,
         last_error: String,
         inbox: VecDeque<(String, Vec<u8>)>,
         gossip_inbox: VecDeque<(String, String, Vec<u8>)>,
@@ -2137,12 +2142,16 @@ mod enabled {
                                     let is_circuit = address
                                         .iter()
                                         .any(|p| matches!(p, Protocol::P2pCircuit));
+                                    let is_ip6 = s.contains("/ip6/");
                                     if let Ok(mut st) = state_bg.lock() {
                                         if !st.listen_addrs.contains(&s) {
                                             st.listen_addrs.push(s.clone());
                                         }
                                         if is_circuit && !st.circuit_addrs.contains(&s) {
                                             st.circuit_addrs.push(s.clone());
+                                        }
+                                        if is_ip6 && !is_circuit {
+                                            st.ipv6_listens = st.ipv6_listens.saturating_add(1);
                                         }
                                     }
                                     if is_circuit {
@@ -2193,6 +2202,12 @@ mod enabled {
                                             st.dial_ok = st.dial_ok.saturating_add(1);
                                             st.dial_inflight =
                                                 st.dial_inflight.saturating_sub(1);
+                                            if let Some(addr) = kad_addr.as_ref() {
+                                                if addr.to_string().contains("/ip6/") {
+                                                    st.ipv6_dial_ok =
+                                                        st.ipv6_dial_ok.saturating_add(1);
+                                                }
+                                            }
                                         }
                                     }
                                     // Slice T: remember connection endpoint in peerstore.
@@ -3625,6 +3640,8 @@ mod enabled {
                     st.idle_connection_timeout_secs,
                 )?;
                 d.set_item("libp2p_idle_timeout_closes", st.idle_timeout_closes)?;
+                d.set_item("libp2p_ipv6_listens", st.ipv6_listens)?;
+                d.set_item("libp2p_ipv6_dial_ok", st.ipv6_dial_ok)?;
                 if let Some(n) = st.max_established_incoming {
                     d.set_item("libp2p_max_established_incoming", n)?;
                 }
@@ -3650,7 +3667,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 21)?;
+                d.set_item("phase", 22)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -3671,6 +3688,7 @@ mod enabled {
                 d.set_item("bootstrap", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
                 d.set_item("idle_connection_timeout", true)?;
+                d.set_item("ipv6", true)?;
                 d.set_item("connection_limits", true)?;
                 d.set_item("block_list", true)?;
                 d.set_item("abs_wire_codecs", true)?;
@@ -3786,6 +3804,8 @@ mod enabled {
                     st.idle_connection_timeout_secs,
                 )?;
                 d.set_item("libp2p_idle_timeout_closes", st.idle_timeout_closes)?;
+                d.set_item("libp2p_ipv6_listens", st.ipv6_listens)?;
+                d.set_item("libp2p_ipv6_dial_ok", st.ipv6_dial_ok)?;
                 d.set_item("default_mesh", false)?;
                 d.set_item("honesty", "ADR0019_rust_libp2p_lab_not_prod_mesh")?;
                 d.set_item("error", st.last_error.clone())?;

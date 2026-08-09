@@ -380,7 +380,7 @@ class Libp2pTransportAdapter:
         from network.transport.libp2p_adapter.multiaddr import Multiaddr
 
         ma_str = Multiaddr(host=host, port=port, peer_id=peer_id).to_string()
-        dial_addr = f"/ip4/{host}/tcp/{port}"
+        dial_addr = Multiaddr(host=host, port=port, peer_id="").to_string()
 
         if self._native_capable:
             node = self._ensure_node()

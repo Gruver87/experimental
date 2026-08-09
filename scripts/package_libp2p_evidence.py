@@ -48,6 +48,7 @@ LABS = (
     "scripts/libp2p_rust_peerstore_lab.py",
     "scripts/libp2p_rust_peerstore_reconnect_lab.py",
     "scripts/libp2p_rust_idle_timeout_lab.py",
+    "scripts/libp2p_rust_ipv6_lab.py",
 )
 
 

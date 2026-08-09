@@ -25,6 +25,14 @@ def test_parse_multiaddr_roundtrip() -> None:
     assert ma.to_string() == "/ip4/127.0.0.1/tcp/4001/p2p/lab-a"
 
 
+def test_parse_multiaddr_ipv6_roundtrip() -> None:
+    ma = parse_multiaddr("/ip6/::1/tcp/4401/p2p/lab-w")
+    assert ma.host == "::1"
+    assert ma.port == 4401
+    assert ma.peer_id == "lab-w"
+    assert ma.to_string() == "/ip6/::1/tcp/4401/p2p/lab-w"
+
+
 def test_parse_multiaddr_rejects_junk() -> None:
     with pytest.raises(ValueError):
         parse_multiaddr("127.0.0.1:4001")

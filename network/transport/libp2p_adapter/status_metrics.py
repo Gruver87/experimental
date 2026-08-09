@@ -72,6 +72,8 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_reconnect_from_peerstore",
     "libp2p_idle_connection_timeout_secs",
     "libp2p_idle_timeout_closes",
+    "libp2p_ipv6_listens",
+    "libp2p_ipv6_dial_ok",
 )
 
 

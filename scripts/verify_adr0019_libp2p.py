@@ -63,6 +63,7 @@ LABS = [
     ("T", "scripts/libp2p_rust_peerstore_lab.py"),
     ("U", "scripts/libp2p_rust_peerstore_reconnect_lab.py"),
     ("V", "scripts/libp2p_rust_idle_timeout_lab.py"),
+    ("W", "scripts/libp2p_rust_ipv6_lab.py"),
 ]
 
 

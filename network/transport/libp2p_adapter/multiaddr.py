@@ -1,18 +1,27 @@
-"""Minimal multiaddr parse/format for lab dials (ADR 0018 wave-3).
+"""Minimal multiaddr parse/format for lab dials (ADR 0018 / 0019).
 
 Supports a narrow subset used by in-process / dual-stack labs:
-  /ip4/<host>/tcp/<port>
-  /ip4/<host>/tcp/<port>/p2p/<peer_id>
+  /ip4/<host>/tcp/<port>[/p2p/<peer_id>]
+  /ip6/<host>/tcp/<port>[/p2p/<peer_id>]   (Slice W)
 
 Not a full multiaddr codec — honesty: lab convenience only.
 """
 
 from __future__ import annotations
 
+import ipaddress
 from dataclasses import dataclass
 from typing import Optional
 
 from network.transport.types import PeerEndpoint
+
+
+def _ip_proto(host: str) -> str:
+    h = str(host or "").strip().strip("[]")
+    try:
+        return "ip6" if ipaddress.ip_address(h).version == 6 else "ip4"
+    except ValueError:
+        return "ip4"
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,7 +31,9 @@ class Multiaddr:
     peer_id: str = ""
 
     def to_string(self) -> str:
-        base = f"/ip4/{self.host}/tcp/{int(self.port)}"
+        host = str(self.host).strip().strip("[]")
+        proto = _ip_proto(host)
+        base = f"/{proto}/{host}/tcp/{int(self.port)}"
         if self.peer_id:
             return f"{base}/p2p/{self.peer_id}"
         return base
@@ -34,7 +45,7 @@ class Multiaddr:
 
 
 def parse_multiaddr(value: str) -> Multiaddr:
-    """Parse ``/ip4/.../tcp/...[/p2p/...]`` into :class:`Multiaddr`."""
+    """Parse ``/ip4|ip6/.../tcp/...[/p2p/...]`` into :class:`Multiaddr`."""
     raw = str(value or "").strip()
     if not raw.startswith("/"):
         raise ValueError("multiaddr must start with /")
@@ -45,9 +56,9 @@ def parse_multiaddr(value: str) -> Multiaddr:
     i = 0
     while i < len(parts):
         proto = parts[i]
-        if proto == "ip4":
+        if proto in ("ip4", "ip6"):
             if i + 1 >= len(parts):
-                raise ValueError("ip4 requires host")
+                raise ValueError(f"{proto} requires host")
             host = parts[i + 1]
             i += 2
             continue
@@ -65,7 +76,7 @@ def parse_multiaddr(value: str) -> Multiaddr:
             continue
         raise ValueError(f"unsupported multiaddr protocol: {proto}")
     if not host or port is None or port <= 0:
-        raise ValueError("multiaddr requires /ip4/<host>/tcp/<port>")
+        raise ValueError("multiaddr requires /ip4|ip6/<host>/tcp/<port>")
     return Multiaddr(host=host, port=port, peer_id=peer_id)
 
 
