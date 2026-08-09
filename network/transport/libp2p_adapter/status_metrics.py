@@ -74,6 +74,12 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_idle_timeout_closes",
     "libp2p_ipv6_listens",
     "libp2p_ipv6_dial_ok",
+    "libp2p_rendezvous_registers",
+    "libp2p_rendezvous_register_fail",
+    "libp2p_rendezvous_discovers",
+    "libp2p_rendezvous_discovered_peers",
+    "libp2p_rendezvous_discover_fail",
+    "libp2p_rendezvous_server_registrations",
 )
 
 

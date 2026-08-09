@@ -35,6 +35,8 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_idle_timeout_closes" in empty
     assert "libp2p_ipv6_listens" in empty
     assert "libp2p_ipv6_dial_ok" in empty
+    assert "libp2p_rendezvous_registers" in empty
+    assert "libp2p_rendezvous_server_registrations" in empty
 
 
 def test_merge_overwrites_present_keys_only() -> None:

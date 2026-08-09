@@ -102,6 +102,12 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_idle_timeout_closes",
     "libp2p_ipv6_listens",
     "libp2p_ipv6_dial_ok",
+    "libp2p_rendezvous_registers",
+    "libp2p_rendezvous_register_fail",
+    "libp2p_rendezvous_discovers",
+    "libp2p_rendezvous_discovered_peers",
+    "libp2p_rendezvous_discover_fail",
+    "libp2p_rendezvous_server_registrations",
 )
 
 UNIT_TESTS = [
@@ -139,6 +145,7 @@ LABS = [
     ("U", "scripts/libp2p_rust_peerstore_reconnect_lab.py"),
     ("V", "scripts/libp2p_rust_idle_timeout_lab.py"),
     ("W", "scripts/libp2p_rust_ipv6_lab.py"),
+    ("X", "scripts/libp2p_rust_rendezvous_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -244,6 +251,7 @@ def check_repo_honesty() -> tuple[bool, str]:
         "Slice U",
         "Slice V",
         "Slice W",
+        "Slice X",
         "FEATURE_LIBP2P",
         "## Honesty",
     )

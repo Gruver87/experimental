@@ -22,6 +22,7 @@
 //! Slice U: reconnect policy also covers learned peerstore peers (not only bootstrap).
 //! Slice V: idle connection timeout policy (swarm keep-alive / idle close).
 //! Slice W: IPv6 dual-stack listen/dial (`/ip6/.../tcp/...`) + metrics.
+//! Slice X: rendezvous server/client register + discover.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -36,6 +37,9 @@ pub const ABS_GOSSIP_BLOCKS_TOPIC: &str = "abs/blocks/1.0.0";
 /// Absolute Kademlia protocol id (Slice G; not IPFS bootstrap).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const ABS_KAD_PROTOCOL: &str = "/absolute/kad/1.0.0";
+/// Default rendezvous namespace (Slice X).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub const ABS_RENDEZVOUS_NAMESPACE: &str = "absolute";
 /// Default max concurrent outbound dials (Slice C).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_MAX_DIALS: u32 = 32;
@@ -107,12 +111,13 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(feature = "libp2p")]
 mod enabled {
     use super::{
-        libp2p_available, ABS_GOSSIP_BLOCKS_TOPIC, ABS_KAD_PROTOCOL, ABS_WIRE_PROTOCOL,
-        DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS,
-        DEFAULT_MAX_DIALS, DEFAULT_PING_INTERVAL_SECS, DEFAULT_PING_MAX_FAILS,
-        DEFAULT_PING_TIMEOUT_SECS, DEFAULT_RECONNECT_BASE_MS, DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS,
-        DEFAULT_RECONNECT_MAX_ATTEMPTS, DEFAULT_RECONNECT_MAX_MS, DEFAULT_SCORE_GRAYLIST_THRESHOLD,
-        DEFAULT_WIRE_TIMEOUT_SECS, MAX_WIRE_BYTES,
+        libp2p_available, ABS_GOSSIP_BLOCKS_TOPIC, ABS_KAD_PROTOCOL, ABS_RENDEZVOUS_NAMESPACE,
+        ABS_WIRE_PROTOCOL, DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS,
+        DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_PING_INTERVAL_SECS,
+        DEFAULT_PING_MAX_FAILS, DEFAULT_PING_TIMEOUT_SECS, DEFAULT_RECONNECT_BASE_MS,
+        DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS, DEFAULT_RECONNECT_MAX_ATTEMPTS,
+        DEFAULT_RECONNECT_MAX_MS, DEFAULT_SCORE_GRAYLIST_THRESHOLD, DEFAULT_WIRE_TIMEOUT_SECS,
+        MAX_WIRE_BYTES,
     };
     use async_trait::async_trait;
     use futures::prelude::*;
@@ -124,7 +129,7 @@ mod enabled {
         autonat, connection_limits, dcutr, gossipsub, identify,
         identity::Keypair,
         kad::{self, store::MemoryStore},
-        mdns, noise, ping, relay, request_response,
+        mdns, noise, ping, relay, rendezvous, request_response,
         swarm::{
             behaviour::toggle::Toggle, ConnectionError, DialError, ListenError, NetworkBehaviour,
             SwarmEvent,
@@ -642,6 +647,9 @@ mod enabled {
         /// Slice N: off by default — AutoNAT probe dials raced reconnect (Slice U).
         autonat: Toggle<autonat::Behaviour>,
         dcutr: dcutr::Behaviour,
+        /// Slice X: rendezvous point (always on; lab register/discover).
+        rendezvous_server: rendezvous::server::Behaviour,
+        rendezvous_client: rendezvous::client::Behaviour,
         connection_limits: connection_limits::Behaviour,
         blocked_peers: allow_block_list::Behaviour<BlockedPeers>,
     }
@@ -705,6 +713,25 @@ mod enabled {
         AutonatAddServer {
             peer_id: String,
             addr: Option<String>,
+            reply: oneshot::Sender<Result<(), String>>,
+        },
+        /// Slice X: register listen/external addrs at a rendezvous peer.
+        RendezvousRegister {
+            namespace: String,
+            rendezvous_peer: String,
+            ttl: Option<u64>,
+            reply: oneshot::Sender<Result<u64, String>>,
+        },
+        /// Slice X: discover peers registered at a rendezvous peer.
+        RendezvousDiscover {
+            namespace: Option<String>,
+            rendezvous_peer: String,
+            limit: Option<u64>,
+            reply: oneshot::Sender<Result<Vec<(String, Vec<String>)>, String>>,
+        },
+        RendezvousUnregister {
+            namespace: String,
+            rendezvous_peer: String,
             reply: oneshot::Sender<Result<(), String>>,
         },
         /// Slice O: persist bootstrap peer + multiaddr.
@@ -844,6 +871,13 @@ mod enabled {
         ipv6_listens: u64,
         /// Slice W: successful dialer ConnectionEstablished over `/ip6/`.
         ipv6_dial_ok: u64,
+        /// Slice X: rendezvous client/server counters.
+        rendezvous_registers: u64,
+        rendezvous_register_fail: u64,
+        rendezvous_discovers: u64,
+        rendezvous_discovered_peers: u64,
+        rendezvous_discover_fail: u64,
+        rendezvous_server_registrations: u64,
         last_error: String,
         inbox: VecDeque<(String, Vec<u8>)>,
         gossip_inbox: VecDeque<(String, String, Vec<u8>)>,
@@ -1119,6 +1153,10 @@ mod enabled {
                             Toggle::from(None)
                         },
                         dcutr: dcutr::Behaviour::new(local),
+                        rendezvous_server: rendezvous::server::Behaviour::new(
+                            rendezvous::server::Config::default(),
+                        ),
+                        rendezvous_client: rendezvous::client::Behaviour::new(key.clone()),
                         connection_limits: connection_limits::Behaviour::new(limits),
                         blocked_peers: allow_block_list::Behaviour::default(),
                     })
@@ -1158,6 +1196,12 @@ mod enabled {
                     kad::QueryId,
                     oneshot::Sender<Result<Vec<String>, String>>,
                 > = HashMap::new();
+                let mut pending_rendezvous_register: Option<
+                    oneshot::Sender<Result<u64, String>>,
+                > = None;
+                let mut pending_rendezvous_discover: Option<
+                    oneshot::Sender<Result<Vec<(String, Vec<String>)>, String>>,
+                > = None;
                 let mut score_sweep_at =
                     tokio::time::Instant::now() + Duration::from_secs(1);
 
@@ -1820,6 +1864,125 @@ mod enabled {
                                         }
                                     }
                                 }
+                                Some(Cmd::RendezvousRegister {
+                                    namespace,
+                                    rendezvous_peer,
+                                    ttl,
+                                    reply,
+                                }) => {
+                                    if pending_rendezvous_register.is_some() {
+                                        let _ = reply.send(Err(
+                                            "rendezvous register already in flight".into(),
+                                        ));
+                                        continue;
+                                    }
+                                    let ns = match rendezvous::Namespace::new(namespace) {
+                                        Ok(n) => n,
+                                        Err(e) => {
+                                            let _ = reply
+                                                .send(Err(format!("bad namespace: {e}")));
+                                            continue;
+                                        }
+                                    };
+                                    let pid = match rendezvous_peer.parse::<PeerId>() {
+                                        Ok(p) => p,
+                                        Err(e) => {
+                                            let _ = reply
+                                                .send(Err(format!("bad peer_id: {e}")));
+                                            continue;
+                                        }
+                                    };
+                                    // Lab: advertise listen addrs so register has PeerRecord material.
+                                    let listen_snapshot = state_bg
+                                        .lock()
+                                        .map(|st| st.listen_addrs.clone())
+                                        .unwrap_or_default();
+                                    for a in listen_snapshot {
+                                        if let Ok(ma) = a.parse::<Multiaddr>() {
+                                            swarm.add_external_address(ma);
+                                        }
+                                    }
+                                    match swarm.behaviour_mut().rendezvous_client.register(
+                                        ns, pid, ttl,
+                                    ) {
+                                        Ok(()) => {
+                                            pending_rendezvous_register = Some(reply);
+                                        }
+                                        Err(e) => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.rendezvous_register_fail = st
+                                                    .rendezvous_register_fail
+                                                    .saturating_add(1);
+                                            }
+                                            let _ = reply.send(Err(format!(
+                                                "rendezvous register: {e}"
+                                            )));
+                                        }
+                                    }
+                                }
+                                Some(Cmd::RendezvousDiscover {
+                                    namespace,
+                                    rendezvous_peer,
+                                    limit,
+                                    reply,
+                                }) => {
+                                    if pending_rendezvous_discover.is_some() {
+                                        let _ = reply.send(Err(
+                                            "rendezvous discover already in flight".into(),
+                                        ));
+                                        continue;
+                                    }
+                                    let ns = match namespace {
+                                        Some(s) => match rendezvous::Namespace::new(s) {
+                                            Ok(n) => Some(n),
+                                            Err(e) => {
+                                                let _ = reply
+                                                    .send(Err(format!("bad namespace: {e}")));
+                                                continue;
+                                            }
+                                        },
+                                        None => None,
+                                    };
+                                    let pid = match rendezvous_peer.parse::<PeerId>() {
+                                        Ok(p) => p,
+                                        Err(e) => {
+                                            let _ = reply
+                                                .send(Err(format!("bad peer_id: {e}")));
+                                            continue;
+                                        }
+                                    };
+                                    swarm.behaviour_mut().rendezvous_client.discover(
+                                        ns, None, limit, pid,
+                                    );
+                                    pending_rendezvous_discover = Some(reply);
+                                }
+                                Some(Cmd::RendezvousUnregister {
+                                    namespace,
+                                    rendezvous_peer,
+                                    reply,
+                                }) => {
+                                    let ns = match rendezvous::Namespace::new(namespace) {
+                                        Ok(n) => n,
+                                        Err(e) => {
+                                            let _ = reply
+                                                .send(Err(format!("bad namespace: {e}")));
+                                            continue;
+                                        }
+                                    };
+                                    match rendezvous_peer.parse::<PeerId>() {
+                                        Ok(pid) => {
+                                            swarm
+                                                .behaviour_mut()
+                                                .rendezvous_client
+                                                .unregister(ns, pid);
+                                            let _ = reply.send(Ok(()));
+                                        }
+                                        Err(e) => {
+                                            let _ = reply
+                                                .send(Err(format!("bad peer_id: {e}")));
+                                        }
+                                    }
+                                }
                                 Some(Cmd::BootstrapAdd {
                                     peer_id,
                                     multiaddr,
@@ -2143,6 +2306,10 @@ mod enabled {
                                         .iter()
                                         .any(|p| matches!(p, Protocol::P2pCircuit));
                                     let is_ip6 = s.contains("/ip6/");
+                                    // Slice X: listen addrs become external so register has material.
+                                    if !is_circuit {
+                                        swarm.add_external_address(address.clone());
+                                    }
                                     if let Ok(mut st) = state_bg.lock() {
                                         if !st.listen_addrs.contains(&s) {
                                             st.listen_addrs.push(s.clone());
@@ -2792,6 +2959,98 @@ mod enabled {
                                         }
                                     }
                                 }
+                                SwarmEvent::Behaviour(AbsBehaviourEvent::RendezvousServer(ev)) => {
+                                    match ev {
+                                        rendezvous::server::Event::PeerRegistered { .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.rendezvous_server_registrations = st
+                                                    .rendezvous_server_registrations
+                                                    .saturating_add(1);
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                                SwarmEvent::Behaviour(AbsBehaviourEvent::RendezvousClient(ev)) => {
+                                    match ev {
+                                        rendezvous::client::Event::Registered { ttl, .. } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.rendezvous_registers = st
+                                                    .rendezvous_registers
+                                                    .saturating_add(1);
+                                            }
+                                            if let Some(reply) =
+                                                pending_rendezvous_register.take()
+                                            {
+                                                let _ = reply.send(Ok(ttl));
+                                            }
+                                        }
+                                        rendezvous::client::Event::RegisterFailed {
+                                            error, ..
+                                        } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.rendezvous_register_fail = st
+                                                    .rendezvous_register_fail
+                                                    .saturating_add(1);
+                                            }
+                                            if let Some(reply) =
+                                                pending_rendezvous_register.take()
+                                            {
+                                                let _ = reply.send(Err(format!(
+                                                    "rendezvous register failed: {error:?}"
+                                                )));
+                                            }
+                                        }
+                                        rendezvous::client::Event::Discovered {
+                                            registrations,
+                                            ..
+                                        } => {
+                                            let mut out: Vec<(String, Vec<String>)> = Vec::new();
+                                            let mut n_peers = 0u64;
+                                            for reg in registrations {
+                                                let pid = reg.record.peer_id().to_string();
+                                                let addrs: Vec<String> = reg
+                                                    .record
+                                                    .addresses()
+                                                    .iter()
+                                                    .map(|a| a.to_string())
+                                                    .collect();
+                                                n_peers = n_peers.saturating_add(1);
+                                                out.push((pid, addrs));
+                                            }
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.rendezvous_discovers = st
+                                                    .rendezvous_discovers
+                                                    .saturating_add(1);
+                                                st.rendezvous_discovered_peers = st
+                                                    .rendezvous_discovered_peers
+                                                    .saturating_add(n_peers);
+                                            }
+                                            if let Some(reply) =
+                                                pending_rendezvous_discover.take()
+                                            {
+                                                let _ = reply.send(Ok(out));
+                                            }
+                                        }
+                                        rendezvous::client::Event::DiscoverFailed {
+                                            error, ..
+                                        } => {
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.rendezvous_discover_fail = st
+                                                    .rendezvous_discover_fail
+                                                    .saturating_add(1);
+                                            }
+                                            if let Some(reply) =
+                                                pending_rendezvous_discover.take()
+                                            {
+                                                let _ = reply.send(Err(format!(
+                                                    "rendezvous discover failed: {error:?}"
+                                                )));
+                                            }
+                                        }
+                                        rendezvous::client::Event::Expired { .. } => {}
+                                    }
+                                }
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::Wire(ev)) => {
                                     use request_response::{Event, Message};
                                     match ev {
@@ -3024,6 +3283,98 @@ mod enabled {
                 Ok(Ok(())) => Ok(()),
                 Ok(Err(e)) => Err(PyValueError::new_err(e)),
                 Err(_) => Err(PyRuntimeError::new_err("autonat_add_server reply dropped")),
+            }
+        }
+
+        /// Register at a rendezvous peer (Slice X). Returns TTL seconds.
+        #[pyo3(signature = (rendezvous_peer_id, namespace=None, ttl=None))]
+        fn rendezvous_register(
+            &self,
+            rendezvous_peer_id: &str,
+            namespace: Option<&str>,
+            ttl: Option<u64>,
+        ) -> PyResult<u64> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::RendezvousRegister {
+                    namespace: namespace
+                        .unwrap_or(ABS_RENDEZVOUS_NAMESPACE)
+                        .to_string(),
+                    rendezvous_peer: rendezvous_peer_id.to_string(),
+                    ttl,
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(ttl)) => Ok(ttl),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err("rendezvous_register reply dropped")),
+            }
+        }
+
+        /// Discover peers via a rendezvous peer (Slice X).
+        /// Returns ``{peer_id: [multiaddr, ...]}``.
+        #[pyo3(signature = (rendezvous_peer_id, namespace=None, limit=None))]
+        fn rendezvous_discover(
+            &self,
+            rendezvous_peer_id: &str,
+            namespace: Option<&str>,
+            limit: Option<u64>,
+        ) -> PyResult<PyObject> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::RendezvousDiscover {
+                    namespace: Some(
+                        namespace
+                            .unwrap_or(ABS_RENDEZVOUS_NAMESPACE)
+                            .to_string(),
+                    ),
+                    rendezvous_peer: rendezvous_peer_id.to_string(),
+                    limit,
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            let snap = match rx.blocking_recv() {
+                Ok(Ok(v)) => v,
+                Ok(Err(e)) => return Err(PyValueError::new_err(e)),
+                Err(_) => {
+                    return Err(PyRuntimeError::new_err(
+                        "rendezvous_discover reply dropped",
+                    ))
+                }
+            };
+            Python::with_gil(|py| {
+                let d = pyo3::types::PyDict::new_bound(py);
+                for (pid, addrs) in snap {
+                    d.set_item(pid, addrs)?;
+                }
+                Ok(d.into())
+            })
+        }
+
+        /// Unregister from a rendezvous peer (Slice X).
+        #[pyo3(signature = (rendezvous_peer_id, namespace=None))]
+        fn rendezvous_unregister(
+            &self,
+            rendezvous_peer_id: &str,
+            namespace: Option<&str>,
+        ) -> PyResult<()> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::RendezvousUnregister {
+                    namespace: namespace
+                        .unwrap_or(ABS_RENDEZVOUS_NAMESPACE)
+                        .to_string(),
+                    rendezvous_peer: rendezvous_peer_id.to_string(),
+                    reply: tx,
+                })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err(
+                    "rendezvous_unregister reply dropped",
+                )),
             }
         }
 
@@ -3642,6 +3993,24 @@ mod enabled {
                 d.set_item("libp2p_idle_timeout_closes", st.idle_timeout_closes)?;
                 d.set_item("libp2p_ipv6_listens", st.ipv6_listens)?;
                 d.set_item("libp2p_ipv6_dial_ok", st.ipv6_dial_ok)?;
+                d.set_item("libp2p_rendezvous_registers", st.rendezvous_registers)?;
+                d.set_item(
+                    "libp2p_rendezvous_register_fail",
+                    st.rendezvous_register_fail,
+                )?;
+                d.set_item("libp2p_rendezvous_discovers", st.rendezvous_discovers)?;
+                d.set_item(
+                    "libp2p_rendezvous_discovered_peers",
+                    st.rendezvous_discovered_peers,
+                )?;
+                d.set_item(
+                    "libp2p_rendezvous_discover_fail",
+                    st.rendezvous_discover_fail,
+                )?;
+                d.set_item(
+                    "libp2p_rendezvous_server_registrations",
+                    st.rendezvous_server_registrations,
+                )?;
                 if let Some(n) = st.max_established_incoming {
                     d.set_item("libp2p_max_established_incoming", n)?;
                 }
@@ -3653,6 +4022,7 @@ mod enabled {
                 d.set_item("libp2p_wire_protocol", ABS_WIRE_PROTOCOL)?;
                 d.set_item("libp2p_gossip_blocks_topic", ABS_GOSSIP_BLOCKS_TOPIC)?;
                 d.set_item("libp2p_kad_protocol", ABS_KAD_PROTOCOL)?;
+                d.set_item("libp2p_rendezvous_namespace", ABS_RENDEZVOUS_NAMESPACE)?;
                 d.set_item("peer_id", &self.peer_id)?;
                 Ok(d.into())
             })
@@ -3667,7 +4037,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 22)?;
+                d.set_item("phase", 23)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -3685,6 +4055,7 @@ mod enabled {
                 d.set_item("relay", true)?;
                 d.set_item("autonat", st.enable_autonat)?;
                 d.set_item("dcutr", true)?;
+                d.set_item("rendezvous", true)?;
                 d.set_item("bootstrap", true)?;
                 d.set_item("reconnect", st.enable_reconnect)?;
                 d.set_item("idle_connection_timeout", true)?;
@@ -3806,6 +4177,24 @@ mod enabled {
                 d.set_item("libp2p_idle_timeout_closes", st.idle_timeout_closes)?;
                 d.set_item("libp2p_ipv6_listens", st.ipv6_listens)?;
                 d.set_item("libp2p_ipv6_dial_ok", st.ipv6_dial_ok)?;
+                d.set_item("libp2p_rendezvous_registers", st.rendezvous_registers)?;
+                d.set_item(
+                    "libp2p_rendezvous_register_fail",
+                    st.rendezvous_register_fail,
+                )?;
+                d.set_item("libp2p_rendezvous_discovers", st.rendezvous_discovers)?;
+                d.set_item(
+                    "libp2p_rendezvous_discovered_peers",
+                    st.rendezvous_discovered_peers,
+                )?;
+                d.set_item(
+                    "libp2p_rendezvous_discover_fail",
+                    st.rendezvous_discover_fail,
+                )?;
+                d.set_item(
+                    "libp2p_rendezvous_server_registrations",
+                    st.rendezvous_server_registrations,
+                )?;
                 d.set_item("default_mesh", false)?;
                 d.set_item("honesty", "ADR0019_rust_libp2p_lab_not_prod_mesh")?;
                 d.set_item("error", st.last_error.clone())?;
@@ -4125,6 +4514,7 @@ mod enabled {
         m.add("ABS_WIRE_PROTOCOL", ABS_WIRE_PROTOCOL)?;
         m.add("ABS_GOSSIP_BLOCKS_TOPIC", ABS_GOSSIP_BLOCKS_TOPIC)?;
         m.add("ABS_KAD_PROTOCOL", ABS_KAD_PROTOCOL)?;
+        m.add("ABS_RENDEZVOUS_NAMESPACE", ABS_RENDEZVOUS_NAMESPACE)?;
         Ok(())
     }
 }
