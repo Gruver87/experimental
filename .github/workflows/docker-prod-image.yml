@@ -13,7 +13,8 @@ permissions:
   packages: write
 
 env:
-  IMAGE_NAME: ghcr.io/gruver87/abs-blockchain-node
+  # Experimental-owned GHCR package (lowercase). Do not push Hybrid's abs-blockchain-node.
+  IMAGE_NAME: ghcr.io/gruver87/experimental
   CI_TAG: abs-blockchain-prod:ci
 
 jobs:

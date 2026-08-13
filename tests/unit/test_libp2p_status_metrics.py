@@ -83,6 +83,13 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_external_addr_confirmed" in empty
     assert "libp2p_external_addr_cleared" in empty
     assert "libp2p_external_addrs" in empty
+    assert "libp2p_external_addr_loaded" in empty
+    assert "libp2p_external_addr_persisted" in empty
+    assert "libp2p_max_advertised_external" in empty
+    assert "libp2p_listen_derived_externals" in empty
+    assert "libp2p_aux_advertised_externals" in empty
+    assert "libp2p_advertised_externals_used" in empty
+    assert "libp2p_external_addr_limit_refused" in empty
     assert "libp2p_inbound_established" in empty
     assert "libp2p_connection_closed" in empty
     assert "libp2p_connection_closed_local" in empty

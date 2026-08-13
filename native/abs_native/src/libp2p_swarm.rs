@@ -61,6 +61,13 @@
 //! Slice BL: clear_observed_addr (wipe last_observed surface + counter).
 //! Slice BM: clear_external_addrs (wipe external book + counter).
 //! Slice BN: remove_external_address returns bool (present) + expired only when present.
+//! Slice BO: add_external_address returns bool (fresh) + confirmed only when newly inserted.
+//! Slice BP: persistent advertised external addrs JSON (`external_addrs_path`).
+//! Slice BQ: atomic persist (same-dir `.tmp` + fsync + rename; dest not truncated in place).
+//! Slice BR: hard max on advertised externals (refuse over limit; no silent truncate).
+//! Slice BS: same max on listen-derived externals (refuse listen over limit; no silent truncate).
+//! Slice BT: shared advertised cap — operator + listen-derived sum ≤ max (not 64).
+//! Slice BU: observed / UPnP / rendezvous advertise through the same shared cap.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -70,6 +77,7 @@ use pyo3::prelude::*;
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const ABS_WIRE_PROTOCOL: &str = "/abs/wire/1.0.0";
 /// Identify protocol family version advertised on the wire (Slice BC).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const ABS_IDENTIFY_PROTOCOL_VERSION: &str = "/absolute/1.0.0";
 /// Default gossip topic for Absolute block announce labs (Slice E).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
@@ -90,6 +98,7 @@ pub const MAX_WIRE_BYTES: usize = 1024 * 1024;
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_WIRE_TIMEOUT_SECS: u64 = 10;
 /// Default mDNS record TTL (Slice F / AS).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_MDNS_TTL_SECS: u64 = 60;
 /// Swarm idle connection timeout (Slice V; was hardcoded 60s).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
@@ -120,6 +129,11 @@ pub const DEFAULT_SCORE_GRAYLIST_THRESHOLD: f64 = -80.0;
 /// Slice BD: default identify re-request interval (libp2p identify default = 5 min).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_IDENTIFY_INTERVAL_MS: u64 = 5 * 60 * 1000;
+/// Slice BR/BS/BT/BU: hard ceiling on advertised externals. Unique charged
+/// addrs (operator + listen-derived + observed/UPnP/rendezvous aux) ≤ this
+/// value. Circuit `/p2p-circuit` is not counted. Env/arg may only lower this;
+/// values above refuse spawn.
+pub const MAX_ADVERTISED_EXTERNAL_ADDRS: usize = 32;
 
 /// Classify Absolute ADR 0008 payload on `/abs/wire` (Slice M).
 ///
@@ -142,6 +156,148 @@ pub fn classify_abs_wire_codec(data: &[u8]) -> &'static str {
     }
 }
 
+/// Slice BP: parse advertised external multiaddr JSON (fail-closed).
+///
+/// Expected shape: `{"version":1,"addrs":["/ip4/.../tcp/..."]}`.
+/// Missing file is handled by [`load_external_addrs_file`]. Corrupt JSON,
+/// missing `addrs` array, non-string entries, or non-multiaddr strings error.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn parse_external_addrs_json(raw: &str) -> Result<Vec<String>, String> {
+    let v: serde_json::Value =
+        serde_json::from_str(raw).map_err(|e| format!("external addrs json: {e}"))?;
+    let arr = v
+        .get("addrs")
+        .and_then(|a| a.as_array())
+        .ok_or_else(|| "external addrs json: missing addrs array".to_string())?;
+    let mut out: Vec<String> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for x in arr {
+        let s = x
+            .as_str()
+            .ok_or_else(|| "external addrs json: addr must be string".to_string())?
+            .trim();
+        if s.is_empty() {
+            return Err("external addrs json: empty addr".into());
+        }
+        if !s.starts_with('/') {
+            return Err(format!("external addrs json: not a multiaddr: {s}"));
+        }
+        if seen.insert(s.to_string()) {
+            out.push(s.to_string());
+        }
+    }
+    if out.len() > MAX_ADVERTISED_EXTERNAL_ADDRS {
+        return Err(format!(
+            "external addrs json: {} addrs exceeds hard max {}",
+            out.len(),
+            MAX_ADVERTISED_EXTERNAL_ADDRS
+        ));
+    }
+    Ok(out)
+}
+
+/// Slice BP: load advertised externals. Missing file → empty. Corrupt → error.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn load_external_addrs_file(path: &std::path::Path) -> Result<Vec<String>, String> {
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let raw = std::fs::read_to_string(path).map_err(|e| format!("read external addrs: {e}"))?;
+    parse_external_addrs_json(&raw)
+}
+
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn encode_external_addrs_json(addrs: &[String]) -> Result<String, String> {
+    let doc = serde_json::json!({
+        "version": 1,
+        "addrs": addrs,
+    });
+    serde_json::to_string_pretty(&doc).map_err(|e| format!("external addrs encode: {e}"))
+}
+
+/// Slice BQ: sibling tmp next to dest (`foo.json` → `foo.json.tmp`).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn external_addrs_tmp_path(path: &std::path::Path) -> std::path::PathBuf {
+    let fname = path.file_name().map_or_else(
+        || std::ffi::OsString::from("external_addrs.json.tmp"),
+        |n| {
+            let mut s = n.to_os_string();
+            s.push(".tmp");
+            s
+        },
+    );
+    match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.join(fname),
+        _ => std::path::PathBuf::from(fname),
+    }
+}
+
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+fn replace_file(tmp: &std::path::Path, dest: &std::path::Path) -> Result<(), String> {
+    match std::fs::rename(tmp, dest) {
+        Ok(()) => Ok(()),
+        Err(first) => {
+            if dest.exists() {
+                std::fs::remove_file(dest).map_err(|e| format!("replace dest remove: {e}"))?;
+                std::fs::rename(tmp, dest).map_err(|e| format!("rename tmp: {e}"))
+            } else {
+                Err(format!("rename tmp: {first}"))
+            }
+        }
+    }
+}
+
+/// Slice BQ: write tmp + fsync + rename. Destination is never truncated in place.
+///
+/// Windows `rename` cannot replace an existing file: dest is unlinked first
+/// (short window). POSIX rename is atomic. Either way a crash cannot leave
+/// a half-written dest from this writer.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn save_external_addrs_file(path: &std::path::Path, addrs: &[String]) -> Result<(), String> {
+    if addrs.len() > MAX_ADVERTISED_EXTERNAL_ADDRS {
+        return Err(format!(
+            "advertised externals: {} exceeds hard max {}",
+            addrs.len(),
+            MAX_ADVERTISED_EXTERNAL_ADDRS
+        ));
+    }
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("create external addrs dir: {e}"))?;
+        }
+    }
+    let body = encode_external_addrs_json(addrs)?;
+    let tmp = external_addrs_tmp_path(path);
+    let write_tmp = (|| -> Result<(), String> {
+        let mut f =
+            std::fs::File::create(&tmp).map_err(|e| format!("create external addrs tmp: {e}"))?;
+        use std::io::Write;
+        f.write_all(body.as_bytes())
+            .map_err(|e| format!("write external addrs tmp: {e}"))?;
+        f.sync_all()
+            .map_err(|e| format!("sync external addrs tmp: {e}"))?;
+        Ok(())
+    })();
+    if let Err(e) = write_tmp {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e);
+    }
+    if let Err(e) = replace_file(&tmp, path) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e);
+    }
+    Ok(())
+}
+
+#[cfg(feature = "libp2p")]
+fn persist_external_addrs_file(path: &str, addrs: &[String]) -> Result<(), String> {
+    if path.is_empty() {
+        return Ok(());
+    }
+    save_external_addrs_file(std::path::Path::new(path), addrs)
+}
+
 #[pyfunction]
 fn libp2p_available() -> bool {
     cfg!(feature = "libp2p")
@@ -162,7 +318,7 @@ mod enabled {
         DEFAULT_MDNS_TTL_SECS, DEFAULT_PING_INTERVAL_SECS, DEFAULT_PING_MAX_FAILS,
         DEFAULT_PING_TIMEOUT_SECS, DEFAULT_RECONNECT_BASE_MS, DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS,
         DEFAULT_RECONNECT_MAX_ATTEMPTS, DEFAULT_RECONNECT_MAX_MS, DEFAULT_SCORE_GRAYLIST_THRESHOLD,
-        DEFAULT_WIRE_TIMEOUT_SECS, MAX_WIRE_BYTES,
+        DEFAULT_WIRE_TIMEOUT_SECS, MAX_ADVERTISED_EXTERNAL_ADDRS, MAX_WIRE_BYTES,
     };
     use async_trait::async_trait;
     use futures::prelude::*;
@@ -822,10 +978,10 @@ mod enabled {
             rendezvous_peer: String,
             reply: oneshot::Sender<Result<(), String>>,
         },
-        /// Slice AG: mark multiaddr as externally reachable / expire it.
+        /// Slice AG/BO: mark multiaddr as externally reachable / expire it.
         AddExternalAddress {
             addr: String,
-            reply: oneshot::Sender<Result<(), String>>,
+            reply: oneshot::Sender<Result<bool, String>>,
         },
         RemoveExternalAddress {
             addr: String,
@@ -1203,6 +1359,27 @@ mod enabled {
         external_addr_candidates: u64,
         /// Slice BM: addrs removed via clear_external_addrs.
         external_addr_cleared: u64,
+        /// Slice BP: advertised externals restored from JSON on start.
+        external_addr_loaded: u64,
+        /// Slice BP: successful persist writes.
+        external_addr_persisted: u64,
+        /// Slice BP: JSON path (empty = memory-only). Operator-advertised only.
+        external_addrs_path: String,
+        /// Slice BP: addrs inserted via add_external_address (not listen-derived).
+        advertised_external: Vec<String>,
+        /// Slice BR/BT/BU: effective advertised cap (<= MAX_ADVERTISED_EXTERNAL_ADDRS).
+        /// Shared unique budget: operator + listen-derived + aux (observed/UPnP/rendezvous).
+        max_advertised_external: u32,
+        /// Slice BR: add/restore refused because the cap would be exceeded.
+        /// Slice BS: listen-derived advertise refused.
+        /// Slice BT: shared sum refuse (listen / add / restore).
+        /// Slice BU: observed / UPnP / rendezvous refuse.
+        external_addr_limit_refused: u64,
+        /// Slice BS: listen addrs currently in the advertised book (not operator persist).
+        listen_derived_external: Vec<String>,
+        /// Slice BU: advertised addrs that are not operator persist and not listen-derived
+        /// (observed confirm, UPnP, rendezvous).
+        aux_advertised_external: Vec<String>,
         /// Persistent bootstrap book path (Slice O; empty = memory-only).
         bootstrap_path: String,
         bootstrap: HashMap<String, Vec<String>>,
@@ -1300,6 +1477,8 @@ mod enabled {
             idle_connection_timeout_secs: u64,
             relay_max_reservations: Option<u32>,
             mdns_ttl_secs: u64,
+            external_addrs_path: Option<String>,
+            max_advertised_external: u32,
         ) -> PyResult<Self> {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -1310,6 +1489,24 @@ mod enabled {
             let key_path_str = key_path.unwrap_or_default();
             let bootstrap_path_str = bootstrap_path.unwrap_or_default();
             let peerstore_path_str = peerstore_path.unwrap_or_default();
+            let external_addrs_path_str = external_addrs_path.unwrap_or_default();
+            let advertised_external = if external_addrs_path_str.is_empty() {
+                Vec::new()
+            } else {
+                super::load_external_addrs_file(Path::new(&external_addrs_path_str))
+                    .map_err(|e| PyRuntimeError::new_err(format!("external addrs load: {e}")))?
+            };
+            for s in &advertised_external {
+                s.parse::<Multiaddr>().map_err(|e| {
+                    PyRuntimeError::new_err(format!("external addrs load: bad multiaddr {s}: {e}"))
+                })?;
+            }
+            if advertised_external.len() > max_advertised_external as usize {
+                return Err(PyRuntimeError::new_err(format!(
+                    "external addrs load: {} addrs exceeds max {max_advertised_external}",
+                    advertised_external.len()
+                )));
+            }
             let bootstrap_peers = if bootstrap_path_str.is_empty() {
                 HashMap::new()
             } else {
@@ -1347,6 +1544,9 @@ mod enabled {
                 bootstrap_dial_timeout_secs,
                 peerstore_path: peerstore_path_str.clone(),
                 peerstore: peerstore_peers,
+                external_addrs_path: external_addrs_path_str.clone(),
+                advertised_external,
+                max_advertised_external,
                 enable_reconnect,
                 reconnect_base_ms: DEFAULT_RECONNECT_BASE_MS,
                 reconnect_max_ms: DEFAULT_RECONNECT_MAX_MS,
@@ -1594,12 +1794,14 @@ mod enabled {
                         relay_client,
                         autonat: if want_autonat {
                             // Lab-friendly AutoNAT: allow private/loopback peers (Slice N).
-                            let mut cfg = autonat::Config::default();
-                            cfg.only_global_ips = false;
-                            cfg.boot_delay = Duration::from_millis(200);
-                            cfg.retry_interval = Duration::from_secs(2);
-                            cfg.refresh_interval = Duration::from_secs(10);
-                            cfg.throttle_server_period = Duration::from_secs(1);
+                            let cfg = autonat::Config {
+                                only_global_ips: false,
+                                boot_delay: Duration::from_millis(200),
+                                retry_interval: Duration::from_secs(2),
+                                refresh_interval: Duration::from_secs(10),
+                                throttle_server_period: Duration::from_secs(1),
+                                ..Default::default()
+                            };
                             Toggle::from(Some(autonat::Behaviour::new(local, cfg)))
                         } else {
                             Toggle::from(None)
@@ -1639,6 +1841,23 @@ mod enabled {
                 let local_peer = *swarm.local_peer_id();
                 if let Ok(mut pid) = peer_id_bg.lock() {
                     *pid = local_peer.to_string();
+                }
+
+                // Slice BP: restore operator-advertised externals (not listen-derived).
+                let restore = state_bg
+                    .lock()
+                    .map(|st| st.advertised_external.clone())
+                    .unwrap_or_default();
+                for s in restore {
+                    if let Ok(ma) = s.parse::<Multiaddr>() {
+                        swarm.add_external_address(ma);
+                        if let Ok(mut st) = state_bg.lock() {
+                            if !st.external_addrs.contains(&s) {
+                                st.external_addrs.push(s.clone());
+                            }
+                            st.external_addr_loaded = st.external_addr_loaded.saturating_add(1);
+                        }
+                    }
                 }
 
                 let mut pending_listen: Option<oneshot::Sender<Result<Vec<String>, String>>> = None;
@@ -2037,6 +2256,35 @@ mod enabled {
                                 Some(Cmd::Listen { addr, reply }) => {
                                     match addr.parse::<Multiaddr>() {
                                         Ok(ma) => {
+                                            let is_circuit = ma.iter().any(|p| {
+                                                matches!(p, Protocol::P2pCircuit)
+                                            });
+                                            // Slice BS/BT: shared advertised cap. Circuit
+                                            // listens are not advertised into that set.
+                                            if !is_circuit {
+                                                let at_cap = match state_bg.lock() {
+                                                    Ok(st) => advertised_at_cap(&st),
+                                                    Err(_) => {
+                                                        let _ = reply.send(Err(
+                                                            "state lock poisoned".into(),
+                                                        ));
+                                                        continue;
+                                                    }
+                                                };
+                                                if at_cap {
+                                                    if let Ok(mut st) = state_bg.lock() {
+                                                        let _ = refuse_advertised_over_cap(
+                                                            &mut st,
+                                                            "listen-derived externals",
+                                                        );
+                                                    }
+                                                    let _ = reply.send(Err(
+                                                        "listen-derived externals: at max"
+                                                            .into(),
+                                                    ));
+                                                    continue;
+                                                }
+                                            }
                                             if let Err(e) = swarm.listen_on(ma) {
                                                 let _ = reply.send(Err(format!("listen_on: {e}")));
                                             } else {
@@ -2341,7 +2589,7 @@ mod enabled {
                                         .gossipsub
                                         .all_peers()
                                         .filter_map(|(peer, topics)| {
-                                            if topics.iter().any(|th| *th == &want) {
+                                            if topics.contains(&&want) {
                                                 Some(peer.to_string())
                                             } else {
                                                 None
@@ -2536,7 +2784,36 @@ mod enabled {
                                         .unwrap_or_default();
                                     for a in listen_snapshot {
                                         if let Ok(ma) = a.parse::<Multiaddr>() {
-                                            swarm.add_external_address(ma);
+                                            let is_circuit = ma
+                                                .iter()
+                                                .any(|p| matches!(p, Protocol::P2pCircuit));
+                                            if is_circuit {
+                                                swarm.add_external_address(ma);
+                                                continue;
+                                            }
+                                            let admit = match state_bg.lock() {
+                                                Ok(mut st) => {
+                                                    if advertised_already_charged(&st, &a) {
+                                                        Ok(false)
+                                                    } else {
+                                                        admit_aux_advertised_external(&mut st, &a)
+                                                    }
+                                                }
+                                                Err(_) => Err("state lock poisoned".into()),
+                                            };
+                                            match admit {
+                                                Ok(_) => {
+                                                    swarm.add_external_address(ma);
+                                                    if let Ok(mut st) = state_bg.lock() {
+                                                        if !st.external_addrs.contains(&a) {
+                                                            st.external_addrs.push(a);
+                                                        }
+                                                    }
+                                                }
+                                                Err(_) => {
+                                                    // Slice BU: do not advertise uncharged addrs over cap.
+                                                }
+                                            }
                                         }
                                     }
                                     match swarm.behaviour_mut().rendezvous_client.register(
@@ -2621,19 +2898,76 @@ mod enabled {
                                     }
                                 }
                                 Some(Cmd::AddExternalAddress { addr, reply }) => {
+                                    // Slice BO: bool = newly inserted; bump confirmed only then.
+                                    // Slice BP: persist operator-advertised addrs (fail-closed).
                                     match addr.parse::<Multiaddr>() {
                                         Ok(ma) => {
                                             let s = ma.to_string();
+                                            let present = match state_bg.lock() {
+                                                Ok(st) => {
+                                                    st.external_addrs.iter().any(|a| a == &s)
+                                                }
+                                                Err(_) => {
+                                                    let _ = reply.send(Err(
+                                                        "state lock poisoned".into(),
+                                                    ));
+                                                    continue;
+                                                }
+                                            };
+                                            if present {
+                                                let _ = reply.send(Ok(false));
+                                                continue;
+                                            }
+                                            let persist = match state_bg.lock() {
+                                                Ok(mut st) => {
+                                                    if !st.advertised_external.contains(&s) {
+                                                        if advertised_at_cap(&st) {
+                                                            let msg = refuse_advertised_over_cap(
+                                                                &mut st,
+                                                                "advertised externals",
+                                                            );
+                                                            let _ = reply.send(Err(msg));
+                                                            continue;
+                                                        }
+                                                        st.advertised_external.push(s.clone());
+                                                    }
+                                                    (
+                                                        st.external_addrs_path.clone(),
+                                                        st.advertised_external.clone(),
+                                                    )
+                                                }
+                                                Err(_) => {
+                                                    let _ = reply.send(Err(
+                                                        "state lock poisoned".into(),
+                                                    ));
+                                                    continue;
+                                                }
+                                            };
+                                            if let Err(e) = super::persist_external_addrs_file(
+                                                &persist.0,
+                                                &persist.1,
+                                            ) {
+                                                if let Ok(mut st) = state_bg.lock() {
+                                                    st.advertised_external.retain(|a| a != &s);
+                                                }
+                                                let _ = reply.send(Err(e));
+                                                continue;
+                                            }
                                             swarm.add_external_address(ma);
-                                            // add_external_address does not emit SwarmEvent.
                                             if let Ok(mut st) = state_bg.lock() {
-                                                st.external_addr_confirmed =
-                                                    st.external_addr_confirmed.saturating_add(1);
+                                                st.external_addr_confirmed = st
+                                                    .external_addr_confirmed
+                                                    .saturating_add(1);
                                                 if !st.external_addrs.contains(&s) {
                                                     st.external_addrs.push(s);
                                                 }
+                                                if !persist.0.is_empty() {
+                                                    st.external_addr_persisted = st
+                                                        .external_addr_persisted
+                                                        .saturating_add(1);
+                                                }
                                             }
-                                            let _ = reply.send(Ok(()));
+                                            let _ = reply.send(Ok(true));
                                         }
                                         Err(e) => {
                                             let _ = reply.send(Err(format!("bad multiaddr: {e}")));
@@ -2645,21 +2979,69 @@ mod enabled {
                                     match addr.parse::<Multiaddr>() {
                                         Ok(ma) => {
                                             let s = ma.to_string();
-                                            let present = state_bg
-                                                .lock()
-                                                .map(|st| st.external_addrs.iter().any(|a| a == &s))
-                                                .unwrap_or(false);
+                                            let present = match state_bg.lock() {
+                                                Ok(st) => {
+                                                    st.external_addrs.iter().any(|a| a == &s)
+                                                }
+                                                Err(_) => {
+                                                    let _ = reply.send(Err(
+                                                        "state lock poisoned".into(),
+                                                    ));
+                                                    continue;
+                                                }
+                                            };
+                                            if !present {
+                                                swarm.remove_external_address(&ma);
+                                                let _ = reply.send(Ok(false));
+                                                continue;
+                                            }
+                                            let persist = match state_bg.lock() {
+                                                Ok(mut st) => {
+                                                    let was_advertised =
+                                                        st.advertised_external.iter().any(|a| a == &s);
+                                                    st.advertised_external.retain(|a| a != &s);
+                                                    (
+                                                        st.external_addrs_path.clone(),
+                                                        st.advertised_external.clone(),
+                                                        was_advertised,
+                                                    )
+                                                }
+                                                Err(_) => {
+                                                    let _ = reply.send(Err(
+                                                        "state lock poisoned".into(),
+                                                    ));
+                                                    continue;
+                                                }
+                                            };
+                                            if let Err(e) = super::persist_external_addrs_file(
+                                                &persist.0,
+                                                &persist.1,
+                                            ) {
+                                                if persist.2 {
+                                                    if let Ok(mut st) = state_bg.lock() {
+                                                        if !st.advertised_external.contains(&s) {
+                                                            st.advertised_external.push(s.clone());
+                                                        }
+                                                    }
+                                                }
+                                                let _ = reply.send(Err(e));
+                                                continue;
+                                            }
                                             swarm.remove_external_address(&ma);
-                                            // remove_external_address does not emit SwarmEvent.
-                                            if present {
-                                                if let Ok(mut st) = state_bg.lock() {
-                                                    st.external_addr_expired = st
-                                                        .external_addr_expired
+                                            if let Ok(mut st) = state_bg.lock() {
+                                                st.external_addr_expired = st
+                                                    .external_addr_expired
+                                                    .saturating_add(1);
+                                                st.external_addrs.retain(|a| a != &s);
+                                                st.listen_derived_external.retain(|a| a != &s);
+                                                st.aux_advertised_external.retain(|a| a != &s);
+                                                if !persist.0.is_empty() {
+                                                    st.external_addr_persisted = st
+                                                        .external_addr_persisted
                                                         .saturating_add(1);
-                                                    st.external_addrs.retain(|a| a != &s);
                                                 }
                                             }
-                                            let _ = reply.send(Ok(present));
+                                            let _ = reply.send(Ok(true));
                                         }
                                         Err(e) => {
                                             let _ = reply.send(Err(format!("bad multiaddr: {e}")));
@@ -2668,10 +3050,41 @@ mod enabled {
                                 }
                                 Some(Cmd::ClearExternalAddrs { reply }) => {
                                     // Slice BM: wipe external book (+ swarm remove each).
-                                    let snap = state_bg
-                                        .lock()
-                                        .map(|st| st.external_addrs.clone())
-                                        .unwrap_or_default();
+                                    // Slice BP: persist empty advertised set.
+                                    let snap = match state_bg.lock() {
+                                        Ok(st) => st.external_addrs.clone(),
+                                        Err(_) => {
+                                            let _ = reply
+                                                .send(Err("state lock poisoned".into()));
+                                            continue;
+                                        }
+                                    };
+                                    let persist = match state_bg.lock() {
+                                        Ok(mut st) => {
+                                            let advertised_snap = st.advertised_external.clone();
+                                            st.advertised_external.clear();
+                                            (
+                                                st.external_addrs_path.clone(),
+                                                st.advertised_external.clone(),
+                                                advertised_snap,
+                                            )
+                                        }
+                                        Err(_) => {
+                                            let _ = reply
+                                                .send(Err("state lock poisoned".into()));
+                                            continue;
+                                        }
+                                    };
+                                    if let Err(e) = super::persist_external_addrs_file(
+                                        &persist.0,
+                                        &persist.1,
+                                    ) {
+                                        if let Ok(mut st) = state_bg.lock() {
+                                            st.advertised_external = persist.2;
+                                        }
+                                        let _ = reply.send(Err(e));
+                                        continue;
+                                    }
                                     let n = snap.len();
                                     for s in &snap {
                                         if let Ok(ma) = s.parse::<Multiaddr>() {
@@ -2680,9 +3093,16 @@ mod enabled {
                                     }
                                     if let Ok(mut st) = state_bg.lock() {
                                         st.external_addrs.clear();
+                                        st.listen_derived_external.clear();
+                                        st.aux_advertised_external.clear();
                                         if n > 0 {
                                             st.external_addr_cleared =
                                                 st.external_addr_cleared.saturating_add(n as u64);
+                                        }
+                                        if !persist.0.is_empty() {
+                                            st.external_addr_persisted = st
+                                                .external_addr_persisted
+                                                .saturating_add(1);
                                         }
                                     }
                                     let _ = reply.send(Ok(n));
@@ -3073,6 +3493,7 @@ mod enabled {
                                 }
                                 Some(Cmd::ConfirmObservedAddr { reply }) => {
                                     // Slice BG: trust last identify observed addr as external.
+                                    // Slice BU: same shared advertised cap; refuse over limit.
                                     let addr = state_bg
                                         .lock()
                                         .map(|st| st.last_observed_addr.clone())
@@ -3086,6 +3507,23 @@ mod enabled {
                                     match addr.parse::<Multiaddr>() {
                                         Ok(ma) => {
                                             let s = ma.to_string();
+                                            let is_circuit = ma
+                                                .iter()
+                                                .any(|p| matches!(p, Protocol::P2pCircuit));
+                                            if !is_circuit {
+                                                let admit = match state_bg.lock() {
+                                                    Ok(mut st) => {
+                                                        admit_aux_advertised_external(&mut st, &s)
+                                                    }
+                                                    Err(_) => {
+                                                        Err("state lock poisoned".into())
+                                                    }
+                                                };
+                                                if let Err(msg) = admit {
+                                                    let _ = reply.send(Err(msg));
+                                                    continue;
+                                                }
+                                            }
                                             swarm.add_external_address(ma);
                                             if let Ok(mut st) = state_bg.lock() {
                                                 st.external_addr_confirmed = st
@@ -3292,7 +3730,21 @@ mod enabled {
                                     let is_ws = s.contains("/ws");
                                     listen_ids.insert(s.clone(), listener_id);
                                     // Slice X/AG: listen addrs become external so register has material.
-                                    if !is_circuit {
+                                    // Slice BS: same advertised cap as operator persist; refuse over max.
+                                    // Do not remove_listener on refuse — one ListenerId can emit
+                                    // several NewListenAddr (dual-stack); tearing it down would
+                                    // drop already-admitted siblings.
+                                    let advertise_listen = if !is_circuit {
+                                        match state_bg.lock() {
+                                            Ok(mut st) => {
+                                                admit_listen_derived_external(&mut st, &s).is_ok()
+                                            }
+                                            Err(_) => false,
+                                        }
+                                    } else {
+                                        false
+                                    };
+                                    if advertise_listen {
                                         swarm.add_external_address(address.clone());
                                     }
                                     if let Ok(mut st) = state_bg.lock() {
@@ -3301,10 +3753,10 @@ mod enabled {
                                         if !st.listen_addrs.contains(&s) {
                                             st.listen_addrs.push(s.clone());
                                         }
-                                        // Slice AG: Swarm.add_external_address does not emit SwarmEvent.
-                                        if !is_circuit {
-                                            st.external_addr_confirmed =
-                                                st.external_addr_confirmed.saturating_add(1);
+                                        if advertise_listen {
+                                            st.external_addr_confirmed = st
+                                                .external_addr_confirmed
+                                                .saturating_add(1);
                                             if !st.external_addrs.contains(&s) {
                                                 st.external_addrs.push(s.clone());
                                             }
@@ -3353,6 +3805,8 @@ mod enabled {
                                         st.listen_addrs.retain(|a| a != &s);
                                         st.circuit_addrs.retain(|a| a != &s);
                                         st.external_addrs.retain(|a| a != &s);
+                                        st.listen_derived_external.retain(|a| a != &s);
+                                        st.aux_advertised_external.retain(|a| a != &s);
                                     }
                                 }
                                 SwarmEvent::ListenerClosed {
@@ -3368,6 +3822,8 @@ mod enabled {
                                             st.listen_addrs.retain(|x| x != &a);
                                             st.circuit_addrs.retain(|x| x != &a);
                                             st.external_addrs.retain(|x| x != &a);
+                                            st.listen_derived_external.retain(|x| x != &a);
+                                            st.aux_advertised_external.retain(|x| x != &a);
                                         }
                                         if let Err(e) = reason {
                                             st.last_error = format!("listener_closed: {e}");
@@ -3791,10 +4247,22 @@ mod enabled {
                                         .iter()
                                         .any(|p| matches!(p, Protocol::P2pCircuit));
                                     if let Ok(mut st) = state_bg.lock() {
-                                        st.external_addr_confirmed =
-                                            st.external_addr_confirmed.saturating_add(1);
-                                        if !st.external_addrs.contains(&s) {
-                                            st.external_addrs.push(s.clone());
+                                        let listen_derived =
+                                            st.listen_addrs.iter().any(|a| a == &s);
+                                        let admit_ok = if is_circuit {
+                                            true
+                                        } else if listen_derived {
+                                            admit_listen_derived_external(&mut st, &s).is_ok()
+                                        } else {
+                                            admit_aux_advertised_external(&mut st, &s).is_ok()
+                                        };
+                                        if admit_ok {
+                                            st.external_addr_confirmed = st
+                                                .external_addr_confirmed
+                                                .saturating_add(1);
+                                            if !st.external_addrs.contains(&s) {
+                                                st.external_addrs.push(s.clone());
+                                            }
                                         }
                                         if is_circuit {
                                             if !st.circuit_addrs.contains(&s) {
@@ -3822,6 +4290,8 @@ mod enabled {
                                         st.external_addr_expired =
                                             st.external_addr_expired.saturating_add(1);
                                         st.external_addrs.retain(|a| a != &s);
+                                        st.listen_derived_external.retain(|a| a != &s);
+                                        st.aux_advertised_external.retain(|a| a != &s);
                                     }
                                 }
                                 SwarmEvent::NewExternalAddrCandidate { address } => {
@@ -4045,19 +4515,35 @@ mod enabled {
                                                 }
                                             }
                                             // Slice BI: opt-in trust observed addr as external.
+                                            // Slice BU: same shared cap; skip swarm add over limit.
                                             if auto_confirm && !obs.is_empty() {
                                                 if let Ok(ma) = obs.parse::<Multiaddr>() {
                                                     let s = ma.to_string();
-                                                    swarm.add_external_address(ma);
-                                                    if let Ok(mut st) = state_bg.lock() {
-                                                        st.external_addr_confirmed = st
-                                                            .external_addr_confirmed
-                                                            .saturating_add(1);
-                                                        st.observed_addr_confirmed = st
-                                                            .observed_addr_confirmed
-                                                            .saturating_add(1);
-                                                        if !st.external_addrs.contains(&s) {
-                                                            st.external_addrs.push(s);
+                                                    let is_circuit = ma.iter().any(|p| {
+                                                        matches!(p, Protocol::P2pCircuit)
+                                                    });
+                                                    let admit_ok = is_circuit
+                                                        || match state_bg.lock() {
+                                                            Ok(mut st) => {
+                                                                admit_aux_advertised_external(
+                                                                    &mut st, &s,
+                                                                )
+                                                                .is_ok()
+                                                            }
+                                                            Err(_) => false,
+                                                        };
+                                                    if admit_ok {
+                                                        swarm.add_external_address(ma);
+                                                        if let Ok(mut st) = state_bg.lock() {
+                                                            st.external_addr_confirmed = st
+                                                                .external_addr_confirmed
+                                                                .saturating_add(1);
+                                                            st.observed_addr_confirmed = st
+                                                                .observed_addr_confirmed
+                                                                .saturating_add(1);
+                                                            if !st.external_addrs.contains(&s) {
+                                                                st.external_addrs.push(s);
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -4513,11 +4999,27 @@ mod enabled {
                                 }
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::Upnp(ev)) => match ev {
                                     upnp::Event::NewExternalAddr(addr) => {
-                                        swarm.add_external_address(addr.clone());
                                         let s = addr.to_string();
+                                        let is_circuit = addr
+                                            .iter()
+                                            .any(|p| matches!(p, Protocol::P2pCircuit));
+                                        let admit_ok = is_circuit
+                                            || match state_bg.lock() {
+                                                Ok(mut st) => {
+                                                    admit_aux_advertised_external(&mut st, &s)
+                                                        .is_ok()
+                                                }
+                                                Err(_) => false,
+                                            };
+                                        if admit_ok {
+                                            swarm.add_external_address(addr.clone());
+                                        }
                                         if let Ok(mut st) = state_bg.lock() {
                                             st.upnp_external_addrs =
                                                 st.upnp_external_addrs.saturating_add(1);
+                                            if admit_ok && !st.external_addrs.contains(&s) {
+                                                st.external_addrs.push(s.clone());
+                                            }
                                             if !st.listen_addrs.contains(&s) {
                                                 st.listen_addrs.push(s);
                                             }
@@ -4912,7 +5414,9 @@ mod enabled {
             enable_allow_list = None,
             idle_connection_timeout_secs = None,
             relay_max_reservations = None,
-            mdns_ttl_secs = None
+            mdns_ttl_secs = None,
+            external_addrs_path = None,
+            max_advertised_external = None
         ))]
         fn new_py(
             max_dials: u32,
@@ -4934,6 +5438,8 @@ mod enabled {
             idle_connection_timeout_secs: Option<u64>,
             relay_max_reservations: Option<u32>,
             mdns_ttl_secs: Option<u64>,
+            external_addrs_path: Option<String>,
+            max_advertised_external: Option<u32>,
         ) -> PyResult<Self> {
             Self::spawn(
                 max_dials,
@@ -4964,6 +5470,9 @@ mod enabled {
                 resolve_idle_connection_timeout_secs(idle_connection_timeout_secs),
                 resolve_u32_limit(relay_max_reservations, "ABS_LIBP2P_RELAY_MAX_RESERVATIONS"),
                 resolve_mdns_ttl_secs(mdns_ttl_secs),
+                resolve_external_addrs_path(external_addrs_path),
+                resolve_max_advertised_external(max_advertised_external)
+                    .map_err(PyRuntimeError::new_err)?,
             )
         }
 
@@ -5594,8 +6103,10 @@ mod enabled {
                 .unwrap_or_default()
         }
 
-        /// Slice AG: mark multiaddr as externally reachable.
-        fn add_external_address(&self, multiaddr: &str) -> PyResult<()> {
+        /// Slice AG/BO: mark multiaddr as externally reachable.
+        ///
+        /// Returns true if the addr was newly inserted into the local book.
+        fn add_external_address(&self, multiaddr: &str) -> PyResult<bool> {
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
                 .send(Cmd::AddExternalAddress {
@@ -5604,7 +6115,7 @@ mod enabled {
                 })
                 .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
             match rx.blocking_recv() {
-                Ok(Ok(())) => Ok(()),
+                Ok(Ok(fresh)) => Ok(fresh),
                 Ok(Err(e)) => Err(PyValueError::new_err(e)),
                 Err(_) => Err(PyRuntimeError::new_err(
                     "add_external_address reply dropped",
@@ -6037,6 +6548,22 @@ mod enabled {
                 d.set_item("libp2p_external_addr_confirmed", st.external_addr_confirmed)?;
                 d.set_item("libp2p_external_addr_expired", st.external_addr_expired)?;
                 d.set_item("libp2p_external_addr_cleared", st.external_addr_cleared)?;
+                d.set_item("libp2p_external_addr_loaded", st.external_addr_loaded)?;
+                d.set_item("libp2p_external_addr_persisted", st.external_addr_persisted)?;
+                d.set_item("libp2p_max_advertised_external", st.max_advertised_external)?;
+                d.set_item(
+                    "libp2p_listen_derived_externals",
+                    st.listen_derived_external.len(),
+                )?;
+                d.set_item(
+                    "libp2p_aux_advertised_externals",
+                    st.aux_advertised_external.len(),
+                )?;
+                d.set_item("libp2p_advertised_externals_used", advertised_used(&st))?;
+                d.set_item(
+                    "libp2p_external_addr_limit_refused",
+                    st.external_addr_limit_refused,
+                )?;
                 d.set_item(
                     "libp2p_external_addr_candidates",
                     st.external_addr_candidates,
@@ -6330,7 +6857,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 65)?;
+                d.set_item("phase", 72)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -6366,8 +6893,21 @@ mod enabled {
                 d.set_item("prometheus", true)?;
                 d.set_item("bandwidth", true)?;
                 d.set_item("external_addrs", true)?;
+                d.set_item("add_external_address", true)?;
                 d.set_item("remove_external_address", true)?;
                 d.set_item("clear_external_addrs", true)?;
+                d.set_item("external_addrs_persist", !st.external_addrs_path.is_empty())?;
+                d.set_item("external_addrs_atomic_persist", true)?;
+                d.set_item("external_addrs_max", true)?;
+                d.set_item("listen_derived_external_max", true)?;
+                d.set_item("advertised_externals_shared_max", true)?;
+                d.set_item("advertised_externals_all_paths_max", true)?;
+                d.set_item("max_advertised_external", st.max_advertised_external)?;
+                d.set_item(
+                    "max_advertised_external_hard",
+                    MAX_ADVERTISED_EXTERNAL_ADDRS as u32,
+                )?;
+                d.set_item("external_addrs_path", &st.external_addrs_path)?;
                 d.set_item("connection_lifecycle", true)?;
                 d.set_item("connection_close_causes", true)?;
                 d.set_item("listener_lifecycle", true)?;
@@ -6538,6 +7078,22 @@ mod enabled {
                 d.set_item("libp2p_external_addr_confirmed", st.external_addr_confirmed)?;
                 d.set_item("libp2p_external_addr_expired", st.external_addr_expired)?;
                 d.set_item("libp2p_external_addr_cleared", st.external_addr_cleared)?;
+                d.set_item("libp2p_external_addr_loaded", st.external_addr_loaded)?;
+                d.set_item("libp2p_external_addr_persisted", st.external_addr_persisted)?;
+                d.set_item("libp2p_max_advertised_external", st.max_advertised_external)?;
+                d.set_item(
+                    "libp2p_listen_derived_externals",
+                    st.listen_derived_external.len(),
+                )?;
+                d.set_item(
+                    "libp2p_aux_advertised_externals",
+                    st.aux_advertised_external.len(),
+                )?;
+                d.set_item("libp2p_advertised_externals_used", advertised_used(&st))?;
+                d.set_item(
+                    "libp2p_external_addr_limit_refused",
+                    st.external_addr_limit_refused,
+                )?;
                 d.set_item(
                     "libp2p_external_addr_candidates",
                     st.external_addr_candidates,
@@ -6958,6 +7514,123 @@ mod enabled {
         }
     }
 
+    fn resolve_external_addrs_path(explicit: Option<String>) -> Option<String> {
+        if let Some(p) = explicit {
+            let t = p.trim().to_string();
+            if !t.is_empty() {
+                return Some(t);
+            }
+        }
+        match std::env::var("ABS_LIBP2P_EXTERNAL_ADDRS_PATH") {
+            Ok(s) => {
+                let t = s.trim().to_string();
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t)
+                }
+            }
+            Err(_) => None,
+        }
+    }
+
+    fn resolve_max_advertised_external(explicit: Option<u32>) -> Result<u32, String> {
+        let raw = if let Some(v) = explicit {
+            v
+        } else {
+            match std::env::var("ABS_LIBP2P_MAX_ADVERTISED_EXTERNAL_ADDRS") {
+                Ok(s) => {
+                    let t = s.trim();
+                    if t.is_empty() {
+                        MAX_ADVERTISED_EXTERNAL_ADDRS as u32
+                    } else {
+                        t.parse::<u32>()
+                            .map_err(|e| format!("ABS_LIBP2P_MAX_ADVERTISED_EXTERNAL_ADDRS: {e}"))?
+                    }
+                }
+                Err(_) => MAX_ADVERTISED_EXTERNAL_ADDRS as u32,
+            }
+        };
+        if raw == 0 {
+            return Err("max_advertised_external must be >= 1".into());
+        }
+        let hard = MAX_ADVERTISED_EXTERNAL_ADDRS as u32;
+        if raw > hard {
+            return Err(format!(
+                "max_advertised_external {raw} exceeds hard max {hard}"
+            ));
+        }
+        Ok(raw)
+    }
+
+    /// Slice BT/BU: unique charged advertised slots (operator + listen-derived + aux).
+    /// Circuit addrs are never stored in these three sets.
+    fn advertised_used(st: &NodeState) -> usize {
+        let mut seen = HashSet::new();
+        for a in st
+            .advertised_external
+            .iter()
+            .chain(st.listen_derived_external.iter())
+            .chain(st.aux_advertised_external.iter())
+        {
+            seen.insert(a.as_str());
+        }
+        seen.len()
+    }
+
+    fn advertised_already_charged(st: &NodeState, s: &str) -> bool {
+        st.advertised_external.iter().any(|a| a == s)
+            || st.listen_derived_external.iter().any(|a| a == s)
+            || st.aux_advertised_external.iter().any(|a| a == s)
+    }
+
+    fn advertised_at_cap(st: &NodeState) -> bool {
+        advertised_used(st) >= st.max_advertised_external as usize
+    }
+
+    /// Bump refuse counter + last_error. Caller sends the returned message.
+    fn refuse_advertised_over_cap(st: &mut NodeState, kind: &str) -> String {
+        st.external_addr_limit_refused = st.external_addr_limit_refused.saturating_add(1);
+        let msg = format!(
+            "{kind}: {} exceeds max {}",
+            advertised_used(st) + 1,
+            st.max_advertised_external
+        );
+        st.last_error = msg.clone();
+        msg
+    }
+
+    /// Slice BU: charge an observed/UPnP/rendezvous addr, or refuse.
+    /// `Ok(true)` = newly charged; `Ok(false)` = already in the shared budget.
+    fn admit_aux_advertised_external(st: &mut NodeState, s: &str) -> Result<bool, String> {
+        if advertised_already_charged(st, s) {
+            return Ok(false);
+        }
+        if advertised_at_cap(st) {
+            return Err(refuse_advertised_over_cap(st, "advertised externals"));
+        }
+        st.aux_advertised_external.push(s.to_string());
+        Ok(true)
+    }
+
+    /// Slice BS/BT: admit a listen-derived addr into the advertised book, or refuse.
+    /// Shared cap (BT/BU): unique charged addrs ≤ max. Circuit is not counted.
+    /// `Ok(true)` = newly counted; `Ok(false)` = already in the listen-derived set.
+    fn admit_listen_derived_external(st: &mut NodeState, s: &str) -> Result<bool, String> {
+        if st.listen_derived_external.iter().any(|a| a == s) {
+            return Ok(false);
+        }
+        if advertised_already_charged(st, s) {
+            st.listen_derived_external.push(s.to_string());
+            return Ok(false);
+        }
+        if advertised_at_cap(st) {
+            return Err(refuse_advertised_over_cap(st, "listen-derived externals"));
+        }
+        st.listen_derived_external.push(s.to_string());
+        Ok(true)
+    }
+
     fn resolve_bootstrap_dial_timeout_secs(explicit: Option<u64>) -> u64 {
         if let Some(v) = explicit {
             return v.max(1);
@@ -7214,7 +7887,9 @@ mod enabled {
         enable_allow_list = None,
         idle_connection_timeout_secs = None,
         relay_max_reservations = None,
-        mdns_ttl_secs = None
+        mdns_ttl_secs = None,
+        external_addrs_path = None,
+        max_advertised_external = None
     ))]
     fn libp2p_node_new(
         max_dials: u32,
@@ -7236,6 +7911,8 @@ mod enabled {
         idle_connection_timeout_secs: Option<u64>,
         relay_max_reservations: Option<u32>,
         mdns_ttl_secs: Option<u64>,
+        external_addrs_path: Option<String>,
+        max_advertised_external: Option<u32>,
     ) -> PyResult<Libp2pNode> {
         Libp2pNode::spawn(
             max_dials,
@@ -7266,6 +7943,9 @@ mod enabled {
             resolve_idle_connection_timeout_secs(idle_connection_timeout_secs),
             resolve_u32_limit(relay_max_reservations, "ABS_LIBP2P_RELAY_MAX_RESERVATIONS"),
             resolve_mdns_ttl_secs(mdns_ttl_secs),
+            resolve_external_addrs_path(external_addrs_path),
+            resolve_max_advertised_external(max_advertised_external)
+                .map_err(PyRuntimeError::new_err)?,
         )
     }
 
@@ -7314,6 +7994,10 @@ mod enabled {
         m.add("ABS_GOSSIP_BLOCKS_TOPIC", ABS_GOSSIP_BLOCKS_TOPIC)?;
         m.add("ABS_KAD_PROTOCOL", ABS_KAD_PROTOCOL)?;
         m.add("ABS_RENDEZVOUS_NAMESPACE", ABS_RENDEZVOUS_NAMESPACE)?;
+        m.add(
+            "MAX_ADVERTISED_EXTERNAL_ADDRS",
+            MAX_ADVERTISED_EXTERNAL_ADDRS,
+        )?;
         Ok(())
     }
 }
@@ -7323,7 +8007,7 @@ pub use enabled::register;
 
 #[cfg(test)]
 mod tests {
-    use super::classify_abs_wire_codec;
+    use super::{classify_abs_wire_codec, parse_external_addrs_json};
 
     #[test]
     fn classify_v1_ndjson() {
@@ -7338,5 +8022,123 @@ mod tests {
     #[test]
     fn classify_lab_pack() {
         assert_eq!(classify_abs_wire_codec(b"ping\0slice-b"), "lab");
+    }
+
+    #[test]
+    fn parse_external_addrs_ok() {
+        let v = parse_external_addrs_json(r#"{"version":1,"addrs":["/ip4/203.0.113.8/tcp/4001"]}"#)
+            .expect("parse");
+        assert_eq!(v, vec!["/ip4/203.0.113.8/tcp/4001".to_string()]);
+    }
+
+    #[test]
+    fn parse_external_addrs_rejects_garbage() {
+        assert!(parse_external_addrs_json("{nope").is_err());
+    }
+
+    #[test]
+    fn parse_external_addrs_rejects_missing_array() {
+        assert!(parse_external_addrs_json("{}").is_err());
+    }
+
+    #[test]
+    fn parse_external_addrs_rejects_non_multiaddr() {
+        assert!(parse_external_addrs_json(r#"{"addrs":["not-an-addr"]}"#).is_err());
+    }
+
+    #[test]
+    fn parse_external_addrs_rejects_empty_addr() {
+        assert!(parse_external_addrs_json(r#"{"addrs":["  "]}"#).is_err());
+    }
+
+    #[test]
+    fn parse_external_addrs_rejects_over_hard_max() {
+        let n = super::MAX_ADVERTISED_EXTERNAL_ADDRS + 1;
+        let addrs: Vec<String> = (0..n)
+            .map(|i| format!("\"/ip4/203.0.113.1/tcp/{}\"", 4000 + i))
+            .collect();
+        let raw = format!("{{\"addrs\":[{}]}}", addrs.join(","));
+        let err = parse_external_addrs_json(&raw).expect_err("over max");
+        assert!(err.contains("exceeds hard max"), "{err}");
+    }
+
+    #[test]
+    fn save_external_addrs_refuses_over_hard_max() {
+        let n = super::MAX_ADVERTISED_EXTERNAL_ADDRS + 1;
+        let addrs: Vec<String> = (0..n)
+            .map(|i| format!("/ip4/203.0.113.1/tcp/{}", 5000 + i))
+            .collect();
+        let dest = std::env::temp_dir().join("abs-ext-overmax.json");
+        let err = super::save_external_addrs_file(&dest, &addrs).expect_err("over max");
+        assert!(err.contains("exceeds hard max"), "{err}");
+        assert!(!dest.exists() || dest.metadata().map(|m| m.len()).unwrap_or(0) == 0);
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(super::external_addrs_tmp_path(&dest));
+    }
+
+    #[test]
+    fn encode_external_addrs_roundtrip() {
+        let raw =
+            super::encode_external_addrs_json(&["/ip4/203.0.113.9/tcp/1".into()]).expect("encode");
+        let v = parse_external_addrs_json(&raw).expect("parse");
+        assert_eq!(v, vec!["/ip4/203.0.113.9/tcp/1".to_string()]);
+    }
+
+    #[test]
+    fn load_external_addrs_missing_file_is_empty() {
+        let p = std::path::Path::new("definitely-missing-abs-external-addrs.json");
+        let v = super::load_external_addrs_file(p).expect("missing");
+        assert!(v.is_empty());
+    }
+
+    #[test]
+    fn save_external_addrs_atomic_no_leftover_tmp() {
+        let dir = std::env::temp_dir();
+        let dest = dir.join(format!(
+            "abs-ext-atomic-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let tmp = super::external_addrs_tmp_path(&dest);
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&tmp);
+        super::save_external_addrs_file(&dest, &["/ip4/203.0.113.1/tcp/1".into()]).expect("save");
+        assert!(dest.is_file(), "dest missing");
+        assert!(!tmp.exists(), "tmp leftover: {tmp:?}");
+        let v = super::load_external_addrs_file(&dest).expect("load");
+        assert_eq!(v, vec!["/ip4/203.0.113.1/tcp/1".to_string()]);
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn save_external_addrs_replaces_existing_and_cleans_stale_tmp() {
+        let dir = std::env::temp_dir();
+        let dest = dir.join(format!(
+            "abs-ext-replace-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(1)
+        ));
+        let tmp = super::external_addrs_tmp_path(&dest);
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&tmp);
+        std::fs::write(
+            &dest,
+            "{\"version\":1,\"addrs\":[\"/ip4/203.0.113.2/tcp/2\"]}",
+        )
+        .expect("seed");
+        std::fs::write(&tmp, "{stale").expect("stale tmp");
+        super::save_external_addrs_file(&dest, &["/ip4/203.0.113.3/tcp/3".into()]).expect("save");
+        assert!(!tmp.exists(), "stale tmp not cleaned");
+        let v = super::load_external_addrs_file(&dest).expect("load");
+        assert_eq!(v, vec!["/ip4/203.0.113.3/tcp/3".to_string()]);
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&tmp);
     }
 }

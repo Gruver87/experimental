@@ -36,6 +36,8 @@ UNIT_TESTS = [
     "tests/unit/test_libp2p_swarm_lab.py",
     "tests/unit/test_dual_stack.py",
     "tests/unit/test_prod_mesh_feature_freeze.py",
+    "tests/unit/test_cargo_test_abs_native.py",
+    "tests/unit/test_package_libp2p_evidence.py",
 ]
 
 # Slice A–U rust / dual-stack labs (order = dependency-friendly)
@@ -108,6 +110,13 @@ LABS = [
     ("BL", "scripts/libp2p_rust_clear_observed_addr_lab.py"),
     ("BM", "scripts/libp2p_rust_clear_external_addrs_lab.py"),
     ("BN", "scripts/libp2p_rust_remove_external_addr_lab.py"),
+    ("BO", "scripts/libp2p_rust_add_external_addr_lab.py"),
+    ("BP", "scripts/libp2p_rust_external_addrs_persist_lab.py"),
+    ("BQ", "scripts/libp2p_rust_external_addrs_atomic_persist_lab.py"),
+    ("BR", "scripts/libp2p_rust_external_addrs_max_lab.py"),
+    ("BS", "scripts/libp2p_rust_listen_derived_external_max_lab.py"),
+    ("BT", "scripts/libp2p_rust_advertised_externals_shared_max_lab.py"),
+    ("BU", "scripts/libp2p_rust_advertised_externals_all_paths_max_lab.py"),
 ]
 
 

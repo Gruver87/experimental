@@ -104,6 +104,13 @@ feature `libp2p`), exposed to Python through the existing
 | Clear observed-addr | Slice BL: `clear_observed_addr` → previous value + `observed_addr_cleared`; `libp2p_rust_clear_observed_addr_lab.py` |
 | Clear external addrs | Slice BM: `clear_external_addrs` → count + `external_addr_cleared`; `libp2p_rust_clear_external_addrs_lab.py` |
 | Remove external bool | Slice BN: `remove_external_address` → bool + expire only when present; `libp2p_rust_remove_external_addr_lab.py` |
+| Add external bool | Slice BO: `add_external_address` → bool + confirm only when newly inserted; `libp2p_rust_add_external_addr_lab.py` |
+| Persist advertised externals | Slice BP: operator-advertised JSON (`external_addrs_path` / `ABS_LIBP2P_EXTERNAL_ADDRS_PATH`); restore on start without bumping confirmed; `libp2p_rust_external_addrs_persist_lab.py` |
+| Atomic advertised persist | Slice BQ: same-dir `.tmp` + fsync + rename (dest never truncated in place); leftover tmp cleaned; `libp2p_rust_external_addrs_atomic_persist_lab.py` |
+| Advertised externals cap | Slice BR: hard max 32 (`MAX_ADVERTISED_EXTERNAL_ADDRS` / `max_advertised_external` / `ABS_LIBP2P_MAX_ADVERTISED_EXTERNAL_ADDRS`); over-limit **refuse** (no silent truncate); `libp2p_rust_external_addrs_max_lab.py` |
+| Listen-derived externals cap | Slice BS: listen-derived advertised set under the same ceiling; over-limit `listen()` **refuse**; circuit not counted; `libp2p_rust_listen_derived_external_max_lab.py` |
+| Shared advertised cap | Slice BT: **sum** operator + listen-derived ≤ MAX 32 (config may only lower); over-limit listen/add/restore **refuse** (closes the combined-64 bypass); `libp2p_rust_advertised_externals_shared_max_lab.py` |
+| All-paths advertised cap | Slice BU: observed confirm / UPnP / rendezvous `add_external_address` share the **same** unique budget; over-limit **refuse** (no silent swarm add); `libp2p_rust_advertised_externals_all_paths_max_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -177,6 +184,13 @@ feature `libp2p`), exposed to Python through the existing
 | BL | Clear observed-addr surface; `libp2p_rust_clear_observed_addr_lab.py` |
 | BM | Clear external addrs book; `libp2p_rust_clear_external_addrs_lab.py` |
 | BN | Remove external addr returns bool; `libp2p_rust_remove_external_addr_lab.py` |
+| BO | Add external addr returns bool; `libp2p_rust_add_external_addr_lab.py` |
+| BP | Persistent advertised externals JSON; `libp2p_rust_external_addrs_persist_lab.py` |
+| BQ | Atomic persist of advertised externals (tmp + fsync + rename); `libp2p_rust_external_addrs_atomic_persist_lab.py` |
+| BR | Hard max on advertised externals (refuse over limit); `libp2p_rust_external_addrs_max_lab.py` |
+| BS | Same max on listen-derived advertised externals (refuse listen over limit); `libp2p_rust_listen_derived_external_max_lab.py` |
+| BT | Shared advertised cap (operator + listen-derived sum ≤ max); `libp2p_rust_advertised_externals_shared_max_lab.py` |
+| BU | Observed/UPnP/rendezvous advertise through the same shared cap; `libp2p_rust_advertised_externals_all_paths_max_lab.py` |
 
 ## Honesty
 
@@ -237,7 +251,14 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_peerstore_clear_lab.py`,
   `libp2p_rust_clear_observed_addr_lab.py`,
   `libp2p_rust_clear_external_addrs_lab.py`,
-  `libp2p_rust_remove_external_addr_lab.py`;
+  `libp2p_rust_remove_external_addr_lab.py`,
+  `libp2p_rust_add_external_addr_lab.py`,
+  `libp2p_rust_external_addrs_persist_lab.py`,
+  `libp2p_rust_external_addrs_atomic_persist_lab.py`,
+  `libp2p_rust_external_addrs_max_lab.py`,
+  `libp2p_rust_listen_derived_external_max_lab.py`,
+  `libp2p_rust_advertised_externals_shared_max_lab.py`,
+  `libp2p_rust_advertised_externals_all_paths_max_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -284,6 +305,24 @@ feature `libp2p`), exposed to Python through the existing
     does not mutate external book).
   Slice BM: clear external addrs (`clear_external_addrs` → count / `external_addr_cleared`).
   Slice BN: remove external addr (`remove_external_address` → bool; expire only when present).
+  Slice BO: add external addr (`add_external_address` → bool; confirm only when newly inserted).
+  Slice BP: persist operator-advertised externals (`external_addrs_path`; restore loads, does not confirm;
+    listen-derived addrs are not written; corrupt JSON fail-closed).
+  Slice BQ: atomic persist (same-dir `.tmp` + fsync + rename; dest is not truncated in place.
+    Windows unlink-then-rename is not POSIX-atomic; dest is still never half-written by this writer).
+  Slice BR: advertised externals cap (`MAX_ADVERTISED_EXTERNAL_ADDRS=32`; arg/env may only lower it;
+    add and restore **refuse** when over limit — no silent truncate).
+  Slice BS: listen-derived advertised set under the same ceiling; over-limit `listen()` **refuse**;
+    circuit `/p2p-circuit` listens are not counted. Expansion `NewListenAddr` over cap
+    is not advertised (`libp2p_external_addr_limit_refused`); the listener is kept so
+    dual-stack siblings are not torn down.
+  Slice BT: **shared** budget — unique charged addrs ≤ max (not two
+    independent 32s / combined 64). Over-limit listen, `add_external_address`, and persist
+    restore **refuse**. Circuit still excluded. Windows BQ persist remains not POSIX-atomic.
+  Slice BU: observed `confirm_observed_addr` / auto-confirm, UPnP `NewExternalAddr`, and
+    rendezvous pre-register `swarm.add_external_address` share that unique budget
+    (`aux_advertised_external`). Over-limit **refuse** — no silent swarm advertise.
+    Circuit `/p2p-circuit` still excluded.
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.

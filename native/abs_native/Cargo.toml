@@ -9,8 +9,13 @@ name = "abs_native"
 crate-type = ["cdylib", "rlib"]
 
 [features]
+# extension-module: maturin wheels (CPython loads the cdylib; do not link libpython).
+# cargo test / clippy --all-targets MUST use --no-default-features so PyO3 links
+# the interpreter at PYO3_PYTHON. Canonical runner: scripts/cargo_test_abs_native.py
 default = ["extension-module"]
 extension-module = ["pyo3/extension-module"]
+# cargo test / embedding: initialize CPython on first GIL (incompatible with extension-module)
+auto-initialize = ["pyo3/auto-initialize"]
 # ADR 0019 — optional rust-libp2p swarm (experimental; not default industrial mesh)
 libp2p = ["dep:libp2p", "dep:tokio", "dep:futures", "dep:async-trait"]
 

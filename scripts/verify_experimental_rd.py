@@ -32,6 +32,7 @@ UNIT_TESTS = [
     "tests/unit/test_libp2p_swarm_lab.py",
     "tests/unit/test_dual_stack.py",
     "tests/unit/test_prod_mesh_feature_freeze.py",
+    "tests/unit/test_cargo_test_abs_native.py",
 ]
 
 LABS = [

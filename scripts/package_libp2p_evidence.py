@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Package ADR 0019 rust-libp2p lab evidence (experimental only).
 
-Runs selected labs, writes stdout + manifest under docs/evidence/runs/libp2p-rd.
+Lab list is the same tuple as ``verify_adr0019_libp2p_hard.py`` (fail-closed:
+the pack cannot silently stop at an old slice). Runs those labs and writes
+stdout + manifest under docs/evidence/runs/libp2p-rd.
+
 Does not claim tip proof or prod mesh libp2p.
 
 Usage:
@@ -13,43 +16,53 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DEFAULT = ROOT / "docs" / "evidence" / "runs" / "libp2p-rd"
+_HARD = ROOT / "scripts" / "verify_adr0019_libp2p_hard.py"
 
-LABS = (
-    "scripts/libp2p_rust_two_node_lab.py",
-    "scripts/libp2p_rust_wire_lab.py",
-    "scripts/libp2p_rust_three_node_lab.py",
-    "scripts/libp2p_rust_soak_lab.py",
-    "scripts/libp2p_mixed_dual_stack_lab.py",
-    "scripts/libp2p_rust_gossip_lab.py",
-    "scripts/libp2p_rust_identity_mdns_lab.py",
-    "scripts/libp2p_rust_kad_lab.py",
-    "scripts/libp2p_rust_abs_announce_lab.py",
-    "scripts/libp2p_rust_relay_limits_lab.py",
-    "scripts/libp2p_rust_blocklist_lab.py",
-    "scripts/libp2p_rust_status_surface_lab.py",
-    "scripts/libp2p_rust_mdns_toggle_lab.py",
-    "scripts/libp2p_rust_wire_timeout_lab.py",
-    "scripts/libp2p_rust_abs_wire_lab.py",
-    "scripts/libp2p_rust_autonat_dcutr_lab.py",
-    "scripts/libp2p_rust_bootstrap_lab.py",
-    "scripts/libp2p_rust_reconnect_lab.py",
-    "scripts/libp2p_rust_peer_score_lab.py",
-    "scripts/libp2p_rust_ping_lab.py",
-    "scripts/libp2p_rust_score_autoblock_lab.py",
-    "scripts/libp2p_rust_peerstore_lab.py",
-    "scripts/libp2p_rust_peerstore_reconnect_lab.py",
-    "scripts/libp2p_rust_idle_timeout_lab.py",
-    "scripts/libp2p_rust_ipv6_lab.py",
-)
+
+def hard_verify_lab_paths() -> Tuple[str, ...]:
+    """Return hard-verify lab relative paths. Missing/empty list is an error."""
+    spec = importlib.util.spec_from_file_location("verify_adr0019_libp2p_hard", _HARD)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {_HARD}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    raw = getattr(mod, "LABS", None)
+    if not isinstance(raw, list) or not raw:
+        raise RuntimeError("verify_adr0019_libp2p_hard.LABS missing or empty")
+    out: list[str] = []
+    for item in raw:
+        if not (isinstance(item, tuple) and len(item) == 2):
+            raise RuntimeError(f"bad LABS entry: {item!r}")
+        rel = str(item[1])
+        if not (ROOT / rel).is_file():
+            raise RuntimeError(f"hard-verify lab missing on disk: {rel}")
+        out.append(rel)
+    if "scripts/libp2p_rust_external_addrs_persist_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice BP persist lab")
+    if "scripts/libp2p_rust_external_addrs_atomic_persist_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice BQ atomic persist lab")
+    if "scripts/libp2p_rust_external_addrs_max_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice BR advertised-max lab")
+    if "scripts/libp2p_rust_listen_derived_external_max_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice BS listen-derived-max lab")
+    if "scripts/libp2p_rust_advertised_externals_shared_max_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice BT shared-max lab")
+    if "scripts/libp2p_rust_advertised_externals_all_paths_max_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice BU all-paths-max lab")
+    return tuple(out)
+
+
+LABS = hard_verify_lab_paths()
 
 
 def _sha256(data: bytes) -> str:
@@ -129,6 +142,7 @@ def package(*, out_dir: Path, skip_run: bool) -> Dict[str, Any]:
             "fail": sum(1 for r in results if r.get("status") == "fail"),
             "missing": sum(1 for r in results if r.get("status") == "missing"),
             "error": sum(1 for r in results if r.get("status") == "error"),
+            "listed": len(LABS),
         },
     }
     man_path = out_dir / "manifest.json"

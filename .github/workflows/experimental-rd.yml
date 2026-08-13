@@ -36,7 +36,8 @@ jobs:
             tests/unit/test_libp2p_adapter.py \
             tests/unit/test_libp2p_swarm_lab.py \
             tests/unit/test_dual_stack.py \
-            tests/unit/test_prod_mesh_feature_freeze.py
+            tests/unit/test_prod_mesh_feature_freeze.py \
+            tests/unit/test_cargo_test_abs_native.py
       - name: Long-Range lab
         run: python scripts/long_range_lab.py
       - name: libp2p lab smoke
@@ -81,9 +82,10 @@ jobs:
           test -n "$WHL"
           echo "Installing $WHL"
           python -m pip install --force-reinstall --no-deps "$WHL"
-      - name: cargo test libp2p feature
-        working-directory: native/abs_native
-        run: cargo test --features libp2p --lib
+      - name: cargo test libp2p (link CPython)
+        env:
+          PYO3_PYTHON: python
+        run: python scripts/cargo_test_abs_native.py --features libp2p -- --lib
       - name: rust-libp2p 2-node lab
         run: python scripts/libp2p_rust_two_node_lab.py
       - name: rust-libp2p wire lab (Slice B)
@@ -220,7 +222,21 @@ jobs:
         run: python scripts/libp2p_rust_clear_external_addrs_lab.py
       - name: rust-libp2p remove external addr lab (Slice BN)
         run: python scripts/libp2p_rust_remove_external_addr_lab.py
+      - name: rust-libp2p add external addr lab (Slice BO)
+        run: python scripts/libp2p_rust_add_external_addr_lab.py
+      - name: rust-libp2p external addrs persist lab (Slice BP)
+        run: python scripts/libp2p_rust_external_addrs_persist_lab.py
+      - name: rust-libp2p external addrs atomic persist lab (Slice BQ)
+        run: python scripts/libp2p_rust_external_addrs_atomic_persist_lab.py
+      - name: rust-libp2p external addrs max lab (Slice BR)
+        run: python scripts/libp2p_rust_external_addrs_max_lab.py
+      - name: rust-libp2p listen-derived externals max lab (Slice BS)
+        run: python scripts/libp2p_rust_listen_derived_external_max_lab.py
+      - name: rust-libp2p advertised externals shared max lab (Slice BT)
+        run: python scripts/libp2p_rust_advertised_externals_shared_max_lab.py
+      - name: rust-libp2p advertised externals all-paths max lab (Slice BU)
+        run: python scripts/libp2p_rust_advertised_externals_all_paths_max_lab.py
       - name: adapter + wire-bridge units
-        run: pytest -q tests/unit/test_libp2p_adapter.py tests/unit/test_libp2p_wire_bridge.py tests/unit/test_libp2p_status_metrics.py
+        run: pytest -q tests/unit/test_libp2p_adapter.py tests/unit/test_libp2p_wire_bridge.py tests/unit/test_libp2p_status_metrics.py tests/unit/test_cargo_test_abs_native.py tests/unit/test_package_libp2p_evidence.py
       - name: package ADR 0019 evidence pack
         run: python scripts/package_libp2p_evidence.py

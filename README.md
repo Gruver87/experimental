@@ -23,7 +23,7 @@ See [EXPERIMENTAL_SANDBOX.md](EXPERIMENTAL_SANDBOX.md) · Profile F [EXPERIMENTA
 
 | Track | Status | Entry |
 |-------|--------|-------|
-| **ADR 0019 rust-libp2p** | Slices **A–BN** (phase 65) behind Cargo `libp2p` | [ADR 0019](docs/adr/0019-rust-libp2p-industrial.md) · hard verify below |
+| **ADR 0019 rust-libp2p** | Slices **A–BU** (phase 72) behind Cargo `libp2p` | [ADR 0019](docs/adr/0019-rust-libp2p-industrial.md) · hard verify below |
 | **ADR 0018 dual-stack / stubs** | Labs + adapter | `scripts/libp2p_*_lab.py` |
 | **ADR 0017 Long-Range** | Lab / WS tip gate | `python scripts/long_range_lab.py` |
 | **EVM depth / precompiles** | Profile F waves | [EVM_COMPAT_MATRIX](docs/sprouts/EVM_COMPAT_MATRIX.md) |
@@ -42,7 +42,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-### Experimental only (ADR 0019 hard — 76 steps)
+### Experimental only (ADR 0019 hard — 83 steps, 84 with `--rebuild`)
 
 ```powershell
 # Windows — rebuild native libp2p wheel when Rust changed
@@ -108,4 +108,4 @@ Default Hybrid CI / prod mesh builds **without** the `libp2p` feature.
 MIT — [LICENSE](LICENSE)
 
 Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87)  
-Last surface update: **2026-08-13** — ADR 0019 through Slice **BN** · unified Hybrid+Experimental verify.
+Last surface update: **2026-08-13** — ADR 0019 through Slice **BO** · unified Hybrid+Experimental verify.

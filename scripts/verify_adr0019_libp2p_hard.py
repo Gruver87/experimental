@@ -5,7 +5,8 @@ Fail-closed checklist (exit 1 on first FAIL unless --keep-going):
 
   1) repo / honesty markers
   2) cargo fmt --check (abs_native)
-  3) cargo test --features libp2p --lib
+  3) cargo test --no-default-features --features auto-initialize,libp2p --lib
+     (scripts/cargo_test_abs_native.py — real CPython link; not extension-module)
   4) cargo audit (native lockfile; uses .cargo/audit.toml)
   5) abs_native libp2p deep capability (protocols + block_peer + metrics keys)
   6) industrial freeze: prod JSON feature_libp2p=false + Config prod OFF
@@ -98,6 +99,13 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_external_addr_confirmed",
     "libp2p_external_addr_expired",
     "libp2p_external_addr_cleared",
+    "libp2p_external_addr_loaded",
+    "libp2p_external_addr_persisted",
+    "libp2p_max_advertised_external",
+    "libp2p_listen_derived_externals",
+    "libp2p_aux_advertised_externals",
+    "libp2p_advertised_externals_used",
+    "libp2p_external_addr_limit_refused",
     "libp2p_external_addr_candidates",
     "libp2p_dial_refused_budget",
     "libp2p_gossip_pub",
@@ -249,6 +257,8 @@ UNIT_TESTS = [
     "tests/unit/test_libp2p_swarm_lab.py",
     "tests/unit/test_dual_stack.py",
     "tests/unit/test_prod_mesh_feature_freeze.py",
+    "tests/unit/test_cargo_test_abs_native.py",
+    "tests/unit/test_package_libp2p_evidence.py",
 ]
 
 LABS = [
@@ -320,6 +330,13 @@ LABS = [
     ("BL", "scripts/libp2p_rust_clear_observed_addr_lab.py"),
     ("BM", "scripts/libp2p_rust_clear_external_addrs_lab.py"),
     ("BN", "scripts/libp2p_rust_remove_external_addr_lab.py"),
+    ("BO", "scripts/libp2p_rust_add_external_addr_lab.py"),
+    ("BP", "scripts/libp2p_rust_external_addrs_persist_lab.py"),
+    ("BQ", "scripts/libp2p_rust_external_addrs_atomic_persist_lab.py"),
+    ("BR", "scripts/libp2p_rust_external_addrs_max_lab.py"),
+    ("BS", "scripts/libp2p_rust_listen_derived_external_max_lab.py"),
+    ("BT", "scripts/libp2p_rust_advertised_externals_shared_max_lab.py"),
+    ("BU", "scripts/libp2p_rust_advertised_externals_all_paths_max_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -436,6 +453,9 @@ def check_repo_honesty() -> tuple[bool, str]:
         "Slice AF",
         "Slice AG",
         "Slice AH",
+        "Slice BS",
+        "Slice BT",
+        "Slice BU",
         "FEATURE_LIBP2P",
         "## Honesty",
     )
@@ -481,7 +501,12 @@ def check_native_deep() -> tuple[bool, str]:
         m = dict(b.metrics())
         missing = [k for k in REQUIRED_METRIC_KEYS if k not in m]
         if missing:
-            return False, f"metrics missing keys: {missing}"
+            native_path = getattr(abs_native, "__file__", "?")
+            return False, (
+                f"metrics missing keys: {missing} "
+                f"(installed {native_path}; stale wheel vs this script — "
+                "run: python scripts/verify_adr0019_libp2p_hard.py --rebuild)"
+            )
         cap = dict(a.capability_status())
         if cap.get("default_mesh") is not False:
             return False, "capability_status.default_mesh must be False"
@@ -552,18 +577,18 @@ def do_rebuild() -> tuple[bool, str]:
     )
     if not ok:
         return False, f"maturin failed ({elapsed:.0f}s): {_tail(out, 400)}"
+    candidates: list[Path] = []
+    candidates.extend(NATIVE.joinpath("target", "wheels").glob("abs_native-*.whl"))
+    cargo_target = str(os.environ.get("CARGO_TARGET_DIR", "") or "").strip()
+    if cargo_target:
+        candidates.extend(Path(cargo_target).joinpath("wheels").glob("abs_native-*.whl"))
+    if not candidates:
+        candidates.extend(ROOT.rglob("abs_native-*.whl"))
     wheels = sorted(
-        NATIVE.joinpath("target", "wheels").glob("abs_native-*.whl"),
+        {p.resolve() for p in candidates if p.is_file()},
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )
-    if not wheels:
-        # sandbox / alternate target dir
-        wheels = sorted(
-            ROOT.rglob("abs_native-*.whl"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
     if not wheels:
         return False, "no wheel found after maturin build"
     whl = wheels[0]
@@ -573,7 +598,7 @@ def do_rebuild() -> tuple[bool, str]:
     )
     if not ok2:
         return False, f"pip install failed: {_tail(out2, 400)}"
-    return True, f"installed {whl.name}"
+    return True, f"installed {whl}"
 
 
 def main() -> int:
@@ -609,8 +634,14 @@ def main() -> int:
             return 1
         if not g.step_cmd(
             "cargo_test_libp2p",
-            ["cargo", "test", "--features", "libp2p", "--lib"],
-            cwd=NATIVE,
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "cargo_test_abs_native.py"),
+                "--features",
+                "libp2p",
+                "--",
+                "--lib",
+            ],
             timeout=600,
         ):
             return 1

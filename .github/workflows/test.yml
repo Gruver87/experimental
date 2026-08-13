@@ -44,8 +44,12 @@ jobs:
 
     - name: Rust clippy strict (abs_native + rust_bridge)
       if: matrix.python-version == '3.12'
+      env:
+        PYO3_PYTHON: python
       run: |
-        cargo clippy --manifest-path native/abs_native/Cargo.toml --all-targets -- -D warnings
+        # extension-module (crate default) does not link libpython; --all-targets
+        # compiles the test harness and must use the same CPython link as cargo test.
+        cargo clippy --manifest-path native/abs_native/Cargo.toml --all-targets --no-default-features -- -D warnings
         cargo clippy --manifest-path bridge/rust_bridge/Cargo.toml --all-targets -- -D warnings
 
     - name: Install native build deps (RocksDB/bindgen)

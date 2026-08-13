@@ -37,6 +37,8 @@ class Libp2pTransportAdapter:
         enable_reconnect: Optional[bool] = None,
         peerstore_path: Optional[str] = None,
         idle_connection_timeout_secs: Optional[int] = None,
+        external_addrs_path: Optional[str] = None,
+        max_advertised_external: Optional[int] = None,
     ) -> None:
         self._enabled = bool(enabled)
         self._dial_count = 0
@@ -58,6 +60,12 @@ class Libp2pTransportAdapter:
             int(idle_connection_timeout_secs)
             if idle_connection_timeout_secs is not None
             else None
+        )
+        self._external_addrs_path = (
+            str(external_addrs_path).strip() if external_addrs_path is not None else None
+        )
+        self._max_advertised_external = (
+            int(max_advertised_external) if max_advertised_external is not None else None
         )
 
     def set_peer_policy(self, policy: Any) -> None:
@@ -105,6 +113,16 @@ class Libp2pTransportAdapter:
                 kwargs["idle_connection_timeout_secs"] = int(
                     self._idle_connection_timeout_secs
                 )
+            ext = self._external_addrs_path
+            if ext is None:
+                ext = (
+                    str(os.environ.get("ABS_LIBP2P_EXTERNAL_ADDRS_PATH", "") or "").strip()
+                    or None
+                )
+            if ext:
+                kwargs["external_addrs_path"] = str(ext)
+            if self._max_advertised_external is not None:
+                kwargs["max_advertised_external"] = int(self._max_advertised_external)
             self._node = abs_native.libp2p_node_new(**kwargs)
             if self._peer_policy is not None and hasattr(self._peer_policy, "attach_native"):
                 try:
@@ -552,12 +570,13 @@ class Libp2pTransportAdapter:
         except Exception:
             return []
 
-    def add_external_address(self, multiaddr: str) -> None:
+    def add_external_address(self, multiaddr: str) -> bool:
+        """Slice BO: True if addr was newly inserted into the local external book."""
         self.require_transport()
         node = self._ensure_node()
         if node is None:
             raise TransportCapabilityError("rust libp2p node not available")
-        node.add_external_address(str(multiaddr))
+        return bool(node.add_external_address(str(multiaddr)))
 
     def remove_external_address(self, multiaddr: str) -> bool:
         """Slice BN: True if addr was present in the local external book."""
