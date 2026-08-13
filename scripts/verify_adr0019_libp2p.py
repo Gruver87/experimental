@@ -106,6 +106,7 @@ LABS = [
     ("BJ", "scripts/libp2p_rust_bootstrap_clear_lab.py"),
     ("BK", "scripts/libp2p_rust_peerstore_clear_lab.py"),
     ("BL", "scripts/libp2p_rust_clear_observed_addr_lab.py"),
+    ("BM", "scripts/libp2p_rust_clear_external_addrs_lab.py"),
 ]
 
 

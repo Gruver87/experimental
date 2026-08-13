@@ -66,6 +66,7 @@ LIBP2P_STATUS_METRIC_KEYS: tuple[str, ...] = (
     "libp2p_external_addrs",
     "libp2p_external_addr_confirmed",
     "libp2p_external_addr_expired",
+    "libp2p_external_addr_cleared",
     "libp2p_external_addr_candidates",
     "libp2p_dial_refused_budget",
     "libp2p_gossip_pub",
