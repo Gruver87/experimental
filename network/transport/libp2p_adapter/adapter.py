@@ -566,6 +566,14 @@ class Libp2pTransportAdapter:
             raise TransportCapabilityError("rust libp2p node not available")
         node.remove_external_address(str(multiaddr))
 
+    def clear_external_addrs(self) -> int:
+        """Slice BM: wipe external address book; returns addrs cleared."""
+        self.require_transport()
+        node = self._ensure_node()
+        if node is None:
+            raise TransportCapabilityError("rust libp2p node not available")
+        return int(node.clear_external_addrs())
+
     def metrics(self) -> Mapping[str, Any]:
         if self._node is None:
             return {"rust_backend": bool(self._native_capable), "libp2p_peers": 0}

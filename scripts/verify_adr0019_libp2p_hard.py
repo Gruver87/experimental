@@ -97,6 +97,7 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_external_addrs",
     "libp2p_external_addr_confirmed",
     "libp2p_external_addr_expired",
+    "libp2p_external_addr_cleared",
     "libp2p_external_addr_candidates",
     "libp2p_dial_refused_budget",
     "libp2p_gossip_pub",
@@ -317,6 +318,7 @@ LABS = [
     ("BJ", "scripts/libp2p_rust_bootstrap_clear_lab.py"),
     ("BK", "scripts/libp2p_rust_peerstore_clear_lab.py"),
     ("BL", "scripts/libp2p_rust_clear_observed_addr_lab.py"),
+    ("BM", "scripts/libp2p_rust_clear_external_addrs_lab.py"),
 ]
 
 PROD_JSONS = (

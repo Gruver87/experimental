@@ -59,6 +59,7 @@
 //! Slice BJ: bootstrap_clear (wipe book + persist; returns peers cleared).
 //! Slice BK: peerstore_clear returns peers cleared + cleared counter.
 //! Slice BL: clear_observed_addr (wipe last_observed surface + counter).
+//! Slice BM: clear_external_addrs (wipe external book + counter).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -829,6 +830,10 @@ mod enabled {
             addr: String,
             reply: oneshot::Sender<Result<(), String>>,
         },
+        /// Slice BM: wipe entire external address book (returns addrs cleared).
+        ClearExternalAddrs {
+            reply: oneshot::Sender<Result<usize, String>>,
+        },
         /// Slice AA: mutate ConnectionLimits (0 = unlimited; omitted fields unchanged).
         SetConnectionLimits {
             max_established_incoming: Option<u32>,
@@ -1195,6 +1200,8 @@ mod enabled {
         external_addr_confirmed: u64,
         external_addr_expired: u64,
         external_addr_candidates: u64,
+        /// Slice BM: addrs removed via clear_external_addrs.
+        external_addr_cleared: u64,
         /// Persistent bootstrap book path (Slice O; empty = memory-only).
         bootstrap_path: String,
         bootstrap: HashMap<String, Vec<String>>,
@@ -2649,6 +2656,27 @@ mod enabled {
                                             let _ = reply.send(Err(format!("bad multiaddr: {e}")));
                                         }
                                     }
+                                }
+                                Some(Cmd::ClearExternalAddrs { reply }) => {
+                                    // Slice BM: wipe external book (+ swarm remove each).
+                                    let snap = state_bg
+                                        .lock()
+                                        .map(|st| st.external_addrs.clone())
+                                        .unwrap_or_default();
+                                    let n = snap.len();
+                                    for s in &snap {
+                                        if let Ok(ma) = s.parse::<Multiaddr>() {
+                                            swarm.remove_external_address(&ma);
+                                        }
+                                    }
+                                    if let Ok(mut st) = state_bg.lock() {
+                                        st.external_addrs.clear();
+                                        if n > 0 {
+                                            st.external_addr_cleared =
+                                                st.external_addr_cleared.saturating_add(n as u64);
+                                        }
+                                    }
+                                    let _ = reply.send(Ok(n));
                                 }
                                 Some(Cmd::SetConnectionLimits {
                                     max_established_incoming,
@@ -5593,6 +5621,21 @@ mod enabled {
             }
         }
 
+        /// Slice BM: wipe the external address book. Returns the number of addrs cleared.
+        fn clear_external_addrs(&self) -> PyResult<usize> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::ClearExternalAddrs { reply: tx })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(Ok(n)) => Ok(n),
+                Ok(Err(e)) => Err(PyValueError::new_err(e)),
+                Err(_) => Err(PyRuntimeError::new_err(
+                    "clear_external_addrs reply dropped",
+                )),
+            }
+        }
+
         fn connected_peers(&self) -> Vec<String> {
             self.state
                 .lock()
@@ -5982,6 +6025,7 @@ mod enabled {
                 d.set_item("libp2p_external_addrs", st.external_addrs.len())?;
                 d.set_item("libp2p_external_addr_confirmed", st.external_addr_confirmed)?;
                 d.set_item("libp2p_external_addr_expired", st.external_addr_expired)?;
+                d.set_item("libp2p_external_addr_cleared", st.external_addr_cleared)?;
                 d.set_item(
                     "libp2p_external_addr_candidates",
                     st.external_addr_candidates,
@@ -6275,7 +6319,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 63)?;
+                d.set_item("phase", 64)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -6311,6 +6355,7 @@ mod enabled {
                 d.set_item("prometheus", true)?;
                 d.set_item("bandwidth", true)?;
                 d.set_item("external_addrs", true)?;
+                d.set_item("clear_external_addrs", true)?;
                 d.set_item("connection_lifecycle", true)?;
                 d.set_item("connection_close_causes", true)?;
                 d.set_item("listener_lifecycle", true)?;
@@ -6480,6 +6525,7 @@ mod enabled {
                 d.set_item("libp2p_external_addrs", st.external_addrs.len())?;
                 d.set_item("libp2p_external_addr_confirmed", st.external_addr_confirmed)?;
                 d.set_item("libp2p_external_addr_expired", st.external_addr_expired)?;
+                d.set_item("libp2p_external_addr_cleared", st.external_addr_cleared)?;
                 d.set_item(
                     "libp2p_external_addr_candidates",
                     st.external_addr_candidates,
