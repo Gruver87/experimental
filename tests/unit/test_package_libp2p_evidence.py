@@ -32,5 +32,7 @@ def test_evidence_labs_are_hard_verify_list() -> None:
     assert "scripts/libp2p_rust_listen_derived_external_max_lab.py" in pack.LABS
     assert "scripts/libp2p_rust_advertised_externals_shared_max_lab.py" in pack.LABS
     assert "scripts/libp2p_rust_advertised_externals_all_paths_max_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_identify_listen_addrs_capped_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_mdns_listen_addrs_capped_lab.py" in pack.LABS
     for rel in pack.LABS:
         assert (ROOT / rel).is_file(), rel

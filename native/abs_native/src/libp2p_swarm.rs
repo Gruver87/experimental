@@ -68,6 +68,8 @@
 //! Slice BS: same max on listen-derived externals (refuse listen over limit; no silent truncate).
 //! Slice BT: shared advertised cap — operator + listen-derived sum ≤ max (not 64).
 //! Slice BU: observed / UPnP / rendezvous advertise through the same shared cap.
+//! Slice BV: Identify omits uncharged listen addrs (no leak past advertised cap).
+//! Slice BW: mDNS omits uncharged listen addrs (same shared cap; no LAN leak).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -325,7 +327,8 @@ mod enabled {
     #[allow(deprecated)]
     use libp2p::bandwidth::BandwidthSinks;
     use libp2p::core::transport::ListenerId;
-    use libp2p::core::ConnectedPoint;
+    use libp2p::core::transport::PortUse;
+    use libp2p::core::{ConnectedPoint, Endpoint};
     use libp2p::multiaddr::Protocol;
     use libp2p::{
         allow_block_list,
@@ -335,8 +338,8 @@ mod enabled {
         kad::{self, store::MemoryStore},
         mdns, noise, ping, relay, rendezvous, request_response,
         swarm::{
-            behaviour::toggle::Toggle, ConnectionError, DialError, ListenError, NetworkBehaviour,
-            StreamUpgradeError, SwarmEvent,
+            behaviour::toggle::Toggle, ConnectionDenied, ConnectionError, ConnectionId, DialError,
+            FromSwarm, ListenError, NetworkBehaviour, StreamUpgradeError, SwarmEvent, ToSwarm,
         },
         tcp, upnp, yamux, Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
     };
@@ -349,6 +352,7 @@ mod enabled {
     use std::io;
     use std::path::Path;
     use std::sync::{Arc, Mutex};
+    use std::task::{Context, Poll};
     use std::time::Duration;
     use tokio::sync::{mpsc, oneshot};
 
@@ -850,13 +854,287 @@ mod enabled {
         Ok(())
     }
 
+    /// Slice BV: Identify 0.45 has no `hide_listen_addrs`. Forward NewListenAddr
+    /// into identify only when the addr is circuit (uncapped) or charged against
+    /// the shared advertised cap. Uncharged expansion sockets stay listening
+    /// but are omitted from Identify (not a silent leak).
+    struct CappedIdentify {
+        inner: identify::Behaviour,
+        state: Arc<Mutex<NodeState>>,
+    }
+
+    impl CappedIdentify {
+        fn new(inner: identify::Behaviour, state: Arc<Mutex<NodeState>>) -> Self {
+            Self { inner, state }
+        }
+
+        fn push(&mut self, peers: Vec<PeerId>) {
+            self.inner.push(peers);
+        }
+    }
+
+    impl NetworkBehaviour for CappedIdentify {
+        type ConnectionHandler = <identify::Behaviour as NetworkBehaviour>::ConnectionHandler;
+        type ToSwarm = identify::Event;
+
+        fn handle_pending_inbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            local_addr: &Multiaddr,
+            remote_addr: &Multiaddr,
+        ) -> Result<(), ConnectionDenied> {
+            self.inner
+                .handle_pending_inbound_connection(connection_id, local_addr, remote_addr)
+        }
+
+        fn handle_established_inbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            peer: PeerId,
+            local_addr: &Multiaddr,
+            remote_addr: &Multiaddr,
+        ) -> Result<Self::ConnectionHandler, ConnectionDenied> {
+            self.inner.handle_established_inbound_connection(
+                connection_id,
+                peer,
+                local_addr,
+                remote_addr,
+            )
+        }
+
+        fn handle_pending_outbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            maybe_peer: Option<PeerId>,
+            addresses: &[Multiaddr],
+            effective_role: Endpoint,
+        ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
+            self.inner.handle_pending_outbound_connection(
+                connection_id,
+                maybe_peer,
+                addresses,
+                effective_role,
+            )
+        }
+
+        fn handle_established_outbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            peer: PeerId,
+            addr: &Multiaddr,
+            role_override: Endpoint,
+            port_use: PortUse,
+        ) -> Result<Self::ConnectionHandler, ConnectionDenied> {
+            self.inner.handle_established_outbound_connection(
+                connection_id,
+                peer,
+                addr,
+                role_override,
+                port_use,
+            )
+        }
+
+        fn on_swarm_event(&mut self, event: FromSwarm<'_>) {
+            let forward = match &event {
+                FromSwarm::NewListenAddr(ev) => {
+                    let s = ev.addr.to_string();
+                    let is_circuit = ev.addr.iter().any(|p| matches!(p, Protocol::P2pCircuit));
+                    if is_circuit {
+                        true
+                    } else {
+                        match self.state.lock() {
+                            Ok(mut st) => {
+                                if advertised_already_charged(&st, &s)
+                                    || admit_listen_derived_external(&mut st, &s).is_ok()
+                                {
+                                    true
+                                } else {
+                                    st.identify_listen_addr_omitted =
+                                        st.identify_listen_addr_omitted.saturating_add(1);
+                                    false
+                                }
+                            }
+                            Err(_) => false,
+                        }
+                    }
+                }
+                _ => true,
+            };
+            if forward {
+                self.inner.on_swarm_event(event);
+            }
+        }
+
+        fn on_connection_handler_event(
+            &mut self,
+            peer_id: PeerId,
+            connection_id: ConnectionId,
+            event: <Self::ConnectionHandler as libp2p::swarm::ConnectionHandler>::ToBehaviour,
+        ) {
+            self.inner
+                .on_connection_handler_event(peer_id, connection_id, event);
+        }
+
+        fn poll(
+            &mut self,
+            cx: &mut Context<'_>,
+        ) -> Poll<
+            ToSwarm<
+                Self::ToSwarm,
+                <Self::ConnectionHandler as libp2p::swarm::ConnectionHandler>::FromBehaviour,
+            >,
+        > {
+            self.inner.poll(cx)
+        }
+    }
+
+    /// Slice BW: mDNS 0.46 advertises every NewListenAddr via DNS-SD.
+    /// Forward into mdns only when the addr is circuit (uncapped) or charged
+    /// against the shared advertised cap. Uncharged expansion sockets stay
+    /// listening but are omitted from mDNS (not a silent LAN leak).
+    struct CappedMdns {
+        inner: mdns::tokio::Behaviour,
+        state: Arc<Mutex<NodeState>>,
+    }
+
+    impl CappedMdns {
+        fn new(inner: mdns::tokio::Behaviour, state: Arc<Mutex<NodeState>>) -> Self {
+            Self { inner, state }
+        }
+    }
+
+    impl NetworkBehaviour for CappedMdns {
+        type ConnectionHandler = <mdns::tokio::Behaviour as NetworkBehaviour>::ConnectionHandler;
+        type ToSwarm = mdns::Event;
+
+        fn handle_pending_inbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            local_addr: &Multiaddr,
+            remote_addr: &Multiaddr,
+        ) -> Result<(), ConnectionDenied> {
+            self.inner
+                .handle_pending_inbound_connection(connection_id, local_addr, remote_addr)
+        }
+
+        fn handle_established_inbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            peer: PeerId,
+            local_addr: &Multiaddr,
+            remote_addr: &Multiaddr,
+        ) -> Result<Self::ConnectionHandler, ConnectionDenied> {
+            self.inner.handle_established_inbound_connection(
+                connection_id,
+                peer,
+                local_addr,
+                remote_addr,
+            )
+        }
+
+        fn handle_pending_outbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            maybe_peer: Option<PeerId>,
+            addresses: &[Multiaddr],
+            effective_role: Endpoint,
+        ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
+            self.inner.handle_pending_outbound_connection(
+                connection_id,
+                maybe_peer,
+                addresses,
+                effective_role,
+            )
+        }
+
+        fn handle_established_outbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            peer: PeerId,
+            addr: &Multiaddr,
+            role_override: Endpoint,
+            port_use: PortUse,
+        ) -> Result<Self::ConnectionHandler, ConnectionDenied> {
+            self.inner.handle_established_outbound_connection(
+                connection_id,
+                peer,
+                addr,
+                role_override,
+                port_use,
+            )
+        }
+
+        fn on_swarm_event(&mut self, event: FromSwarm<'_>) {
+            let forward = match &event {
+                FromSwarm::NewListenAddr(ev) => {
+                    let s = ev.addr.to_string();
+                    let is_circuit = ev.addr.iter().any(|p| matches!(p, Protocol::P2pCircuit));
+                    if is_circuit {
+                        true
+                    } else {
+                        match self.state.lock() {
+                            Ok(mut st) => {
+                                if advertised_already_charged(&st, &s)
+                                    || admit_listen_derived_external(&mut st, &s).is_ok()
+                                {
+                                    if !st.mdns_advertised_listen.iter().any(|a| a == &s) {
+                                        st.mdns_advertised_listen.push(s);
+                                    }
+                                    true
+                                } else {
+                                    st.mdns_listen_addr_omitted =
+                                        st.mdns_listen_addr_omitted.saturating_add(1);
+                                    false
+                                }
+                            }
+                            Err(_) => false,
+                        }
+                    }
+                }
+                FromSwarm::ExpiredListenAddr(ev) => {
+                    let s = ev.addr.to_string();
+                    if let Ok(mut st) = self.state.lock() {
+                        st.mdns_advertised_listen.retain(|a| a != &s);
+                    }
+                    true
+                }
+                _ => true,
+            };
+            if forward {
+                self.inner.on_swarm_event(event);
+            }
+        }
+
+        fn on_connection_handler_event(
+            &mut self,
+            peer_id: PeerId,
+            connection_id: ConnectionId,
+            event: <Self::ConnectionHandler as libp2p::swarm::ConnectionHandler>::ToBehaviour,
+        ) {
+            self.inner
+                .on_connection_handler_event(peer_id, connection_id, event);
+        }
+
+        fn poll(
+            &mut self,
+            cx: &mut Context<'_>,
+        ) -> Poll<
+            ToSwarm<
+                Self::ToSwarm,
+                <Self::ConnectionHandler as libp2p::swarm::ConnectionHandler>::FromBehaviour,
+            >,
+        > {
+            self.inner.poll(cx)
+        }
+    }
+
     #[derive(NetworkBehaviour)]
     struct AbsBehaviour {
         ping: ping::Behaviour,
-        identify: identify::Behaviour,
+        identify: CappedIdentify,
         wire: request_response::Behaviour<AbsWireCodec>,
         gossipsub: gossipsub::Behaviour,
-        mdns: Toggle<mdns::tokio::Behaviour>,
+        mdns: Toggle<CappedMdns>,
         kademlia: kad::Behaviour<MemoryStore>,
         relay: relay::Behaviour,
         relay_client: relay::client::Behaviour,
@@ -1220,6 +1498,10 @@ mod enabled {
         mdns_discovered: u64,
         /// Slice AS: mDNS Expired (loopback hygiene, same as Discovered).
         mdns_expired: u64,
+        /// Slice BW: NewListenAddr omitted from mDNS because the shared cap is full.
+        mdns_listen_addr_omitted: u64,
+        /// Slice BW: non-circuit listen addrs currently forwarded into mDNS.
+        mdns_advertised_listen: Vec<String>,
         /// Slice AS: configured mDNS TTL seconds (lab override).
         mdns_ttl_secs: u64,
         kad_routing_updates: u64,
@@ -1380,6 +1662,8 @@ mod enabled {
         /// Slice BU: advertised addrs that are not operator persist and not listen-derived
         /// (observed confirm, UPnP, rendezvous).
         aux_advertised_external: Vec<String>,
+        /// Slice BV: Identify NewListenAddr omitted because the shared cap is full.
+        identify_listen_addr_omitted: u64,
         /// Persistent bootstrap book path (Slice O; empty = memory-only).
         bootstrap_path: String,
         bootstrap: HashMap<String, Vec<String>>,
@@ -1722,7 +2006,7 @@ mod enabled {
                         .with_peer_score(score_params, gossipsub::PeerScoreThresholds::default())
                         .map_err(|e| format!("gossip peer score: {e}"))?;
                     let mdns = if want_mdns {
-                        Toggle::from(Some(
+                        Toggle::from(Some(CappedMdns::new(
                             mdns::tokio::Behaviour::new(
                                 mdns::Config {
                                     ttl: Duration::from_secs(mdns_ttl),
@@ -1732,7 +2016,8 @@ mod enabled {
                                 key.public().to_peer_id(),
                             )
                             .map_err(|e| format!("mdns: {e}"))?,
-                        ))
+                            Arc::clone(&state_bg),
+                        )))
                     } else {
                         Toggle::from(None)
                     };
@@ -1768,14 +2053,18 @@ mod enabled {
                                 .with_timeout(ping_timeout),
                         ),
                         // Slice BC/BD: branding, listen-addr push, re-identify interval.
-                        identify: identify::Behaviour::new(
-                            identify::Config::new(
-                                ABS_IDENTIFY_PROTOCOL_VERSION.into(),
-                                key.public(),
-                            )
-                            .with_agent_version(identify_agent_version.clone())
-                            .with_push_listen_addr_updates(want_identify_push)
-                            .with_interval(identify_interval),
+                        // Slice BV: wrap identify so uncharged listen addrs are omitted.
+                        identify: CappedIdentify::new(
+                            identify::Behaviour::new(
+                                identify::Config::new(
+                                    ABS_IDENTIFY_PROTOCOL_VERSION.into(),
+                                    key.public(),
+                                )
+                                .with_agent_version(identify_agent_version.clone())
+                                .with_push_listen_addr_updates(want_identify_push)
+                                .with_interval(identify_interval),
+                            ),
+                            Arc::clone(&state_bg),
                         ),
                         wire,
                         gossipsub,
@@ -3807,6 +4096,7 @@ mod enabled {
                                         st.external_addrs.retain(|a| a != &s);
                                         st.listen_derived_external.retain(|a| a != &s);
                                         st.aux_advertised_external.retain(|a| a != &s);
+                                        st.mdns_advertised_listen.retain(|a| a != &s);
                                     }
                                 }
                                 SwarmEvent::ListenerClosed {
@@ -3824,6 +4114,7 @@ mod enabled {
                                             st.external_addrs.retain(|x| x != &a);
                                             st.listen_derived_external.retain(|x| x != &a);
                                             st.aux_advertised_external.retain(|x| x != &a);
+                                            st.mdns_advertised_listen.retain(|x| x != &a);
                                         }
                                         if let Err(e) = reason {
                                             st.last_error = format!("listener_closed: {e}");
@@ -6611,6 +6902,10 @@ mod enabled {
                 d.set_item("libp2p_gossip_topics", st.subscribed.len())?;
                 d.set_item("libp2p_identify_peers", st.identify.len())?;
                 d.set_item("libp2p_identify_received", st.identify_received)?;
+                d.set_item(
+                    "libp2p_identify_listen_addr_omitted",
+                    st.identify_listen_addr_omitted,
+                )?;
                 d.set_item("libp2p_identify_sent", st.identify_sent)?;
                 d.set_item("libp2p_identify_pushed", st.identify_pushed)?;
                 d.set_item("libp2p_identify_error", st.identify_error)?;
@@ -6636,6 +6931,14 @@ mod enabled {
                 d.set_item("libp2p_protocol_version", &st.protocol_version)?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
                 d.set_item("libp2p_mdns_expired", st.mdns_expired)?;
+                d.set_item(
+                    "libp2p_mdns_listen_addr_omitted",
+                    st.mdns_listen_addr_omitted,
+                )?;
+                d.set_item(
+                    "libp2p_mdns_advertised_listen",
+                    st.mdns_advertised_listen.len(),
+                )?;
                 d.set_item("libp2p_mdns_ttl_secs", st.mdns_ttl_secs)?;
                 d.set_item("libp2p_discovered_peers", st.discovered.len())?;
                 d.set_item("libp2p_kad_peers", st.kad_peers.len())?;
@@ -6857,7 +7160,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 72)?;
+                d.set_item("phase", 74)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -6902,6 +7205,8 @@ mod enabled {
                 d.set_item("listen_derived_external_max", true)?;
                 d.set_item("advertised_externals_shared_max", true)?;
                 d.set_item("advertised_externals_all_paths_max", true)?;
+                d.set_item("identify_listen_addrs_capped", true)?;
+                d.set_item("mdns_listen_addrs_capped", true)?;
                 d.set_item("max_advertised_external", st.max_advertised_external)?;
                 d.set_item(
                     "max_advertised_external_hard",
@@ -7140,6 +7445,10 @@ mod enabled {
                 d.set_item("libp2p_gossip_peer_score", true)?;
                 d.set_item("libp2p_identify_peers", st.identify.len())?;
                 d.set_item("libp2p_identify_received", st.identify_received)?;
+                d.set_item(
+                    "libp2p_identify_listen_addr_omitted",
+                    st.identify_listen_addr_omitted,
+                )?;
                 d.set_item("libp2p_identify_sent", st.identify_sent)?;
                 d.set_item("libp2p_identify_pushed", st.identify_pushed)?;
                 d.set_item("libp2p_identify_error", st.identify_error)?;
@@ -7165,6 +7474,14 @@ mod enabled {
                 d.set_item("libp2p_protocol_version", &st.protocol_version)?;
                 d.set_item("libp2p_mdns_discovered", st.mdns_discovered)?;
                 d.set_item("libp2p_mdns_expired", st.mdns_expired)?;
+                d.set_item(
+                    "libp2p_mdns_listen_addr_omitted",
+                    st.mdns_listen_addr_omitted,
+                )?;
+                d.set_item(
+                    "libp2p_mdns_advertised_listen",
+                    st.mdns_advertised_listen.len(),
+                )?;
                 d.set_item("libp2p_mdns_ttl_secs", st.mdns_ttl_secs)?;
                 d.set_item("libp2p_kad_peers", st.kad_peers.len())?;
                 d.set_item("libp2p_kad_routing_updates", st.kad_routing_updates)?;
