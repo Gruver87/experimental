@@ -559,12 +559,13 @@ class Libp2pTransportAdapter:
             raise TransportCapabilityError("rust libp2p node not available")
         node.add_external_address(str(multiaddr))
 
-    def remove_external_address(self, multiaddr: str) -> None:
+    def remove_external_address(self, multiaddr: str) -> bool:
+        """Slice BN: True if addr was present in the local external book."""
         self.require_transport()
         node = self._ensure_node()
         if node is None:
             raise TransportCapabilityError("rust libp2p node not available")
-        node.remove_external_address(str(multiaddr))
+        return bool(node.remove_external_address(str(multiaddr)))
 
     def clear_external_addrs(self) -> int:
         """Slice BM: wipe external address book; returns addrs cleared."""

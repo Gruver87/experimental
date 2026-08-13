@@ -60,6 +60,7 @@
 //! Slice BK: peerstore_clear returns peers cleared + cleared counter.
 //! Slice BL: clear_observed_addr (wipe last_observed surface + counter).
 //! Slice BM: clear_external_addrs (wipe external book + counter).
+//! Slice BN: remove_external_address returns bool (present) + expired only when present.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -828,7 +829,7 @@ mod enabled {
         },
         RemoveExternalAddress {
             addr: String,
-            reply: oneshot::Sender<Result<(), String>>,
+            reply: oneshot::Sender<Result<bool, String>>,
         },
         /// Slice BM: wipe entire external address book (returns addrs cleared).
         ClearExternalAddrs {
@@ -2640,17 +2641,25 @@ mod enabled {
                                     }
                                 }
                                 Some(Cmd::RemoveExternalAddress { addr, reply }) => {
+                                    // Slice BN: bool = was present in our book; bump expired only then.
                                     match addr.parse::<Multiaddr>() {
                                         Ok(ma) => {
                                             let s = ma.to_string();
+                                            let present = state_bg
+                                                .lock()
+                                                .map(|st| st.external_addrs.iter().any(|a| a == &s))
+                                                .unwrap_or(false);
                                             swarm.remove_external_address(&ma);
                                             // remove_external_address does not emit SwarmEvent.
-                                            if let Ok(mut st) = state_bg.lock() {
-                                                st.external_addr_expired =
-                                                    st.external_addr_expired.saturating_add(1);
-                                                st.external_addrs.retain(|a| a != &s);
+                                            if present {
+                                                if let Ok(mut st) = state_bg.lock() {
+                                                    st.external_addr_expired = st
+                                                        .external_addr_expired
+                                                        .saturating_add(1);
+                                                    st.external_addrs.retain(|a| a != &s);
+                                                }
                                             }
-                                            let _ = reply.send(Ok(()));
+                                            let _ = reply.send(Ok(present));
                                         }
                                         Err(e) => {
                                             let _ = reply.send(Err(format!("bad multiaddr: {e}")));
@@ -5603,8 +5612,10 @@ mod enabled {
             }
         }
 
-        /// Slice AG: expire a previously confirmed external multiaddr.
-        fn remove_external_address(&self, multiaddr: &str) -> PyResult<()> {
+        /// Slice AG/BN: expire a previously confirmed external multiaddr.
+        ///
+        /// Returns true if the addr was present in the local book.
+        fn remove_external_address(&self, multiaddr: &str) -> PyResult<bool> {
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
                 .send(Cmd::RemoveExternalAddress {
@@ -5613,7 +5624,7 @@ mod enabled {
                 })
                 .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
             match rx.blocking_recv() {
-                Ok(Ok(())) => Ok(()),
+                Ok(Ok(removed)) => Ok(removed),
                 Ok(Err(e)) => Err(PyValueError::new_err(e)),
                 Err(_) => Err(PyRuntimeError::new_err(
                     "remove_external_address reply dropped",
@@ -6319,7 +6330,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 64)?;
+                d.set_item("phase", 65)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -6355,6 +6366,7 @@ mod enabled {
                 d.set_item("prometheus", true)?;
                 d.set_item("bandwidth", true)?;
                 d.set_item("external_addrs", true)?;
+                d.set_item("remove_external_address", true)?;
                 d.set_item("clear_external_addrs", true)?;
                 d.set_item("connection_lifecycle", true)?;
                 d.set_item("connection_close_causes", true)?;
