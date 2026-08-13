@@ -70,6 +70,8 @@
 //! Slice BU: observed / UPnP / rendezvous advertise through the same shared cap.
 //! Slice BV: Identify omits uncharged listen addrs (no leak past advertised cap).
 //! Slice BW: mDNS omits uncharged listen addrs (same shared cap; no LAN leak).
+//! Slice BX: Kademlia omits uncharged listen addrs (no DHT leak past advertised cap).
+//! Slice BY: AutoNAT omits uncharged listen addrs (no probe leak past advertised cap).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -350,6 +352,7 @@ mod enabled {
     use std::collections::{HashMap, HashSet, VecDeque};
     use std::hash::{Hash, Hasher};
     use std::io;
+    use std::ops::{Deref, DerefMut};
     use std::path::Path;
     use std::sync::{Arc, Mutex};
     use std::task::{Context, Poll};
@@ -1128,6 +1131,314 @@ mod enabled {
         }
     }
 
+    /// Slice BX: kad 0.46 fills `ListenAddresses` from every NewListenAddr
+    /// and may return them as local provider addrs. Forward into Kademlia
+    /// only when circuit (uncapped) or charged against the shared advertised
+    /// cap. Uncharged expansion sockets stay listening but are omitted from
+    /// DHT local addrs (not a silent leak).
+    struct CappedKad {
+        inner: kad::Behaviour<MemoryStore>,
+        state: Arc<Mutex<NodeState>>,
+    }
+
+    impl CappedKad {
+        fn new(inner: kad::Behaviour<MemoryStore>, state: Arc<Mutex<NodeState>>) -> Self {
+            Self { inner, state }
+        }
+    }
+
+    impl Deref for CappedKad {
+        type Target = kad::Behaviour<MemoryStore>;
+        fn deref(&self) -> &Self::Target {
+            &self.inner
+        }
+    }
+
+    impl DerefMut for CappedKad {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.inner
+        }
+    }
+
+    impl NetworkBehaviour for CappedKad {
+        type ConnectionHandler =
+            <kad::Behaviour<MemoryStore> as NetworkBehaviour>::ConnectionHandler;
+        type ToSwarm = kad::Event;
+
+        fn handle_pending_inbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            local_addr: &Multiaddr,
+            remote_addr: &Multiaddr,
+        ) -> Result<(), ConnectionDenied> {
+            self.inner
+                .handle_pending_inbound_connection(connection_id, local_addr, remote_addr)
+        }
+
+        fn handle_established_inbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            peer: PeerId,
+            local_addr: &Multiaddr,
+            remote_addr: &Multiaddr,
+        ) -> Result<Self::ConnectionHandler, ConnectionDenied> {
+            self.inner.handle_established_inbound_connection(
+                connection_id,
+                peer,
+                local_addr,
+                remote_addr,
+            )
+        }
+
+        fn handle_pending_outbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            maybe_peer: Option<PeerId>,
+            addresses: &[Multiaddr],
+            effective_role: Endpoint,
+        ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
+            self.inner.handle_pending_outbound_connection(
+                connection_id,
+                maybe_peer,
+                addresses,
+                effective_role,
+            )
+        }
+
+        fn handle_established_outbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            peer: PeerId,
+            addr: &Multiaddr,
+            role_override: Endpoint,
+            port_use: PortUse,
+        ) -> Result<Self::ConnectionHandler, ConnectionDenied> {
+            self.inner.handle_established_outbound_connection(
+                connection_id,
+                peer,
+                addr,
+                role_override,
+                port_use,
+            )
+        }
+
+        fn on_swarm_event(&mut self, event: FromSwarm<'_>) {
+            let forward = match &event {
+                FromSwarm::NewListenAddr(ev) => {
+                    let s = ev.addr.to_string();
+                    let is_circuit = ev.addr.iter().any(|p| matches!(p, Protocol::P2pCircuit));
+                    if is_circuit {
+                        true
+                    } else {
+                        match self.state.lock() {
+                            Ok(mut st) => {
+                                if advertised_already_charged(&st, &s)
+                                    || admit_listen_derived_external(&mut st, &s).is_ok()
+                                {
+                                    if !st.kad_advertised_listen.iter().any(|a| a == &s) {
+                                        st.kad_advertised_listen.push(s);
+                                    }
+                                    true
+                                } else {
+                                    st.kad_listen_addr_omitted =
+                                        st.kad_listen_addr_omitted.saturating_add(1);
+                                    false
+                                }
+                            }
+                            Err(_) => false,
+                        }
+                    }
+                }
+                FromSwarm::ExpiredListenAddr(ev) => {
+                    let s = ev.addr.to_string();
+                    if let Ok(mut st) = self.state.lock() {
+                        st.kad_advertised_listen.retain(|a| a != &s);
+                    }
+                    true
+                }
+                _ => true,
+            };
+            if forward {
+                self.inner.on_swarm_event(event);
+            }
+        }
+
+        fn on_connection_handler_event(
+            &mut self,
+            peer_id: PeerId,
+            connection_id: ConnectionId,
+            event: <Self::ConnectionHandler as libp2p::swarm::ConnectionHandler>::ToBehaviour,
+        ) {
+            self.inner
+                .on_connection_handler_event(peer_id, connection_id, event);
+        }
+
+        fn poll(
+            &mut self,
+            cx: &mut Context<'_>,
+        ) -> Poll<
+            ToSwarm<
+                Self::ToSwarm,
+                <Self::ConnectionHandler as libp2p::swarm::ConnectionHandler>::FromBehaviour,
+            >,
+        > {
+            self.inner.poll(cx)
+        }
+    }
+
+    /// Slice BY: AutoNAT v1 probes every listen addr (plus candidates).
+    /// Forward NewListenAddr into autonat only when circuit (uncapped) or
+    /// charged against the shared advertised cap. Uncharged expansion sockets
+    /// stay listening but are omitted from AutoNAT probes (not a silent leak).
+    struct CappedAutonat {
+        inner: autonat::Behaviour,
+        state: Arc<Mutex<NodeState>>,
+    }
+
+    impl CappedAutonat {
+        fn new(inner: autonat::Behaviour, state: Arc<Mutex<NodeState>>) -> Self {
+            Self { inner, state }
+        }
+    }
+
+    impl Deref for CappedAutonat {
+        type Target = autonat::Behaviour;
+        fn deref(&self) -> &Self::Target {
+            &self.inner
+        }
+    }
+
+    impl DerefMut for CappedAutonat {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.inner
+        }
+    }
+
+    impl NetworkBehaviour for CappedAutonat {
+        type ConnectionHandler = <autonat::Behaviour as NetworkBehaviour>::ConnectionHandler;
+        type ToSwarm = autonat::Event;
+
+        fn handle_pending_inbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            local_addr: &Multiaddr,
+            remote_addr: &Multiaddr,
+        ) -> Result<(), ConnectionDenied> {
+            self.inner
+                .handle_pending_inbound_connection(connection_id, local_addr, remote_addr)
+        }
+
+        fn handle_established_inbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            peer: PeerId,
+            local_addr: &Multiaddr,
+            remote_addr: &Multiaddr,
+        ) -> Result<Self::ConnectionHandler, ConnectionDenied> {
+            self.inner.handle_established_inbound_connection(
+                connection_id,
+                peer,
+                local_addr,
+                remote_addr,
+            )
+        }
+
+        fn handle_pending_outbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            maybe_peer: Option<PeerId>,
+            addresses: &[Multiaddr],
+            effective_role: Endpoint,
+        ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
+            self.inner.handle_pending_outbound_connection(
+                connection_id,
+                maybe_peer,
+                addresses,
+                effective_role,
+            )
+        }
+
+        fn handle_established_outbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            peer: PeerId,
+            addr: &Multiaddr,
+            role_override: Endpoint,
+            port_use: PortUse,
+        ) -> Result<Self::ConnectionHandler, ConnectionDenied> {
+            self.inner.handle_established_outbound_connection(
+                connection_id,
+                peer,
+                addr,
+                role_override,
+                port_use,
+            )
+        }
+
+        fn on_swarm_event(&mut self, event: FromSwarm<'_>) {
+            let forward = match &event {
+                FromSwarm::NewListenAddr(ev) => {
+                    let s = ev.addr.to_string();
+                    let is_circuit = ev.addr.iter().any(|p| matches!(p, Protocol::P2pCircuit));
+                    if is_circuit {
+                        true
+                    } else {
+                        match self.state.lock() {
+                            Ok(mut st) => {
+                                if advertised_already_charged(&st, &s)
+                                    || admit_listen_derived_external(&mut st, &s).is_ok()
+                                {
+                                    if !st.autonat_advertised_listen.iter().any(|a| a == &s) {
+                                        st.autonat_advertised_listen.push(s);
+                                    }
+                                    true
+                                } else {
+                                    st.autonat_listen_addr_omitted =
+                                        st.autonat_listen_addr_omitted.saturating_add(1);
+                                    false
+                                }
+                            }
+                            Err(_) => false,
+                        }
+                    }
+                }
+                FromSwarm::ExpiredListenAddr(ev) => {
+                    let s = ev.addr.to_string();
+                    if let Ok(mut st) = self.state.lock() {
+                        st.autonat_advertised_listen.retain(|a| a != &s);
+                    }
+                    true
+                }
+                _ => true,
+            };
+            if forward {
+                self.inner.on_swarm_event(event);
+            }
+        }
+
+        fn on_connection_handler_event(
+            &mut self,
+            peer_id: PeerId,
+            connection_id: ConnectionId,
+            event: <Self::ConnectionHandler as libp2p::swarm::ConnectionHandler>::ToBehaviour,
+        ) {
+            self.inner
+                .on_connection_handler_event(peer_id, connection_id, event);
+        }
+
+        fn poll(
+            &mut self,
+            cx: &mut Context<'_>,
+        ) -> Poll<
+            ToSwarm<
+                Self::ToSwarm,
+                <Self::ConnectionHandler as libp2p::swarm::ConnectionHandler>::FromBehaviour,
+            >,
+        > {
+            self.inner.poll(cx)
+        }
+    }
+
     #[derive(NetworkBehaviour)]
     struct AbsBehaviour {
         ping: ping::Behaviour,
@@ -1135,11 +1446,11 @@ mod enabled {
         wire: request_response::Behaviour<AbsWireCodec>,
         gossipsub: gossipsub::Behaviour,
         mdns: Toggle<CappedMdns>,
-        kademlia: kad::Behaviour<MemoryStore>,
+        kademlia: CappedKad,
         relay: relay::Behaviour,
         relay_client: relay::client::Behaviour,
         /// Slice N: off by default — AutoNAT probe dials raced reconnect (Slice U).
-        autonat: Toggle<autonat::Behaviour>,
+        autonat: Toggle<CappedAutonat>,
         /// Slice AD: off by default — needs IGD gateway; CI expects GatewayNotFound.
         upnp: Toggle<upnp::tokio::Behaviour>,
         /// Slice AE: off by default — empty allow-list denies all until allow_peer.
@@ -1504,6 +1815,10 @@ mod enabled {
         mdns_advertised_listen: Vec<String>,
         /// Slice AS: configured mDNS TTL seconds (lab override).
         mdns_ttl_secs: u64,
+        /// Slice BX: NewListenAddr omitted from Kademlia because the shared cap is full.
+        kad_listen_addr_omitted: u64,
+        /// Slice BX: non-circuit listen addrs currently forwarded into Kademlia.
+        kad_advertised_listen: Vec<String>,
         kad_routing_updates: u64,
         kad_queries: u64,
         /// Slice AN: Kademlia query / routing event counters.
@@ -1533,6 +1848,10 @@ mod enabled {
         autonat_outbound_probe: u64,
         autonat_inbound_probe_error: u64,
         autonat_outbound_probe_error: u64,
+        /// Slice BY: NewListenAddr omitted from AutoNAT because the shared cap is full.
+        autonat_listen_addr_omitted: u64,
+        /// Slice BY: non-circuit listen addrs currently forwarded into AutoNAT.
+        autonat_advertised_listen: Vec<String>,
         /// 0=unknown, 1=public, 2=private (Slice N).
         autonat_status: u8,
         dcutr_upgrade_success: u64,
@@ -2027,6 +2346,7 @@ mod enabled {
                     let store = MemoryStore::new(local);
                     let mut kademlia = kad::Behaviour::with_config(local, store, kad_cfg);
                     kademlia.set_mode(Some(kad::Mode::Server));
+                    let kademlia = CappedKad::new(kademlia, Arc::clone(&state_bg));
                     let mut limits = connection_limits::ConnectionLimits::default();
                     if let Some(n) = limits_incoming {
                         limits = limits.with_max_established_incoming(Some(n));
@@ -2091,7 +2411,10 @@ mod enabled {
                                 throttle_server_period: Duration::from_secs(1),
                                 ..Default::default()
                             };
-                            Toggle::from(Some(autonat::Behaviour::new(local, cfg)))
+                            Toggle::from(Some(CappedAutonat::new(
+                                autonat::Behaviour::new(local, cfg),
+                                Arc::clone(&state_bg),
+                            )))
                         } else {
                             Toggle::from(None)
                         },
@@ -4097,6 +4420,8 @@ mod enabled {
                                         st.listen_derived_external.retain(|a| a != &s);
                                         st.aux_advertised_external.retain(|a| a != &s);
                                         st.mdns_advertised_listen.retain(|a| a != &s);
+                                        st.kad_advertised_listen.retain(|a| a != &s);
+                                        st.autonat_advertised_listen.retain(|a| a != &s);
                                     }
                                 }
                                 SwarmEvent::ListenerClosed {
@@ -4115,6 +4440,8 @@ mod enabled {
                                             st.listen_derived_external.retain(|x| x != &a);
                                             st.aux_advertised_external.retain(|x| x != &a);
                                             st.mdns_advertised_listen.retain(|x| x != &a);
+                                            st.kad_advertised_listen.retain(|x| x != &a);
+                                            st.autonat_advertised_listen.retain(|x| x != &a);
                                         }
                                         if let Err(e) = reason {
                                             st.last_error = format!("listener_closed: {e}");
@@ -6942,6 +7269,11 @@ mod enabled {
                 d.set_item("libp2p_mdns_ttl_secs", st.mdns_ttl_secs)?;
                 d.set_item("libp2p_discovered_peers", st.discovered.len())?;
                 d.set_item("libp2p_kad_peers", st.kad_peers.len())?;
+                d.set_item("libp2p_kad_listen_addr_omitted", st.kad_listen_addr_omitted)?;
+                d.set_item(
+                    "libp2p_kad_advertised_listen",
+                    st.kad_advertised_listen.len(),
+                )?;
                 d.set_item("libp2p_kad_routing_updates", st.kad_routing_updates)?;
                 d.set_item("libp2p_kad_queries", st.kad_queries)?;
                 d.set_item("libp2p_kad_query_ok", st.kad_query_ok)?;
@@ -6970,6 +7302,14 @@ mod enabled {
                 d.set_item("libp2p_relay_outbound_circuit", st.relay_outbound_circuit)?;
                 d.set_item("libp2p_relay_max_reservations", st.relay_max_reservations)?;
                 d.set_item("libp2p_autonat_probes", st.autonat_probes)?;
+                d.set_item(
+                    "libp2p_autonat_listen_addr_omitted",
+                    st.autonat_listen_addr_omitted,
+                )?;
+                d.set_item(
+                    "libp2p_autonat_advertised_listen",
+                    st.autonat_advertised_listen.len(),
+                )?;
                 d.set_item("libp2p_autonat_status_changes", st.autonat_status_changes)?;
                 d.set_item("libp2p_autonat_inbound_probe", st.autonat_inbound_probe)?;
                 d.set_item("libp2p_autonat_outbound_probe", st.autonat_outbound_probe)?;
@@ -7160,7 +7500,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 74)?;
+                d.set_item("phase", 76)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -7207,6 +7547,8 @@ mod enabled {
                 d.set_item("advertised_externals_all_paths_max", true)?;
                 d.set_item("identify_listen_addrs_capped", true)?;
                 d.set_item("mdns_listen_addrs_capped", true)?;
+                d.set_item("kad_listen_addrs_capped", true)?;
+                d.set_item("autonat_listen_addrs_capped", true)?;
                 d.set_item("max_advertised_external", st.max_advertised_external)?;
                 d.set_item(
                     "max_advertised_external_hard",
@@ -7484,6 +7826,11 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_mdns_ttl_secs", st.mdns_ttl_secs)?;
                 d.set_item("libp2p_kad_peers", st.kad_peers.len())?;
+                d.set_item("libp2p_kad_listen_addr_omitted", st.kad_listen_addr_omitted)?;
+                d.set_item(
+                    "libp2p_kad_advertised_listen",
+                    st.kad_advertised_listen.len(),
+                )?;
                 d.set_item("libp2p_kad_routing_updates", st.kad_routing_updates)?;
                 d.set_item("libp2p_kad_queries", st.kad_queries)?;
                 d.set_item("libp2p_kad_query_ok", st.kad_query_ok)?;
@@ -7512,6 +7859,14 @@ mod enabled {
                 d.set_item("libp2p_relay_outbound_circuit", st.relay_outbound_circuit)?;
                 d.set_item("libp2p_relay_max_reservations", st.relay_max_reservations)?;
                 d.set_item("libp2p_autonat_probes", st.autonat_probes)?;
+                d.set_item(
+                    "libp2p_autonat_listen_addr_omitted",
+                    st.autonat_listen_addr_omitted,
+                )?;
+                d.set_item(
+                    "libp2p_autonat_advertised_listen",
+                    st.autonat_advertised_listen.len(),
+                )?;
                 d.set_item("libp2p_autonat_status_changes", st.autonat_status_changes)?;
                 d.set_item("libp2p_autonat_inbound_probe", st.autonat_inbound_probe)?;
                 d.set_item("libp2p_autonat_outbound_probe", st.autonat_outbound_probe)?;

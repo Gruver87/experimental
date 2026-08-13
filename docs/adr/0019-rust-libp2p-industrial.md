@@ -113,6 +113,8 @@ feature `libp2p`), exposed to Python through the existing
 | All-paths advertised cap | Slice BU: observed confirm / UPnP / rendezvous `add_external_address` share the **same** unique budget; over-limit **refuse** (no silent swarm add); `libp2p_rust_advertised_externals_all_paths_max_lab.py` |
 | Identify listen-addr cap | Slice BV: Identify omits uncharged listen addrs (libp2p-identify 0.45 has no `hide_listen_addrs`); circuit still advertised; `libp2p_rust_identify_listen_addrs_capped_lab.py` |
 | mDNS listen-addr cap | Slice BW: mDNS omits uncharged listen addrs (same shared cap; DNS-SD must not leak over-cap sockets); circuit still advertised; `libp2p_rust_mdns_listen_addrs_capped_lab.py` |
+| Kademlia listen-addr cap | Slice BX: Kademlia omits uncharged listen addrs (DHT local/provider addrs must not leak over-cap sockets); circuit still advertised; `libp2p_rust_kad_listen_addrs_capped_lab.py` |
+| AutoNAT listen-addr cap | Slice BY: AutoNAT omits uncharged listen addrs (probes must not leak over-cap sockets); circuit still advertised; `libp2p_rust_autonat_listen_addrs_capped_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -195,6 +197,8 @@ feature `libp2p`), exposed to Python through the existing
 | BU | Observed/UPnP/rendezvous advertise through the same shared cap; `libp2p_rust_advertised_externals_all_paths_max_lab.py` |
 | BV | Identify omits uncharged listen addrs (no leak past advertised cap); `libp2p_rust_identify_listen_addrs_capped_lab.py` |
 | BW | mDNS omits uncharged listen addrs (no LAN leak past advertised cap); `libp2p_rust_mdns_listen_addrs_capped_lab.py` |
+| BX | Kademlia omits uncharged listen addrs (no DHT leak past advertised cap); `libp2p_rust_kad_listen_addrs_capped_lab.py` |
+| BY | AutoNAT omits uncharged listen addrs (no probe leak past advertised cap); `libp2p_rust_autonat_listen_addrs_capped_lab.py` |
 
 ## Honesty
 
@@ -264,7 +268,9 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_advertised_externals_shared_max_lab.py`,
   `libp2p_rust_advertised_externals_all_paths_max_lab.py`,
   `libp2p_rust_identify_listen_addrs_capped_lab.py`,
-  `libp2p_rust_mdns_listen_addrs_capped_lab.py`;
+  `libp2p_rust_mdns_listen_addrs_capped_lab.py`,
+  `libp2p_rust_kad_listen_addrs_capped_lab.py`,
+  `libp2p_rust_autonat_listen_addrs_capped_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -337,7 +343,16 @@ feature `libp2p`), exposed to Python through the existing
     `CappedMdns` wrapper forwards listen addrs only when circuit or charged.
     Omitted addrs increment `libp2p_mdns_listen_addr_omitted`; forwarded count
     is `libp2p_mdns_advertised_listen`. Windows multicast discover remains
-    best-effort (Slice AS). Windows BQ persist remains not POSIX-atomic.
+    best-effort (Slice AS).
+  Slice BX: Kademlia 0.46 fills `ListenAddresses` from every `NewListenAddr`
+    and may return them as local provider addrs. A `CappedKad` wrapper forwards
+    listen addrs only when circuit or charged. Omitted addrs increment
+    `libp2p_kad_listen_addr_omitted`; forwarded count is
+    `libp2p_kad_advertised_listen`.
+  Slice BY: AutoNAT v1 probes every listen addr. A `CappedAutonat` wrapper
+    forwards listen addrs only when circuit or charged. Omitted addrs increment
+    `libp2p_autonat_listen_addr_omitted`; forwarded count is
+    `libp2p_autonat_advertised_listen`. Windows BQ persist remains not POSIX-atomic.
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.

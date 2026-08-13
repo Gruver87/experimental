@@ -119,6 +119,8 @@ LABS = [
     ("BU", "scripts/libp2p_rust_advertised_externals_all_paths_max_lab.py"),
     ("BV", "scripts/libp2p_rust_identify_listen_addrs_capped_lab.py"),
     ("BW", "scripts/libp2p_rust_mdns_listen_addrs_capped_lab.py"),
+    ("BX", "scripts/libp2p_rust_kad_listen_addrs_capped_lab.py"),
+    ("BY", "scripts/libp2p_rust_autonat_listen_addrs_capped_lab.py"),
 ]
 
 

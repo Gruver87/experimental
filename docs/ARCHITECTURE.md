@@ -1,8 +1,9 @@
 # Architecture (honest overview)
 
-**Updated:** 2026-08-08  
-**Scope:** Absolute Blockchain Ultimate Hybrid — domain ports + adapters (ADR **0001–0016**; **0013 unused**). Devnet + mainnet-v1 **prep**, not a launched public mainnet.  
-**Industrial pin:** tag [`v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial) (tip-v2 `b_satoshi` 48h soak PASS + Phase 3–4 binder READY).
+**Updated:** 2026-08-13  
+**Scope:** [Gruver87/experimental](https://github.com/Gruver87/experimental) — R&D sandbox. Domain ports match Hybrid (ADR **0001–0016**); this tree also carries **0017–0019** labs.  
+**Not** a launched public mainnet. **Not** the audit-freeze pin.  
+**Industrial pin (sibling):** [`Absolute_Blockchain_Ultimate_Hybrid`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) tag [`v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial).
 
 ---
 
@@ -43,11 +44,12 @@ flowchart TB
   end
 
   subgraph net ["Network plane"]
-    P2P["P2PNode TCP · soft-refuse"]
+    P2P["P2PNode TCP+TLS · default mesh"]
     DISP["p2p_dispatch handlers"]
     CA["catchup_adapters"]
     FA["fork_adapters"]
     NIO["abs_native P2P IO · short poll"]
+    LP["rust-libp2p · ADR 0019 A-BY · FEATURE_LIBP2P opt-in"]
   end
 
   subgraph domain ["Domain — ports, no sockets"]
@@ -96,6 +98,8 @@ flowchart TB
   P2P --> CA
   P2P --> FA
   P2P --> NIO
+  P2P -.->|lab dual-stack only| LP
+  LP --> NIO
   CA --> CAP
   FA --> FORK
   P2P --> SOL
@@ -116,7 +120,7 @@ flowchart TB
 
 Solid = **prod-relevant hot path**. Dotted = **aux / cold / optional**.
 
-ADR index: [docs/adr/](adr/) (**0001–0016**; [README](adr/README.md)). Feature sprouts: [docs/sprouts/](sprouts/). Disaster runbooks: [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md).
+ADR index: [docs/adr/](adr/) (**0001–0019**, 0013 unused; [README](adr/README.md)). Feature sprouts: [docs/sprouts/](sprouts/). Disaster runbooks: [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md).
 
 ---
 
@@ -170,6 +174,35 @@ flowchart LR
 | [0014](adr/0014-graceful-shutdown-deep-health.md) | Shutdown / ready | SIGTERM · deep `/health/ready` |
 | [0015](adr/0015-observability-secret-management.md) | Metrics / secrets | Exporter + SecretManager ports |
 | [0016](adr/0016-feature-sprouts-profiles.md) | Sprouts | Profiles instead of kitchen-sink FEATURE_* |
+| [0017](adr/0017-long-range-research.md) | Long-Range | Lab / weak-subjectivity — **not** prod |
+| [0018](adr/0018-libp2p-transport.md) | Dual-stack stubs | Python labs; TCP+TLS remains default |
+| [0019](adr/0019-rust-libp2p-industrial.md) | rust-libp2p | Slices **A–BY** (phase 76) behind Cargo `libp2p`; advertised unique cap 32 |
+
+---
+
+## Experimental dual-stack (ADR 0019)
+
+TCP+TLS is still the **default** mesh. rust-libp2p is **opt-in** (`FEATURE_LIBP2P` / Cargo feature `libp2p`). Lab PASS ≠ prod cutover ≠ Hybrid pin.
+
+```mermaid
+flowchart LR
+  subgraph def ["Default — industrial"]
+    TLS["P2PNode TCP+TLS · ADR 0002 / 0008"]
+  end
+  subgraph lab ["Opt-in lab — this sandbox"]
+    AD["Libp2pTransportAdapter"]
+    SW["abs_native swarm · Noise + Yamux"]
+    CAP["shared advertised cap 32 unique"]
+    ID["CappedIdentify / mDNS / Kad / AutoNAT"]
+    AD --> SW
+    SW --> CAP
+    SW --> ID
+    ID --> CAP
+  end
+  TLS -.->|"FEATURE_LIBP2P=true only"| AD
+```
+
+Over-cap listen sockets are **omitted** from Identify, mDNS, Kademlia local addrs, and AutoNAT probes — not silently advertised. Circuit `/p2p-circuit` stays outside the cap. Windows persist of advertised externals is **not** POSIX-atomic.
 
 ---
 
@@ -200,7 +233,7 @@ consensus/
   bft/                  Round SM · quorum · Evidence (ADR 0007)
 native/abs_native/      Rust crypto · Rocks · P2P IO · EVM
 runtime/                Config · prod smoke profile
-docs/adr/               boundary decisions 0001–0016
+docs/adr/               boundary decisions 0001–0019 (0013 unused)
 docs/sprouts/           ADR 0016 feature profiles
 scripts/                industrial_gate · mesh · soak
 ```
@@ -212,7 +245,8 @@ scripts/                industrial_gate · mesh · soak
 | Component | Language | Prod (778888 prep) | Dev (77777) |
 |-----------|----------|-------------------|-------------|
 | REST / RPC / WS | Python | Yes | Yes |
-| P2P TCP + dispatch | Python | Yes | Yes |
+| P2P TCP + dispatch | Python | Yes (default) | Yes |
+| rust-libp2p swarm | Rust PyO3 | **Off** (`feature_libp2p=false`) | Opt-in lab |
 | Catch-up / fork services | Python domain | Yes | Yes |
 | Consensus policy | Python | Unified LMD-GHOST + Round SM ports | Parallel/auto + Round SM |
 | Consensus BFT quorum live | — | **Not claimed** (`finality_quorum_live=False`) | Same |
@@ -339,3 +373,4 @@ Backup: `scripts/backup_chainstore.ps1 -DockerMesh1` · DR: `scripts/dr_restore_
 - [PUBLIC_TESTNET.md](PUBLIC_TESTNET.md)
 - [DOCKER_IMAGES.md](DOCKER_IMAGES.md)
 - [INDUSTRIAL_HARDEN_RUNBOOK.md](INDUSTRIAL_HARDEN_RUNBOOK.md)
+- [adr/0019-rust-libp2p-industrial.md](adr/0019-rust-libp2p-industrial.md)

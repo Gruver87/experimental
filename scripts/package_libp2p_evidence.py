@@ -63,6 +63,10 @@ def hard_verify_lab_paths() -> Tuple[str, ...]:
         raise RuntimeError("hard-verify LABS missing Slice BV identify-listen-cap lab")
     if "scripts/libp2p_rust_mdns_listen_addrs_capped_lab.py" not in out:
         raise RuntimeError("hard-verify LABS missing Slice BW mdns-listen-cap lab")
+    if "scripts/libp2p_rust_kad_listen_addrs_capped_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice BX kad-listen-cap lab")
+    if "scripts/libp2p_rust_autonat_listen_addrs_capped_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice BY autonat-listen-cap lab")
     return tuple(out)
 
 

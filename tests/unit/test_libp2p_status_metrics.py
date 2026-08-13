@@ -106,6 +106,10 @@ def test_empty_metrics_cover_known_keys() -> None:
     assert "libp2p_identify_listen_addr_omitted" in empty
     assert "libp2p_mdns_listen_addr_omitted" in empty
     assert "libp2p_mdns_advertised_listen" in empty
+    assert "libp2p_kad_listen_addr_omitted" in empty
+    assert "libp2p_kad_advertised_listen" in empty
+    assert "libp2p_autonat_listen_addr_omitted" in empty
+    assert "libp2p_autonat_advertised_listen" in empty
     assert "libp2p_identify_sent" in empty
     assert "libp2p_identify_pushed" in empty
     assert "libp2p_identify_error" in empty

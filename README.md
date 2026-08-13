@@ -23,7 +23,7 @@ See [EXPERIMENTAL_SANDBOX.md](EXPERIMENTAL_SANDBOX.md) · Profile F [EXPERIMENTA
 
 | Track | Status | Entry |
 |-------|--------|-------|
-| **ADR 0019 rust-libp2p** | Slices **A–BW** (phase 74) behind Cargo `libp2p` | [ADR 0019](docs/adr/0019-rust-libp2p-industrial.md) · hard verify below |
+| **ADR 0019 rust-libp2p** | Slices **A–BY** (phase 76) behind Cargo `libp2p` | [ADR 0019](docs/adr/0019-rust-libp2p-industrial.md) · hard verify below |
 | **ADR 0018 dual-stack / stubs** | Labs + adapter | `scripts/libp2p_*_lab.py` |
 | **ADR 0017 Long-Range** | Lab / WS tip gate | `python scripts/long_range_lab.py` |
 | **EVM depth / precompiles** | Profile F waves | [EVM_COMPAT_MATRIX](docs/sprouts/EVM_COMPAT_MATRIX.md) |
@@ -42,7 +42,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-### Experimental only (ADR 0019 hard — 85 steps, 86 with `--rebuild`)
+### Experimental only (ADR 0019 hard — 87 steps, 88 with `--rebuild`)
 
 ```powershell
 # Windows — rebuild native libp2p wheel when Rust changed

@@ -116,6 +116,8 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_mdns_advertised_listen",
     "libp2p_mdns_ttl_secs",
     "libp2p_kad_peers",
+    "libp2p_kad_listen_addr_omitted",
+    "libp2p_kad_advertised_listen",
     "libp2p_kad_queries",
     "libp2p_kad_query_ok",
     "libp2p_kad_query_fail",
@@ -149,6 +151,8 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_abs_wire_v1_recv",
     "libp2p_abs_wire_v2_recv",
     "libp2p_autonat_probes",
+    "libp2p_autonat_listen_addr_omitted",
+    "libp2p_autonat_advertised_listen",
     "libp2p_autonat_status_changes",
     "libp2p_autonat_inbound_probe",
     "libp2p_autonat_outbound_probe",
@@ -342,6 +346,8 @@ LABS = [
     ("BU", "scripts/libp2p_rust_advertised_externals_all_paths_max_lab.py"),
     ("BV", "scripts/libp2p_rust_identify_listen_addrs_capped_lab.py"),
     ("BW", "scripts/libp2p_rust_mdns_listen_addrs_capped_lab.py"),
+    ("BX", "scripts/libp2p_rust_kad_listen_addrs_capped_lab.py"),
+    ("BY", "scripts/libp2p_rust_autonat_listen_addrs_capped_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -463,6 +469,8 @@ def check_repo_honesty() -> tuple[bool, str]:
         "Slice BU",
         "Slice BV",
         "Slice BW",
+        "Slice BX",
+        "Slice BY",
         "FEATURE_LIBP2P",
         "## Honesty",
     )
