@@ -72,6 +72,14 @@
 //! Slice BW: mDNS omits uncharged listen addrs (same shared cap; no LAN leak).
 //! Slice BX: Kademlia omits uncharged listen addrs (no DHT leak past advertised cap).
 //! Slice BY: AutoNAT omits uncharged listen addrs (no probe leak past advertised cap).
+//! Slice BZ: UPnP omits uncharged listen addrs (no IGD map past advertised cap).
+//! Slice CA: advertised unique cap ≤ rust-libp2p ExternalAddresses book (20).
+//! Slice CB: DCUtR omits uncharged hole-punch candidates (no punch past advertised cap).
+//! Slice CC: Identify omits uncharged NewExternalAddrCandidate (no swarm-wide leak).
+//! Slice CD: persist replace without unlink-then-rename (Windows MoveFileEx).
+//! Slice CE: bootstrap + peerstore JSON use the same atomic replace (no truncate-in-place).
+//! Slice CF: identity keystore first-create uses atomic replace (no truncate-in-place).
+//! Slice CG: fsync parent directory after replace (POSIX dirent durability).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -133,11 +141,20 @@ pub const DEFAULT_SCORE_GRAYLIST_THRESHOLD: f64 = -80.0;
 /// Slice BD: default identify re-request interval (libp2p identify default = 5 min).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub const DEFAULT_IDENTIFY_INTERVAL_MS: u64 = 5 * 60 * 1000;
-/// Slice BR/BS/BT/BU: hard ceiling on advertised externals. Unique charged
+/// rust-libp2p 0.45 `ExternalAddresses` (Identify / Kad / Relay) silently
+/// evicts the oldest confirmed external past this count. Slice CA: our
+/// advertised unique cap must not exceed this book — refuse, not silent drop.
+pub const LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX: usize = 20;
+/// Slice BR/BS/BT/BU/CA: hard ceiling on advertised externals. Unique charged
 /// addrs (operator + listen-derived + observed/UPnP/rendezvous aux) ≤ this
 /// value. Circuit `/p2p-circuit` is not counted. Env/arg may only lower this;
-/// values above refuse spawn.
-pub const MAX_ADVERTISED_EXTERNAL_ADDRS: usize = 32;
+/// values above refuse spawn. Must equal `LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX`.
+pub const MAX_ADVERTISED_EXTERNAL_ADDRS: usize = LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX;
+
+const _: () = assert!(
+    MAX_ADVERTISED_EXTERNAL_ADDRS == LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX,
+    "advertised cap must equal rust-libp2p ExternalAddresses book"
+);
 
 /// Classify Absolute ADR 0008 payload on `/abs/wire` (Slice M).
 ///
@@ -236,51 +253,185 @@ pub fn external_addrs_tmp_path(path: &std::path::Path) -> std::path::PathBuf {
     }
 }
 
+/// Slice CD: how dest is replaced after tmp+fsync.
+///
+/// - POSIX: `rename(2)` replaces atomically (no unlink-then-rename).
+/// - Windows: `MoveFileExW(MOVEFILE_REPLACE_EXISTING | WRITE_THROUGH)`.
+///   Dest is never `remove_file`'d first. Still **not** POSIX inode-atomic.
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
-fn replace_file(tmp: &std::path::Path, dest: &std::path::Path) -> Result<(), String> {
-    match std::fs::rename(tmp, dest) {
-        Ok(()) => Ok(()),
-        Err(first) => {
-            if dest.exists() {
-                std::fs::remove_file(dest).map_err(|e| format!("replace dest remove: {e}"))?;
-                std::fs::rename(tmp, dest).map_err(|e| format!("rename tmp: {e}"))
-            } else {
-                Err(format!("rename tmp: {first}"))
-            }
-        }
+pub fn external_addrs_replace_strategy() -> &'static str {
+    if cfg!(windows) {
+        "windows_movefileex_replace"
+    } else {
+        "posix_rename"
     }
 }
 
-/// Slice BQ: write tmp + fsync + rename. Destination is never truncated in place.
+/// Slice CG: how the parent directory is made durable after replace.
 ///
-/// Windows `rename` cannot replace an existing file: dest is unlinked first
-/// (short window). POSIX rename is atomic. Either way a crash cannot leave
-/// a half-written dest from this writer.
+/// POSIX: `fsync` on the directory fd so the dirent survives a crash.
+/// Windows: `FlushFileBuffers` on a directory handle (`FILE_FLAG_BACKUP_SEMANTICS`).
+/// Still **not** POSIX inode-atomic on NTFS.
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
-pub fn save_external_addrs_file(path: &std::path::Path, addrs: &[String]) -> Result<(), String> {
-    if addrs.len() > MAX_ADVERTISED_EXTERNAL_ADDRS {
+pub fn persist_parent_dir_fsync_strategy() -> &'static str {
+    if cfg!(windows) {
+        "windows_dir_flushfilebuffers"
+    } else {
+        "posix_dir_fsync"
+    }
+}
+
+#[cfg(windows)]
+fn wide_path(path: &std::path::Path) -> Result<Vec<u16>, String> {
+    use std::os::windows::ffi::OsStrExt;
+    let mut w: Vec<u16> = path.as_os_str().encode_wide().collect();
+    if w.iter().any(|c| *c == 0) {
+        return Err("path contains NUL".into());
+    }
+    w.push(0);
+    Ok(w)
+}
+
+#[cfg(windows)]
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+fn replace_file(tmp: &std::path::Path, dest: &std::path::Path) -> Result<(), String> {
+    windows_replace_file(tmp, dest)
+}
+
+#[cfg(not(windows))]
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+fn replace_file(tmp: &std::path::Path, dest: &std::path::Path) -> Result<(), String> {
+    std::fs::rename(tmp, dest).map_err(|e| format!("rename tmp: {e}"))
+}
+
+#[cfg(windows)]
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+fn windows_replace_file(tmp: &std::path::Path, dest: &std::path::Path) -> Result<(), String> {
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn MoveFileExW(
+            lp_existing_file_name: *const u16,
+            lp_new_file_name: *const u16,
+            dw_flags: u32,
+        ) -> i32;
+    }
+    const MOVEFILE_REPLACE_EXISTING: u32 = 0x1;
+    const MOVEFILE_WRITE_THROUGH: u32 = 0x8;
+
+    let src = wide_path(tmp)?;
+    let dst = wide_path(dest)?;
+    // Fail-closed: no unlink-dest fallback. If MoveFileEx fails, persist fails.
+    let ok = unsafe {
+        MoveFileExW(
+            src.as_ptr(),
+            dst.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    };
+    if ok == 0 {
+        Err(format!(
+            "MoveFileExW replace: {}",
+            std::io::Error::last_os_error()
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+/// Slice CG: fsync the directory that holds `path` so the replace dirent is durable.
+fn fsync_parent_dir(path: &std::path::Path) -> Result<(), String> {
+    let parent = match path.parent() {
+        Some(p) if !p.as_os_str().is_empty() => p,
+        _ => std::path::Path::new("."),
+    };
+    fsync_dir(parent)
+}
+
+#[cfg(not(windows))]
+fn fsync_dir(dir: &std::path::Path) -> Result<(), String> {
+    let f = std::fs::File::open(dir).map_err(|e| format!("open persist parent dir: {e}"))?;
+    f.sync_all()
+        .map_err(|e| format!("sync persist parent dir: {e}"))?;
+    Ok(())
+}
+
+#[cfg(windows)]
+fn fsync_dir(dir: &std::path::Path) -> Result<(), String> {
+    windows_fsync_dir(dir)
+}
+
+#[cfg(windows)]
+fn windows_fsync_dir(dir: &std::path::Path) -> Result<(), String> {
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn CreateFileW(
+            lp_file_name: *const u16,
+            dw_desired_access: u32,
+            dw_share_mode: u32,
+            lp_security_attributes: *const core::ffi::c_void,
+            dw_creation_disposition: u32,
+            dw_flags_and_attributes: u32,
+            h_template_file: *mut core::ffi::c_void,
+        ) -> *mut core::ffi::c_void;
+        fn FlushFileBuffers(h_file: *mut core::ffi::c_void) -> i32;
+        fn CloseHandle(h_object: *mut core::ffi::c_void) -> i32;
+    }
+    const GENERIC_READ: u32 = 0x8000_0000;
+    const GENERIC_WRITE: u32 = 0x4000_0000;
+    const FILE_SHARE_READ: u32 = 0x1;
+    const FILE_SHARE_WRITE: u32 = 0x2;
+    const FILE_SHARE_DELETE: u32 = 0x4;
+    const OPEN_EXISTING: u32 = 3;
+    const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+    const INVALID_HANDLE_VALUE: isize = -1;
+
+    let w = wide_path(dir)?;
+    let handle = unsafe {
+        CreateFileW(
+            w.as_ptr(),
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            core::ptr::null(),
+            OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS,
+            core::ptr::null_mut(),
+        )
+    };
+    if handle as isize == INVALID_HANDLE_VALUE {
         return Err(format!(
-            "advertised externals: {} exceeds hard max {}",
-            addrs.len(),
-            MAX_ADVERTISED_EXTERNAL_ADDRS
+            "CreateFileW persist parent dir: {}",
+            std::io::Error::last_os_error()
         ));
     }
+    let flushed = unsafe { FlushFileBuffers(handle) };
+    let flush_err = std::io::Error::last_os_error();
+    unsafe {
+        CloseHandle(handle);
+    }
+    if flushed == 0 {
+        return Err(format!("FlushFileBuffers persist parent dir: {flush_err}"));
+    }
+    Ok(())
+}
+
+/// Slice BQ/CD/CE/CG: write tmp + fsync + replace + parent-dir fsync.
+/// Destination is never truncated in place and never unlinked before the
+/// replacement lands. Parent-dir fsync fail is fail-closed (dest may already
+/// be the new file; callers that roll back memory stay conservative).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn atomic_write_file(path: &std::path::Path, body: &[u8]) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| format!("create external addrs dir: {e}"))?;
+            std::fs::create_dir_all(parent).map_err(|e| format!("create persist dir: {e}"))?;
         }
     }
-    let body = encode_external_addrs_json(addrs)?;
     let tmp = external_addrs_tmp_path(path);
     let write_tmp = (|| -> Result<(), String> {
-        let mut f =
-            std::fs::File::create(&tmp).map_err(|e| format!("create external addrs tmp: {e}"))?;
+        let mut f = std::fs::File::create(&tmp).map_err(|e| format!("create persist tmp: {e}"))?;
         use std::io::Write;
-        f.write_all(body.as_bytes())
-            .map_err(|e| format!("write external addrs tmp: {e}"))?;
-        f.sync_all()
-            .map_err(|e| format!("sync external addrs tmp: {e}"))?;
+        f.write_all(body)
+            .map_err(|e| format!("write persist tmp: {e}"))?;
+        f.sync_all().map_err(|e| format!("sync persist tmp: {e}"))?;
         Ok(())
     })();
     if let Err(e) = write_tmp {
@@ -291,7 +442,21 @@ pub fn save_external_addrs_file(path: &std::path::Path, addrs: &[String]) -> Res
         let _ = std::fs::remove_file(&tmp);
         return Err(e);
     }
-    Ok(())
+    fsync_parent_dir(path)
+}
+
+/// Slice BQ/CD: advertised-externals JSON via [`atomic_write_file`].
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn save_external_addrs_file(path: &std::path::Path, addrs: &[String]) -> Result<(), String> {
+    if addrs.len() > MAX_ADVERTISED_EXTERNAL_ADDRS {
+        return Err(format!(
+            "advertised externals: {} exceeds hard max {}",
+            addrs.len(),
+            MAX_ADVERTISED_EXTERNAL_ADDRS
+        ));
+    }
+    let body = encode_external_addrs_json(addrs)?;
+    atomic_write_file(path, body.as_bytes())
 }
 
 #[cfg(feature = "libp2p")]
@@ -316,13 +481,16 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(feature = "libp2p")]
 mod enabled {
     use super::{
-        libp2p_available, ABS_GOSSIP_BLOCKS_TOPIC, ABS_IDENTIFY_PROTOCOL_VERSION, ABS_KAD_PROTOCOL,
-        ABS_RENDEZVOUS_NAMESPACE, ABS_WIRE_PROTOCOL, DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS,
-        DEFAULT_IDENTIFY_INTERVAL_MS, DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS, DEFAULT_MAX_DIALS,
-        DEFAULT_MDNS_TTL_SECS, DEFAULT_PING_INTERVAL_SECS, DEFAULT_PING_MAX_FAILS,
-        DEFAULT_PING_TIMEOUT_SECS, DEFAULT_RECONNECT_BASE_MS, DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS,
+        atomic_write_file, external_addrs_replace_strategy, libp2p_available,
+        persist_parent_dir_fsync_strategy, ABS_GOSSIP_BLOCKS_TOPIC, ABS_IDENTIFY_PROTOCOL_VERSION,
+        ABS_KAD_PROTOCOL, ABS_RENDEZVOUS_NAMESPACE, ABS_WIRE_PROTOCOL,
+        DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_IDENTIFY_INTERVAL_MS,
+        DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_MDNS_TTL_SECS,
+        DEFAULT_PING_INTERVAL_SECS, DEFAULT_PING_MAX_FAILS, DEFAULT_PING_TIMEOUT_SECS,
+        DEFAULT_RECONNECT_BASE_MS, DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS,
         DEFAULT_RECONNECT_MAX_ATTEMPTS, DEFAULT_RECONNECT_MAX_MS, DEFAULT_SCORE_GRAYLIST_THRESHOLD,
-        DEFAULT_WIRE_TIMEOUT_SECS, MAX_ADVERTISED_EXTERNAL_ADDRS, MAX_WIRE_BYTES,
+        DEFAULT_WIRE_TIMEOUT_SECS, LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX,
+        MAX_ADVERTISED_EXTERNAL_ADDRS, MAX_WIRE_BYTES,
     };
     use async_trait::async_trait;
     use futures::prelude::*;
@@ -364,16 +532,13 @@ mod enabled {
             let bytes = std::fs::read(path).map_err(|e| format!("read key: {e}"))?;
             Keypair::from_protobuf_encoding(&bytes).map_err(|e| format!("decode key: {e}"))
         } else {
-            if let Some(parent) = path.parent() {
-                if !parent.as_os_str().is_empty() {
-                    std::fs::create_dir_all(parent).map_err(|e| format!("create key dir: {e}"))?;
-                }
-            }
             let kp = Keypair::generate_ed25519();
             let enc = kp
                 .to_protobuf_encoding()
                 .map_err(|e| format!("encode key: {e}"))?;
-            std::fs::write(path, enc).map_err(|e| format!("write key: {e}"))?;
+            // Slice CF: dest is created via tmp+fsync+replace. Existing files are
+            // never overwritten (corrupt key must fail closed, not mint a new PeerId).
+            atomic_write_file(path, &enc).map_err(|e| format!("write key: {e}"))?;
             Ok(kp)
         }
     }
@@ -437,7 +602,7 @@ mod enabled {
         });
         let body =
             serde_json::to_string_pretty(&doc).map_err(|e| format!("bootstrap encode: {e}"))?;
-        std::fs::write(path, body).map_err(|e| format!("write bootstrap: {e}"))
+        atomic_write_file(path, body.as_bytes())
     }
 
     fn flatten_bootstrap_addrs(peers: &HashMap<String, Vec<String>>) -> Vec<(String, String)> {
@@ -550,13 +715,25 @@ mod enabled {
             if has_loopback && !addr_is_loopback(&ma) {
                 return;
             }
-            entry.push(ma);
+            entry.push(ma.clone());
             st.peerstore_learned = st.peerstore_learned.saturating_add(1);
             (st.peerstore_path.clone(), st.peerstore.clone())
         } else {
             return;
         };
-        let _ = save_bootstrap_peers(Path::new(&persist.0), &persist.1);
+        // Slice CE: fail-closed persist — do not keep a learned addr that never landed on disk.
+        if let Err(e) = save_bootstrap_peers(Path::new(&persist.0), &persist.1) {
+            if let Ok(mut st) = state.lock() {
+                if let Some(entry) = st.peerstore.get_mut(peer_id) {
+                    entry.retain(|a| a != &ma);
+                    if entry.is_empty() {
+                        st.peerstore.remove(peer_id);
+                    }
+                }
+                st.peerstore_learned = st.peerstore_learned.saturating_sub(1);
+                st.last_error = format!("peerstore persist: {e}");
+            }
+        }
     }
 
     fn addr_is_loopback(addr: &str) -> bool {
@@ -857,10 +1034,21 @@ mod enabled {
         Ok(())
     }
 
+    /// Identify / DCUtR candidates often append `/p2p/<local>`. Charge against the
+    /// same unique key as listen-derived / operator books (no trailing peer id).
+    /// Lives next to Capped* wrappers (same `mod enabled` scope as the call sites).
+    fn advertised_charge_key(addr: &Multiaddr) -> String {
+        let mut ma = addr.clone();
+        if matches!(ma.iter().last(), Some(Protocol::P2p(_))) {
+            let _ = ma.pop();
+        }
+        ma.to_string()
+    }
+
     /// Slice BV: Identify 0.45 has no `hide_listen_addrs`. Forward NewListenAddr
     /// into identify only when the addr is circuit (uncapped) or charged against
-    /// the shared advertised cap. Uncharged expansion sockets stay listening
-    /// but are omitted from Identify (not a silent leak).
+    /// the shared advertised cap. Slice CC: also omit uncharged
+    /// `NewExternalAddrCandidate` from Identify poll (no swarm-wide leak).
     struct CappedIdentify {
         inner: identify::Behaviour,
         state: Arc<Mutex<NodeState>>,
@@ -987,7 +1175,33 @@ mod enabled {
                 <Self::ConnectionHandler as libp2p::swarm::ConnectionHandler>::FromBehaviour,
             >,
         > {
-            self.inner.poll(cx)
+            loop {
+                match self.inner.poll(cx) {
+                    Poll::Ready(ToSwarm::NewExternalAddrCandidate(addr)) => {
+                        let is_circuit = addr.iter().any(|p| matches!(p, Protocol::P2pCircuit));
+                        if is_circuit {
+                            return Poll::Ready(ToSwarm::NewExternalAddrCandidate(addr));
+                        }
+                        let key = advertised_charge_key(&addr);
+                        let forward = match self.state.lock() {
+                            Ok(mut st) => {
+                                if advertised_already_charged(&st, &key) {
+                                    true
+                                } else {
+                                    st.identify_candidate_omitted =
+                                        st.identify_candidate_omitted.saturating_add(1);
+                                    false
+                                }
+                            }
+                            Err(_) => false,
+                        };
+                        if forward {
+                            return Poll::Ready(ToSwarm::NewExternalAddrCandidate(addr));
+                        }
+                    }
+                    other => return other,
+                }
+            }
         }
     }
 
@@ -1439,6 +1653,293 @@ mod enabled {
         }
     }
 
+    /// Slice BZ: UPnP 0.3 maps a port on every NewListenAddr (even before
+    /// the gateway is found: Inactive mapping queued). Forward into UPnP
+    /// only when circuit (uncapped) or charged against the shared advertised
+    /// cap. Uncharged expansion sockets stay listening but are omitted from
+    /// IGD map requests (not a silent leak).
+    struct CappedUpnp {
+        inner: upnp::tokio::Behaviour,
+        state: Arc<Mutex<NodeState>>,
+    }
+
+    impl CappedUpnp {
+        fn new(inner: upnp::tokio::Behaviour, state: Arc<Mutex<NodeState>>) -> Self {
+            Self { inner, state }
+        }
+    }
+
+    impl NetworkBehaviour for CappedUpnp {
+        type ConnectionHandler = <upnp::tokio::Behaviour as NetworkBehaviour>::ConnectionHandler;
+        type ToSwarm = upnp::Event;
+
+        fn handle_pending_inbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            local_addr: &Multiaddr,
+            remote_addr: &Multiaddr,
+        ) -> Result<(), ConnectionDenied> {
+            self.inner
+                .handle_pending_inbound_connection(connection_id, local_addr, remote_addr)
+        }
+
+        fn handle_established_inbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            peer: PeerId,
+            local_addr: &Multiaddr,
+            remote_addr: &Multiaddr,
+        ) -> Result<Self::ConnectionHandler, ConnectionDenied> {
+            self.inner.handle_established_inbound_connection(
+                connection_id,
+                peer,
+                local_addr,
+                remote_addr,
+            )
+        }
+
+        fn handle_pending_outbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            maybe_peer: Option<PeerId>,
+            addresses: &[Multiaddr],
+            effective_role: Endpoint,
+        ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
+            self.inner.handle_pending_outbound_connection(
+                connection_id,
+                maybe_peer,
+                addresses,
+                effective_role,
+            )
+        }
+
+        fn handle_established_outbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            peer: PeerId,
+            addr: &Multiaddr,
+            role_override: Endpoint,
+            port_use: PortUse,
+        ) -> Result<Self::ConnectionHandler, ConnectionDenied> {
+            self.inner.handle_established_outbound_connection(
+                connection_id,
+                peer,
+                addr,
+                role_override,
+                port_use,
+            )
+        }
+
+        fn on_swarm_event(&mut self, event: FromSwarm<'_>) {
+            let forward = match &event {
+                FromSwarm::NewListenAddr(ev) => {
+                    let s = ev.addr.to_string();
+                    let is_circuit = ev.addr.iter().any(|p| matches!(p, Protocol::P2pCircuit));
+                    if is_circuit {
+                        true
+                    } else {
+                        match self.state.lock() {
+                            Ok(mut st) => {
+                                if advertised_already_charged(&st, &s)
+                                    || admit_listen_derived_external(&mut st, &s).is_ok()
+                                {
+                                    if !st.upnp_advertised_listen.iter().any(|a| a == &s) {
+                                        st.upnp_advertised_listen.push(s);
+                                    }
+                                    true
+                                } else {
+                                    st.upnp_listen_addr_omitted =
+                                        st.upnp_listen_addr_omitted.saturating_add(1);
+                                    false
+                                }
+                            }
+                            Err(_) => false,
+                        }
+                    }
+                }
+                FromSwarm::ExpiredListenAddr(ev) => {
+                    let s = ev.addr.to_string();
+                    if let Ok(mut st) = self.state.lock() {
+                        st.upnp_advertised_listen.retain(|a| a != &s);
+                    }
+                    true
+                }
+                _ => true,
+            };
+            if forward {
+                self.inner.on_swarm_event(event);
+            }
+        }
+
+        fn on_connection_handler_event(
+            &mut self,
+            peer_id: PeerId,
+            connection_id: ConnectionId,
+            event: <Self::ConnectionHandler as libp2p::swarm::ConnectionHandler>::ToBehaviour,
+        ) {
+            self.inner
+                .on_connection_handler_event(peer_id, connection_id, event);
+        }
+
+        fn poll(
+            &mut self,
+            cx: &mut Context<'_>,
+        ) -> Poll<
+            ToSwarm<
+                Self::ToSwarm,
+                <Self::ConnectionHandler as libp2p::swarm::ConnectionHandler>::FromBehaviour,
+            >,
+        > {
+            self.inner.poll(cx)
+        }
+    }
+
+    /// Slice CB: DCUtR 0.12 hole-punch CONNECT uses every
+    /// `NewExternalAddrCandidate` (Identify observed / translated listen).
+    /// Forward into DCUtR only when circuit (uncapped) or already charged.
+    /// Do not aux-admit from candidates (that would bypass the listen cap).
+    /// Uncharged expansion / ephemeral sockets are omitted from punch.
+    struct CappedDcutr {
+        inner: dcutr::Behaviour,
+        state: Arc<Mutex<NodeState>>,
+    }
+
+    impl CappedDcutr {
+        fn new(inner: dcutr::Behaviour, state: Arc<Mutex<NodeState>>) -> Self {
+            Self { inner, state }
+        }
+    }
+
+    impl NetworkBehaviour for CappedDcutr {
+        type ConnectionHandler = <dcutr::Behaviour as NetworkBehaviour>::ConnectionHandler;
+        type ToSwarm = dcutr::Event;
+
+        fn handle_pending_inbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            local_addr: &Multiaddr,
+            remote_addr: &Multiaddr,
+        ) -> Result<(), ConnectionDenied> {
+            self.inner
+                .handle_pending_inbound_connection(connection_id, local_addr, remote_addr)
+        }
+
+        fn handle_established_inbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            peer: PeerId,
+            local_addr: &Multiaddr,
+            remote_addr: &Multiaddr,
+        ) -> Result<Self::ConnectionHandler, ConnectionDenied> {
+            self.inner.handle_established_inbound_connection(
+                connection_id,
+                peer,
+                local_addr,
+                remote_addr,
+            )
+        }
+
+        fn handle_pending_outbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            maybe_peer: Option<PeerId>,
+            addresses: &[Multiaddr],
+            effective_role: Endpoint,
+        ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
+            self.inner.handle_pending_outbound_connection(
+                connection_id,
+                maybe_peer,
+                addresses,
+                effective_role,
+            )
+        }
+
+        fn handle_established_outbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            peer: PeerId,
+            addr: &Multiaddr,
+            role_override: Endpoint,
+            port_use: PortUse,
+        ) -> Result<Self::ConnectionHandler, ConnectionDenied> {
+            self.inner.handle_established_outbound_connection(
+                connection_id,
+                peer,
+                addr,
+                role_override,
+                port_use,
+            )
+        }
+
+        fn on_swarm_event(&mut self, event: FromSwarm<'_>) {
+            let forward = match &event {
+                FromSwarm::NewExternalAddrCandidate(ev) => {
+                    let is_circuit = ev.addr.iter().any(|p| matches!(p, Protocol::P2pCircuit));
+                    if is_circuit {
+                        true
+                    } else {
+                        let key = advertised_charge_key(ev.addr);
+                        match self.state.lock() {
+                            Ok(mut st) => {
+                                if advertised_already_charged(&st, &key) {
+                                    if !st.dcutr_advertised_candidates.iter().any(|a| a == &key) {
+                                        st.dcutr_advertised_candidates.push(key);
+                                    }
+                                    true
+                                } else {
+                                    st.dcutr_candidate_omitted =
+                                        st.dcutr_candidate_omitted.saturating_add(1);
+                                    false
+                                }
+                            }
+                            Err(_) => false,
+                        }
+                    }
+                }
+                FromSwarm::ExpiredListenAddr(ev) => {
+                    let key = advertised_charge_key(ev.addr);
+                    if let Ok(mut st) = self.state.lock() {
+                        st.dcutr_advertised_candidates.retain(|a| a != &key);
+                    }
+                    true
+                }
+                FromSwarm::ExternalAddrExpired(ev) => {
+                    let key = advertised_charge_key(ev.addr);
+                    if let Ok(mut st) = self.state.lock() {
+                        st.dcutr_advertised_candidates.retain(|a| a != &key);
+                    }
+                    true
+                }
+                _ => true,
+            };
+            if forward {
+                self.inner.on_swarm_event(event);
+            }
+        }
+
+        fn on_connection_handler_event(
+            &mut self,
+            peer_id: PeerId,
+            connection_id: ConnectionId,
+            event: <Self::ConnectionHandler as libp2p::swarm::ConnectionHandler>::ToBehaviour,
+        ) {
+            self.inner
+                .on_connection_handler_event(peer_id, connection_id, event);
+        }
+
+        fn poll(
+            &mut self,
+            cx: &mut Context<'_>,
+        ) -> Poll<
+            ToSwarm<
+                Self::ToSwarm,
+                <Self::ConnectionHandler as libp2p::swarm::ConnectionHandler>::FromBehaviour,
+            >,
+        > {
+            self.inner.poll(cx)
+        }
+    }
+
     #[derive(NetworkBehaviour)]
     struct AbsBehaviour {
         ping: ping::Behaviour,
@@ -1452,10 +1953,10 @@ mod enabled {
         /// Slice N: off by default — AutoNAT probe dials raced reconnect (Slice U).
         autonat: Toggle<CappedAutonat>,
         /// Slice AD: off by default — needs IGD gateway; CI expects GatewayNotFound.
-        upnp: Toggle<upnp::tokio::Behaviour>,
+        upnp: Toggle<CappedUpnp>,
         /// Slice AE: off by default — empty allow-list denies all until allow_peer.
         allowed_peers: Toggle<allow_block_list::Behaviour<AllowedPeers>>,
-        dcutr: dcutr::Behaviour,
+        dcutr: CappedDcutr,
         /// Slice X: rendezvous point (always on; lab register/discover).
         rendezvous_server: rendezvous::server::Behaviour,
         rendezvous_client: rendezvous::client::Behaviour,
@@ -1856,6 +2357,10 @@ mod enabled {
         autonat_status: u8,
         dcutr_upgrade_success: u64,
         dcutr_upgrade_fail: u64,
+        /// Slice CB: NewExternalAddrCandidate omitted from DCUtR (uncharged).
+        dcutr_candidate_omitted: u64,
+        /// Slice CB: candidate keys currently forwarded into DCUtR punch.
+        dcutr_advertised_candidates: Vec<String>,
         conn_limit_denied: u64,
         block_denied: u64,
         blocked: HashSet<String>,
@@ -1883,6 +2388,10 @@ mod enabled {
         upnp_expired_external_addrs: u64,
         upnp_gateway_not_found: u64,
         upnp_non_routable_gateway: u64,
+        /// Slice BZ: NewListenAddr omitted from UPnP because the shared cap is full.
+        upnp_listen_addr_omitted: u64,
+        /// Slice BZ: non-circuit listen addrs currently forwarded into UPnP.
+        upnp_advertised_listen: Vec<String>,
         wire_timeout_secs: u64,
         /// Slice V: swarm idle connection timeout.
         idle_connection_timeout_secs: u64,
@@ -1983,6 +2492,8 @@ mod enabled {
         aux_advertised_external: Vec<String>,
         /// Slice BV: Identify NewListenAddr omitted because the shared cap is full.
         identify_listen_addr_omitted: u64,
+        /// Slice CC: Identify NewExternalAddrCandidate omitted (uncharged).
+        identify_candidate_omitted: u64,
         /// Persistent bootstrap book path (Slice O; empty = memory-only).
         bootstrap_path: String,
         bootstrap: HashMap<String, Vec<String>>,
@@ -2419,7 +2930,10 @@ mod enabled {
                             Toggle::from(None)
                         },
                         upnp: if want_upnp {
-                            Toggle::from(Some(upnp::tokio::Behaviour::default()))
+                            Toggle::from(Some(CappedUpnp::new(
+                                upnp::tokio::Behaviour::default(),
+                                Arc::clone(&state_bg),
+                            )))
                         } else {
                             Toggle::from(None)
                         },
@@ -2428,7 +2942,10 @@ mod enabled {
                         } else {
                             Toggle::from(None)
                         },
-                        dcutr: dcutr::Behaviour::new(local),
+                        dcutr: CappedDcutr::new(
+                            dcutr::Behaviour::new(local),
+                            Arc::clone(&state_bg),
+                        ),
                         rendezvous_server: rendezvous::server::Behaviour::new(
                             rendezvous::server::Config::default(),
                         ),
@@ -4422,6 +4939,8 @@ mod enabled {
                                         st.mdns_advertised_listen.retain(|a| a != &s);
                                         st.kad_advertised_listen.retain(|a| a != &s);
                                         st.autonat_advertised_listen.retain(|a| a != &s);
+                                        st.upnp_advertised_listen.retain(|a| a != &s);
+                                        st.dcutr_advertised_candidates.retain(|a| a != &s);
                                     }
                                 }
                                 SwarmEvent::ListenerClosed {
@@ -4442,6 +4961,8 @@ mod enabled {
                                             st.mdns_advertised_listen.retain(|x| x != &a);
                                             st.kad_advertised_listen.retain(|x| x != &a);
                                             st.autonat_advertised_listen.retain(|x| x != &a);
+                                            st.upnp_advertised_listen.retain(|x| x != &a);
+                                            st.dcutr_advertised_candidates.retain(|x| x != &a);
                                         }
                                         if let Err(e) = reason {
                                             st.last_error = format!("listener_closed: {e}");
@@ -4910,6 +5431,7 @@ mod enabled {
                                         st.external_addrs.retain(|a| a != &s);
                                         st.listen_derived_external.retain(|a| a != &s);
                                         st.aux_advertised_external.retain(|a| a != &s);
+                                        st.dcutr_advertised_candidates.retain(|a| a != &s);
                                     }
                                 }
                                 SwarmEvent::NewExternalAddrCandidate { address } => {
@@ -7233,6 +7755,10 @@ mod enabled {
                     "libp2p_identify_listen_addr_omitted",
                     st.identify_listen_addr_omitted,
                 )?;
+                d.set_item(
+                    "libp2p_identify_candidate_omitted",
+                    st.identify_candidate_omitted,
+                )?;
                 d.set_item("libp2p_identify_sent", st.identify_sent)?;
                 d.set_item("libp2p_identify_pushed", st.identify_pushed)?;
                 d.set_item("libp2p_identify_error", st.identify_error)?;
@@ -7324,6 +7850,11 @@ mod enabled {
                 d.set_item("libp2p_autonat_status", st.autonat_status)?;
                 d.set_item("libp2p_dcutr_upgrade_success", st.dcutr_upgrade_success)?;
                 d.set_item("libp2p_dcutr_upgrade_fail", st.dcutr_upgrade_fail)?;
+                d.set_item("libp2p_dcutr_candidate_omitted", st.dcutr_candidate_omitted)?;
+                d.set_item(
+                    "libp2p_dcutr_advertised_candidates",
+                    st.dcutr_advertised_candidates.len(),
+                )?;
                 d.set_item("libp2p_bootstrap_peers", st.bootstrap.len())?;
                 d.set_item("libp2p_bootstrap_dials_ok", st.bootstrap_dials_ok)?;
                 d.set_item("libp2p_bootstrap_dials_fail", st.bootstrap_dials_fail)?;
@@ -7450,6 +7981,14 @@ mod enabled {
                 d.set_item("libp2p_ws_dial_fail", st.ws_dial_fail)?;
                 d.set_item("libp2p_upnp_external_addrs", st.upnp_external_addrs)?;
                 d.set_item(
+                    "libp2p_upnp_listen_addr_omitted",
+                    st.upnp_listen_addr_omitted,
+                )?;
+                d.set_item(
+                    "libp2p_upnp_advertised_listen",
+                    st.upnp_advertised_listen.len(),
+                )?;
+                d.set_item(
                     "libp2p_upnp_expired_external_addrs",
                     st.upnp_expired_external_addrs,
                 )?;
@@ -7500,7 +8039,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 76)?;
+                d.set_item("phase", 84)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -7511,6 +8050,13 @@ mod enabled {
                 d.set_item("peerstore_clear", true)?;
                 d.set_item("peerstore_allow_learn", true)?;
                 d.set_item("peerstore_reconnect", st.enable_reconnect)?;
+                d.set_item("bootstrap_peerstore_atomic_persist", true)?;
+                d.set_item("identity_atomic_persist", true)?;
+                d.set_item("persist_parent_dir_fsync", true)?;
+                d.set_item(
+                    "persist_parent_dir_fsync_strategy",
+                    persist_parent_dir_fsync_strategy(),
+                )?;
                 d.set_item("ping", true)?;
                 d.set_item("ping_fail_events", true)?;
                 d.set_item(
@@ -7541,6 +8087,11 @@ mod enabled {
                 d.set_item("clear_external_addrs", true)?;
                 d.set_item("external_addrs_persist", !st.external_addrs_path.is_empty())?;
                 d.set_item("external_addrs_atomic_persist", true)?;
+                d.set_item("external_addrs_replace_no_unlink", true)?;
+                d.set_item(
+                    "external_addrs_replace_strategy",
+                    external_addrs_replace_strategy(),
+                )?;
                 d.set_item("external_addrs_max", true)?;
                 d.set_item("listen_derived_external_max", true)?;
                 d.set_item("advertised_externals_shared_max", true)?;
@@ -7549,6 +8100,14 @@ mod enabled {
                 d.set_item("mdns_listen_addrs_capped", true)?;
                 d.set_item("kad_listen_addrs_capped", true)?;
                 d.set_item("autonat_listen_addrs_capped", true)?;
+                d.set_item("upnp_listen_addrs_capped", true)?;
+                d.set_item("advertised_externals_libp2p_book_aligned", true)?;
+                d.set_item("dcutr_candidates_capped", true)?;
+                d.set_item("identify_candidates_capped", true)?;
+                d.set_item(
+                    "libp2p_swarm_external_addresses_max",
+                    LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX as u32,
+                )?;
                 d.set_item("max_advertised_external", st.max_advertised_external)?;
                 d.set_item(
                     "max_advertised_external_hard",
@@ -7791,6 +8350,10 @@ mod enabled {
                     "libp2p_identify_listen_addr_omitted",
                     st.identify_listen_addr_omitted,
                 )?;
+                d.set_item(
+                    "libp2p_identify_candidate_omitted",
+                    st.identify_candidate_omitted,
+                )?;
                 d.set_item("libp2p_identify_sent", st.identify_sent)?;
                 d.set_item("libp2p_identify_pushed", st.identify_pushed)?;
                 d.set_item("libp2p_identify_error", st.identify_error)?;
@@ -7880,6 +8443,11 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_dcutr_upgrade_success", st.dcutr_upgrade_success)?;
                 d.set_item("libp2p_dcutr_upgrade_fail", st.dcutr_upgrade_fail)?;
+                d.set_item("libp2p_dcutr_candidate_omitted", st.dcutr_candidate_omitted)?;
+                d.set_item(
+                    "libp2p_dcutr_advertised_candidates",
+                    st.dcutr_advertised_candidates.len(),
+                )?;
                 d.set_item("libp2p_bootstrap_peers", st.bootstrap.len())?;
                 d.set_item("libp2p_bootstrap_dials_ok", st.bootstrap_dials_ok)?;
                 d.set_item("libp2p_bootstrap_dials_fail", st.bootstrap_dials_fail)?;
@@ -7997,6 +8565,14 @@ mod enabled {
                 d.set_item("libp2p_ws_dial_ok", st.ws_dial_ok)?;
                 d.set_item("libp2p_ws_dial_fail", st.ws_dial_fail)?;
                 d.set_item("libp2p_upnp_external_addrs", st.upnp_external_addrs)?;
+                d.set_item(
+                    "libp2p_upnp_listen_addr_omitted",
+                    st.upnp_listen_addr_omitted,
+                )?;
+                d.set_item(
+                    "libp2p_upnp_advertised_listen",
+                    st.upnp_advertised_listen.len(),
+                )?;
                 d.set_item(
                     "libp2p_upnp_expired_external_addrs",
                     st.upnp_expired_external_addrs,
@@ -8670,6 +9246,18 @@ mod enabled {
             "MAX_ADVERTISED_EXTERNAL_ADDRS",
             MAX_ADVERTISED_EXTERNAL_ADDRS,
         )?;
+        m.add(
+            "LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX",
+            LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX,
+        )?;
+        m.add(
+            "EXTERNAL_ADDRS_REPLACE_STRATEGY",
+            external_addrs_replace_strategy(),
+        )?;
+        m.add(
+            "PERSIST_PARENT_DIR_FSYNC_STRATEGY",
+            persist_parent_dir_fsync_strategy(),
+        )?;
         Ok(())
     }
 }
@@ -8721,6 +9309,15 @@ mod tests {
     #[test]
     fn parse_external_addrs_rejects_empty_addr() {
         assert!(parse_external_addrs_json(r#"{"addrs":["  "]}"#).is_err());
+    }
+
+    #[test]
+    fn advertised_cap_matches_libp2p_external_addresses_book() {
+        assert_eq!(
+            super::MAX_ADVERTISED_EXTERNAL_ADDRS,
+            super::LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX
+        );
+        assert_eq!(super::LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX, 20);
     }
 
     #[test]
@@ -8810,6 +9407,75 @@ mod tests {
         assert!(!tmp.exists(), "stale tmp not cleaned");
         let v = super::load_external_addrs_file(&dest).expect("load");
         assert_eq!(v, vec!["/ip4/203.0.113.3/tcp/3".to_string()]);
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn external_addrs_replace_strategy_matches_os() {
+        let s = super::external_addrs_replace_strategy();
+        if cfg!(windows) {
+            assert_eq!(s, "windows_movefileex_replace");
+        } else {
+            assert_eq!(s, "posix_rename");
+        }
+    }
+
+    #[test]
+    fn persist_parent_dir_fsync_strategy_matches_os() {
+        let s = super::persist_parent_dir_fsync_strategy();
+        if cfg!(windows) {
+            assert_eq!(s, "windows_dir_flushfilebuffers");
+        } else {
+            assert_eq!(s, "posix_dir_fsync");
+        }
+    }
+
+    #[test]
+    fn replace_file_overwrites_existing_dest_without_unlink_fallback() {
+        let dir = std::env::temp_dir();
+        let dest = dir.join(format!(
+            "abs-ext-nounlink-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(2)
+        ));
+        let tmp = super::external_addrs_tmp_path(&dest);
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&tmp);
+        super::save_external_addrs_file(&dest, &["/ip4/203.0.113.4/tcp/4".into()]).expect("first");
+        assert!(dest.is_file());
+        super::save_external_addrs_file(&dest, &["/ip4/203.0.113.5/tcp/5".into()]).expect("second");
+        assert!(dest.is_file(), "dest missing after replace");
+        assert!(!tmp.exists(), "tmp leftover after replace");
+        let v = super::load_external_addrs_file(&dest).expect("load");
+        assert_eq!(v, vec!["/ip4/203.0.113.5/tcp/5".to_string()]);
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn atomic_write_file_replaces_without_truncate_in_place() {
+        let dir = std::env::temp_dir();
+        let dest = dir.join(format!(
+            "abs-atomic-write-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(3)
+        ));
+        let tmp = super::external_addrs_tmp_path(&dest);
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&tmp);
+        super::atomic_write_file(&dest, b"{\"v\":1}").expect("first");
+        assert_eq!(std::fs::read(&dest).expect("read1"), b"{\"v\":1}");
+        super::atomic_write_file(&dest, b"{\"v\":2}").expect("second");
+        assert_eq!(std::fs::read(&dest).expect("read2"), b"{\"v\":2}");
+        assert!(!tmp.exists(), "tmp leftover");
+        super::fsync_parent_dir(&dest).expect("parent dir fsync");
         let _ = std::fs::remove_file(&dest);
         let _ = std::fs::remove_file(&tmp);
     }

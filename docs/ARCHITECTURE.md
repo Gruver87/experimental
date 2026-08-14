@@ -1,6 +1,6 @@
 # Architecture (honest overview)
 
-**Updated:** 2026-08-13  
+**Updated:** 2026-08-14  
 **Scope:** [Gruver87/experimental](https://github.com/Gruver87/experimental) — R&D sandbox. Domain ports match Hybrid (ADR **0001–0016**); this tree also carries **0017–0019** labs.  
 **Not** a launched public mainnet. **Not** the audit-freeze pin.  
 **Industrial pin (sibling):** [`Absolute_Blockchain_Ultimate_Hybrid`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) tag [`v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial).
@@ -49,7 +49,7 @@ flowchart TB
     CA["catchup_adapters"]
     FA["fork_adapters"]
     NIO["abs_native P2P IO · short poll"]
-    LP["rust-libp2p · ADR 0019 A-BY · FEATURE_LIBP2P opt-in"]
+    LP["rust-libp2p · ADR 0019 A-CG · FEATURE_LIBP2P opt-in"]
   end
 
   subgraph domain ["Domain — ports, no sockets"]
@@ -176,7 +176,7 @@ flowchart LR
 | [0016](adr/0016-feature-sprouts-profiles.md) | Sprouts | Profiles instead of kitchen-sink FEATURE_* |
 | [0017](adr/0017-long-range-research.md) | Long-Range | Lab / weak-subjectivity — **not** prod |
 | [0018](adr/0018-libp2p-transport.md) | Dual-stack stubs | Python labs; TCP+TLS remains default |
-| [0019](adr/0019-rust-libp2p-industrial.md) | rust-libp2p | Slices **A–BY** (phase 76) behind Cargo `libp2p`; advertised unique cap 32 |
+| [0019](adr/0019-rust-libp2p-industrial.md) | rust-libp2p | Slices **A–CG** (phase 84) behind Cargo `libp2p`; advertised unique cap 20 |
 
 ---
 
@@ -192,8 +192,8 @@ flowchart LR
   subgraph lab ["Opt-in lab — this sandbox"]
     AD["Libp2pTransportAdapter"]
     SW["abs_native swarm · Noise + Yamux"]
-    CAP["shared advertised cap 32 unique"]
-    ID["CappedIdentify / mDNS / Kad / AutoNAT"]
+    CAP["shared advertised cap 20 unique"]
+    ID["CappedIdentify / mDNS / Kad / AutoNAT / UPnP / DCUtR"]
     AD --> SW
     SW --> CAP
     SW --> ID
@@ -202,7 +202,7 @@ flowchart LR
   TLS -.->|"FEATURE_LIBP2P=true only"| AD
 ```
 
-Over-cap listen sockets are **omitted** from Identify, mDNS, Kademlia local addrs, and AutoNAT probes — not silently advertised. Circuit `/p2p-circuit` stays outside the cap. Windows persist of advertised externals is **not** POSIX-atomic.
+Over-cap listen sockets are **omitted** from Identify, mDNS, Kademlia local addrs, AutoNAT probes, UPnP IGD maps, and DCUtR hole-punch candidates — not silently advertised. Identify also omits uncharged `NewExternalAddrCandidate` so they never reach the swarm. Circuit `/p2p-circuit` stays outside the cap. The unique advertised ceiling is **20** (rust-libp2p `ExternalAddresses` book); past that we **refuse**, because the crate silently evicts oldest confirmed externals. Advertised-externals persist replaces dest without unlinking it first (Windows `MoveFileExW`). Bootstrap, learned peerstore JSON, and identity keystore first-create use the same tmp+fsync+replace path (no truncate-in-place). Corrupt existing identity keys refuse spawn. NTFS replace is still **not** POSIX inode-atomic.
 
 ---
 

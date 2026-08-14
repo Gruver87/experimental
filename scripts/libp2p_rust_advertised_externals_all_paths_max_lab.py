@@ -3,7 +3,7 @@
 
 ``confirm_observed_addr`` (and UPnP / rendezvous ``add_external_address``)
 must not grow advertised externals past the shared unique budget
-(MAX 32; ``max_advertised_external`` may only lower it). Over-limit
+(MAX 20; ``max_advertised_external`` may only lower it). Over-limit
 confirm raises. Circuit ``/p2p-circuit`` is not counted.
 Capability ``advertised_externals_all_paths_max`` / phase >= 72.
 
@@ -47,7 +47,7 @@ def main() -> int:
         return 1
 
     hard = int(getattr(abs_native, "MAX_ADVERTISED_EXTERNAL_ADDRS", 0) or 0)
-    if hard != 32:
+    if hard != 20:
         print(f"FAIL: hard max constant {hard}")
         return 1
 

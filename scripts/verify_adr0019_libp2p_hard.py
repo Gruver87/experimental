@@ -143,6 +143,7 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_identify_peers",
     "libp2p_identify_received",
     "libp2p_identify_listen_addr_omitted",
+    "libp2p_identify_candidate_omitted",
     "libp2p_identify_sent",
     "libp2p_identify_pushed",
     "libp2p_identify_error",
@@ -160,6 +161,8 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_autonat_outbound_probe_error",
     "libp2p_dcutr_upgrade_success",
     "libp2p_dcutr_upgrade_fail",
+    "libp2p_dcutr_candidate_omitted",
+    "libp2p_dcutr_advertised_candidates",
     "libp2p_bootstrap_peers",
     "libp2p_bootstrap_dials_ok",
     "libp2p_bootstrap_dials_fail",
@@ -251,6 +254,8 @@ REQUIRED_METRIC_KEYS = (
     "libp2p_ws_dial_ok",
     "libp2p_ws_dial_fail",
     "libp2p_upnp_external_addrs",
+    "libp2p_upnp_listen_addr_omitted",
+    "libp2p_upnp_advertised_listen",
     "libp2p_upnp_expired_external_addrs",
     "libp2p_upnp_gateway_not_found",
     "libp2p_upnp_non_routable_gateway",
@@ -348,6 +353,14 @@ LABS = [
     ("BW", "scripts/libp2p_rust_mdns_listen_addrs_capped_lab.py"),
     ("BX", "scripts/libp2p_rust_kad_listen_addrs_capped_lab.py"),
     ("BY", "scripts/libp2p_rust_autonat_listen_addrs_capped_lab.py"),
+    ("BZ", "scripts/libp2p_rust_upnp_listen_addrs_capped_lab.py"),
+    ("CA", "scripts/libp2p_rust_advertised_externals_libp2p_book_max_lab.py"),
+    ("CB", "scripts/libp2p_rust_dcutr_candidates_capped_lab.py"),
+    ("CC", "scripts/libp2p_rust_identify_candidates_capped_lab.py"),
+    ("CD", "scripts/libp2p_rust_external_addrs_replace_no_unlink_lab.py"),
+    ("CE", "scripts/libp2p_rust_bootstrap_peerstore_atomic_persist_lab.py"),
+    ("CF", "scripts/libp2p_rust_identity_atomic_persist_lab.py"),
+    ("CG", "scripts/libp2p_rust_persist_parent_dir_fsync_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -471,6 +484,10 @@ def check_repo_honesty() -> tuple[bool, str]:
         "Slice BW",
         "Slice BX",
         "Slice BY",
+        "Slice BZ",
+        "Slice CA",
+        "Slice CB",
+        "Slice CC",
         "FEATURE_LIBP2P",
         "## Honesty",
     )
@@ -527,6 +544,46 @@ def check_native_deep() -> tuple[bool, str]:
             return False, "capability_status.default_mesh must be False"
         if int(cap.get("phase") or 0) < 8:
             return False, f"capability phase too low: {cap.get('phase')}"
+        if not cap.get("external_addrs_replace_no_unlink"):
+            return False, (
+                "capability external_addrs_replace_no_unlink missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if not cap.get("bootstrap_peerstore_atomic_persist"):
+            return False, (
+                "capability bootstrap_peerstore_atomic_persist missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if not cap.get("identity_atomic_persist"):
+            return False, (
+                "capability identity_atomic_persist missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if not cap.get("persist_parent_dir_fsync"):
+            return False, (
+                "capability persist_parent_dir_fsync missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        want_strategy = (
+            "windows_movefileex_replace" if os.name == "nt" else "posix_rename"
+        )
+        got_strategy = cap.get("external_addrs_replace_strategy")
+        if got_strategy != want_strategy:
+            return False, (
+                f"replace strategy {got_strategy!r} != {want_strategy} "
+                "(stale wheel — --rebuild)"
+            )
+        want_dir = (
+            "windows_dir_flushfilebuffers"
+            if os.name == "nt"
+            else "posix_dir_fsync"
+        )
+        got_dir = cap.get("persist_parent_dir_fsync_strategy")
+        if got_dir != want_dir:
+            return False, (
+                f"parent-dir fsync strategy {got_dir!r} != {want_dir} "
+                "(stale wheel — --rebuild)"
+            )
         # Slice I API must exist
         a.block_peer(b.peer_id)
         if b.peer_id not in list(a.blocked_peers()):

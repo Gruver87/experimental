@@ -107,14 +107,22 @@ feature `libp2p`), exposed to Python through the existing
 | Add external bool | Slice BO: `add_external_address` → bool + confirm only when newly inserted; `libp2p_rust_add_external_addr_lab.py` |
 | Persist advertised externals | Slice BP: operator-advertised JSON (`external_addrs_path` / `ABS_LIBP2P_EXTERNAL_ADDRS_PATH`); restore on start without bumping confirmed; `libp2p_rust_external_addrs_persist_lab.py` |
 | Atomic advertised persist | Slice BQ: same-dir `.tmp` + fsync + rename (dest never truncated in place); leftover tmp cleaned; `libp2p_rust_external_addrs_atomic_persist_lab.py` |
-| Advertised externals cap | Slice BR: hard max 32 (`MAX_ADVERTISED_EXTERNAL_ADDRS` / `max_advertised_external` / `ABS_LIBP2P_MAX_ADVERTISED_EXTERNAL_ADDRS`); over-limit **refuse** (no silent truncate); `libp2p_rust_external_addrs_max_lab.py` |
+| Advertised externals cap | Slice BR: hard max (`MAX_ADVERTISED_EXTERNAL_ADDRS` / `max_advertised_external` / `ABS_LIBP2P_MAX_ADVERTISED_EXTERNAL_ADDRS`); over-limit **refuse** (no silent truncate); `libp2p_rust_external_addrs_max_lab.py` |
 | Listen-derived externals cap | Slice BS: listen-derived advertised set under the same ceiling; over-limit `listen()` **refuse**; circuit not counted; `libp2p_rust_listen_derived_external_max_lab.py` |
-| Shared advertised cap | Slice BT: **sum** operator + listen-derived ≤ MAX 32 (config may only lower); over-limit listen/add/restore **refuse** (closes the combined-64 bypass); `libp2p_rust_advertised_externals_shared_max_lab.py` |
+| Shared advertised cap | Slice BT: **sum** operator + listen-derived ≤ MAX (config may only lower); over-limit listen/add/restore **refuse** (closes the combined-double bypass); `libp2p_rust_advertised_externals_shared_max_lab.py` |
 | All-paths advertised cap | Slice BU: observed confirm / UPnP / rendezvous `add_external_address` share the **same** unique budget; over-limit **refuse** (no silent swarm add); `libp2p_rust_advertised_externals_all_paths_max_lab.py` |
 | Identify listen-addr cap | Slice BV: Identify omits uncharged listen addrs (libp2p-identify 0.45 has no `hide_listen_addrs`); circuit still advertised; `libp2p_rust_identify_listen_addrs_capped_lab.py` |
 | mDNS listen-addr cap | Slice BW: mDNS omits uncharged listen addrs (same shared cap; DNS-SD must not leak over-cap sockets); circuit still advertised; `libp2p_rust_mdns_listen_addrs_capped_lab.py` |
 | Kademlia listen-addr cap | Slice BX: Kademlia omits uncharged listen addrs (DHT local/provider addrs must not leak over-cap sockets); circuit still advertised; `libp2p_rust_kad_listen_addrs_capped_lab.py` |
 | AutoNAT listen-addr cap | Slice BY: AutoNAT omits uncharged listen addrs (probes must not leak over-cap sockets); circuit still advertised; `libp2p_rust_autonat_listen_addrs_capped_lab.py` |
+| UPnP listen-addr cap | Slice BZ: UPnP omits uncharged listen addrs (IGD must not map over-cap sockets); circuit still advertised; `libp2p_rust_upnp_listen_addrs_capped_lab.py` |
+| libp2p ExternalAddresses book | Slice CA: advertised unique cap = rust-libp2p `ExternalAddresses` book (20); refuse past 20 (no silent Identify/Kad/Relay eviction); `libp2p_rust_advertised_externals_libp2p_book_max_lab.py` |
+| DCUtR candidate cap | Slice CB: DCUtR omits uncharged `NewExternalAddrCandidate` (no hole-punch past advertised cap); circuit still excluded; `libp2p_rust_dcutr_candidates_capped_lab.py` |
+| Identify candidate cap | Slice CC: Identify omits uncharged `NewExternalAddrCandidate` at the source (no swarm-wide leak); `libp2p_rust_identify_candidates_capped_lab.py` |
+| Persist replace no-unlink | Slice CD: dest replace without unlink-then-rename (`MoveFileExW` on Windows / POSIX `rename`); still not POSIX inode-atomic on NTFS; `libp2p_rust_external_addrs_replace_no_unlink_lab.py` |
+| Bootstrap/peerstore atomic persist | Slice CE: bootstrap + learned peerstore JSON use tmp+fsync+replace (no `std::fs::write` truncate); learn-path persist fail rolls back memory; `libp2p_rust_bootstrap_peerstore_atomic_persist_lab.py` |
+| Identity keystore atomic create | Slice CF: first-create Ed25519 protobuf key via tmp+fsync+replace; existing/corrupt key refuses spawn (no silent re-mint); `libp2p_rust_identity_atomic_persist_lab.py` |
+| Persist parent-dir fsync | Slice CG: fsync parent after replace (POSIX dir fd / Windows `FlushFileBuffers` on directory handle); still not POSIX inode-atomic on NTFS; `libp2p_rust_persist_parent_dir_fsync_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -199,6 +207,14 @@ feature `libp2p`), exposed to Python through the existing
 | BW | mDNS omits uncharged listen addrs (no LAN leak past advertised cap); `libp2p_rust_mdns_listen_addrs_capped_lab.py` |
 | BX | Kademlia omits uncharged listen addrs (no DHT leak past advertised cap); `libp2p_rust_kad_listen_addrs_capped_lab.py` |
 | BY | AutoNAT omits uncharged listen addrs (no probe leak past advertised cap); `libp2p_rust_autonat_listen_addrs_capped_lab.py` |
+| BZ | UPnP omits uncharged listen addrs (no IGD map past advertised cap); `libp2p_rust_upnp_listen_addrs_capped_lab.py` |
+| CA | advertised unique cap = rust-libp2p ExternalAddresses book (20); 21st refuse (no silent eviction); `libp2p_rust_advertised_externals_libp2p_book_max_lab.py` |
+| CB | DCUtR omits uncharged hole-punch candidates (no punch past advertised cap); `libp2p_rust_dcutr_candidates_capped_lab.py` |
+| CC | Identify omits uncharged NewExternalAddrCandidate at the source; `libp2p_rust_identify_candidates_capped_lab.py` |
+| CD | Persist replace without dest unlink (Windows MoveFileEx); still not POSIX inode-atomic on NTFS; `libp2p_rust_external_addrs_replace_no_unlink_lab.py` |
+| CE | Bootstrap + peerstore JSON atomic replace (no truncate-in-place); persist fail rolls back learned addrs; `libp2p_rust_bootstrap_peerstore_atomic_persist_lab.py` |
+| CF | Identity keystore first-create via atomic replace; corrupt existing key refuses (no re-mint); `libp2p_rust_identity_atomic_persist_lab.py` |
+| CG | Parent-dir fsync after persist replace (POSIX dirent durability); still not POSIX inode-atomic on NTFS; `libp2p_rust_persist_parent_dir_fsync_lab.py` |
 
 ## Honesty
 
@@ -270,7 +286,15 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_identify_listen_addrs_capped_lab.py`,
   `libp2p_rust_mdns_listen_addrs_capped_lab.py`,
   `libp2p_rust_kad_listen_addrs_capped_lab.py`,
-  `libp2p_rust_autonat_listen_addrs_capped_lab.py`;
+  `libp2p_rust_autonat_listen_addrs_capped_lab.py`,
+  `libp2p_rust_upnp_listen_addrs_capped_lab.py`,
+  `libp2p_rust_advertised_externals_libp2p_book_max_lab.py`,
+  `libp2p_rust_dcutr_candidates_capped_lab.py`,
+  `libp2p_rust_identify_candidates_capped_lab.py`,
+  `libp2p_rust_external_addrs_replace_no_unlink_lab.py`,
+  `libp2p_rust_bootstrap_peerstore_atomic_persist_lab.py`,
+  `libp2p_rust_identity_atomic_persist_lab.py`,
+  `libp2p_rust_persist_parent_dir_fsync_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -320,17 +344,19 @@ feature `libp2p`), exposed to Python through the existing
   Slice BO: add external addr (`add_external_address` → bool; confirm only when newly inserted).
   Slice BP: persist operator-advertised externals (`external_addrs_path`; restore loads, does not confirm;
     listen-derived addrs are not written; corrupt JSON fail-closed).
-  Slice BQ: atomic persist (same-dir `.tmp` + fsync + rename; dest is not truncated in place.
-    Windows unlink-then-rename is not POSIX-atomic; dest is still never half-written by this writer).
-  Slice BR: advertised externals cap (`MAX_ADVERTISED_EXTERNAL_ADDRS=32`; arg/env may only lower it;
+  Slice BQ: atomic persist (same-dir `.tmp` + fsync + rename; dest is not truncated in place).
+  Slice CD: Windows dest replace uses `MoveFileExW(REPLACE_EXISTING)` — no
+    `remove_file(dest)` window. POSIX `rename` already replaced atomically.
+    NTFS replace is still **not** POSIX inode-atomic.
+  Slice BR: advertised externals cap (`MAX_ADVERTISED_EXTERNAL_ADDRS`; arg/env may only lower it;
     add and restore **refuse** when over limit — no silent truncate).
   Slice BS: listen-derived advertised set under the same ceiling; over-limit `listen()` **refuse**;
     circuit `/p2p-circuit` listens are not counted. Expansion `NewListenAddr` over cap
     is not advertised (`libp2p_external_addr_limit_refused`); the listener is kept so
     dual-stack siblings are not torn down.
   Slice BT: **shared** budget — unique charged addrs ≤ max (not two
-    independent 32s / combined 64). Over-limit listen, `add_external_address`, and persist
-    restore **refuse**. Circuit still excluded. Windows BQ persist remains not POSIX-atomic.
+    independent ceilings / combined-double). Over-limit listen, `add_external_address`, and persist
+    restore **refuse**. Circuit still excluded.
   Slice BU: observed `confirm_observed_addr` / auto-confirm, UPnP `NewExternalAddr`, and
     rendezvous pre-register `swarm.add_external_address` share that unique budget
     (`aux_advertised_external`). Over-limit **refuse** — no silent swarm advertise.
@@ -352,7 +378,42 @@ feature `libp2p`), exposed to Python through the existing
   Slice BY: AutoNAT v1 probes every listen addr. A `CappedAutonat` wrapper
     forwards listen addrs only when circuit or charged. Omitted addrs increment
     `libp2p_autonat_listen_addr_omitted`; forwarded count is
-    `libp2p_autonat_advertised_listen`. Windows BQ persist remains not POSIX-atomic.
+    `libp2p_autonat_advertised_listen`.
+  Slice BZ: UPnP 0.3 queues an IGD port map on every `NewListenAddr`
+    (Inactive until the gateway is found). A `CappedUpnp` wrapper forwards
+    listen addrs only when circuit or charged. Omitted addrs increment
+    `libp2p_upnp_listen_addr_omitted`; forwarded count is
+    `libp2p_upnp_advertised_listen`.
+  Slice CA: rust-libp2p 0.45 `ExternalAddresses` (Identify / Kad / Relay reservation
+    tickets) silently evicts the oldest confirmed external past 20. The advertised
+    unique cap is therefore 20 (`LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX`); the 21st
+    add/listen/restore **refuses** so we do not paint 32 charged addrs while the
+    wire book dropped 12. Circuit `/p2p-circuit` still excluded.
+  Slice CB: DCUtR 0.12 stores every `NewExternalAddrCandidate` (Identify
+    observed / translated listen) and sends them in hole-punch CONNECT. A
+    `CappedDcutr` wrapper forwards candidates only when circuit or already
+    charged — no aux-admit bypass of the listen cap. Omitted addrs increment
+    `libp2p_dcutr_candidate_omitted`; forwarded count is
+    `libp2p_dcutr_advertised_candidates`.
+  Slice CC: Identify 0.45 emits `ToSwarm::NewExternalAddrCandidate` for every
+    observed / translated listen addr (swarm-wide, not only DCUtR). `CappedIdentify`
+    poll omits uncharged candidates. Omitted addrs increment
+    `libp2p_identify_candidate_omitted`. Circuit still excluded.
+  Slice CD: advertised-externals persist no longer unlinks dest before replace.
+    Windows: `MoveFileExW(MOVEFILE_REPLACE_EXISTING | WRITE_THROUGH)`. POSIX:
+    `rename(2)`. NTFS replace is still **not** POSIX inode-atomic. Capability
+    `external_addrs_replace_no_unlink` / `external_addrs_replace_strategy`.
+  Slice CE: bootstrap book and learned peerstore used `std::fs::write` (truncate
+    dest in place). Both now go through tmp+fsync+replace. A failed peerstore
+    persist rolls back the in-memory learn (no silent disk/memory split).
+    Identity keystore first-create uses the same atomic replace (Slice CF).
+    An existing/corrupt key file **refuses** spawn — it is never overwritten
+    with a freshly minted PeerId. NTFS replace remains **not** POSIX inode-atomic.
+  Slice CG: after tmp+fsync+replace, fsync the parent directory so the dirent
+    survives a crash. POSIX: `fsync` on the directory fd. Windows:
+    `CreateFileW(FILE_FLAG_BACKUP_SEMANTICS)` + `FlushFileBuffers`. Capability
+    `persist_parent_dir_fsync` / `persist_parent_dir_fsync_strategy`. NTFS
+    replace remains **not** POSIX inode-atomic.
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.

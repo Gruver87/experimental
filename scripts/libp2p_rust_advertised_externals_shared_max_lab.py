@@ -2,7 +2,7 @@
 """ADR 0019 Slice BT — shared advertised externals cap (operator + listen-derived).
 
 Operator-advertised and listen-derived share one budget: sum ≤ max
-(MAX 32; ``max_advertised_external`` may only lower it). Over-limit
+(MAX 20; ``max_advertised_external`` may only lower it). Over-limit
 ``listen()`` / ``add_external_address`` / persist restore refuse.
 Circuit ``/p2p-circuit`` is not counted. Capability
 ``advertised_externals_shared_max`` / phase >= 71.
@@ -40,7 +40,7 @@ def main() -> int:
         return 1
 
     hard = int(getattr(abs_native, "MAX_ADVERTISED_EXTERNAL_ADDRS", 0) or 0)
-    if hard != 32:
+    if hard != 20:
         print(f"FAIL: hard max constant {hard}")
         return 1
 

@@ -2,7 +2,7 @@
 """ADR 0019 Slice BR — advertised externals hard max (refuse, no truncate).
 
 ``max_advertised_external`` (arg / ``ABS_LIBP2P_MAX_ADVERTISED_EXTERNAL_ADDRS``)
-must be 1..=MAX_ADVERTISED_EXTERNAL_ADDRS (32). Over-limit add raises.
+must be 1..=MAX_ADVERTISED_EXTERNAL_ADDRS (20). Over-limit add raises.
 Oversized JSON on restore refuses spawn. Capability ``external_addrs_max``
 / phase >= 69.
 
@@ -40,7 +40,7 @@ def main() -> int:
         return 1
 
     hard = int(getattr(abs_native, "MAX_ADVERTISED_EXTERNAL_ADDRS", 0) or 0)
-    if hard != 32:
+    if hard != 20:
         print(f"FAIL: hard max constant {hard}")
         return 1
 

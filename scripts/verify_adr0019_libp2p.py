@@ -121,6 +121,14 @@ LABS = [
     ("BW", "scripts/libp2p_rust_mdns_listen_addrs_capped_lab.py"),
     ("BX", "scripts/libp2p_rust_kad_listen_addrs_capped_lab.py"),
     ("BY", "scripts/libp2p_rust_autonat_listen_addrs_capped_lab.py"),
+    ("BZ", "scripts/libp2p_rust_upnp_listen_addrs_capped_lab.py"),
+    ("CA", "scripts/libp2p_rust_advertised_externals_libp2p_book_max_lab.py"),
+    ("CB", "scripts/libp2p_rust_dcutr_candidates_capped_lab.py"),
+    ("CC", "scripts/libp2p_rust_identify_candidates_capped_lab.py"),
+    ("CD", "scripts/libp2p_rust_external_addrs_replace_no_unlink_lab.py"),
+    ("CE", "scripts/libp2p_rust_bootstrap_peerstore_atomic_persist_lab.py"),
+    ("CF", "scripts/libp2p_rust_identity_atomic_persist_lab.py"),
+    ("CG", "scripts/libp2p_rust_persist_parent_dir_fsync_lab.py"),
 ]
 
 

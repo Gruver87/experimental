@@ -67,6 +67,22 @@ def hard_verify_lab_paths() -> Tuple[str, ...]:
         raise RuntimeError("hard-verify LABS missing Slice BX kad-listen-cap lab")
     if "scripts/libp2p_rust_autonat_listen_addrs_capped_lab.py" not in out:
         raise RuntimeError("hard-verify LABS missing Slice BY autonat-listen-cap lab")
+    if "scripts/libp2p_rust_upnp_listen_addrs_capped_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice BZ upnp-listen-cap lab")
+    if "scripts/libp2p_rust_advertised_externals_libp2p_book_max_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice CA libp2p-book-max lab")
+    if "scripts/libp2p_rust_dcutr_candidates_capped_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice CB dcutr-candidates-cap lab")
+    if "scripts/libp2p_rust_identify_candidates_capped_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice CC identify-candidates-cap lab")
+    if "scripts/libp2p_rust_external_addrs_replace_no_unlink_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice CD persist-replace-no-unlink lab")
+    if "scripts/libp2p_rust_bootstrap_peerstore_atomic_persist_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice CE bootstrap-peerstore-atomic lab")
+    if "scripts/libp2p_rust_identity_atomic_persist_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice CF identity-atomic lab")
+    if "scripts/libp2p_rust_persist_parent_dir_fsync_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice CG parent-dir-fsync lab")
     return tuple(out)
 
 

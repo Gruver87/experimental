@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ADR 0019 Slice BS — listen-derived externals hard max (refuse, no truncate).
 
-The advertised ceiling (MAX 32; ``max_advertised_external`` may only lower it)
+The advertised ceiling (MAX 20; ``max_advertised_external`` may only lower it)
 applies to listen-derived addrs. Slice BT shares this budget with operator
 persist (sum ≤ max). Over-limit ``listen()`` raises. Circuit listen is not
 counted.
@@ -34,7 +34,7 @@ def main() -> int:
         return 1
 
     hard = int(getattr(abs_native, "MAX_ADVERTISED_EXTERNAL_ADDRS", 0) or 0)
-    if hard != 32:
+    if hard != 20:
         print(f"FAIL: hard max constant {hard}")
         return 1
 

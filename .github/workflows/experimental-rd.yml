@@ -244,6 +244,22 @@ jobs:
         run: python scripts/libp2p_rust_kad_listen_addrs_capped_lab.py
       - name: rust-libp2p autonat listen addrs capped lab (Slice BY)
         run: python scripts/libp2p_rust_autonat_listen_addrs_capped_lab.py
+      - name: rust-libp2p upnp listen addrs capped lab (Slice BZ)
+        run: python scripts/libp2p_rust_upnp_listen_addrs_capped_lab.py
+      - name: rust-libp2p advertised externals libp2p book max lab (Slice CA)
+        run: python scripts/libp2p_rust_advertised_externals_libp2p_book_max_lab.py
+      - name: rust-libp2p dcutr candidates capped lab (Slice CB)
+        run: python scripts/libp2p_rust_dcutr_candidates_capped_lab.py
+      - name: rust-libp2p identify candidates capped lab (Slice CC)
+        run: python scripts/libp2p_rust_identify_candidates_capped_lab.py
+      - name: rust-libp2p external addrs replace no-unlink lab (Slice CD)
+        run: python scripts/libp2p_rust_external_addrs_replace_no_unlink_lab.py
+      - name: rust-libp2p bootstrap+peerstore atomic persist lab (Slice CE)
+        run: python scripts/libp2p_rust_bootstrap_peerstore_atomic_persist_lab.py
+      - name: rust-libp2p identity atomic persist lab (Slice CF)
+        run: python scripts/libp2p_rust_identity_atomic_persist_lab.py
+      - name: rust-libp2p persist parent-dir fsync lab (Slice CG)
+        run: python scripts/libp2p_rust_persist_parent_dir_fsync_lab.py
       - name: adapter + wire-bridge units
         run: pytest -q tests/unit/test_libp2p_adapter.py tests/unit/test_libp2p_wire_bridge.py tests/unit/test_libp2p_status_metrics.py tests/unit/test_cargo_test_abs_native.py tests/unit/test_package_libp2p_evidence.py
       - name: package ADR 0019 evidence pack

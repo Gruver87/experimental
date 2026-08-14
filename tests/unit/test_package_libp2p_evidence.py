@@ -36,5 +36,13 @@ def test_evidence_labs_are_hard_verify_list() -> None:
     assert "scripts/libp2p_rust_mdns_listen_addrs_capped_lab.py" in pack.LABS
     assert "scripts/libp2p_rust_kad_listen_addrs_capped_lab.py" in pack.LABS
     assert "scripts/libp2p_rust_autonat_listen_addrs_capped_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_upnp_listen_addrs_capped_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_advertised_externals_libp2p_book_max_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_dcutr_candidates_capped_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_identify_candidates_capped_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_external_addrs_replace_no_unlink_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_bootstrap_peerstore_atomic_persist_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_identity_atomic_persist_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_persist_parent_dir_fsync_lab.py" in pack.LABS
     for rel in pack.LABS:
         assert (ROOT / rel).is_file(), rel
