@@ -48,5 +48,10 @@ def test_evidence_labs_are_hard_verify_list() -> None:
     assert "scripts/libp2p_rust_identity_key_windows_dacl_lab.py" in pack.LABS
     assert "scripts/libp2p_rust_persist_mkdir_fsync_lab.py" in pack.LABS
     assert "scripts/libp2p_rust_identity_create_exclusive_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_identity_tmp_dacl_at_create_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_identity_existing_acl_refuse_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_identity_null_dacl_refuse_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_identity_callback_ace_refuse_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_identity_protected_dacl_refuse_lab.py" in pack.LABS
     for rel in pack.LABS:
         assert (ROOT / rel).is_file(), rel

@@ -91,6 +91,16 @@ def hard_verify_lab_paths() -> Tuple[str, ...]:
         raise RuntimeError("hard-verify LABS missing Slice CJ persist-mkdir-fsync lab")
     if "scripts/libp2p_rust_identity_create_exclusive_lab.py" not in out:
         raise RuntimeError("hard-verify LABS missing Slice CK identity-create-exclusive lab")
+    if "scripts/libp2p_rust_identity_tmp_dacl_at_create_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice CL identity-tmp-dacl-at-create lab")
+    if "scripts/libp2p_rust_identity_existing_acl_refuse_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice CM identity-existing-acl-refuse lab")
+    if "scripts/libp2p_rust_identity_null_dacl_refuse_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice CN identity-null-dacl-refuse lab")
+    if "scripts/libp2p_rust_identity_callback_ace_refuse_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice CO identity-callback-ace-refuse lab")
+    if "scripts/libp2p_rust_identity_protected_dacl_refuse_lab.py" not in out:
+        raise RuntimeError("hard-verify LABS missing Slice CP identity-protected-dacl-refuse lab")
     return tuple(out)
 
 

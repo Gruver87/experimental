@@ -133,6 +133,11 @@ LABS = [
     ("CI", "scripts/libp2p_rust_identity_key_windows_dacl_lab.py"),
     ("CJ", "scripts/libp2p_rust_persist_mkdir_fsync_lab.py"),
     ("CK", "scripts/libp2p_rust_identity_create_exclusive_lab.py"),
+    ("CL", "scripts/libp2p_rust_identity_tmp_dacl_at_create_lab.py"),
+    ("CM", "scripts/libp2p_rust_identity_existing_acl_refuse_lab.py"),
+    ("CN", "scripts/libp2p_rust_identity_null_dacl_refuse_lab.py"),
+    ("CO", "scripts/libp2p_rust_identity_callback_ace_refuse_lab.py"),
+    ("CP", "scripts/libp2p_rust_identity_protected_dacl_refuse_lab.py"),
 ]
 
 

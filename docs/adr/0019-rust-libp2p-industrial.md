@@ -127,6 +127,11 @@ feature `libp2p`), exposed to Python through the existing
 | Identity keystore Windows DACL | Slice CI: first-create protected DACL (owner + SYSTEM + Administrators; no Users/Everyone); existing ACLs not rewritten; not POSIX 0600; `libp2p_rust_identity_key_windows_dacl_lab.py` |
 | Persist mkdir fsync | Slice CJ: `create_dir_all` then fsync created dirs + first existing ancestor (volume roots skipped); still not POSIX inode-atomic on NTFS; `libp2p_rust_persist_mkdir_fsync_lab.py` |
 | Identity first-create exclusive | Slice CK: identity dest create fails if dest exists (Windows MoveFileEx without REPLACE; POSIX hard_link); staging `dest.{pid}.tmp`; no race clobber; JSON persist still replaces; `libp2p_rust_identity_create_exclusive_lab.py` |
+| Identity tmp restrict at create | Slice CL: identity staging tmp is born restricted (Unix `0o600` at open; Windows `CreateFileW` with protected DACL); leftover tmp locked+unlinked; `libp2p_rust_identity_tmp_dacl_at_create_lab.py` |
+| Identity existing ACL refuse | Slice CM: existing key with Users/Everyone (Windows) or group/other bits (Unix) refuses spawn; dest ACL never rewritten; `libp2p_rust_identity_existing_acl_refuse_lab.py` |
+| Identity NULL DACL refuse | Slice CN: missing/NULL DACL (Windows grant-everyone) refuses spawn; dest ACL never rewritten; `libp2p_rust_identity_null_dacl_refuse_lab.py` |
+| Identity callback ACE refuse | Slice CO: callback/conditional allow ACEs (XA/ZA/XU) and unknown ACE types refuse spawn; dest ACL never rewritten; `libp2p_rust_identity_callback_ace_refuse_lab.py` |
+| Identity protected DACL refuse | Slice CP: existing DACL without `SE_DACL_PROTECTED` / SDDL `P` refuses spawn (inheritance cannot add Users); dest ACL never rewritten; `libp2p_rust_identity_protected_dacl_refuse_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -223,6 +228,11 @@ feature `libp2p`), exposed to Python through the existing
 | CI | Identity keystore Windows protected DACL (owner+SYSTEM+Admin; no Users/Everyone); `libp2p_rust_identity_key_windows_dacl_lab.py` |
 | CJ | Persist mkdir ancestor fsync after create_dir_all; still not POSIX inode-atomic on NTFS; `libp2p_rust_persist_mkdir_fsync_lab.py` |
 | CK | Identity first-create exclusive dest + per-process staging tmp (no REPLACE/rename clobber); JSON persist still replaces; `libp2p_rust_identity_create_exclusive_lab.py` |
+| CL | Identity tmp born restricted (Windows CreateFile DACL / Unix 0600 at create); leftover tmp locked+unlinked; `libp2p_rust_identity_tmp_dacl_at_create_lab.py` |
+| CM | Existing identity weak ACL refuses spawn (no silent chmod/DACL rewrite); `libp2p_rust_identity_existing_acl_refuse_lab.py` |
+| CN | Existing identity NULL/absent DACL refuses spawn (Windows grant-everyone); `libp2p_rust_identity_null_dacl_refuse_lab.py` |
+| CO | Existing identity callback/conditional allow ACE (XA/ZA/XU) refuses spawn; unknown ACE types refuse; `libp2p_rust_identity_callback_ace_refuse_lab.py` |
+| CP | Existing identity unprotected DACL refuses spawn (CI protected-bit at load); `libp2p_rust_identity_protected_dacl_refuse_lab.py` |
 
 ## Honesty
 
@@ -306,7 +316,12 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_identity_key_mode_lab.py`,
   `libp2p_rust_identity_key_windows_dacl_lab.py`,
   `libp2p_rust_persist_mkdir_fsync_lab.py`,
-  `libp2p_rust_identity_create_exclusive_lab.py`;
+  `libp2p_rust_identity_create_exclusive_lab.py`,
+  `libp2p_rust_identity_tmp_dacl_at_create_lab.py`,
+  `libp2p_rust_identity_existing_acl_refuse_lab.py`,
+  `libp2p_rust_identity_null_dacl_refuse_lab.py`,
+  `libp2p_rust_identity_callback_ace_refuse_lab.py`,
+  `libp2p_rust_identity_protected_dacl_refuse_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -444,6 +459,30 @@ feature `libp2p`), exposed to Python through the existing
     first-creates do not share the staging file. Capability
     `identity_create_exclusive`. JSON persist still replaces (CD). NTFS
     replace remains **not** POSIX inode-atomic.
+  Slice CL: identity staging tmp is created already restricted. Unix: `0o600`
+    at `open`. Windows: `CreateFileW(CREATE_NEW)` with the protected DACL
+    (owner+SYSTEM+Admin) so key bytes are never written under inherited
+    Users/Everyone. Leftover tmp is DACL-locked then unlinked before
+    CREATE_NEW. Capability `identity_key_tmp_restrict_at_create`. Existing
+    dest ACLs are still **not** silently rewritten. Not POSIX `0600` on Windows.
+  Slice CM: existing identity is checked at load. Unix: group/other bits
+    refuse (CH). Windows: allow ACEs other than owner/SYSTEM/Administrators
+    refuse (Users/Everyone). Dest ACL is **never** rewritten. Capability
+    `identity_key_existing_acl_refuse`. Operator must fix ACL or mint a new
+    keystore. Not POSIX `0600` on Windows.
+  Slice CN: a NULL/absent DACL grants everyone on Windows. CM's allow-ACE
+    walk would treat that as "no bad ACEs" and load. Spawn now **refuses**.
+    Dest ACL is never rewritten. Capability `identity_key_null_dacl_refuse`
+    (Windows only). Unix world-readable remains Slice CH.
+  Slice CO: CM/CN only walked A/OA allow ACEs. Callback/conditional allow
+    ACEs (`XA`/`ZA`/`XU`) still grant Everyone/Users. Spawn now **refuses**
+    those and unknown ACE types. Dest ACL is never rewritten. Capability
+    `identity_key_callback_ace_refuse` (Windows only). Unix remains Slice CH.
+  Slice CP: CI first-create sets `SE_DACL_PROTECTED` (`D:P` / Convert `PAI`).
+    Load accepted owner-only ACEs without the protected bit, so a parent
+    ACL change could inherit Users onto the key. Spawn now **refuses**.
+    Dest ACL is never rewritten. Capability `identity_key_protected_dacl_refuse`
+    (Windows only). Unix remains Slice CH.
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.

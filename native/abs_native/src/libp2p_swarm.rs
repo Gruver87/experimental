@@ -84,6 +84,9 @@
 //! Slice CI: identity keystore Windows protected DACL (no Users/Everyone).
 //! Slice CJ: fsync newly created persist dirs (mkdir dirent durability).
 //! Slice CK: identity first-create refuses dest clobber (exclusive replace).
+//! Slice CL: identity tmp is born restricted (Unix 0600 / Windows DACL at create).
+//! Slice CM: existing identity with weak ACL refuses spawn (no silent rewrite).
+//! Slice CN: existing identity NULL/absent DACL refuses spawn (grants everyone).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -327,6 +330,65 @@ pub fn identity_create_exclusive_strategy() -> &'static str {
         "windows_movefileex_noreplace"
     } else {
         "posix_hardlink_exclusive"
+    }
+}
+
+/// Slice CL: how identity staging tmp is born restricted (before key bytes).
+///
+/// Unix: `OpenOptions.mode(0o600)` at create (CH). Windows CI applied DACL
+/// *after* `File::create` + write — inherited Users/Everyone could read the
+/// tmp. Slice CL creates the tmp with the protected DACL on `CreateFileW`.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn identity_key_tmp_restrict_strategy() -> &'static str {
+    if cfg!(windows) {
+        "windows_createfile_owner_dacl"
+    } else {
+        "unix_0600_at_create"
+    }
+}
+
+/// Slice CM: existing identity ACL is checked at load (no silent repair).
+///
+/// Unix: group/other bits refuse (CH). Windows: allow ACEs other than
+/// owner/SYSTEM/Administrators refuse (Users/Everyone). First-create DACL
+/// is still Slice CI/CL; existing dest ACLs are never rewritten.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn identity_key_existing_acl_strategy() -> &'static str {
+    identity_key_mode_strategy()
+}
+
+/// Slice CN: NULL DACL (everyone) is refused at load. Unix has no NULL DACL;
+/// world-readable is already Slice CH.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn identity_key_null_dacl_strategy() -> &'static str {
+    if cfg!(windows) {
+        "windows_null_dacl_refuse"
+    } else {
+        "unix_mode_covers"
+    }
+}
+
+/// Slice CO: callback/conditional allow ACEs (XA/ZA/XU) grant access but CM
+/// only walked A/OA. Unknown ACE types refuse (fail-closed). Unix mode bits
+/// already cover world-readable (CH). Dest ACL is never rewritten.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn identity_key_callback_ace_strategy() -> &'static str {
+    if cfg!(windows) {
+        "windows_callback_ace_refuse"
+    } else {
+        "unix_mode_covers"
+    }
+}
+
+/// Slice CP: CI first-create is a *protected* DACL (`D:P` / `SE_DACL_PROTECTED`)
+/// so parent inheritance cannot add Users. Load used to accept owner-only ACEs
+/// without the protected bit. Spawn now refuses. Dest ACL is never rewritten.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn identity_key_protected_dacl_strategy() -> &'static str {
+    if cfg!(windows) {
+        "windows_protected_dacl_refuse"
+    } else {
+        "unix_mode_covers"
     }
 }
 
@@ -623,6 +685,12 @@ fn create_persist_tmp(
                 .map_err(|e| format!("create persist tmp: {e}"));
         }
     }
+    #[cfg(windows)]
+    {
+        if unix_mode.is_some() {
+            return windows_create_identity_tmp(tmp, false);
+        }
+    }
     let _ = unix_mode;
     std::fs::File::create(tmp).map_err(|e| format!("create persist tmp: {e}"))
 }
@@ -657,8 +725,22 @@ fn restrict_identity_key_acl(path: &std::path::Path) -> Result<(), String> {
     }
 }
 
+/// Owner + SYSTEM + Administrators; protected (no Users/Everyone inherit).
+#[cfg(windows)]
+const IDENTITY_KEY_WINDOWS_SDDL: &str = "D:P(A;;FA;;;OW)(A;;FA;;;SY)(A;;FA;;;BA)";
+
 #[cfg(windows)]
 fn windows_restrict_owner_dacl(path: &std::path::Path) -> Result<(), String> {
+    windows_set_dacl_from_sddl(path, IDENTITY_KEY_WINDOWS_SDDL, true)
+}
+
+/// Apply a DACL from SDDL. `protected` sets `PROTECTED_DACL` vs `UNPROTECTED_DACL`.
+#[cfg(windows)]
+fn windows_set_dacl_from_sddl(
+    path: &std::path::Path,
+    sddl: &str,
+    protected: bool,
+) -> Result<(), String> {
     use std::ptr;
 
     #[link(name = "advapi32")]
@@ -694,16 +776,20 @@ fn windows_restrict_owner_dacl(path: &std::path::Path) -> Result<(), String> {
     const SE_FILE_OBJECT: u32 = 1;
     const DACL_SECURITY_INFORMATION: u32 = 0x4;
     const PROTECTED_DACL_SECURITY_INFORMATION: u32 = 0x8000_0000;
+    const UNPROTECTED_DACL_SECURITY_INFORMATION: u32 = 0x2000_0000;
     const ERROR_SUCCESS: u32 = 0;
-    // Owner + SYSTEM + Administrators; protected (no Users/Everyone inherit).
-    const SDDL: &str = "D:P(A;;FA;;;OW)(A;;FA;;;SY)(A;;FA;;;BA)";
+    let protect_flag = if protected {
+        PROTECTED_DACL_SECURITY_INFORMATION
+    } else {
+        UNPROTECTED_DACL_SECURITY_INFORMATION
+    };
 
-    let mut sddl: Vec<u16> = SDDL.encode_utf16().collect();
-    sddl.push(0);
+    let mut sddl_w: Vec<u16> = sddl.encode_utf16().collect();
+    sddl_w.push(0);
     let mut sd: *mut core::ffi::c_void = ptr::null_mut();
     let ok = unsafe {
         ConvertStringSecurityDescriptorToSecurityDescriptorW(
-            sddl.as_ptr(),
+            sddl_w.as_ptr(),
             SDDL_REVISION_1,
             &mut sd,
             ptr::null_mut(),
@@ -731,7 +817,7 @@ fn windows_restrict_owner_dacl(path: &std::path::Path) -> Result<(), String> {
         SetNamedSecurityInfoW(
             wpath.as_mut_ptr(),
             SE_FILE_OBJECT,
-            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+            DACL_SECURITY_INFORMATION | protect_flag,
             ptr::null_mut(),
             ptr::null_mut(),
             dacl,
@@ -744,6 +830,412 @@ fn windows_restrict_owner_dacl(path: &std::path::Path) -> Result<(), String> {
     if err != ERROR_SUCCESS {
         return Err(format!(
             "SetNamedSecurityInfoW identity DACL: {}",
+            std::io::Error::from_raw_os_error(err as i32)
+        ));
+    }
+    Ok(())
+}
+
+/// Slice CL: create identity tmp with the protected DACL on the create
+/// syscall so key bytes are never written under an inherited Users ACL.
+/// Leftover tmp is locked down and unlinked, then CREATE_NEW (one retry).
+#[cfg(windows)]
+fn windows_create_identity_tmp(
+    tmp: &std::path::Path,
+    retried: bool,
+) -> Result<std::fs::File, String> {
+    use std::os::windows::io::{FromRawHandle, RawHandle};
+    use std::ptr;
+
+    #[repr(C)]
+    struct SecurityAttributes {
+        n_length: u32,
+        lp_security_descriptor: *mut core::ffi::c_void,
+        b_inherit_handle: i32,
+    }
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn CreateFileW(
+            lp_file_name: *const u16,
+            dw_desired_access: u32,
+            dw_share_mode: u32,
+            lp_security_attributes: *const core::ffi::c_void,
+            dw_creation_disposition: u32,
+            dw_flags_and_attributes: u32,
+            h_template_file: *mut core::ffi::c_void,
+        ) -> *mut core::ffi::c_void;
+        fn LocalFree(h_mem: *mut core::ffi::c_void) -> *mut core::ffi::c_void;
+    }
+    #[link(name = "advapi32")]
+    extern "system" {
+        fn ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            string_security_descriptor: *const u16,
+            string_sd_revision: u32,
+            security_descriptor: *mut *mut core::ffi::c_void,
+            security_descriptor_size: *mut u32,
+        ) -> i32;
+    }
+
+    const GENERIC_WRITE: u32 = 0x4000_0000;
+    const CREATE_NEW: u32 = 1;
+    const FILE_ATTRIBUTE_NORMAL: u32 = 0x80;
+    const INVALID_HANDLE_VALUE: isize = -1;
+    const SDDL_REVISION_1: u32 = 1;
+    const ERROR_FILE_EXISTS: i32 = 80;
+    const ERROR_ALREADY_EXISTS: i32 = 183;
+
+    let mut sddl: Vec<u16> = IDENTITY_KEY_WINDOWS_SDDL.encode_utf16().collect();
+    sddl.push(0);
+    let mut sd: *mut core::ffi::c_void = ptr::null_mut();
+    let ok = unsafe {
+        ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            sddl.as_ptr(),
+            SDDL_REVISION_1,
+            &mut sd,
+            ptr::null_mut(),
+        )
+    };
+    if ok == 0 || sd.is_null() {
+        return Err(format!(
+            "ConvertStringSecurityDescriptor identity tmp: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    let sa = SecurityAttributes {
+        n_length: std::mem::size_of::<SecurityAttributes>() as u32,
+        lp_security_descriptor: sd,
+        b_inherit_handle: 0,
+    };
+    let w = match wide_path(tmp) {
+        Ok(w) => w,
+        Err(e) => {
+            unsafe {
+                LocalFree(sd);
+            }
+            return Err(e);
+        }
+    };
+    let handle = unsafe {
+        CreateFileW(
+            w.as_ptr(),
+            GENERIC_WRITE,
+            0,
+            &sa as *const SecurityAttributes as *const core::ffi::c_void,
+            CREATE_NEW,
+            FILE_ATTRIBUTE_NORMAL,
+            ptr::null_mut(),
+        )
+    };
+    unsafe {
+        LocalFree(sd);
+    }
+    if handle as isize == INVALID_HANDLE_VALUE {
+        let err = std::io::Error::last_os_error();
+        let exists = matches!(
+            err.raw_os_error(),
+            Some(ERROR_FILE_EXISTS) | Some(ERROR_ALREADY_EXISTS)
+        ) || (err.kind() == std::io::ErrorKind::AlreadyExists);
+        if exists && !retried {
+            windows_restrict_owner_dacl(tmp)?;
+            std::fs::remove_file(tmp).map_err(|e| format!("unlink leftover identity tmp: {e}"))?;
+            return windows_create_identity_tmp(tmp, true);
+        }
+        return Err(format!("CreateFileW identity tmp: {err}"));
+    }
+    Ok(unsafe { std::fs::File::from_raw_handle(handle as RawHandle) })
+}
+
+/// Slice CM: existing Windows identity must not grant Users/Everyone.
+/// Reads DACL as SDDL; never rewrites the file.
+#[cfg(windows)]
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+fn windows_identity_acl_ok(path: &std::path::Path) -> Result<(), String> {
+    use std::ptr;
+
+    #[link(name = "advapi32")]
+    extern "system" {
+        fn GetNamedSecurityInfoW(
+            p_object_name: *mut u16,
+            object_type: u32,
+            security_info: u32,
+            ppsid_owner: *mut *mut core::ffi::c_void,
+            ppsid_group: *mut *mut core::ffi::c_void,
+            pp_dacl: *mut *mut core::ffi::c_void,
+            pp_sacl: *mut *mut core::ffi::c_void,
+            pp_security_descriptor: *mut *mut core::ffi::c_void,
+        ) -> u32;
+        fn ConvertSecurityDescriptorToStringSecurityDescriptorW(
+            security_descriptor: *mut core::ffi::c_void,
+            requested_string_sd_revision: u32,
+            security_information: u32,
+            string_security_descriptor: *mut *mut u16,
+            string_security_descriptor_len: *mut u32,
+        ) -> i32;
+        fn ConvertSidToStringSidW(sid: *mut core::ffi::c_void, string_sid: *mut *mut u16) -> i32;
+        fn GetSecurityDescriptorDacl(
+            p_security_descriptor: *mut core::ffi::c_void,
+            lpb_dacl_present: *mut i32,
+            p_dacl: *mut *mut core::ffi::c_void,
+            lpb_dacl_defaulted: *mut i32,
+        ) -> i32;
+        fn GetSecurityDescriptorControl(
+            p_security_descriptor: *mut core::ffi::c_void,
+            p_control: *mut u16,
+            lpdw_revision: *mut u32,
+        ) -> i32;
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn LocalFree(h_mem: *mut core::ffi::c_void) -> *mut core::ffi::c_void;
+    }
+
+    const SE_FILE_OBJECT: u32 = 1;
+    const OWNER_SECURITY_INFORMATION: u32 = 0x1;
+    const DACL_SECURITY_INFORMATION: u32 = 0x4;
+    const SDDL_REVISION_1: u32 = 1;
+    const ERROR_SUCCESS: u32 = 0;
+
+    let mut wpath = wide_path(path)?;
+    let mut owner: *mut core::ffi::c_void = ptr::null_mut();
+    let mut sd: *mut core::ffi::c_void = ptr::null_mut();
+    let err = unsafe {
+        GetNamedSecurityInfoW(
+            wpath.as_mut_ptr(),
+            SE_FILE_OBJECT,
+            OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+            &mut owner,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            &mut sd,
+        )
+    };
+    if err != ERROR_SUCCESS || sd.is_null() {
+        return Err(format!(
+            "GetNamedSecurityInfoW identity DACL: {}",
+            std::io::Error::from_raw_os_error(err as i32)
+        ));
+    }
+    let mut owner_sid = String::new();
+    if !owner.is_null() {
+        let mut p: *mut u16 = ptr::null_mut();
+        if unsafe { ConvertSidToStringSidW(owner, &mut p) } != 0 && !p.is_null() {
+            owner_sid = utf16_ptr_to_string(p);
+            unsafe {
+                LocalFree(p as *mut core::ffi::c_void);
+            }
+        }
+    }
+    let mut dacl_present: i32 = 0;
+    let mut dacl_defaulted: i32 = 0;
+    let mut dacl: *mut core::ffi::c_void = ptr::null_mut();
+    let got =
+        unsafe { GetSecurityDescriptorDacl(sd, &mut dacl_present, &mut dacl, &mut dacl_defaulted) };
+    if got == 0 || dacl_present == 0 || dacl.is_null() {
+        unsafe {
+            LocalFree(sd);
+        }
+        return Err("key file DACL missing (NULL DACL grants everyone)".into());
+    }
+    const SE_DACL_PROTECTED: u16 = 0x1000;
+    let mut control: u16 = 0;
+    let mut revision: u32 = 0;
+    let ctl = unsafe { GetSecurityDescriptorControl(sd, &mut control, &mut revision) };
+    if ctl == 0 {
+        unsafe {
+            LocalFree(sd);
+        }
+        return Err(format!(
+            "GetSecurityDescriptorControl identity DACL: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    if control & SE_DACL_PROTECTED == 0 {
+        unsafe {
+            LocalFree(sd);
+        }
+        return Err("key file DACL is not protected (inheritance can grant Users)".into());
+    }
+    let mut sddl_ptr: *mut u16 = ptr::null_mut();
+    let ok = unsafe {
+        ConvertSecurityDescriptorToStringSecurityDescriptorW(
+            sd,
+            SDDL_REVISION_1,
+            DACL_SECURITY_INFORMATION,
+            &mut sddl_ptr,
+            ptr::null_mut(),
+        )
+    };
+    if ok == 0 || sddl_ptr.is_null() {
+        unsafe {
+            LocalFree(sd);
+        }
+        return Err(format!(
+            "ConvertSecurityDescriptorToString identity DACL: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    let sddl = utf16_ptr_to_string(sddl_ptr);
+    unsafe {
+        LocalFree(sddl_ptr as *mut core::ffi::c_void);
+        LocalFree(sd);
+    }
+    windows_identity_dacl_sddl_ok(&sddl, &owner_sid)
+}
+
+#[cfg(windows)]
+fn utf16_ptr_to_string(p: *const u16) -> String {
+    if p.is_null() {
+        return String::new();
+    }
+    let mut len = 0usize;
+    while unsafe { *p.add(len) } != 0 {
+        len += 1;
+    }
+    String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(p, len) })
+}
+
+/// Allow ACEs must be owner / SYSTEM / Administrators only (CI SDDL).
+/// Slice CO: callback/conditional allow (XA/ZA/XU) grant access — same walk.
+/// Unknown ACE types and unparseable ACEs refuse (fail-closed).
+/// Slice CP: DACL header must include protected flag `P` (CI invariant).
+#[cfg(windows)]
+fn windows_identity_dacl_sddl_ok(sddl: &str, owner_sid: &str) -> Result<(), String> {
+    if sddl.to_ascii_uppercase().contains("NO_ACCESS_CONTROL") {
+        return Err("key file NULL DACL (grants everyone)".into());
+    }
+    let flags = identity_dacl_header_flags(sddl)?;
+    if !flags.to_ascii_uppercase().contains('P') {
+        return Err("key file DACL is not protected (inheritance can grant Users)".into());
+    }
+    for ace in identity_dacl_ace_bodies(sddl)? {
+        let parts: Vec<&str> = ace.split(';').collect();
+        if parts.len() < 6 {
+            return Err(format!("key file DACL ACE unparseable: {ace}"));
+        }
+        let kind = parts[0].trim().to_ascii_uppercase();
+        if identity_ace_kind_is_audit_or_deny(&kind) {
+            continue;
+        }
+        if !identity_ace_kind_grants(&kind) {
+            return Err(format!("key file DACL unknown ACE type {kind}"));
+        }
+        let trustee = parts[5].trim();
+        if identity_trustee_allowed(trustee, owner_sid) {
+            continue;
+        }
+        return Err(format!(
+            "key file DACL allows {trustee} via {kind} (need owner+SYSTEM+Admin only)"
+        ));
+    }
+    Ok(())
+}
+
+/// Flags between `D:` and the first ACE `(`. First-create Convert emits `PAI`.
+#[cfg(windows)]
+fn identity_dacl_header_flags(sddl: &str) -> Result<&str, String> {
+    let u = sddl.to_ascii_uppercase();
+    let Some(idx) = u.find("D:") else {
+        return Err("key file SDDL missing DACL".into());
+    };
+    let rest = &sddl[idx + 2..];
+    let end = rest.find('(').unwrap_or(rest.len());
+    Ok(&rest[..end])
+}
+
+/// SDDL DACL ACEs are `(ace)` groups; callback conditions nest extra `(...)`.
+#[cfg(windows)]
+fn identity_dacl_ace_bodies(sddl: &str) -> Result<Vec<&str>, String> {
+    let bytes = sddl.as_bytes();
+    let mut aces = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'(' {
+            i += 1;
+            continue;
+        }
+        let start = i + 1;
+        let mut depth = 1usize;
+        i += 1;
+        while i < bytes.len() && depth > 0 {
+            match bytes[i] {
+                b'(' => depth += 1,
+                b')' => depth -= 1,
+                _ => {}
+            }
+            i += 1;
+        }
+        if depth != 0 {
+            return Err("key file DACL ACE parentheses unbalanced".into());
+        }
+        aces.push(&sddl[start..i - 1]);
+    }
+    Ok(aces)
+}
+
+#[cfg(windows)]
+fn identity_ace_kind_grants(kind: &str) -> bool {
+    matches!(kind, "A" | "OA" | "XA" | "ZA" | "XU")
+}
+
+#[cfg(windows)]
+fn identity_ace_kind_is_audit_or_deny(kind: &str) -> bool {
+    matches!(
+        kind,
+        "D" | "OD" | "XD" | "AU" | "AL" | "OU" | "OL" | "ML" | "RA" | "SP"
+    )
+}
+
+#[cfg(windows)]
+fn identity_trustee_allowed(trustee: &str, owner_sid: &str) -> bool {
+    let t = trustee.trim();
+    if t.eq_ignore_ascii_case("OW")
+        || t.eq_ignore_ascii_case("SY")
+        || t.eq_ignore_ascii_case("BA")
+        || t.eq_ignore_ascii_case("CO")
+        || t.eq_ignore_ascii_case("S-1-5-18")
+        || t.eq_ignore_ascii_case("S-1-5-32-544")
+    {
+        return true;
+    }
+    !owner_sid.is_empty() && t.eq_ignore_ascii_case(owner_sid)
+}
+
+/// Test/lab helper: write a NULL DACL (everyone). Not used on the spawn path.
+#[cfg(windows)]
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+fn windows_set_null_dacl(path: &std::path::Path) -> Result<(), String> {
+    #[link(name = "advapi32")]
+    extern "system" {
+        fn SetNamedSecurityInfoW(
+            p_object_name: *mut u16,
+            object_type: u32,
+            security_info: u32,
+            psid_owner: *mut core::ffi::c_void,
+            psid_group: *mut core::ffi::c_void,
+            p_dacl: *mut core::ffi::c_void,
+            p_sacl: *mut core::ffi::c_void,
+        ) -> u32;
+    }
+    const SE_FILE_OBJECT: u32 = 1;
+    const DACL_SECURITY_INFORMATION: u32 = 0x4;
+    const ERROR_SUCCESS: u32 = 0;
+    let mut wpath = wide_path(path)?;
+    let err = unsafe {
+        SetNamedSecurityInfoW(
+            wpath.as_mut_ptr(),
+            SE_FILE_OBJECT,
+            DACL_SECURITY_INFORMATION,
+            core::ptr::null_mut(),
+            core::ptr::null_mut(),
+            core::ptr::null_mut(),
+            core::ptr::null_mut(),
+        )
+    };
+    if err != ERROR_SUCCESS {
+        return Err(format!(
+            "SetNamedSecurityInfoW NULL DACL: {}",
             std::io::Error::from_raw_os_error(err as i32)
         ));
     }
@@ -787,10 +1279,13 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 mod enabled {
     use super::{
         atomic_write_file, atomic_write_file_exclusive, external_addrs_replace_strategy,
-        identity_create_exclusive_strategy, identity_key_mode_strategy, libp2p_available,
-        persist_mkdir_fsync_strategy, persist_parent_dir_fsync_strategy, ABS_GOSSIP_BLOCKS_TOPIC,
-        ABS_IDENTIFY_PROTOCOL_VERSION, ABS_KAD_PROTOCOL, ABS_RENDEZVOUS_NAMESPACE,
-        ABS_WIRE_PROTOCOL, DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_IDENTIFY_INTERVAL_MS,
+        identity_create_exclusive_strategy, identity_key_callback_ace_strategy,
+        identity_key_existing_acl_strategy, identity_key_mode_strategy,
+        identity_key_null_dacl_strategy, identity_key_protected_dacl_strategy,
+        identity_key_tmp_restrict_strategy, libp2p_available, persist_mkdir_fsync_strategy,
+        persist_parent_dir_fsync_strategy, ABS_GOSSIP_BLOCKS_TOPIC, ABS_IDENTIFY_PROTOCOL_VERSION,
+        ABS_KAD_PROTOCOL, ABS_RENDEZVOUS_NAMESPACE, ABS_WIRE_PROTOCOL,
+        DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_IDENTIFY_INTERVAL_MS,
         DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_MDNS_TTL_SECS,
         DEFAULT_PING_INTERVAL_SECS, DEFAULT_PING_MAX_FAILS, DEFAULT_PING_TIMEOUT_SECS,
         DEFAULT_RECONNECT_BASE_MS, DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS,
@@ -849,7 +1344,11 @@ mod enabled {
             }
             Ok(())
         }
-        #[cfg(not(unix))]
+        #[cfg(windows)]
+        {
+            super::windows_identity_acl_ok(path)
+        }
+        #[cfg(not(any(unix, windows)))]
         {
             let _ = path;
             Ok(())
@@ -859,6 +1358,7 @@ mod enabled {
     fn load_or_create_keypair(path: &Path) -> Result<Keypair, String> {
         if path.exists() {
             // Slice CH: existing world-readable key refuses spawn (no silent chmod).
+            // Slice CM: existing Windows Users/Everyone DACL refuses spawn (no silent rewrite).
             identity_key_mode_ok(path)?;
             let bytes = std::fs::read(path).map_err(|e| format!("read key: {e}"))?;
             Keypair::from_protobuf_encoding(&bytes).map_err(|e| format!("decode key: {e}"))
@@ -8368,7 +8868,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 88)?;
+                d.set_item("phase", 93)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -8398,6 +8898,31 @@ mod enabled {
                 d.set_item(
                     "identity_create_exclusive_strategy",
                     identity_create_exclusive_strategy(),
+                )?;
+                d.set_item("identity_key_tmp_restrict_at_create", true)?;
+                d.set_item(
+                    "identity_key_tmp_restrict_strategy",
+                    identity_key_tmp_restrict_strategy(),
+                )?;
+                d.set_item("identity_key_existing_acl_refuse", true)?;
+                d.set_item(
+                    "identity_key_existing_acl_strategy",
+                    identity_key_existing_acl_strategy(),
+                )?;
+                d.set_item("identity_key_null_dacl_refuse", cfg!(windows))?;
+                d.set_item(
+                    "identity_key_null_dacl_strategy",
+                    identity_key_null_dacl_strategy(),
+                )?;
+                d.set_item("identity_key_callback_ace_refuse", cfg!(windows))?;
+                d.set_item(
+                    "identity_key_callback_ace_strategy",
+                    identity_key_callback_ace_strategy(),
+                )?;
+                d.set_item("identity_key_protected_dacl_refuse", cfg!(windows))?;
+                d.set_item(
+                    "identity_key_protected_dacl_strategy",
+                    identity_key_protected_dacl_strategy(),
                 )?;
                 d.set_item("ping", true)?;
                 d.set_item("ping_fail_events", true)?;
@@ -9610,6 +10135,26 @@ mod enabled {
             "IDENTITY_CREATE_EXCLUSIVE_STRATEGY",
             identity_create_exclusive_strategy(),
         )?;
+        m.add(
+            "IDENTITY_KEY_TMP_RESTRICT_STRATEGY",
+            identity_key_tmp_restrict_strategy(),
+        )?;
+        m.add(
+            "IDENTITY_KEY_EXISTING_ACL_STRATEGY",
+            identity_key_existing_acl_strategy(),
+        )?;
+        m.add(
+            "IDENTITY_KEY_NULL_DACL_STRATEGY",
+            identity_key_null_dacl_strategy(),
+        )?;
+        m.add(
+            "IDENTITY_KEY_CALLBACK_ACE_STRATEGY",
+            identity_key_callback_ace_strategy(),
+        )?;
+        m.add(
+            "IDENTITY_KEY_PROTECTED_DACL_STRATEGY",
+            identity_key_protected_dacl_strategy(),
+        )?;
         Ok(())
     }
 }
@@ -9810,6 +10355,276 @@ mod tests {
         } else {
             assert_eq!(s, "posix_hardlink_exclusive");
         }
+    }
+
+    #[test]
+    fn identity_key_tmp_restrict_strategy_matches_os() {
+        let s = super::identity_key_tmp_restrict_strategy();
+        if cfg!(windows) {
+            assert_eq!(s, "windows_createfile_owner_dacl");
+        } else {
+            assert_eq!(s, "unix_0600_at_create");
+        }
+    }
+
+    #[test]
+    fn identity_key_existing_acl_strategy_matches_mode() {
+        assert_eq!(
+            super::identity_key_existing_acl_strategy(),
+            super::identity_key_mode_strategy()
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_identity_dacl_sddl_refuses_users_everyone() {
+        assert!(super::windows_identity_dacl_sddl_ok(
+            "D:P(A;;FA;;;OW)(A;;FA;;;SY)(A;;FA;;;BA)",
+            ""
+        )
+        .is_ok());
+        assert!(super::windows_identity_dacl_sddl_ok("D:P(A;;FA;;;OW)(A;;FR;;;BU)", "").is_err());
+        assert!(super::windows_identity_dacl_sddl_ok("D:P(A;;FA;;;OW)(A;;FR;;;WD)", "").is_err());
+        assert!(super::windows_identity_dacl_sddl_ok("D:P(A;;FA;;;OW)(A;;FR;;;AU)", "").is_err());
+        assert!(super::windows_identity_dacl_sddl_ok(
+            "D:P(A;;FA;;;S-1-5-21-1-2-3-1001)",
+            "S-1-5-21-1-2-3-1001"
+        )
+        .is_ok());
+        assert!(super::windows_identity_dacl_sddl_ok("D:P(A;;FA;;;OW)(D;;FA;;;WD)", "").is_ok());
+        assert!(super::windows_identity_dacl_sddl_ok(
+            "D:PAI(A;;FA;;;OW)(A;;FA;;;SY)(A;;FA;;;BA)",
+            ""
+        )
+        .is_ok());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_identity_acl_ok_refuses_inherited_then_accepts_restricted() {
+        let dir = std::env::temp_dir();
+        let dest = dir.join(format!(
+            "abs-id-acl-{}-{}.key",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(9)
+        ));
+        let _ = std::fs::remove_file(&dest);
+        std::fs::write(&dest, b"not-a-key").expect("seed");
+        let grant = std::process::Command::new("icacls")
+            .arg(&dest)
+            .arg("/grant")
+            .arg("*S-1-5-32-545:R")
+            .output()
+            .expect("icacls grant");
+        assert!(grant.status.success(), "icacls grant Users failed");
+        let err = super::windows_identity_acl_ok(&dest).expect_err("Users ACE must refuse");
+        assert!(
+            err.contains("DACL")
+                || err.contains("BU")
+                || err.contains("Users")
+                || err.contains("S-1-5-32-545"),
+            "acl refuse too vague: {err}"
+        );
+        super::windows_restrict_owner_dacl(&dest).expect("restrict");
+        super::windows_identity_acl_ok(&dest).expect("restricted DACL must load");
+        let _ = std::fs::remove_file(&dest);
+    }
+
+    #[test]
+    fn identity_key_null_dacl_strategy_matches_os() {
+        let s = super::identity_key_null_dacl_strategy();
+        if cfg!(windows) {
+            assert_eq!(s, "windows_null_dacl_refuse");
+        } else {
+            assert_eq!(s, "unix_mode_covers");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_identity_dacl_sddl_refuses_null_dacl_token() {
+        assert!(super::windows_identity_dacl_sddl_ok("D:NO_ACCESS_CONTROL", "").is_err());
+        assert!(super::windows_identity_dacl_sddl_ok("d:no_access_control", "").is_err());
+    }
+
+    #[test]
+    fn identity_key_callback_ace_strategy_matches_os() {
+        let s = super::identity_key_callback_ace_strategy();
+        if cfg!(windows) {
+            assert_eq!(s, "windows_callback_ace_refuse");
+        } else {
+            assert_eq!(s, "unix_mode_covers");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_identity_dacl_sddl_refuses_callback_and_unknown_ace() {
+        assert!(super::windows_identity_dacl_sddl_ok("D:P(A;;FA;;;OW)(XA;;FR;;;WD)", "").is_err());
+        assert!(
+            super::windows_identity_dacl_sddl_ok("D:P(A;;FA;;;OW)(ZA;;FA;;;WD;(TRUE))", "")
+                .is_err()
+        );
+        assert!(super::windows_identity_dacl_sddl_ok("D:P(A;;FA;;;OW)(XU;;FR;;;AU)", "").is_err());
+        assert!(super::windows_identity_dacl_sddl_ok("D:P(A;;FA;;;OW)(QQ;;FR;;;SY)", "").is_err());
+        assert!(super::windows_identity_dacl_sddl_ok("D:P(A;;FA;;;OW)(A;;FA)", "").is_err());
+        assert!(
+            super::windows_identity_dacl_sddl_ok("D:P(A;;FA;;;OW)(XA;;FR;;;WD;(TRUE))", "")
+                .is_err()
+        );
+        assert!(
+            super::windows_identity_dacl_sddl_ok("D:P(A;;FA;;;OW)(XA;;FA;;;OW;(TRUE))", "").is_ok()
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_identity_acl_ok_refuses_null_dacl() {
+        let dir = std::env::temp_dir();
+        let dest = dir.join(format!(
+            "abs-id-nulldacl-{}-{}.key",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(10)
+        ));
+        let _ = std::fs::remove_file(&dest);
+        std::fs::write(&dest, b"not-a-key").expect("seed");
+        super::windows_set_null_dacl(&dest).expect("set NULL DACL");
+        let err = super::windows_identity_acl_ok(&dest).expect_err("NULL DACL must refuse");
+        assert!(
+            err.to_ascii_uppercase().contains("NULL") || err.contains("DACL"),
+            "null DACL error too vague: {err}"
+        );
+        let _ = std::fs::remove_file(&dest);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_identity_acl_ok_refuses_callback_everyone() {
+        let dir = std::env::temp_dir();
+        let dest = dir.join(format!(
+            "abs-id-cbace-{}-{}.key",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(11)
+        ));
+        let _ = std::fs::remove_file(&dest);
+        std::fs::write(&dest, b"not-a-key").expect("seed");
+        super::windows_set_dacl_from_sddl(
+            &dest,
+            "D:P(A;;FA;;;OW)(A;;FA;;;SY)(A;;FA;;;BA)(XA;;FR;;;WD;(TRUE))",
+            true,
+        )
+        .expect("set callback Everyone ACE");
+        let err = super::windows_identity_acl_ok(&dest).expect_err("callback Everyone must refuse");
+        let low = err.to_ascii_lowercase();
+        assert!(
+            low.contains("wd")
+                || low.contains("xa")
+                || low.contains("callback")
+                || low.contains("dacl")
+                || low.contains("everyone"),
+            "callback ACE error too vague: {err}"
+        );
+        let _ = std::fs::remove_file(&dest);
+    }
+
+    #[test]
+    fn identity_key_protected_dacl_strategy_matches_os() {
+        let s = super::identity_key_protected_dacl_strategy();
+        if cfg!(windows) {
+            assert_eq!(s, "windows_protected_dacl_refuse");
+        } else {
+            assert_eq!(s, "unix_mode_covers");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_identity_dacl_sddl_refuses_unprotected() {
+        assert!(
+            super::windows_identity_dacl_sddl_ok("D:(A;;FA;;;OW)(A;;FA;;;SY)(A;;FA;;;BA)", "")
+                .is_err()
+        );
+        assert!(super::windows_identity_dacl_sddl_ok(
+            "D:AI(A;;FA;;;OW)(A;;FA;;;SY)(A;;FA;;;BA)",
+            ""
+        )
+        .is_err());
+        assert!(super::windows_identity_dacl_sddl_ok(
+            "D:PAI(A;;FA;;;OW)(A;;FA;;;SY)(A;;FA;;;BA)",
+            ""
+        )
+        .is_ok());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_identity_acl_ok_refuses_unprotected_owner_only() {
+        let dir = std::env::temp_dir();
+        let dest = dir.join(format!(
+            "abs-id-unprot-{}-{}.key",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(12)
+        ));
+        let _ = std::fs::remove_file(&dest);
+        std::fs::write(&dest, b"not-a-key").expect("seed");
+        super::windows_set_dacl_from_sddl(&dest, "D:(A;;FA;;;OW)(A;;FA;;;SY)(A;;FA;;;BA)", false)
+            .expect("set unprotected owner-only DACL");
+        let err = super::windows_identity_acl_ok(&dest).expect_err("unprotected DACL must refuse");
+        let low = err.to_ascii_lowercase();
+        assert!(
+            low.contains("protect") || low.contains("inherit") || low.contains("dacl"),
+            "unprotected DACL error too vague: {err}"
+        );
+        let _ = std::fs::remove_file(&dest);
+    }
+
+    #[test]
+    fn create_persist_tmp_identity_overwrites_leftover_without_leaking_stale() {
+        use std::io::Write;
+        let dir = std::env::temp_dir();
+        let dest = dir.join(format!(
+            "abs-id-tmp-left-{}-{}.key",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(8)
+        ));
+        let tmp = super::external_addrs_tmp_path(&dest);
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&tmp);
+        std::fs::write(&tmp, b"stale-key-material").expect("seed leftover tmp");
+        let mut f = super::create_persist_tmp(&tmp, Some(0o600)).expect("create restricted tmp");
+        f.write_all(b"new-secret").expect("write");
+        drop(f);
+        assert_eq!(std::fs::read(&tmp).expect("read tmp"), b"new-secret");
+        #[cfg(windows)]
+        {
+            let out = std::process::Command::new("icacls")
+                .arg(&tmp)
+                .output()
+                .expect("icacls");
+            let text = String::from_utf8_lossy(&out.stdout).to_lowercase();
+            assert!(out.status.success(), "icacls failed");
+            assert!(
+                !text.contains("everyone:") && !text.contains("builtin\\users:"),
+                "identity tmp born with inherited Users/Everyone ACL"
+            );
+        }
+        let _ = std::fs::remove_file(&tmp);
+        let _ = std::fs::remove_file(&dest);
     }
 
     #[test]

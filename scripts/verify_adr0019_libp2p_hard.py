@@ -365,6 +365,11 @@ LABS = [
     ("CI", "scripts/libp2p_rust_identity_key_windows_dacl_lab.py"),
     ("CJ", "scripts/libp2p_rust_persist_mkdir_fsync_lab.py"),
     ("CK", "scripts/libp2p_rust_identity_create_exclusive_lab.py"),
+    ("CL", "scripts/libp2p_rust_identity_tmp_dacl_at_create_lab.py"),
+    ("CM", "scripts/libp2p_rust_identity_existing_acl_refuse_lab.py"),
+    ("CN", "scripts/libp2p_rust_identity_null_dacl_refuse_lab.py"),
+    ("CO", "scripts/libp2p_rust_identity_callback_ace_refuse_lab.py"),
+    ("CP", "scripts/libp2p_rust_identity_protected_dacl_refuse_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -625,6 +630,42 @@ def check_native_deep() -> tuple[bool, str]:
             return False, (
                 f"identity exclusive strategy {got_excl!r} != {want_excl} "
                 "(stale wheel — --rebuild)"
+            )
+        if not cap.get("identity_key_tmp_restrict_at_create"):
+            return False, (
+                "capability identity_key_tmp_restrict_at_create missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        want_tmp = (
+            "windows_createfile_owner_dacl"
+            if os.name == "nt"
+            else "unix_0600_at_create"
+        )
+        got_tmp = cap.get("identity_key_tmp_restrict_strategy")
+        if got_tmp != want_tmp:
+            return False, (
+                f"identity tmp restrict strategy {got_tmp!r} != {want_tmp} "
+                "(stale wheel — --rebuild)"
+            )
+        if not cap.get("identity_key_existing_acl_refuse"):
+            return False, (
+                "capability identity_key_existing_acl_refuse missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if os.name == "nt" and not cap.get("identity_key_null_dacl_refuse"):
+            return False, (
+                "capability identity_key_null_dacl_refuse missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if os.name == "nt" and not cap.get("identity_key_callback_ace_refuse"):
+            return False, (
+                "capability identity_key_callback_ace_refuse missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if os.name == "nt" and not cap.get("identity_key_protected_dacl_refuse"):
+            return False, (
+                "capability identity_key_protected_dacl_refuse missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
             )
         # Slice I API must exist
         a.block_peer(b.peer_id)
