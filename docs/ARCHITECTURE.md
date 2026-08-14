@@ -49,7 +49,7 @@ flowchart TB
     CA["catchup_adapters"]
     FA["fork_adapters"]
     NIO["abs_native P2P IO · short poll"]
-    LP["rust-libp2p · ADR 0019 A-CG · FEATURE_LIBP2P opt-in"]
+    LP["rust-libp2p · ADR 0019 A-CH · FEATURE_LIBP2P opt-in"]
   end
 
   subgraph domain ["Domain — ports, no sockets"]
@@ -176,7 +176,7 @@ flowchart LR
 | [0016](adr/0016-feature-sprouts-profiles.md) | Sprouts | Profiles instead of kitchen-sink FEATURE_* |
 | [0017](adr/0017-long-range-research.md) | Long-Range | Lab / weak-subjectivity — **not** prod |
 | [0018](adr/0018-libp2p-transport.md) | Dual-stack stubs | Python labs; TCP+TLS remains default |
-| [0019](adr/0019-rust-libp2p-industrial.md) | rust-libp2p | Slices **A–CG** (phase 84) behind Cargo `libp2p`; advertised unique cap 20 |
+| [0019](adr/0019-rust-libp2p-industrial.md) | rust-libp2p | Slices **A–CH** (phase 85) behind Cargo `libp2p`; advertised unique cap 20 |
 
 ---
 

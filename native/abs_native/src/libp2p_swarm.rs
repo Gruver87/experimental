@@ -80,6 +80,7 @@
 //! Slice CE: bootstrap + peerstore JSON use the same atomic replace (no truncate-in-place).
 //! Slice CF: identity keystore first-create uses atomic replace (no truncate-in-place).
 //! Slice CG: fsync parent directory after replace (POSIX dirent durability).
+//! Slice CH: identity keystore Unix mode 0o600; world-readable existing key refuses spawn.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -281,6 +282,22 @@ pub fn persist_parent_dir_fsync_strategy() -> &'static str {
     }
 }
 
+/// Slice CH: identity private-key file mode.
+///
+/// Unix first-create uses `0o600`. Existing keys with group/other bits refuse
+/// spawn (OpenSSH-style; no silent chmod). Windows inherits the parent ACL —
+/// not POSIX `0600`.
+pub const IDENTITY_KEY_UNIX_MODE: u32 = 0o600;
+
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn identity_key_mode_strategy() -> &'static str {
+    if cfg!(unix) {
+        "unix_0600"
+    } else {
+        "windows_inherit_acl"
+    }
+}
+
 #[cfg(windows)]
 fn wide_path(path: &std::path::Path) -> Result<Vec<u16>, String> {
     use std::os::windows::ffi::OsStrExt;
@@ -420,6 +437,18 @@ fn windows_fsync_dir(dir: &std::path::Path) -> Result<(), String> {
 /// be the new file; callers that roll back memory stay conservative).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub fn atomic_write_file(path: &std::path::Path, body: &[u8]) -> Result<(), String> {
+    atomic_write_file_with_mode(path, body, None)
+}
+
+/// Like [`atomic_write_file`], with an optional Unix file mode applied to tmp
+/// before replace (Slice CH). `None` keeps `File::create` defaults. Windows
+/// ignores `unix_mode` (ACL inherited from the parent directory).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn atomic_write_file_with_mode(
+    path: &std::path::Path,
+    body: &[u8],
+    unix_mode: Option<u32>,
+) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent).map_err(|e| format!("create persist dir: {e}"))?;
@@ -427,11 +456,15 @@ pub fn atomic_write_file(path: &std::path::Path, body: &[u8]) -> Result<(), Stri
     }
     let tmp = external_addrs_tmp_path(path);
     let write_tmp = (|| -> Result<(), String> {
-        let mut f = std::fs::File::create(&tmp).map_err(|e| format!("create persist tmp: {e}"))?;
+        let mut f = create_persist_tmp(&tmp, unix_mode)?;
         use std::io::Write;
         f.write_all(body)
             .map_err(|e| format!("write persist tmp: {e}"))?;
         f.sync_all().map_err(|e| format!("sync persist tmp: {e}"))?;
+        drop(f);
+        if unix_mode.is_some() {
+            apply_unix_mode(&tmp, unix_mode)?;
+        }
         Ok(())
     })();
     if let Err(e) = write_tmp {
@@ -443,6 +476,44 @@ pub fn atomic_write_file(path: &std::path::Path, body: &[u8]) -> Result<(), Stri
         return Err(e);
     }
     fsync_parent_dir(path)
+}
+
+fn create_persist_tmp(
+    tmp: &std::path::Path,
+    unix_mode: Option<u32>,
+) -> Result<std::fs::File, String> {
+    #[cfg(unix)]
+    {
+        if let Some(mode) = unix_mode {
+            use std::os::unix::fs::OpenOptionsExt;
+            return std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .mode(mode)
+                .open(tmp)
+                .map_err(|e| format!("create persist tmp: {e}"));
+        }
+    }
+    let _ = unix_mode;
+    std::fs::File::create(tmp).map_err(|e| format!("create persist tmp: {e}"))
+}
+
+fn apply_unix_mode(path: &std::path::Path, unix_mode: Option<u32>) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        if let Some(mode) = unix_mode {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+                .map_err(|e| format!("chmod persist tmp: {e}"))?;
+        }
+        return Ok(());
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (path, unix_mode);
+        Ok(())
+    }
 }
 
 /// Slice BQ/CD: advertised-externals JSON via [`atomic_write_file`].
@@ -481,15 +552,15 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(feature = "libp2p")]
 mod enabled {
     use super::{
-        atomic_write_file, external_addrs_replace_strategy, libp2p_available,
-        persist_parent_dir_fsync_strategy, ABS_GOSSIP_BLOCKS_TOPIC, ABS_IDENTIFY_PROTOCOL_VERSION,
-        ABS_KAD_PROTOCOL, ABS_RENDEZVOUS_NAMESPACE, ABS_WIRE_PROTOCOL,
-        DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_IDENTIFY_INTERVAL_MS,
-        DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_MDNS_TTL_SECS,
-        DEFAULT_PING_INTERVAL_SECS, DEFAULT_PING_MAX_FAILS, DEFAULT_PING_TIMEOUT_SECS,
-        DEFAULT_RECONNECT_BASE_MS, DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS,
+        atomic_write_file, atomic_write_file_with_mode, external_addrs_replace_strategy,
+        identity_key_mode_strategy, libp2p_available, persist_parent_dir_fsync_strategy,
+        ABS_GOSSIP_BLOCKS_TOPIC, ABS_IDENTIFY_PROTOCOL_VERSION, ABS_KAD_PROTOCOL,
+        ABS_RENDEZVOUS_NAMESPACE, ABS_WIRE_PROTOCOL, DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS,
+        DEFAULT_IDENTIFY_INTERVAL_MS, DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS, DEFAULT_MAX_DIALS,
+        DEFAULT_MDNS_TTL_SECS, DEFAULT_PING_INTERVAL_SECS, DEFAULT_PING_MAX_FAILS,
+        DEFAULT_PING_TIMEOUT_SECS, DEFAULT_RECONNECT_BASE_MS, DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS,
         DEFAULT_RECONNECT_MAX_ATTEMPTS, DEFAULT_RECONNECT_MAX_MS, DEFAULT_SCORE_GRAYLIST_THRESHOLD,
-        DEFAULT_WIRE_TIMEOUT_SECS, LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX,
+        DEFAULT_WIRE_TIMEOUT_SECS, IDENTITY_KEY_UNIX_MODE, LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX,
         MAX_ADVERTISED_EXTERNAL_ADDRS, MAX_WIRE_BYTES,
     };
     use async_trait::async_trait;
@@ -527,8 +598,33 @@ mod enabled {
     use std::time::Duration;
     use tokio::sync::{mpsc, oneshot};
 
+    fn identity_key_mode_ok(path: &Path) -> Result<(), String> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(path)
+                .map_err(|e| format!("stat key: {e}"))?
+                .permissions()
+                .mode();
+            if mode & 0o077 != 0 {
+                return Err(format!(
+                    "key file mode {:o} allows group/other (need 0600)",
+                    mode & 0o777
+                ));
+            }
+            Ok(())
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = path;
+            Ok(())
+        }
+    }
+
     fn load_or_create_keypair(path: &Path) -> Result<Keypair, String> {
         if path.exists() {
+            // Slice CH: existing world-readable key refuses spawn (no silent chmod).
+            identity_key_mode_ok(path)?;
             let bytes = std::fs::read(path).map_err(|e| format!("read key: {e}"))?;
             Keypair::from_protobuf_encoding(&bytes).map_err(|e| format!("decode key: {e}"))
         } else {
@@ -538,7 +634,9 @@ mod enabled {
                 .map_err(|e| format!("encode key: {e}"))?;
             // Slice CF: dest is created via tmp+fsync+replace. Existing files are
             // never overwritten (corrupt key must fail closed, not mint a new PeerId).
-            atomic_write_file(path, &enc).map_err(|e| format!("write key: {e}"))?;
+            // Slice CH: Unix first-create is 0o600 (tmp mode before replace).
+            atomic_write_file_with_mode(path, &enc, Some(IDENTITY_KEY_UNIX_MODE))
+                .map_err(|e| format!("write key: {e}"))?;
             Ok(kp)
         }
     }
@@ -8039,7 +8137,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 84)?;
+                d.set_item("phase", 85)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -8057,6 +8155,8 @@ mod enabled {
                     "persist_parent_dir_fsync_strategy",
                     persist_parent_dir_fsync_strategy(),
                 )?;
+                d.set_item("identity_key_mode_restrict", true)?;
+                d.set_item("identity_key_mode_strategy", identity_key_mode_strategy())?;
                 d.set_item("ping", true)?;
                 d.set_item("ping_fail_events", true)?;
                 d.set_item(
@@ -9258,6 +9358,8 @@ mod enabled {
             "PERSIST_PARENT_DIR_FSYNC_STRATEGY",
             persist_parent_dir_fsync_strategy(),
         )?;
+        m.add("IDENTITY_KEY_UNIX_MODE", IDENTITY_KEY_UNIX_MODE)?;
+        m.add("IDENTITY_KEY_MODE_STRATEGY", identity_key_mode_strategy())?;
         Ok(())
     }
 }
@@ -9432,6 +9534,17 @@ mod tests {
     }
 
     #[test]
+    fn identity_key_mode_strategy_matches_os() {
+        let s = super::identity_key_mode_strategy();
+        if cfg!(unix) {
+            assert_eq!(s, "unix_0600");
+        } else {
+            assert_eq!(s, "windows_inherit_acl");
+        }
+        assert_eq!(super::IDENTITY_KEY_UNIX_MODE, 0o600);
+    }
+
+    #[test]
     fn replace_file_overwrites_existing_dest_without_unlink_fallback() {
         let dir = std::env::temp_dir();
         let dest = dir.join(format!(
@@ -9476,6 +9589,29 @@ mod tests {
         assert_eq!(std::fs::read(&dest).expect("read2"), b"{\"v\":2}");
         assert!(!tmp.exists(), "tmp leftover");
         super::fsync_parent_dir(&dest).expect("parent dir fsync");
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn atomic_write_file_with_mode_sets_0600() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir();
+        let dest = dir.join(format!(
+            "abs-key-mode-{}-{}.key",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(4)
+        ));
+        let tmp = super::external_addrs_tmp_path(&dest);
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&tmp);
+        super::atomic_write_file_with_mode(&dest, b"secret-key", Some(0o600)).expect("write");
+        let mode = std::fs::metadata(&dest).expect("stat").permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
         let _ = std::fs::remove_file(&dest);
         let _ = std::fs::remove_file(&tmp);
     }

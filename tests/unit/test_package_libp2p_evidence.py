@@ -44,5 +44,6 @@ def test_evidence_labs_are_hard_verify_list() -> None:
     assert "scripts/libp2p_rust_bootstrap_peerstore_atomic_persist_lab.py" in pack.LABS
     assert "scripts/libp2p_rust_identity_atomic_persist_lab.py" in pack.LABS
     assert "scripts/libp2p_rust_persist_parent_dir_fsync_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_identity_key_mode_lab.py" in pack.LABS
     for rel in pack.LABS:
         assert (ROOT / rel).is_file(), rel

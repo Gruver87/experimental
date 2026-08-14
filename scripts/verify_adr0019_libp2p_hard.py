@@ -361,6 +361,7 @@ LABS = [
     ("CE", "scripts/libp2p_rust_bootstrap_peerstore_atomic_persist_lab.py"),
     ("CF", "scripts/libp2p_rust_identity_atomic_persist_lab.py"),
     ("CG", "scripts/libp2p_rust_persist_parent_dir_fsync_lab.py"),
+    ("CH", "scripts/libp2p_rust_identity_key_mode_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -564,6 +565,11 @@ def check_native_deep() -> tuple[bool, str]:
                 "capability persist_parent_dir_fsync missing "
                 "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
             )
+        if not cap.get("identity_key_mode_restrict"):
+            return False, (
+                "capability identity_key_mode_restrict missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
         want_strategy = (
             "windows_movefileex_replace" if os.name == "nt" else "posix_rename"
         )
@@ -582,6 +588,13 @@ def check_native_deep() -> tuple[bool, str]:
         if got_dir != want_dir:
             return False, (
                 f"parent-dir fsync strategy {got_dir!r} != {want_dir} "
+                "(stale wheel — --rebuild)"
+            )
+        want_key = "unix_0600" if os.name != "nt" else "windows_inherit_acl"
+        got_key = cap.get("identity_key_mode_strategy")
+        if got_key != want_key:
+            return False, (
+                f"identity key mode strategy {got_key!r} != {want_key} "
                 "(stale wheel — --rebuild)"
             )
         # Slice I API must exist

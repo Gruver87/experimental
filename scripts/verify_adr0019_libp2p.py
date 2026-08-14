@@ -129,6 +129,7 @@ LABS = [
     ("CE", "scripts/libp2p_rust_bootstrap_peerstore_atomic_persist_lab.py"),
     ("CF", "scripts/libp2p_rust_identity_atomic_persist_lab.py"),
     ("CG", "scripts/libp2p_rust_persist_parent_dir_fsync_lab.py"),
+    ("CH", "scripts/libp2p_rust_identity_key_mode_lab.py"),
 ]
 
 

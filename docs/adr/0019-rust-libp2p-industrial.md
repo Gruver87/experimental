@@ -123,6 +123,7 @@ feature `libp2p`), exposed to Python through the existing
 | Bootstrap/peerstore atomic persist | Slice CE: bootstrap + learned peerstore JSON use tmp+fsync+replace (no `std::fs::write` truncate); learn-path persist fail rolls back memory; `libp2p_rust_bootstrap_peerstore_atomic_persist_lab.py` |
 | Identity keystore atomic create | Slice CF: first-create Ed25519 protobuf key via tmp+fsync+replace; existing/corrupt key refuses spawn (no silent re-mint); `libp2p_rust_identity_atomic_persist_lab.py` |
 | Persist parent-dir fsync | Slice CG: fsync parent after replace (POSIX dir fd / Windows `FlushFileBuffers` on directory handle); still not POSIX inode-atomic on NTFS; `libp2p_rust_persist_parent_dir_fsync_lab.py` |
+| Identity keystore mode | Slice CH: Unix first-create `0o600`; existing group/other bits refuse spawn (no silent chmod); Windows inherits parent ACL (not POSIX 0600); `libp2p_rust_identity_key_mode_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -215,6 +216,7 @@ feature `libp2p`), exposed to Python through the existing
 | CE | Bootstrap + peerstore JSON atomic replace (no truncate-in-place); persist fail rolls back learned addrs; `libp2p_rust_bootstrap_peerstore_atomic_persist_lab.py` |
 | CF | Identity keystore first-create via atomic replace; corrupt existing key refuses (no re-mint); `libp2p_rust_identity_atomic_persist_lab.py` |
 | CG | Parent-dir fsync after persist replace (POSIX dirent durability); still not POSIX inode-atomic on NTFS; `libp2p_rust_persist_parent_dir_fsync_lab.py` |
+| CH | Identity keystore Unix 0o600; world-readable existing key refuses spawn; Windows inherits ACL; `libp2p_rust_identity_key_mode_lab.py` |
 
 ## Honesty
 
@@ -294,7 +296,8 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_external_addrs_replace_no_unlink_lab.py`,
   `libp2p_rust_bootstrap_peerstore_atomic_persist_lab.py`,
   `libp2p_rust_identity_atomic_persist_lab.py`,
-  `libp2p_rust_persist_parent_dir_fsync_lab.py`;
+  `libp2p_rust_persist_parent_dir_fsync_lab.py`,
+  `libp2p_rust_identity_key_mode_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -414,6 +417,11 @@ feature `libp2p`), exposed to Python through the existing
     `CreateFileW(FILE_FLAG_BACKUP_SEMANTICS)` + `FlushFileBuffers`. Capability
     `persist_parent_dir_fsync` / `persist_parent_dir_fsync_strategy`. NTFS
     replace remains **not** POSIX inode-atomic.
+  Slice CH: identity keystore first-create uses Unix mode `0o600` on tmp
+    before replace. An existing key with group/other bits **refuses** spawn
+    (no silent chmod). Windows inherits the parent directory ACL — **not**
+    POSIX `0600`. Capability `identity_key_mode_restrict` /
+    `identity_key_mode_strategy`.
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.
