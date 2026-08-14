@@ -16,6 +16,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import time
@@ -62,8 +63,8 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="abs-libp2p-dirfsync-") as td:
         store = Path(td) / "external_addrs.json"
         key_path = Path(td) / "node.key"
-        tmp = Path(str(store) + ".tmp")
-        key_tmp = Path(str(key_path) + ".tmp")
+        tmp = Path(str(store) + f".{os.getpid()}.tmp")
+        key_tmp = Path(str(key_path) + f".{os.getpid()}.tmp")
         node = abs_native.libp2p_node_new(
             enable_mdns=False,
             enable_reconnect=False,

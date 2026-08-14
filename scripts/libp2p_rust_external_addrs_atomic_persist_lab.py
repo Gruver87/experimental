@@ -15,6 +15,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import time
@@ -50,7 +51,7 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="abs-libp2p-extatomic-") as td:
         store = Path(td) / "external_addrs.json"
-        tmp = Path(str(store) + ".tmp")
+        tmp = Path(str(store) + f".{os.getpid()}.tmp")
         node = abs_native.libp2p_node_new(
             enable_mdns=False,
             enable_reconnect=False,

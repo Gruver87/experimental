@@ -4,7 +4,7 @@
 ``File::create`` first-create was typically 0o644 (umask 022): group/other
 could read the Ed25519 private key. Slice CH writes the key tmp with Unix
 mode 0o600 before replace. An *existing* key with group/other bits refuses
-spawn (no silent chmod). Windows inherits the parent ACL — not POSIX 0600.
+spawn (no silent chmod). Windows DACL is Slice CI (not POSIX 0600).
 Capability ``identity_key_mode_restrict`` / phase >= 85.
 
 Requires abs_native built with Cargo feature ``libp2p``.
@@ -37,7 +37,7 @@ def main() -> int:
         print("FAIL: abs_native.libp2p_available() is False")
         return 1
 
-    want = "unix_0600" if os.name == "posix" else "windows_inherit_acl"
+    want = "unix_0600" if os.name == "posix" else "windows_owner_only_dacl"
     mod_strategy = str(getattr(abs_native, "IDENTITY_KEY_MODE_STRATEGY", ""))
     if mod_strategy != want:
         print(f"FAIL: module strategy {mod_strategy!r} != {want}")
@@ -48,7 +48,7 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="abs-libp2p-keymode-") as td:
         key_path = Path(td) / "node.key"
-        tmp = Path(str(key_path) + ".tmp")
+        tmp = Path(str(key_path) + f".{os.getpid()}.tmp")
         a = abs_native.libp2p_node_new(
             enable_mdns=False,
             enable_reconnect=False,
@@ -112,12 +112,12 @@ def main() -> int:
                 b.close()
             print(f"OK: identity key mode 0600 peer_id={pid}")
         else:
-            print(f"OK: identity key mode windows_inherit_acl peer_id={pid}")
+            print(f"OK: identity key mode windows_owner_only_dacl peer_id={pid}")
 
     print("OK: libp2p_rust_identity_key_mode_lab PASS")
     print(
         "  honesty: FEATURE_LIBP2P lab; Unix 0600 + refuse world-readable; "
-        "Windows inherits parent ACL (not POSIX 0600); TCP+TLS remains default mesh"
+        "Windows DACL is Slice CI (this lab checks strategy); TCP+TLS remains default mesh"
     )
     return 0
 

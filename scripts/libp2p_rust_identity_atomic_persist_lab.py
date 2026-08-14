@@ -15,6 +15,7 @@ Usage:
 
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -37,7 +38,7 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="abs-libp2p-id-atomic-") as td:
         key_path = Path(td) / "node.key"
-        tmp = Path(str(key_path) + ".tmp")
+        tmp = Path(str(key_path) + f".{os.getpid()}.tmp")
         a = abs_native.libp2p_node_new(
             enable_mdns=False,
             enable_reconnect=False,

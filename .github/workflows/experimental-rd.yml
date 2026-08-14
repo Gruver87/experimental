@@ -262,6 +262,12 @@ jobs:
         run: python scripts/libp2p_rust_persist_parent_dir_fsync_lab.py
       - name: rust-libp2p identity key mode lab (Slice CH)
         run: python scripts/libp2p_rust_identity_key_mode_lab.py
+      - name: rust-libp2p identity key windows DACL lab (Slice CI)
+        run: python scripts/libp2p_rust_identity_key_windows_dacl_lab.py
+      - name: rust-libp2p persist mkdir fsync lab (Slice CJ)
+        run: python scripts/libp2p_rust_persist_mkdir_fsync_lab.py
+      - name: rust-libp2p identity create exclusive lab (Slice CK)
+        run: python scripts/libp2p_rust_identity_create_exclusive_lab.py
       - name: adapter + wire-bridge units
         run: pytest -q tests/unit/test_libp2p_adapter.py tests/unit/test_libp2p_wire_bridge.py tests/unit/test_libp2p_status_metrics.py tests/unit/test_cargo_test_abs_native.py tests/unit/test_package_libp2p_evidence.py
       - name: package ADR 0019 evidence pack

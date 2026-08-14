@@ -81,6 +81,9 @@
 //! Slice CF: identity keystore first-create uses atomic replace (no truncate-in-place).
 //! Slice CG: fsync parent directory after replace (POSIX dirent durability).
 //! Slice CH: identity keystore Unix mode 0o600; world-readable existing key refuses spawn.
+//! Slice CI: identity keystore Windows protected DACL (no Users/Everyone).
+//! Slice CJ: fsync newly created persist dirs (mkdir dirent durability).
+//! Slice CK: identity first-create refuses dest clobber (exclusive replace).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -237,13 +240,20 @@ pub fn encode_external_addrs_json(addrs: &[String]) -> Result<String, String> {
     serde_json::to_string_pretty(&doc).map_err(|e| format!("external addrs encode: {e}"))
 }
 
-/// Slice BQ: sibling tmp next to dest (`foo.json` → `foo.json.tmp`).
+/// Slice BQ/CK: sibling tmp next to dest.
+///
+/// `foo.json` → `foo.json.{pid}.tmp` so two processes do not share the
+/// staging file (a shared `.tmp` can land process A's key bytes from
+/// process B's overwrite, then exclusive dest replace still "succeeds").
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub fn external_addrs_tmp_path(path: &std::path::Path) -> std::path::PathBuf {
+    let pid = std::process::id().to_string();
     let fname = path.file_name().map_or_else(
-        || std::ffi::OsString::from("external_addrs.json.tmp"),
+        || std::ffi::OsString::from(format!("external_addrs.{pid}.tmp")),
         |n| {
             let mut s = n.to_os_string();
+            s.push(".");
+            s.push(&pid);
             s.push(".tmp");
             s
         },
@@ -282,11 +292,18 @@ pub fn persist_parent_dir_fsync_strategy() -> &'static str {
     }
 }
 
-/// Slice CH: identity private-key file mode.
+/// Slice CJ: same dir-fsync primitive as CG, applied to mkdir ancestors.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn persist_mkdir_fsync_strategy() -> &'static str {
+    persist_parent_dir_fsync_strategy()
+}
+
+/// Slice CH/CI: identity private-key file mode.
 ///
 /// Unix first-create uses `0o600`. Existing keys with group/other bits refuse
-/// spawn (OpenSSH-style; no silent chmod). Windows inherits the parent ACL —
-/// not POSIX `0600`.
+/// spawn (OpenSSH-style; no silent chmod). Windows first-create sets a
+/// protected DACL (owner + SYSTEM + Administrators; no Users/Everyone) —
+/// not POSIX `0600`. Existing Windows ACLs are not silently rewritten.
 pub const IDENTITY_KEY_UNIX_MODE: u32 = 0o600;
 
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
@@ -294,7 +311,22 @@ pub fn identity_key_mode_strategy() -> &'static str {
     if cfg!(unix) {
         "unix_0600"
     } else {
-        "windows_inherit_acl"
+        "windows_owner_only_dacl"
+    }
+}
+
+/// Slice CK: how identity first-create lands dest without clobber.
+///
+/// JSON persist still uses replace (CD). Identity first-create must not
+/// overwrite a dest that appeared after `exists()` (two processes both saw
+/// missing). Windows: `MoveFileExW` **without** `MOVEFILE_REPLACE_EXISTING`.
+/// POSIX: `link(tmp, dest)` then unlink tmp — `rename` would replace dest.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn identity_create_exclusive_strategy() -> &'static str {
+    if cfg!(windows) {
+        "windows_movefileex_noreplace"
+    } else {
+        "posix_hardlink_exclusive"
     }
 }
 
@@ -311,19 +343,43 @@ fn wide_path(path: &std::path::Path) -> Result<Vec<u16>, String> {
 
 #[cfg(windows)]
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
-fn replace_file(tmp: &std::path::Path, dest: &std::path::Path) -> Result<(), String> {
-    windows_replace_file(tmp, dest)
+fn replace_file(
+    tmp: &std::path::Path,
+    dest: &std::path::Path,
+    exclusive: bool,
+) -> Result<(), String> {
+    windows_replace_file(tmp, dest, exclusive)
 }
 
 #[cfg(not(windows))]
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
-fn replace_file(tmp: &std::path::Path, dest: &std::path::Path) -> Result<(), String> {
-    std::fs::rename(tmp, dest).map_err(|e| format!("rename tmp: {e}"))
+fn replace_file(
+    tmp: &std::path::Path,
+    dest: &std::path::Path,
+    exclusive: bool,
+) -> Result<(), String> {
+    if exclusive {
+        std::fs::hard_link(tmp, dest).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::AlreadyExists {
+                format!("exclusive persist dest exists (refusing clobber): {e}")
+            } else {
+                format!("exclusive persist link: {e}")
+            }
+        })?;
+        let _ = std::fs::remove_file(tmp);
+        Ok(())
+    } else {
+        std::fs::rename(tmp, dest).map_err(|e| format!("rename tmp: {e}"))
+    }
 }
 
 #[cfg(windows)]
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
-fn windows_replace_file(tmp: &std::path::Path, dest: &std::path::Path) -> Result<(), String> {
+fn windows_replace_file(
+    tmp: &std::path::Path,
+    dest: &std::path::Path,
+    exclusive: bool,
+) -> Result<(), String> {
     #[link(name = "kernel32")]
     extern "system" {
         fn MoveFileExW(
@@ -334,22 +390,31 @@ fn windows_replace_file(tmp: &std::path::Path, dest: &std::path::Path) -> Result
     }
     const MOVEFILE_REPLACE_EXISTING: u32 = 0x1;
     const MOVEFILE_WRITE_THROUGH: u32 = 0x8;
+    const ERROR_FILE_EXISTS: i32 = 80;
+    const ERROR_ALREADY_EXISTS: i32 = 183;
 
     let src = wide_path(tmp)?;
     let dst = wide_path(dest)?;
-    // Fail-closed: no unlink-dest fallback. If MoveFileEx fails, persist fails.
-    let ok = unsafe {
-        MoveFileExW(
-            src.as_ptr(),
-            dst.as_ptr(),
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-        )
+    let flags = if exclusive {
+        MOVEFILE_WRITE_THROUGH
+    } else {
+        MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH
     };
+    // Fail-closed: no unlink-dest fallback. If MoveFileEx fails, persist fails.
+    let ok = unsafe { MoveFileExW(src.as_ptr(), dst.as_ptr(), flags) };
     if ok == 0 {
-        Err(format!(
-            "MoveFileExW replace: {}",
-            std::io::Error::last_os_error()
-        ))
+        let err = std::io::Error::last_os_error();
+        let dest_exists = matches!(
+            err.raw_os_error(),
+            Some(ERROR_FILE_EXISTS) | Some(ERROR_ALREADY_EXISTS)
+        ) || (err.kind() == std::io::ErrorKind::AlreadyExists);
+        if exclusive && dest_exists {
+            Err(format!(
+                "exclusive persist dest exists (refusing clobber): {err}"
+            ))
+        } else {
+            Err(format!("MoveFileExW replace: {err}"))
+        }
     } else {
         Ok(())
     }
@@ -375,6 +440,41 @@ fn fsync_dir(dir: &std::path::Path) -> Result<(), String> {
 #[cfg(windows)]
 fn fsync_dir(dir: &std::path::Path) -> Result<(), String> {
     windows_fsync_dir(dir)
+}
+
+fn should_fsync_dir(p: &std::path::Path) -> bool {
+    use std::path::Component;
+    p.components().any(|c| matches!(c, Component::Normal(_))) && p.components().count() >= 2
+}
+
+/// Slice CJ: `create_dir_all` then fsync created dirs and the first existing
+/// ancestor so a crash cannot drop the new dirent. Volume roots are skipped.
+fn durable_create_dir_all(dir: &std::path::Path) -> Result<(), String> {
+    if dir.as_os_str().is_empty() {
+        return Ok(());
+    }
+    if dir.exists() {
+        return Ok(());
+    }
+    let mut chain: Vec<std::path::PathBuf> = Vec::new();
+    let mut cur = dir.to_path_buf();
+    loop {
+        chain.push(cur.clone());
+        if cur.exists() {
+            break;
+        }
+        match cur.parent() {
+            Some(p) if !p.as_os_str().is_empty() => cur = p.to_path_buf(),
+            _ => break,
+        }
+    }
+    std::fs::create_dir_all(dir).map_err(|e| format!("create persist dir: {e}"))?;
+    for p in &chain {
+        if should_fsync_dir(p) && p.exists() {
+            fsync_dir(p)?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -442,16 +542,37 @@ pub fn atomic_write_file(path: &std::path::Path, body: &[u8]) -> Result<(), Stri
 
 /// Like [`atomic_write_file`], with an optional Unix file mode applied to tmp
 /// before replace (Slice CH). `None` keeps `File::create` defaults. Windows
-/// ignores `unix_mode` (ACL inherited from the parent directory).
+/// first-create DACL is Slice CI (`restrict_identity_key_acl` when mode is set).
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub fn atomic_write_file_with_mode(
     path: &std::path::Path,
     body: &[u8],
     unix_mode: Option<u32>,
 ) -> Result<(), String> {
+    atomic_write_file_inner(path, body, unix_mode, false)
+}
+
+/// Slice CK: identity first-create. Same tmp+fsync+parent-dir fsync as
+/// [`atomic_write_file_with_mode`], but dest replace is exclusive: fails if
+/// dest exists (no clobber). JSON persist still uses replace.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn atomic_write_file_exclusive(
+    path: &std::path::Path,
+    body: &[u8],
+    unix_mode: Option<u32>,
+) -> Result<(), String> {
+    atomic_write_file_inner(path, body, unix_mode, true)
+}
+
+fn atomic_write_file_inner(
+    path: &std::path::Path,
+    body: &[u8],
+    unix_mode: Option<u32>,
+    exclusive: bool,
+) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent).map_err(|e| format!("create persist dir: {e}"))?;
+            durable_create_dir_all(parent)?;
         }
     }
     let tmp = external_addrs_tmp_path(path);
@@ -464,6 +585,7 @@ pub fn atomic_write_file_with_mode(
         drop(f);
         if unix_mode.is_some() {
             apply_unix_mode(&tmp, unix_mode)?;
+            restrict_identity_key_acl(&tmp)?;
         }
         Ok(())
     })();
@@ -471,9 +593,15 @@ pub fn atomic_write_file_with_mode(
         let _ = std::fs::remove_file(&tmp);
         return Err(e);
     }
-    if let Err(e) = replace_file(&tmp, path) {
+    if let Err(e) = replace_file(&tmp, path, exclusive) {
         let _ = std::fs::remove_file(&tmp);
         return Err(e);
+    }
+    if unix_mode.is_some() {
+        if let Err(e) = restrict_identity_key_acl(path) {
+            let _ = std::fs::remove_file(path);
+            return Err(e);
+        }
     }
     fsync_parent_dir(path)
 }
@@ -516,6 +644,112 @@ fn apply_unix_mode(path: &std::path::Path, unix_mode: Option<u32>) -> Result<(),
     }
 }
 
+/// Slice CI: Windows identity key gets a protected DACL. Unix is already 0o600.
+fn restrict_identity_key_acl(path: &std::path::Path) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        windows_restrict_owner_dacl(path)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = path;
+        Ok(())
+    }
+}
+
+#[cfg(windows)]
+fn windows_restrict_owner_dacl(path: &std::path::Path) -> Result<(), String> {
+    use std::ptr;
+
+    #[link(name = "advapi32")]
+    extern "system" {
+        fn ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            string_security_descriptor: *const u16,
+            string_sd_revision: u32,
+            security_descriptor: *mut *mut core::ffi::c_void,
+            security_descriptor_size: *mut u32,
+        ) -> i32;
+        fn GetSecurityDescriptorDacl(
+            p_security_descriptor: *mut core::ffi::c_void,
+            lpb_dacl_present: *mut i32,
+            p_dacl: *mut *mut core::ffi::c_void,
+            lpb_dacl_defaulted: *mut i32,
+        ) -> i32;
+        fn SetNamedSecurityInfoW(
+            p_object_name: *mut u16,
+            object_type: u32,
+            security_info: u32,
+            psid_owner: *mut core::ffi::c_void,
+            psid_group: *mut core::ffi::c_void,
+            p_dacl: *mut core::ffi::c_void,
+            p_sacl: *mut core::ffi::c_void,
+        ) -> u32;
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn LocalFree(h_mem: *mut core::ffi::c_void) -> *mut core::ffi::c_void;
+    }
+
+    const SDDL_REVISION_1: u32 = 1;
+    const SE_FILE_OBJECT: u32 = 1;
+    const DACL_SECURITY_INFORMATION: u32 = 0x4;
+    const PROTECTED_DACL_SECURITY_INFORMATION: u32 = 0x8000_0000;
+    const ERROR_SUCCESS: u32 = 0;
+    // Owner + SYSTEM + Administrators; protected (no Users/Everyone inherit).
+    const SDDL: &str = "D:P(A;;FA;;;OW)(A;;FA;;;SY)(A;;FA;;;BA)";
+
+    let mut sddl: Vec<u16> = SDDL.encode_utf16().collect();
+    sddl.push(0);
+    let mut sd: *mut core::ffi::c_void = ptr::null_mut();
+    let ok = unsafe {
+        ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            sddl.as_ptr(),
+            SDDL_REVISION_1,
+            &mut sd,
+            ptr::null_mut(),
+        )
+    };
+    if ok == 0 || sd.is_null() {
+        return Err(format!(
+            "ConvertStringSecurityDescriptor: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    let mut dacl_present: i32 = 0;
+    let mut dacl_defaulted: i32 = 0;
+    let mut dacl: *mut core::ffi::c_void = ptr::null_mut();
+    let got =
+        unsafe { GetSecurityDescriptorDacl(sd, &mut dacl_present, &mut dacl, &mut dacl_defaulted) };
+    if got == 0 || dacl_present == 0 || dacl.is_null() {
+        unsafe {
+            LocalFree(sd);
+        }
+        return Err("identity key DACL missing from SDDL".into());
+    }
+    let mut wpath = wide_path(path)?;
+    let err = unsafe {
+        SetNamedSecurityInfoW(
+            wpath.as_mut_ptr(),
+            SE_FILE_OBJECT,
+            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            dacl,
+            ptr::null_mut(),
+        )
+    };
+    unsafe {
+        LocalFree(sd);
+    }
+    if err != ERROR_SUCCESS {
+        return Err(format!(
+            "SetNamedSecurityInfoW identity DACL: {}",
+            std::io::Error::from_raw_os_error(err as i32)
+        ));
+    }
+    Ok(())
+}
+
 /// Slice BQ/CD: advertised-externals JSON via [`atomic_write_file`].
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub fn save_external_addrs_file(path: &std::path::Path, addrs: &[String]) -> Result<(), String> {
@@ -552,13 +786,14 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(feature = "libp2p")]
 mod enabled {
     use super::{
-        atomic_write_file, atomic_write_file_with_mode, external_addrs_replace_strategy,
-        identity_key_mode_strategy, libp2p_available, persist_parent_dir_fsync_strategy,
-        ABS_GOSSIP_BLOCKS_TOPIC, ABS_IDENTIFY_PROTOCOL_VERSION, ABS_KAD_PROTOCOL,
-        ABS_RENDEZVOUS_NAMESPACE, ABS_WIRE_PROTOCOL, DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS,
-        DEFAULT_IDENTIFY_INTERVAL_MS, DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS, DEFAULT_MAX_DIALS,
-        DEFAULT_MDNS_TTL_SECS, DEFAULT_PING_INTERVAL_SECS, DEFAULT_PING_MAX_FAILS,
-        DEFAULT_PING_TIMEOUT_SECS, DEFAULT_RECONNECT_BASE_MS, DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS,
+        atomic_write_file, atomic_write_file_exclusive, external_addrs_replace_strategy,
+        identity_create_exclusive_strategy, identity_key_mode_strategy, libp2p_available,
+        persist_mkdir_fsync_strategy, persist_parent_dir_fsync_strategy, ABS_GOSSIP_BLOCKS_TOPIC,
+        ABS_IDENTIFY_PROTOCOL_VERSION, ABS_KAD_PROTOCOL, ABS_RENDEZVOUS_NAMESPACE,
+        ABS_WIRE_PROTOCOL, DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_IDENTIFY_INTERVAL_MS,
+        DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_MDNS_TTL_SECS,
+        DEFAULT_PING_INTERVAL_SECS, DEFAULT_PING_MAX_FAILS, DEFAULT_PING_TIMEOUT_SECS,
+        DEFAULT_RECONNECT_BASE_MS, DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS,
         DEFAULT_RECONNECT_MAX_ATTEMPTS, DEFAULT_RECONNECT_MAX_MS, DEFAULT_SCORE_GRAYLIST_THRESHOLD,
         DEFAULT_WIRE_TIMEOUT_SECS, IDENTITY_KEY_UNIX_MODE, LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX,
         MAX_ADVERTISED_EXTERNAL_ADDRS, MAX_WIRE_BYTES,
@@ -635,7 +870,9 @@ mod enabled {
             // Slice CF: dest is created via tmp+fsync+replace. Existing files are
             // never overwritten (corrupt key must fail closed, not mint a new PeerId).
             // Slice CH: Unix first-create is 0o600 (tmp mode before replace).
-            atomic_write_file_with_mode(path, &enc, Some(IDENTITY_KEY_UNIX_MODE))
+            // Slice CK: exclusive dest create — REPLACE_EXISTING / rename would
+            // clobber a dest that appeared after exists() (two first-creates).
+            atomic_write_file_exclusive(path, &enc, Some(IDENTITY_KEY_UNIX_MODE))
                 .map_err(|e| format!("write key: {e}"))?;
             Ok(kp)
         }
@@ -676,12 +913,6 @@ mod enabled {
         path: &Path,
         peers: &HashMap<String, Vec<String>>,
     ) -> Result<(), String> {
-        if let Some(parent) = path.parent() {
-            if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| format!("create bootstrap dir: {e}"))?;
-            }
-        }
         let mut map = serde_json::Map::new();
         for (pid, addrs) in peers {
             map.insert(
@@ -8137,7 +8368,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 85)?;
+                d.set_item("phase", 88)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -8155,8 +8386,19 @@ mod enabled {
                     "persist_parent_dir_fsync_strategy",
                     persist_parent_dir_fsync_strategy(),
                 )?;
+                d.set_item("persist_mkdir_fsync", true)?;
+                d.set_item(
+                    "persist_mkdir_fsync_strategy",
+                    persist_mkdir_fsync_strategy(),
+                )?;
                 d.set_item("identity_key_mode_restrict", true)?;
                 d.set_item("identity_key_mode_strategy", identity_key_mode_strategy())?;
+                d.set_item("identity_key_windows_owner_dacl", cfg!(windows))?;
+                d.set_item("identity_create_exclusive", true)?;
+                d.set_item(
+                    "identity_create_exclusive_strategy",
+                    identity_create_exclusive_strategy(),
+                )?;
                 d.set_item("ping", true)?;
                 d.set_item("ping_fail_events", true)?;
                 d.set_item(
@@ -9358,8 +9600,16 @@ mod enabled {
             "PERSIST_PARENT_DIR_FSYNC_STRATEGY",
             persist_parent_dir_fsync_strategy(),
         )?;
+        m.add(
+            "PERSIST_MKDIR_FSYNC_STRATEGY",
+            persist_mkdir_fsync_strategy(),
+        )?;
         m.add("IDENTITY_KEY_UNIX_MODE", IDENTITY_KEY_UNIX_MODE)?;
         m.add("IDENTITY_KEY_MODE_STRATEGY", identity_key_mode_strategy())?;
+        m.add(
+            "IDENTITY_CREATE_EXCLUSIVE_STRATEGY",
+            identity_create_exclusive_strategy(),
+        )?;
         Ok(())
     }
 }
@@ -9534,14 +9784,112 @@ mod tests {
     }
 
     #[test]
+    fn persist_mkdir_fsync_strategy_matches_parent_dir() {
+        assert_eq!(
+            super::persist_mkdir_fsync_strategy(),
+            super::persist_parent_dir_fsync_strategy()
+        );
+    }
+
+    #[test]
     fn identity_key_mode_strategy_matches_os() {
         let s = super::identity_key_mode_strategy();
         if cfg!(unix) {
             assert_eq!(s, "unix_0600");
         } else {
-            assert_eq!(s, "windows_inherit_acl");
+            assert_eq!(s, "windows_owner_only_dacl");
         }
         assert_eq!(super::IDENTITY_KEY_UNIX_MODE, 0o600);
+    }
+
+    #[test]
+    fn identity_create_exclusive_strategy_matches_os() {
+        let s = super::identity_create_exclusive_strategy();
+        if cfg!(windows) {
+            assert_eq!(s, "windows_movefileex_noreplace");
+        } else {
+            assert_eq!(s, "posix_hardlink_exclusive");
+        }
+    }
+
+    #[test]
+    fn persist_tmp_path_includes_pid() {
+        let dest = std::path::Path::new("foo.json");
+        let tmp = super::external_addrs_tmp_path(dest);
+        let name = tmp.file_name().unwrap().to_string_lossy();
+        assert!(
+            name.ends_with(&format!("{}.tmp", std::process::id())),
+            "tmp name {name}"
+        );
+        assert!(name.starts_with("foo.json."), "tmp name {name}");
+    }
+
+    #[test]
+    fn atomic_write_file_exclusive_creates_when_dest_missing() {
+        let dir = std::env::temp_dir();
+        let dest = dir.join(format!(
+            "abs-excl-create-{}-{}.key",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(6)
+        ));
+        let tmp = super::external_addrs_tmp_path(&dest);
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&tmp);
+        super::atomic_write_file_exclusive(&dest, b"first-key", Some(0o600))
+            .expect("exclusive create");
+        assert_eq!(std::fs::read(&dest).expect("read"), b"first-key");
+        assert!(!tmp.exists(), "tmp leftover after exclusive create");
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn atomic_write_file_exclusive_refuses_existing_dest() {
+        let dir = std::env::temp_dir();
+        let dest = dir.join(format!(
+            "abs-excl-keep-{}-{}.key",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(7)
+        ));
+        let tmp = super::external_addrs_tmp_path(&dest);
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&tmp);
+        std::fs::write(&dest, b"keep-me").expect("seed dest");
+        let err = super::atomic_write_file_exclusive(&dest, b"clobber", Some(0o600))
+            .expect_err("exclusive must refuse existing dest");
+        assert!(
+            err.contains("refusing clobber") || err.contains("exists"),
+            "exclusive error too vague: {err}"
+        );
+        assert_eq!(std::fs::read(&dest).expect("dest intact"), b"keep-me");
+        assert!(!tmp.exists(), "tmp leftover after exclusive refuse");
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn atomic_write_file_creates_nested_parent_dirs() {
+        let dir = std::env::temp_dir().join(format!(
+            "abs-mkdir-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(5)
+        ));
+        let dest = dir.join("a").join("b").join("c.json");
+        let tmp = super::external_addrs_tmp_path(&dest);
+        let _ = std::fs::remove_dir_all(&dir);
+        super::atomic_write_file(&dest, b"{\"nested\":1}").expect("nested write");
+        assert_eq!(std::fs::read(&dest).expect("read"), b"{\"nested\":1}");
+        assert!(!tmp.exists(), "tmp leftover");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

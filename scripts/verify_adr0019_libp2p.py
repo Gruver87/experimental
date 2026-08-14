@@ -130,6 +130,9 @@ LABS = [
     ("CF", "scripts/libp2p_rust_identity_atomic_persist_lab.py"),
     ("CG", "scripts/libp2p_rust_persist_parent_dir_fsync_lab.py"),
     ("CH", "scripts/libp2p_rust_identity_key_mode_lab.py"),
+    ("CI", "scripts/libp2p_rust_identity_key_windows_dacl_lab.py"),
+    ("CJ", "scripts/libp2p_rust_persist_mkdir_fsync_lab.py"),
+    ("CK", "scripts/libp2p_rust_identity_create_exclusive_lab.py"),
 ]
 
 

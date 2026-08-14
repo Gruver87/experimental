@@ -17,6 +17,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import time
@@ -61,8 +62,8 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="abs-libp2p-books-atomic-") as td:
         boot = Path(td) / "bootstrap.json"
         store = Path(td) / "peerstore.json"
-        boot_tmp = Path(str(boot) + ".tmp")
-        store_tmp = Path(str(store) + ".tmp")
+        boot_tmp = Path(str(boot) + f".{os.getpid()}.tmp")
+        store_tmp = Path(str(store) + f".{os.getpid()}.tmp")
         hub = abs_native.libp2p_node_new(enable_mdns=False, enable_reconnect=False)
         writer = abs_native.libp2p_node_new(
             enable_mdns=False,

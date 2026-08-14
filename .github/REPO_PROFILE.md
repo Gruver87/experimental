@@ -9,6 +9,6 @@ Absolute Blockchain Experimental — R&D sandbox (libp2p ADR 0019, Long-Range, E
 
 **Topics:** `blockchain` `rust` `python` `libp2p` `research` `experimental` `p2p`
 
-**Default branch:** `main` (ADR 0019 through Slice CH)
+**Default branch:** `main` (ADR 0019 through Slice CK)
 
 **Honesty:** Experimental PASS ≠ public mainnet ≠ prod libp2p cutover.

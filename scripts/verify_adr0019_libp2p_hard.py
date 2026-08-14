@@ -362,6 +362,9 @@ LABS = [
     ("CF", "scripts/libp2p_rust_identity_atomic_persist_lab.py"),
     ("CG", "scripts/libp2p_rust_persist_parent_dir_fsync_lab.py"),
     ("CH", "scripts/libp2p_rust_identity_key_mode_lab.py"),
+    ("CI", "scripts/libp2p_rust_identity_key_windows_dacl_lab.py"),
+    ("CJ", "scripts/libp2p_rust_persist_mkdir_fsync_lab.py"),
+    ("CK", "scripts/libp2p_rust_identity_create_exclusive_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -590,11 +593,37 @@ def check_native_deep() -> tuple[bool, str]:
                 f"parent-dir fsync strategy {got_dir!r} != {want_dir} "
                 "(stale wheel — --rebuild)"
             )
-        want_key = "unix_0600" if os.name != "nt" else "windows_inherit_acl"
+        want_key = "unix_0600" if os.name != "nt" else "windows_owner_only_dacl"
         got_key = cap.get("identity_key_mode_strategy")
         if got_key != want_key:
             return False, (
                 f"identity key mode strategy {got_key!r} != {want_key} "
+                "(stale wheel — --rebuild)"
+            )
+        if os.name == "nt" and not cap.get("identity_key_windows_owner_dacl"):
+            return False, (
+                "capability identity_key_windows_owner_dacl missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if not cap.get("persist_mkdir_fsync"):
+            return False, (
+                "capability persist_mkdir_fsync missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if not cap.get("identity_create_exclusive"):
+            return False, (
+                "capability identity_create_exclusive missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        want_excl = (
+            "windows_movefileex_noreplace"
+            if os.name == "nt"
+            else "posix_hardlink_exclusive"
+        )
+        got_excl = cap.get("identity_create_exclusive_strategy")
+        if got_excl != want_excl:
+            return False, (
+                f"identity exclusive strategy {got_excl!r} != {want_excl} "
                 "(stale wheel — --rebuild)"
             )
         # Slice I API must exist
