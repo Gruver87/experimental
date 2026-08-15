@@ -32,6 +32,7 @@ Canonical language for this repository is **English**. Older inherited entries b
 - libp2p `/abs/wire`: inbound ACK `OK:` only for parseable ADR 0008 v1/v2 or lab pack_wire; garbage is `REFUSE:`, not inbox'd, not counted as Absolute recv. Soak not run.
 - EVM: STATICCALL is sticky into nested CALL/DELEGATECALL (EIP-214); Python interpreter handoff refuses SSTORE/LOG/CREATE/TSTORE/SELFDESTRUCT under `_abs_read_only`; rust does not merge DELEGATECALL storage in static context. Soak not run.
 - EVM: precompiles 0x01–0x09 on the apply-path nested CALL/STATICCALL hook and `call_contract` (not eth_call only). Identity/sha256 evidenced. Not a geth gas audit. Soak not run.
+- EVM: host apply treats `to` in 0x01–0x09 as a message-call (not CREATE); mempool `_is_evm_deploy_tx` skips precompiles. Soak not run.
 
 ---
 

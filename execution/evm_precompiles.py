@@ -253,3 +253,10 @@ def is_precompile(contract_addr: str) -> bool:
         _ECPAIRING,
         _BLAKE2F,
     }
+
+
+def is_evm_call_target(to_addr: str, account_code: object = None) -> bool:
+    """True when ``to`` is a precompile or an account with code (not CREATE)."""
+    if is_precompile(to_addr or ""):
+        return True
+    return bool(account_code)

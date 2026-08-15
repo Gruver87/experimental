@@ -100,3 +100,68 @@ def test_staticcall_sha256_via_adapter_hook(evm_db) -> None:
     )
     assert out.get("success") is True
     assert out.get("return_data") == hashlib.sha256(payload).digest()
+
+
+def test_host_apply_identity_tx_does_not_deploy(evm_db) -> None:
+    """Tx to=0x04 with calldata must call the precompile, not CREATE."""
+    from core.blockchain import Transaction
+    from core.components.state_service import StateService
+
+    adapter, _db = evm_db
+
+    def _must_not_deploy(*_a, **_k):
+        raise AssertionError("precompile tx must not deploy")
+
+    adapter.deploy_contract = _must_not_deploy  # type: ignore[method-assign]
+
+    class _Storage:
+        def get_account(self, _addr):
+            return None
+
+    class _Host:
+        def __init__(self) -> None:
+            self.evm = adapter
+            self.storage = _Storage()
+            self.config = adapter.config
+            self.bus = None
+            self.pool_locks = None
+
+        def _native_apply_fail_closed(self) -> bool:
+            return False
+
+    tx = Transaction(
+        from_addr="0x" + "11" * 20,
+        to_addr=IDENTITY,
+        value=0,
+        nonce=0,
+        gas=100_000,
+        data=b"hi".hex(),
+    )
+    out = StateService(_Host())._run_evm_host_only(tx, 1)
+    assert out.get("success") is True
+    assert out.get("contract_address") is None
+
+
+def test_mempool_does_not_treat_precompile_tx_as_deploy() -> None:
+    from core.blockchain import Transaction
+    from core.components.tx_pipeline import TxPipeline
+    from runtime.config import Config
+
+    class _Storage:
+        def get_account(self, _addr):
+            return None
+
+    pipe = TxPipeline(
+        config=Config(),
+        storage=_Storage(),
+        get_evm=lambda: object(),
+    )
+    tx = Transaction(
+        from_addr="0x" + "11" * 20,
+        to_addr=IDENTITY,
+        value=0,
+        nonce=0,
+        gas=100_000,
+        data=b"hi".hex(),
+    )
+    assert pipe._is_evm_deploy_tx(tx) is False

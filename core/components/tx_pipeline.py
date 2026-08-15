@@ -113,6 +113,10 @@ class TxPipeline:
     def _is_evm_deploy_tx(self, tx: Any) -> bool:
         if not tx.data or not self.evm:
             return False
+        from execution.evm_precompiles import is_precompile
+
+        if is_precompile(getattr(tx, "to_addr", "") or ""):
+            return False
         target_acct = self.storage.get_account(tx.to_addr)
         if target_acct and target_acct.get("code"):
             return False
