@@ -198,6 +198,7 @@ def test_18_null_query_facade():
     assert nq.tip_height() == 0
     assert nq.get_block(BlockQuery(tag="latest")) is None
     assert nq.query_logs(LogsQuery(0, 1)) == []
+    assert nq.get_evm_logs_by_block(1) == []
 
 
 # ── Send / DI / integration (19–25) ──────────────────────────────────────────

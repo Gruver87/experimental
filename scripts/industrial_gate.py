@@ -760,6 +760,13 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("api/ports.py must define RpcPort (ADR 0011)")
         if "class QueryFacadePort" not in api_ports_py:
             errors.append("api/ports.py must define QueryFacadePort (ADR 0011)")
+        if "def get_evm_logs_by_block" not in api_ports_py:
+            errors.append("QueryFacadePort must expose get_evm_logs_by_block (block logsBloom)")
+        eth_fmt_py_adr = (ROOT / "api" / "eth_format.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "def block_logs_bloom" not in eth_fmt_py_adr:
+            errors.append("api/eth_format.py must compute block logsBloom (not a zero stub)")
         if not (ROOT / "api" / "eth_format.py").is_file():
             errors.append("api/eth_format.py missing (ADR 0011)")
         if not (ROOT / "api" / "fake_rpc.py").is_file():

@@ -85,9 +85,15 @@ class WebSocketServer:
         if self._eth_subs and self._loop and self._loop.is_running() and isinstance(block, dict):
             try:
                 from api.eth_format import format_block, handle_eth_get_logs
+
+                query = getattr(self.blockchain, "query_facade", None)
+
+                def _format_head(b, full_tx=False):
+                    return format_block(b, full_tx, query=query)
+
                 self._eth_subs.on_new_block(
                     block,
-                    format_block,
+                    _format_head,
                     handle_eth_get_logs,
                     self.blockchain,
                     self._schedule_eth_notification,

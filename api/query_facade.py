@@ -174,3 +174,17 @@ class QueryFacade:
             return []
         rows = store.get_evm_logs_by_tx(tx_hash)
         return list(rows) if rows else []
+
+    def get_evm_logs_by_block(self, block_height: int) -> List[Dict[str, Any]]:
+        """All logs at one height — not getLogs amplification caps (block bloom)."""
+        store = self._store()
+        if store is None or not hasattr(store, "query_evm_logs"):
+            return []
+        try:
+            height = int(block_height)
+        except (TypeError, ValueError):
+            return []
+        if height < 0:
+            return []
+        rows = store.query_evm_logs(from_block=height, to_block=height, limit=10_000)
+        return list(rows) if rows else []

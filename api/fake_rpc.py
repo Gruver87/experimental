@@ -96,6 +96,13 @@ class FakeQueryFacade:
     def get_evm_logs_by_tx(self, tx_hash: str) -> List[Dict[str, Any]]:
         return [r for r in self.logs if r.get("tx_hash") == tx_hash]
 
+    def get_evm_logs_by_block(self, block_height: int) -> List[Dict[str, Any]]:
+        try:
+            height = int(block_height)
+        except (TypeError, ValueError):
+            return []
+        return [r for r in self.logs if int(r.get("block_height", 0) or 0) == height]
+
 
 class FakeRpcClient:
     """In-process JSON-RPC client over RpcService / NullRpcPort."""

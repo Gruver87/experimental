@@ -191,7 +191,7 @@ class RpcService:
                 tag = params[0] if params else "latest"
                 full_tx = params[1] if len(params) > 1 else False
             blk = q.get_block(BlockQuery(tag=str(tag), full_tx=bool(full_tx)))
-            return format_block(blk, bool(full_tx))
+            return format_block(blk, bool(full_tx), query=q)
 
         if method == "eth_getBlockByHash":
             if isinstance(dto, GetBlockByHashParams):
@@ -203,7 +203,7 @@ class RpcService:
                 block_hash = params[0]
                 full_tx = params[1] if len(params) > 1 else False
             blk = q.get_block(BlockQuery(block_hash=str(block_hash), full_tx=bool(full_tx)))
-            return format_block(blk, bool(full_tx))
+            return format_block(blk, bool(full_tx), query=q)
 
         if method == "eth_getBalance":
             if isinstance(dto, GetBalanceParams):

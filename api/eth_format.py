@@ -34,10 +34,14 @@ def _topic_bytes(topic: str) -> bytes:
     return bytes.fromhex(t.zfill(64))
 
 
+EMPTY_LOGS_BLOOM = "0x" + ("0" * 512)
+
+
 def logs_bloom(logs: Sequence[Dict[str, Any]]) -> str:
     """Compute Ethereum logsBloom (256 bytes / 2048 bits) from formatted logs.
 
     Wave-8: receipt-level bloom from address + topics (Yellow Paper / geth parity).
+    Block-level bloom is the same OR over every log in the block.
     """
     bloom = bytearray(256)
     for log in logs or ():
@@ -55,6 +59,57 @@ def logs_bloom(logs: Sequence[Dict[str, Any]]) -> str:
     return "0x" + bloom.hex()
 
 
+def _logs_for_block(height: int, query=None, bc=None) -> List[Dict[str, Any]]:
+    """Load raw EVM log rows for one height via QueryFacadePort (ADR 0011)."""
+    facade = query
+    if facade is not None and hasattr(facade, "get_evm_logs_by_block"):
+        rows = facade.get_evm_logs_by_block(int(height))
+        return list(rows) if rows else []
+    if bc is not None:
+        qf = getattr(bc, "query_facade", None)
+        if qf is not None and hasattr(qf, "get_evm_logs_by_block"):
+            rows = qf.get_evm_logs_by_block(int(height))
+            return list(rows) if rows else []
+    return []
+
+
+def _block_height(blk: Dict[str, Any]) -> int:
+    height = blk.get("height", blk.get("block_height"))
+    if height is not None:
+        try:
+            return int(height)
+        except (TypeError, ValueError):
+            return 0
+    num = blk.get("number")
+    if isinstance(num, str) and num.startswith(("0x", "0X")):
+        try:
+            return int(num, 16)
+        except ValueError:
+            return 0
+    if num is not None:
+        try:
+            return int(num)
+        except (TypeError, ValueError):
+            return 0
+    return 0
+
+
+def block_logs_bloom(blk: Dict[str, Any], query=None, bc=None) -> str:
+    """Yellow Paper block logsBloom: OR of address+topics for all logs in the block.
+
+    Prefers a non-zero stored header field (future apply-path persist). Otherwise
+    reconstructs from the log index through QueryFacadePort — not getLogs caps.
+    Missing query yields the empty bloom (honest: no logs observed).
+    """
+    stored = blk.get("logsBloom") or blk.get("logs_bloom")
+    if stored:
+        s = str(stored).strip().lower()
+        hexpart = s[2:] if s.startswith("0x") else s
+        if len(hexpart) == 512 and any(c != "0" for c in hexpart):
+            return "0x" + hexpart
+    return logs_bloom(_logs_for_block(_block_height(blk), query=query, bc=bc))
+
+
 def _bloom_add(bloom: bytearray, data: bytes) -> None:
     h = _keccak(data)
     for i in (0, 2, 4):
@@ -63,7 +118,13 @@ def _bloom_add(bloom: bytearray, data: bytes) -> None:
         bloom[byte_index] |= 1 << (bit_index % 8)
 
 
-def format_block(blk: Optional[Dict], full_tx: bool = False) -> Optional[Dict]:
+def format_block(
+    blk: Optional[Dict],
+    full_tx: bool = False,
+    *,
+    query=None,
+    bc=None,
+) -> Optional[Dict]:
     if not blk:
         return None
     if blk.get("_full_tx_truncated"):
@@ -82,7 +143,7 @@ def format_block(blk: Optional[Dict], full_tx: bool = False) -> Optional[Dict]:
         "parentHash": blk.get("parent_hash", ""),
         "nonce": "0x0000000000000000",
         "sha3Uncles": "0x" + "0" * 64,
-        "logsBloom": "0x" + "0" * 512,
+        "logsBloom": block_logs_bloom(blk, query=query, bc=bc),
         "transactionsRoot": "0x" + "0" * 64,
         "stateRoot": state_root or ("0x" + "0" * 64),
         "receiptsRoot": "0x" + "0" * 64,
