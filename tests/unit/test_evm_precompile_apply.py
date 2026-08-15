@@ -165,3 +165,24 @@ def test_mempool_does_not_treat_precompile_tx_as_deploy() -> None:
         data=b"hi".hex(),
     )
     assert pipe._is_evm_deploy_tx(tx) is False
+
+
+def test_delegatecall_precompile_does_not_wipe_caller_storage(evm_db) -> None:
+    """Precompile has no storage; empty writeback must not clobber the caller."""
+    import json
+
+    adapter, db = evm_db
+    caller = "0x" + "aa" * 20
+    db.save_account(
+        caller, balance=1.0, nonce=1, code="6000", storage=json.dumps({"1": 99})
+    )
+    ctx = EVMContext(address=caller)
+    out = adapter._contract_call_hook(
+        IDENTITY, b"hi", 0, 100_000, True, False, ctx
+    )
+    assert out.get("success") is True
+    assert out.get("return_data") == b"hi"
+    row = db.get_account(caller)
+    raw = row["storage"] if row else "{}"
+    storage = json.loads(raw) if isinstance(raw, str) else dict(raw or {})
+    assert int(storage.get("1", storage.get(1))) == 99

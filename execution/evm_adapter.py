@@ -262,43 +262,73 @@ class EVMAdapter:
             "gas_used": used,
         }
 
+    @staticmethod
+    def _nested_call_kind(delegate: bool, static: bool, callcode: bool) -> str:
+        if static:
+            return "staticcall"
+        if delegate:
+            return "delegatecall"
+        if callcode:
+            return "callcode"
+        return "call"
+
+    @staticmethod
+    def _writeback_ops_without_storage(ops: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Drop set_storage / append_logs for callees that did not execute bytecode.
+
+        Empty ``{}`` storage would wipe a DELEGATECALL caller or stamp a fake
+        account at a precompile / EOA. Value transfer still applies.
+        """
+        keep: List[Dict[str, Any]] = []
+        for op in ops or []:
+            kind = str(op.get("op") or "")
+            if kind in ("set_storage", "append_logs"):
+                continue
+            keep.append(op)
+        return keep
+
+    def _finish_no_code_nested_call(
+        self,
+        kind: str,
+        parent_ro: bool,
+        caller: str,
+        target: str,
+        call_value: int,
+        base: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        plan = native.evm_plan_nested_call_writeback(
+            kind,
+            parent_ro,
+            caller,
+            target,
+            int(call_value or 0),
+            True,
+            None,
+            None,
+        )
+        ops = self._writeback_ops_without_storage(list(plan.get("ops") or []))
+        if ops:
+            self._apply_nested_writeback_ops(ops)
+        out = dict(base)
+        if ops:
+            out["native_writeback_ops"] = len(ops)
+        return out
+
     def _contract_call_hook(self, target: str, calldata: bytes, value: int,
                             gas: int, delegate: bool, static: bool,
                             caller_ctx: EVMContext,
                             callcode: bool = False) -> Dict[str, Any]:
         target = self._normalize_addr(target)
+        kind = self._nested_call_kind(delegate, static, callcode)
+        parent_ro = bool(getattr(caller_ctx, "_abs_read_only", False))
+        call_value = 0 if delegate else int(value or 0)
         pre_out = self._precompile_nested_call(target, calldata, gas)
         if pre_out is not None:
             if pre_out.get("reverted"):
                 return pre_out
-            kind = (
-                "staticcall"
-                if static
-                else "delegatecall"
-                if delegate
-                else "callcode"
-                if callcode
-                else "call"
+            return self._finish_no_code_nested_call(
+                kind, parent_ro, caller_ctx.address, target, call_value, pre_out
             )
-            parent_ro = bool(getattr(caller_ctx, "_abs_read_only", False))
-            call_value = 0 if delegate else int(value or 0)
-            plan = native.evm_plan_nested_call_writeback(
-                kind,
-                parent_ro,
-                caller_ctx.address,
-                target,
-                call_value,
-                True,
-                None,
-                None,
-            )
-            ops = list(plan.get("ops") or [])
-            if ops:
-                self._apply_nested_writeback_ops(ops)
-            out = dict(pre_out)
-            if ops:
-                out["native_writeback_ops"] = len(ops)
-            return out
         view = self._account_view(target)
         if view.get("corrupt"):
             return {"success": False, "reverted": True, "return_data": b"", "error": "corrupt_storage"}
@@ -306,12 +336,40 @@ class EVMAdapter:
         if not bytecode:
             # Fallback: legacy account row may still have code when view missed it.
             account = self.db.get_account(target)
-            if not account or not account.get("code"):
-                return {"success": False, "reverted": True, "return_data": b""}
-            try:
-                bytecode = bytes.fromhex(str(account["code"]).replace("0x", ""))
-            except ValueError:
-                return {"success": False, "reverted": True, "return_data": b""}
+            if account and account.get("code"):
+                try:
+                    bytecode = bytes.fromhex(str(account["code"]).replace("0x", ""))
+                except ValueError:
+                    return {"success": False, "reverted": True, "return_data": b""}
+                if not bytecode:
+                    return self._finish_no_code_nested_call(
+                        kind,
+                        parent_ro,
+                        caller_ctx.address,
+                        target,
+                        call_value,
+                        {
+                            "success": True,
+                            "reverted": False,
+                            "return_data": b"",
+                            "gas_used": 0,
+                        },
+                    )
+            else:
+                # Yellow-paper empty account: CALL succeeds, returndata empty.
+                return self._finish_no_code_nested_call(
+                    kind,
+                    parent_ro,
+                    caller_ctx.address,
+                    target,
+                    call_value,
+                    {
+                        "success": True,
+                        "reverted": False,
+                        "return_data": b"",
+                        "gas_used": 0,
+                    },
+                )
             account_row = account
         else:
             account_row = self.db.get_account(target) or {
@@ -320,16 +378,6 @@ class EVMAdapter:
                 "code": view.get("code") or "",
             }
 
-        kind = (
-            "staticcall"
-            if static
-            else "delegatecall"
-            if delegate
-            else "callcode"
-            if callcode
-            else "call"
-        )
-        parent_ro = bool(getattr(caller_ctx, "_abs_read_only", False))
         if delegate or callcode:
             # v1.3.70: prefer in-flight parent storage (arena-flushed dict) so
             # recursive DELEGATECALL/CALLCODE sees parent SSTOREs, not stale DB.
