@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """STATICCALL write-refuse on the native inline apply-path.
 
-Child SSTORE/LOG must not commit; STATICCALL returns 0; parent continues.
+Direct child SSTORE/LOG does not commit; STATICCALL returns 0; parent continues.
+Nested CALL/DELEGATECALL under STATICCALL is sticky (EIP-214): the inner write
+reverts, STATICCALL itself returns 1, slots stay empty.
 Read-only STATICCALL (SLOAD/RETURN) still succeeds.
 """
 
@@ -21,6 +23,7 @@ from evm_interpreter import EVM, EVMContext
 from execution.evm_host_bridge import make_evm_runtime_bridge
 
 CALLEE = "0x00000000000000000000000000000000000000bb"
+WRITER = "0x00000000000000000000000000000000000000cc"
 
 
 def _hook_must_not_run(_target, _calldata, _value, _gas, _delegate, static=False, callcode=False):
@@ -63,18 +66,23 @@ def _call_op(callee: str, op: int, tail: bytes) -> bytes:
 
 
 def _run(parent: bytes, child: bytes) -> tuple[dict, dict]:
+    out, storages = _run_codes(parent, {CALLEE: child})
+    return out, storages[CALLEE]
+
+
+def _run_codes(parent: bytes, codes: dict[str, bytes]) -> tuple[dict, dict]:
     storage: dict = {}
     ctx = EVMContext(contract_call=_hook_must_not_run)
     host_ctx = native.evm_host_context_from_evm(ctx)
-    storages = {CALLEE: {}}
-    host_ctx["bridge_state"] = {"codes": {CALLEE: child}, "storages": storages}
+    storages = {addr: {} for addr in codes}
+    host_ctx["bridge_state"] = {"codes": dict(codes), "storages": storages}
     evm = EVM(gas_limit=1_000_000, context=ctx)
     evm.storage = storage
     bridge = make_evm_runtime_bridge(evm)
     out = native.evm_run_nested_host_frame(
         parent, 1_000_000, b"", host_ctx, storage, bridge
     )
-    return out, storages[CALLEE]
+    return out, storages
 
 
 def _slot1(st: dict) -> int:
@@ -135,3 +143,53 @@ def test_staticcall_log_refuses() -> None:
     assert stack[-1] == 0
     logs = list(out.get("logs") or [])
     assert logs == []
+
+
+@pytest.mark.skipif(
+    not getattr(native, "native_available", lambda: False)(),
+    reason="abs_native required",
+)
+def test_staticcall_nested_call_sstore_is_sticky() -> None:
+    """STATICCALL → CALL → SSTORE must not commit (EIP-214 sticky static).
+
+    The STATICCALL frame itself does not revert when a nested CALL fails;
+    it returns success. The writer slot must stay empty.
+    """
+    mid = _call_op(WRITER, 0xF1, bytes([0x00]))
+    parent = _call_op(CALLEE, 0xFA, bytes([0x00]))
+    out, storages = _run_codes(parent, {CALLEE: mid, WRITER: _sstore_stop()})
+    assert not out.get("reverted"), "parent must continue"
+    stack = [int(x) for x in (out.get("stack") or [])]
+    assert stack[-1] == 1
+    assert _slot1(storages[WRITER]) == 0
+    assert _slot1(storages[CALLEE]) == 0
+
+
+@pytest.mark.skipif(
+    not getattr(native, "native_available", lambda: False)(),
+    reason="abs_native required",
+)
+def test_staticcall_nested_delegatecall_sstore_is_sticky() -> None:
+    """STATICCALL → DELEGATECALL → SSTORE must not write the STATICCALL account."""
+    mid = _call_op(WRITER, 0xF4, bytes([0x00]))
+    parent = _call_op(CALLEE, 0xFA, bytes([0x00]))
+    out, storages = _run_codes(parent, {CALLEE: mid, WRITER: _sstore_stop()})
+    assert not out.get("reverted"), "parent must continue"
+    stack = [int(x) for x in (out.get("stack") or [])]
+    assert stack[-1] == 1
+    assert _slot1(storages[CALLEE]) == 0
+    assert _slot1(storages[WRITER]) == 0
+
+
+def test_python_interpreter_sstore_respects_read_only(monkeypatch) -> None:
+    """Handoff / Python opcode path must not SSTORE under `_abs_read_only`."""
+    ctx = EVMContext()
+    ctx._abs_read_only = True
+    evm = EVM(gas_limit=100_000, context=ctx)
+    evm.storage = {}
+    monkeypatch.setattr(evm, "_run_native_until_halt", lambda *_a, **_k: "handoff")
+    monkeypatch.setattr(evm, "_try_native_pure_segment", lambda *_a, **_k: None)
+    monkeypatch.setattr(evm, "_fail_on_native_handoff", lambda *_a, **_k: None)
+    out = evm.execute_bytecode(_sstore_stop())
+    assert out.get("reverted") is True
+    assert int(evm.storage.get(1, evm.storage.get("1", 0)) or 0) == 0

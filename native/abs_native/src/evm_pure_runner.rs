@@ -816,6 +816,7 @@ fn execute_call_native_inner(
         return Ok(());
     }
 
+    let sticky_static = get_inline_read_only(host_context);
     let call_fn = hook_contract_call(host_context).ok_or_else(|| {
         pyo3::exceptions::PyRuntimeError::new_err("contract_call_hook_unavailable")
     })?;
@@ -829,7 +830,7 @@ fn execute_call_native_inner(
             value_obj,
             call_gas,
             frame.delegate,
-            frame.static_call,
+            sticky_static,
             true,
         ))?
     } else {
@@ -839,7 +840,7 @@ fn execute_call_native_inner(
             value_obj,
             call_gas,
             frame.delegate,
-            frame.static_call,
+            sticky_static,
         ))?
     };
     let out_dict = out.downcast::<PyDict>()?;
@@ -856,7 +857,7 @@ fn execute_call_native_inner(
         .map(|v| v.extract::<Vec<u8>>().unwrap_or_default())
         .unwrap_or_default();
     *return_data = rd.clone();
-    if frame.delegate || frame.callcode {
+    if (frame.delegate || frame.callcode) && !get_inline_read_only(host_context) {
         if let Ok(Some(st)) = out_dict.get_item("storage") {
             merge_storage_dict(storage, st)?;
         }

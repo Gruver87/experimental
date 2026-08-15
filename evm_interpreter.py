@@ -159,6 +159,12 @@ class EVM:
     def _execute_call(self, to_word: int, value: int, args_offset: int, args_size: int,
                       ret_offset: int, ret_size: int, gas: int,
                       delegate: bool, static: bool, callcode: bool = False) -> int:
+        sticky_static = bool(static) or self._in_static_context()
+        if self._in_static_context() and int(value or 0) != 0:
+            self.return_data = b""
+            self.reverted = True
+            self.running = False
+            return 0
         if not self.ctx.contract_call:
             self.return_data = b""
             return 0
@@ -167,7 +173,7 @@ class EVM:
         to_addr = self._word_to_addr(to_word)
         kind = (
             "staticcall"
-            if static
+            if sticky_static
             else "delegatecall"
             if delegate
             else "callcode"
@@ -179,19 +185,34 @@ class EVM:
         call_gas = int(gas_plan.get("call_gas", 0) or 0)
         if callcode:
             out = self.ctx.contract_call(
-                to_addr, call_data, value, call_gas, delegate, static, callcode
+                to_addr, call_data, value, call_gas, delegate, sticky_static, callcode
             )
         else:
             out = self.ctx.contract_call(
-                to_addr, call_data, value, call_gas, delegate, static
+                to_addr, call_data, value, call_gas, delegate, sticky_static
             )
         sub_gas = min(int(out.get("gas_used", 0) or 0), call_gas)
         self._charge_subcall_gas(sub_gas)
         self.return_data = out.get("return_data", b"") or b""
-        if (delegate or callcode) and isinstance(out.get("storage"), dict):
+        if (
+            (delegate or callcode)
+            and isinstance(out.get("storage"), dict)
+            and not self._in_static_context()
+        ):
             self.storage = dict(out["storage"])
         self._write_return_to_memory(ret_offset, ret_size, self.return_data)
         return 1 if out.get("success") and not out.get("reverted") else 0
+
+    def _in_static_context(self) -> bool:
+        return bool(getattr(self.ctx, "_abs_read_only", False))
+
+    def _revert_static_write(self) -> bool:
+        """EIP-214: SSTORE/LOG/CREATE/SELFDESTRUCT in static context revert this frame."""
+        if not self._in_static_context():
+            return False
+        self.reverted = True
+        self.running = False
+        return True
 
     def _execute_create(self, value: int, offset: int, size: int,
                       salt: Optional[int] = None) -> int:
@@ -516,6 +537,8 @@ class EVM:
                 self._mem_extend(mem_offset, size)
                 native.evm_memory_copy(self.memory, mem_offset, chunk, 0, size)
             elif 0xA0 <= op_byte <= 0xA4:  # LOG0..LOG4
+                if self._revert_static_write():
+                    break
                 n_topics = op_byte - 0xA0
                 topics = [self._pop() for _ in range(n_topics)]
                 topics.reverse()
@@ -580,6 +603,8 @@ class EVM:
                 key = self._pop()
                 self._push(self.storage.get(key, 0))
             elif op_byte == 0x55:
+                if self._revert_static_write():
+                    break
                 key, value = self._pop(), self._pop()
                 if native.evm_u256_iszero(value):
                     if key in self.storage:
@@ -607,6 +632,8 @@ class EVM:
                 key = self._pop()
                 self._push(self.transient_storage.get(key, 0))
             elif op_byte == 0x5D:  # TSTORE
+                if self._revert_static_write():
+                    break
                 key, value = self._pop(), self._pop()
                 if native.evm_u256_iszero(value):
                     self.transient_storage.pop(key, None)
@@ -636,11 +663,15 @@ class EVM:
                 n = op_byte - 0x8F
                 native.evm_stack_swap(self.stack, n)
             elif op_byte == 0xF0:  # CREATE
+                if self._revert_static_write():
+                    break
                 size = self._pop()
                 offset = self._pop()
                 value = self._pop()
                 self._push(self._execute_create(value, offset, size))
             elif op_byte == 0xF5:  # CREATE2
+                if self._revert_static_write():
+                    break
                 salt = self._pop()
                 size = self._pop()
                 offset = self._pop()
@@ -708,6 +739,8 @@ class EVM:
             elif op_byte == 0xFE:  # INVALID
                 raise RuntimeError("invalid opcode")
             elif op_byte == 0xFF:  # SELFDESTRUCT
+                if self._revert_static_write():
+                    break
                 beneficiary = self._pop()
                 if self.ctx.selfdestruct:
                     self.ctx.selfdestruct(self._word_to_addr(beneficiary))
