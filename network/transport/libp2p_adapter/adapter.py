@@ -493,10 +493,14 @@ class Libp2pTransportAdapter:
         return [(str(p), bytes(b)) for p, b in node.poll_inbox()]
 
     def poll_admit_inbox(self) -> list[tuple[str, Any, str]]:
-        """Drain inbox and admit Absolute ADR 0008 frames (Slice M)."""
+        """Drain inbox and return only admitted Absolute frames (rejects dropped)."""
         from network.transport.libp2p_adapter.wire_bridge import admit_abs_inbox
 
-        return admit_abs_inbox(self.poll_inbox())
+        return [
+            (peer, decision, codec)
+            for peer, decision, codec in admit_abs_inbox(self.poll_inbox())
+            if decision.ok
+        ]
 
     def subscribe(self, topic: str) -> bool:
         self.require_transport()

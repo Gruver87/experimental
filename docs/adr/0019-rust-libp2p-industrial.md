@@ -263,6 +263,7 @@ feature `libp2p`), exposed to Python through the existing
 - «rust-libp2p compiled behind feature» ≠ «prod mesh is libp2p».
 - Lab PASS with `FEATURE_LIBP2P=true` does not authorize industrial compose.
 - `send_abs_wire` must not send when egress prepare refuses. 3-node Absolute `/abs/wire` admit lab is criterion-C evidence, not an ADR 0019 hard-gate step.
+- Inbound `/abs/wire` ACK ``OK:`` only for parseable ADR 0008 v1/v2 or Slice B lab pack_wire. Garbage is ``REFUSE:``, not inbox'd, not counted as Absolute recv.
 - Do not set `finality_quorum_live` or claim tip proof from this ADR.
 
 ## Consequences

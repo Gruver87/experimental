@@ -196,6 +196,54 @@ pub fn classify_abs_wire_codec(data: &[u8]) -> &'static str {
     }
 }
 
+/// Fail-closed admit of one `/abs/wire` payload before ACK.
+///
+/// v1/v2 must parse as ADR 0008. Slice B ``type\\0payload`` lab frames stay
+/// valid. Unclassified garbage must not be ACK'd ``OK:`` or counted as
+/// Absolute recv.
+pub fn admit_abs_wire_inbound(data: &[u8]) -> Result<&'static str, &'static str> {
+    match classify_abs_wire_codec(data) {
+        "v1" | "v2" => match crate::p2p_wire::parse_p2p_wire_line_inner(
+            data,
+            crate::p2p_wire::DEFAULT_MAX_P2P_LINE_BYTES,
+            None,
+        ) {
+            Ok((_, _, codec)) => Ok(codec),
+            Err(_) => {
+                if classify_abs_wire_codec(data) == "v2" {
+                    Err("abs_wire_v2_invalid")
+                } else {
+                    Err("abs_wire_v1_invalid")
+                }
+            }
+        },
+        "lab" => {
+            if lab_pack_wire_ok(data) {
+                Ok("lab")
+            } else {
+                Err("abs_wire_unclassified")
+            }
+        }
+        _ => Err("abs_wire_unclassified"),
+    }
+}
+
+fn lab_pack_wire_ok(data: &[u8]) -> bool {
+    let Some(pos) = data.iter().position(|b| *b == 0) else {
+        return false;
+    };
+    if pos == 0 || pos > crate::p2p_wire::MAX_P2P_TYPE_LEN {
+        return false;
+    }
+    let Ok(msg_type) = std::str::from_utf8(&data[..pos]) else {
+        return false;
+    };
+    !msg_type.is_empty()
+        && msg_type
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
+
 /// Slice BP: parse advertised external multiaddr JSON (fail-closed).
 ///
 /// Slice DB: trailing `/p2p/<peer>` is the same unique as the transport prefix.
@@ -3887,6 +3935,8 @@ mod enabled {
         abs_wire_v2_sent: u64,
         abs_wire_v1_recv: u64,
         abs_wire_v2_recv: u64,
+        /// Unclassified / unparseable `/abs/wire` (no OK ACK, not inbox'd).
+        abs_wire_refuse: u64,
         gossip_pub: u64,
         gossip_recv: u64,
         /// Slice Q: messages accepted after inbox enqueue (validate_messages path).
@@ -8040,48 +8090,66 @@ mod enabled {
                                                 channel,
                                                 ..
                                             } => {
-                                                let codec =
-                                                    super::classify_abs_wire_codec(&request);
                                                 let omit = state_bg
                                                     .lock()
                                                     .map(|st| st.enable_wire_omit_response)
                                                     .unwrap_or(false);
-                                                if let Ok(mut st) = state_bg.lock() {
-                                                    st.wire_recv =
-                                                        st.wire_recv.saturating_add(1);
-                                                    match codec {
-                                                        "v1" => {
-                                                            st.abs_wire_v1_recv = st
-                                                                .abs_wire_v1_recv
-                                                                .saturating_add(1)
+                                                match super::admit_abs_wire_inbound(&request) {
+                                                    Ok(codec) => {
+                                                        if let Ok(mut st) = state_bg.lock() {
+                                                            st.wire_recv =
+                                                                st.wire_recv.saturating_add(1);
+                                                            match codec {
+                                                                "v1" => {
+                                                                    st.abs_wire_v1_recv = st
+                                                                        .abs_wire_v1_recv
+                                                                        .saturating_add(1)
+                                                                }
+                                                                "v2" => {
+                                                                    st.abs_wire_v2_recv = st
+                                                                        .abs_wire_v2_recv
+                                                                        .saturating_add(1)
+                                                                }
+                                                                _ => {}
+                                                            }
+                                                            if st.inbox.len() < 1024 {
+                                                                st.inbox.push_back((
+                                                                    peer.to_string(),
+                                                                    request.clone(),
+                                                                ));
+                                                            }
                                                         }
-                                                        "v2" => {
-                                                            st.abs_wire_v2_recv = st
-                                                                .abs_wire_v2_recv
-                                                                .saturating_add(1)
+                                                        if omit {
+                                                            drop(channel);
+                                                        } else {
+                                                            let mut ack = b"OK:".to_vec();
+                                                            ack.extend_from_slice(
+                                                                &(request.len() as u32)
+                                                                    .to_be_bytes(),
+                                                            );
+                                                            let _ = swarm
+                                                                .behaviour_mut()
+                                                                .wire
+                                                                .send_response(channel, ack);
                                                         }
-                                                        _ => {}
                                                     }
-                                                    if st.inbox.len() < 1024 {
-                                                        st.inbox.push_back((
-                                                            peer.to_string(),
-                                                            request.clone(),
-                                                        ));
+                                                    Err(reason) => {
+                                                        if let Ok(mut st) = state_bg.lock() {
+                                                            st.abs_wire_refuse = st
+                                                                .abs_wire_refuse
+                                                                .saturating_add(1);
+                                                        }
+                                                        if omit {
+                                                            drop(channel);
+                                                        } else {
+                                                            let mut ack = b"REFUSE:".to_vec();
+                                                            ack.extend_from_slice(reason.as_bytes());
+                                                            let _ = swarm
+                                                                .behaviour_mut()
+                                                                .wire
+                                                                .send_response(channel, ack);
+                                                        }
                                                     }
-                                                }
-                                                if omit {
-                                                    // Slice BB: drop channel → ResponseOmission.
-                                                    drop(channel);
-                                                } else {
-                                                    // Echo ack: same payload prefix "OK:" + len
-                                                    let mut ack = b"OK:".to_vec();
-                                                    ack.extend_from_slice(
-                                                        &(request.len() as u32).to_be_bytes(),
-                                                    );
-                                                    let _ = swarm
-                                                        .behaviour_mut()
-                                                        .wire
-                                                        .send_response(channel, ack);
                                                 }
                                             }
                                             Message::Response {
@@ -9424,6 +9492,7 @@ mod enabled {
                 d.set_item("libp2p_abs_wire_v2_sent", st.abs_wire_v2_sent)?;
                 d.set_item("libp2p_abs_wire_v1_recv", st.abs_wire_v1_recv)?;
                 d.set_item("libp2p_abs_wire_v2_recv", st.abs_wire_v2_recv)?;
+                d.set_item("libp2p_abs_wire_refuse", st.abs_wire_refuse)?;
                 d.set_item("libp2p_gossip_pub", st.gossip_pub)?;
                 d.set_item("libp2p_gossip_recv", st.gossip_recv)?;
                 d.set_item(
@@ -10125,6 +10194,7 @@ mod enabled {
                 d.set_item("libp2p_abs_wire_v2_sent", st.abs_wire_v2_sent)?;
                 d.set_item("libp2p_abs_wire_v1_recv", st.abs_wire_v1_recv)?;
                 d.set_item("libp2p_abs_wire_v2_recv", st.abs_wire_v2_recv)?;
+                d.set_item("libp2p_abs_wire_refuse", st.abs_wire_refuse)?;
                 d.set_item("libp2p_gossip_pub", st.gossip_pub)?;
                 d.set_item("libp2p_gossip_recv", st.gossip_recv)?;
                 d.set_item(
@@ -11177,7 +11247,7 @@ pub use enabled::register;
 
 #[cfg(test)]
 mod tests {
-    use super::{classify_abs_wire_codec, parse_external_addrs_json};
+    use super::{admit_abs_wire_inbound, classify_abs_wire_codec, parse_external_addrs_json};
 
     #[test]
     fn classify_v1_ndjson() {
@@ -11192,6 +11262,28 @@ mod tests {
     #[test]
     fn classify_lab_pack() {
         assert_eq!(classify_abs_wire_codec(b"ping\0slice-b"), "lab");
+    }
+
+    #[test]
+    fn admit_accepts_v1_and_lab_pack() {
+        assert_eq!(admit_abs_wire_inbound(b"{\"type\":\"ping\"}\n"), Ok("v1"));
+        assert_eq!(admit_abs_wire_inbound(b"ping\0slice-b"), Ok("lab"));
+    }
+
+    #[test]
+    fn admit_rejects_junk_and_unparseable_prefixes() {
+        assert_eq!(
+            admit_abs_wire_inbound(b"%%%not-abs-wire%%%\n"),
+            Err("abs_wire_unclassified")
+        );
+        assert_eq!(
+            admit_abs_wire_inbound(b"{not-json\n"),
+            Err("abs_wire_v1_invalid")
+        );
+        assert_eq!(
+            admit_abs_wire_inbound(b"AB2:deadbeef\n"),
+            Err("abs_wire_v2_invalid")
+        );
     }
 
     #[test]

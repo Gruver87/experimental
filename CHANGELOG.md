@@ -25,6 +25,7 @@ Canonical language for this repository is **English**. Older inherited entries b
 - EVM execution: nested CALL OOG burns all forwarded gas and does not commit child writes; REVERT still refunds unused gas. Parent continues. Soak not run.
 - Long-Range (ADR 0017): persisted WS checkpoint (`ABS_WS_CHECKPOINT_PATH`, height+hash) survives restart; tip-import HARD REFUSE below the anchor and when the store is empty (`ws_no_anchor`). Digest-only JSON, not a live quorum. `feature_long_range=false` on industrial JSON. Soak not run.
 - libp2p `/abs/wire`: `send_abs_wire` HARD REFUSE when egress prepare fails (no encode-around-admit fallback). 3-node Absolute v1/v2 ping + junk admit refuse lab. Not a hard-gate slice. `feature_libp2p=false` on industrial JSON. Soak not run.
+- libp2p `/abs/wire`: inbound ACK `OK:` only for parseable ADR 0008 v1/v2 or lab pack_wire; garbage is `REFUSE:`, not inbox'd, not counted as Absolute recv. Soak not run.
 
 ---
 

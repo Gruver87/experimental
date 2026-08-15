@@ -115,18 +115,20 @@ def main() -> int:
 
         junk = b"%%%not-abs-wire%%%\n"
         ack_j = nodes[0].send_wire(nodes[1].peer_id, junk)
-        if not (isinstance(ack_j, (bytes, bytearray)) and ack_j.startswith(b"OK:")):
-            print(f"FAIL: junk transport ack {ack_j!r}")
+        if not (
+            isinstance(ack_j, (bytes, bytearray)) and bytes(ack_j).startswith(b"REFUSE:")
+        ):
+            print(f"FAIL: junk expected REFUSE: ack got {ack_j!r}")
             return 1
-        got_j = _poll_one(nodes[1])
-        if got_j is None:
-            print("FAIL: junk did not arrive on the stream (cannot prove admit refuse)")
+        got_j = _poll_one(nodes[1], timeout=0.4)
+        if got_j is not None:
+            print(f"FAIL: junk delivered to inbox {got_j!r}")
             return 1
-        junk_dec = admit_abs_wire_frame(bytes(got_j[1]), peer_id=nodes[0].peer_id)
-        if junk_dec.ok:
-            print("FAIL: junk Absolute frame was admitted")
+        refuse_n = int(nodes[1].metrics().get("libp2p_abs_wire_refuse", 0) or 0)
+        if refuse_n < 1:
+            print(f"FAIL: abs_wire_refuse metric {nodes[1].metrics()}")
             return 1
-        print(f"OK: junk admit HARD REFUSE reason={junk_dec.reject}")
+        print(f"OK: junk ACK REFUSE={ack_j!r} inbox=empty refuse={refuse_n}")
 
         ad = Libp2pTransportAdapter(enabled=False)
         try:
