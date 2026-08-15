@@ -185,7 +185,9 @@ if ($KeepVolumes) {
     Invoke-MeshCompose -- down --volumes --remove-orphans
 }
 if (-not $SkipBuild) {
-    Invoke-MeshCompose build node1 node2 node3
+    # One image is shared by node1/node2/node3. Parallel `build node1 node2 node3`
+    # races on the same tag (Bake: image already exists).
+    Invoke-MeshCompose build node1
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 

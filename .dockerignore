@@ -12,3 +12,6 @@ backup_*/
 *.db-shm
 *.db-wal
 node_modules/
+**/target/
+logs/
+.cursor/
