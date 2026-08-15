@@ -37,6 +37,7 @@ jobs:
             tests/unit/test_long_range_wave2.py \
             tests/unit/test_long_range_wave3.py \
             tests/unit/test_libp2p_adapter.py \
+            tests/unit/test_libp2p_wire_bridge.py \
             tests/unit/test_libp2p_swarm_lab.py \
             tests/unit/test_dual_stack.py \
             tests/unit/test_prod_mesh_feature_freeze.py \
@@ -121,6 +122,8 @@ jobs:
         run: python scripts/libp2p_rust_wire_timeout_lab.py
       - name: rust-libp2p Absolute ADR 0008 wire lab (Slice M)
         run: python scripts/libp2p_rust_abs_wire_lab.py
+      - name: rust-libp2p 3-node Absolute /abs/wire admit lab
+        run: python scripts/libp2p_rust_abs_wire_three_node_lab.py
       - name: rust-libp2p AutoNAT + DCUtR lab (Slice N)
         run: python scripts/libp2p_rust_autonat_dcutr_lab.py
       - name: rust-libp2p bootstrap peer book lab (Slice O)

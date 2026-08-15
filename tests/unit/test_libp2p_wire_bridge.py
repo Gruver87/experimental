@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from network.peer_manager import PeerManager, PeerManagerSettings
-from network.transport.errors import TransportCapabilityError
+from network.transport.errors import TransportCapabilityError, TransportValidationError
 from network.transport.libp2p_adapter import Libp2pTransportAdapter
 from network.transport.libp2p_adapter.peer_policy import Libp2pPeerPolicy
 from network.transport.libp2p_adapter.wire_bridge import (
@@ -13,6 +13,7 @@ from network.transport.libp2p_adapter.wire_bridge import (
     admit_abs_wire_frame,
     detect_abs_wire_codec,
     encode_abs_wire_frame,
+    prepare_abs_wire_frame,
 )
 from network.transport.types import PeerEndpoint
 
@@ -49,6 +50,45 @@ def test_admit_abs_inbox_batch() -> None:
     assert out[1][0] == "p2" and out[1][2] == "v2"
     assert out[0][1].ok or out[0][1].reject is not None
     assert out[1][1].ok or out[1][1].reject is not None
+
+
+def test_prepare_abs_wire_refuses_empty_msg_type() -> None:
+    d, raw = prepare_abs_wire_frame(peer_id="peer-a", msg_type="  ", payload={})
+    assert d.ok is False
+    assert raw == b""
+    assert d.reject is not None
+
+
+def test_prepare_abs_wire_refuses_empty_peer() -> None:
+    d, raw = prepare_abs_wire_frame(peer_id="", msg_type="ping", payload={})
+    assert d.ok is False
+    assert raw == b""
+    assert d.reject is not None
+
+
+def test_prepare_abs_wire_refuses_oversize() -> None:
+    d, raw = prepare_abs_wire_frame(
+        peer_id="peer-a",
+        msg_type="ping",
+        payload={"blob": "x" * 8000},
+        max_bytes=4096,
+    )
+    assert d.ok is False
+    assert raw == b""
+    assert d.reject is not None
+
+
+def test_send_abs_wire_refuses_when_prepare_refuses() -> None:
+    ad = Libp2pTransportAdapter(enabled=False)
+    with pytest.raises(TransportValidationError) as ei:
+        ad.send_abs_wire("peer-a", "", {"lab": True})
+    assert ei.value.code in ("transport_validation", "abs_wire_prepare_refused")
+
+
+def test_admit_abs_wire_junk_is_not_ok() -> None:
+    decision = admit_abs_wire_frame(b"%%%not-abs-wire%%%\n", peer_id="peer-a")
+    assert decision.ok is False
+    assert decision.reject is not None
 
 
 def test_peer_policy_blocks_banned() -> None:

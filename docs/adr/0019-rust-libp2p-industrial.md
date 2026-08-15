@@ -50,7 +50,7 @@ feature `libp2p`), exposed to Python through the existing
 | Status surface | Slice J: shared metric keys → `/status` / hardening snapshot + `adapter.status_snapshot` |
 | mDNS hygiene | Slice K: `enable_mdns` / `ABS_LIBP2P_MDNS` Toggle; loopback-only discoveries |
 | Wire timeout / adapter | Slice L: `wire_timeout_secs` / `ABS_LIBP2P_WIRE_TIMEOUT_SECS`; adapter kad/relay/block parity |
-| ADR 0008 on wire | Slice M: Absolute v1/v2 classify + counters; `send_abs_wire` / admit inbox; `libp2p_rust_abs_wire_lab.py` |
+| ADR 0008 on wire | Slice M: Absolute v1/v2 classify + counters; `send_abs_wire` / admit inbox; `libp2p_rust_abs_wire_lab.py`. Prepare refuse is HARD REFUSE (no encode fallback). 3-node Absolute admit: `libp2p_rust_abs_wire_three_node_lab.py` (not a hard-gate slice) |
 | NAT traversal | Slice N: AutoNAT + DCUtR; `enable_autonat` / `ABS_LIBP2P_AUTONAT` (default off) + explicit `autonat_add_server`; `libp2p_rust_autonat_dcutr_lab.py` |
 | Bootstrap book | Slice O: JSON peer book + industrial sequential `bootstrap_dial` (budget/timeout/settle); `libp2p_rust_bootstrap_lab.py` |
 | Reconnect | Slice P: bootstrap auto-redial on disconnect with exponential backoff; `libp2p_rust_reconnect_lab.py` |
@@ -262,6 +262,7 @@ feature `libp2p`), exposed to Python through the existing
 
 - «rust-libp2p compiled behind feature» ≠ «prod mesh is libp2p».
 - Lab PASS with `FEATURE_LIBP2P=true` does not authorize industrial compose.
+- `send_abs_wire` must not send when egress prepare refuses. 3-node Absolute `/abs/wire` admit lab is criterion-C evidence, not an ADR 0019 hard-gate step.
 - Do not set `finality_quorum_live` or claim tip proof from this ADR.
 
 ## Consequences

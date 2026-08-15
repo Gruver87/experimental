@@ -78,7 +78,7 @@ def prepare_abs_wire_frame(
     now: Optional[float] = None,
     codec: str = "v1",
 ) -> Tuple[AdmitDecision, bytes]:
-    """Prepare egress via ADR 0008 path; fallback encode if prepare unavailable."""
+    """Prepare egress via ADR 0008 path. Refuse returns empty bytes (no encode fallback)."""
     ad = adapter or NativeTransportAdapter(require_native=False)
     env = OutboundEnvelope(
         peer_id=str(peer_id),
@@ -94,10 +94,15 @@ def prepare_abs_wire_frame(
     )
     if decision.ok and decision.frame is not None:
         raw = decision.frame.data.get("payload") if decision.frame.data else None
-        if isinstance(raw, (bytes, bytearray)):
+        if isinstance(raw, (bytes, bytearray)) and raw:
             return decision, bytes(raw)
-    # Lab-safe fallback: encode without rate table when native prepare soft-fails
-    return decision, encode_abs_wire_frame(msg_type, payload, codec=codec)
+        from network.transport.reject import make_reject
+
+        reject = make_reject(
+            "transport_internal", "egress prepare ok without payload bytes"
+        )
+        return AdmitDecision(ok=False, reject=reject), b""
+    return decision, b""
 
 
 def admit_abs_inbox(

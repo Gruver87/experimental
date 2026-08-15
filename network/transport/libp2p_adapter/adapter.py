@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 from typing import Any, Mapping, Optional
 
-from network.transport.errors import TransportCapabilityError
+from network.transport.errors import TransportCapabilityError, TransportValidationError
 from network.transport.types import PeerEndpoint
 
 
@@ -463,15 +463,26 @@ class Libp2pTransportAdapter:
         *,
         codec: str = "v1",
     ) -> bytes:
-        """Encode ADR 0008 Absolute frame and send over `/abs/wire` (Slice M)."""
+        """Encode ADR 0008 Absolute frame and send over `/abs/wire` (Slice M).
+
+        Prepare refuse is HARD REFUSE — never encode-and-send around egress admit.
+        """
         from network.transport.libp2p_adapter.wire_bridge import prepare_abs_wire_frame
 
-        _decision, frame = prepare_abs_wire_frame(
+        decision, frame = prepare_abs_wire_frame(
             peer_id=str(peer_id),
             msg_type=str(msg_type),
             payload=payload,
             codec=str(codec),
         )
+        if (not decision.ok) or not frame:
+            code = "abs_wire_prepare_refused"
+            if decision.reject is not None and str(decision.reject.reason_code or "").strip():
+                code = str(decision.reject.reason_code)
+            raise TransportValidationError(
+                f"abs wire prepare refused: {code}",
+                code=code,
+            )
         return self.send_wire(str(peer_id), frame)
 
     def poll_inbox(self) -> list[tuple[str, bytes]]:
