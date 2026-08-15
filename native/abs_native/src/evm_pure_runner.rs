@@ -78,6 +78,41 @@ fn set_inline_depth(host_context: Option<&Bound<'_, PyDict>>, depth: usize) -> P
     Ok(())
 }
 
+fn dict_flag(ctx: &Bound<'_, PyDict>, key: &str) -> bool {
+    match ctx.get_item(key) {
+        Ok(Some(v)) => v.is_truthy().unwrap_or(false),
+        _ => false,
+    }
+}
+
+/// Sticky STATICCALL / eth_call read-only: parent `_abs_read_only` or nested inline flag.
+fn get_inline_read_only(host_context: Option<&Bound<'_, PyDict>>) -> bool {
+    let Some(ctx) = host_context else {
+        return false;
+    };
+    dict_flag(ctx, "_abs_inline_read_only") || dict_flag(ctx, "_abs_read_only")
+}
+
+fn set_inline_read_only(
+    host_context: Option<&Bound<'_, PyDict>>,
+    read_only: bool,
+) -> PyResult<()> {
+    let Some(ctx) = host_context else {
+        return Ok(());
+    };
+    ctx.set_item("_abs_inline_read_only", read_only)?;
+    Ok(())
+}
+
+fn refuse_static_write(read_only: bool, reverted: &mut bool, running: &mut bool) -> bool {
+    if !read_only {
+        return false;
+    }
+    *reverted = true;
+    *running = false;
+    true
+}
+
 fn opcode_stops_segment(
     op: u8,
     host_context: Option<&Bound<'_, PyDict>>,
@@ -689,6 +724,43 @@ fn execute_call_native(
     return_data: &mut Vec<u8>,
 ) -> PyResult<()> {
     let frame = decode_call_from_stack(op, stack)?;
+    if get_inline_read_only(host_context) && !frame.value.is_zero() {
+        return Err(pyo3::exceptions::PyRuntimeError::new_err(
+            "static_write_protection",
+        ));
+    }
+    let prev_ro = get_inline_read_only(host_context);
+    set_inline_read_only(host_context, prev_ro || frame.static_call)?;
+    let result = execute_call_native_inner(
+        py,
+        host_context,
+        host_bridge,
+        &frame,
+        stack,
+        memory,
+        gas_limit,
+        gas_used,
+        storage,
+        arena,
+        return_data,
+    );
+    set_inline_read_only(host_context, prev_ro)?;
+    result
+}
+
+fn execute_call_native_inner(
+    py: Python<'_>,
+    host_context: Option<&Bound<'_, PyDict>>,
+    host_bridge: Option<&Bound<'_, PyAny>>,
+    frame: &DecodedCall,
+    stack: &mut Vec<U256>,
+    memory: &mut Vec<u8>,
+    gas_limit: u64,
+    gas_used: &mut u64,
+    storage: Option<&Bound<'_, PyDict>>,
+    arena: &mut HashMap<U256, U256>,
+    return_data: &mut Vec<u8>,
+) -> PyResult<()> {
     // v1.3.70: flush Rust arena → Python before nested CALL so DELEGATECALL
     // children (and hooks) see parent SSTOREs from this frame.
     restore_storage_dict(storage, arena)?;
@@ -713,7 +785,7 @@ fn execute_call_native(
         py,
         host_context,
         host_bridge,
-        &frame,
+        frame,
         &call_data,
         call_gas,
         gas_limit,
@@ -732,7 +804,7 @@ fn execute_call_native(
         py,
         host_context,
         host_bridge,
-        &frame,
+        frame,
         &call_data,
         call_gas,
         gas_limit,
@@ -1337,7 +1409,7 @@ fn try_inline_leaf_value0_call(
         .unwrap_or(false)
         || reason == "out_of_gas";
     let success = !reverted && matches!(reason.as_str(), "halt" | "return");
-    if success {
+    if success && !frame.static_call {
         store_inline_storage(host_context, frame.to_word, &child_storage)?;
         // v1.3.83: plan satoshi journal op only after child success (matches balance keep).
         if !frame.value.is_zero() {
@@ -2130,6 +2202,7 @@ fn run_pure_segment_inner(
     let mut handoff = false;
     let mut host_logs: Vec<HostLogEntry> = Vec::new();
     let static_ctx = parse_static_context(host_context)?;
+    let read_only = get_inline_read_only(host_context);
     let mut transient: HashMap<U256, U256> = HashMap::new();
     // v1.3.67: Rust-owned storage arena for SLOAD/SSTORE (Priority 34)
     let mut arena: HashMap<U256, U256> = snapshot_storage_dict(storage)?.unwrap_or_default();
@@ -2527,6 +2600,9 @@ fn run_pure_segment_inner(
                     Ok(Some(false))
                 }
                 0x55 => {
+                    if refuse_static_write(read_only, &mut reverted, &mut running) {
+                        return Ok(Some(false));
+                    }
                     let key = stack_pop(&mut stack)?;
                     let value = stack_pop(&mut stack)?;
                     storage_store(&mut arena, key, value);
@@ -2567,6 +2643,9 @@ fn run_pure_segment_inner(
                     Ok(Some(false))
                 }
                 0x5D => {
+                    if refuse_static_write(read_only, &mut reverted, &mut running) {
+                        return Ok(Some(false));
+                    }
                     let key = stack_pop(&mut stack)?;
                     let value = stack_pop(&mut stack)?;
                     if value.is_zero() {
@@ -2635,6 +2714,9 @@ fn run_pure_segment_inner(
                     Ok(Some(false))
                 }
                 op if (0xA0..=0xA4).contains(&op) => {
+                    if refuse_static_write(read_only, &mut reverted, &mut running) {
+                        return Ok(Some(false));
+                    }
                     // v1.3.57: LOG body fully in Rust (optional emit_log side-effect only).
                     execute_log_native(
                         py,
@@ -2670,6 +2752,9 @@ fn run_pure_segment_inner(
                     && (hook_contract_create(host_context).is_some()
                         || bridge_state_has_codes(host_context)) =>
                 {
+                    if refuse_static_write(read_only, &mut reverted, &mut running) {
+                        return Ok(Some(false));
+                    }
                     execute_create_native(
                         py,
                         host_context,
@@ -2682,6 +2767,9 @@ fn run_pure_segment_inner(
                     Ok(Some(false))
                 }
                 0xFF if hook_selfdestruct(host_context).is_some() => {
+                    if refuse_static_write(read_only, &mut reverted, &mut running) {
+                        return Ok(Some(false));
+                    }
                     execute_selfdestruct_native(host_context, &mut stack, &mut running)?;
                     Ok(Some(false))
                 }
@@ -2718,6 +2806,9 @@ fn run_pure_segment_inner(
             Err(err) => {
                 let error_msg = err.to_string();
                 running = false;
+                if error_msg.contains("static_write_protection") {
+                    reverted = true;
+                }
                 if host_frame_snapshot {
                     abort_restore_host_storage(storage, &storage_snap, &mut arena, &mut transient)?;
                 } else {
@@ -2725,6 +2816,8 @@ fn run_pure_segment_inner(
                 }
                 let stop = if error_msg.contains("out_of_gas") {
                     "out_of_gas"
+                } else if error_msg.contains("static_write_protection") {
+                    "revert"
                 } else {
                     "error"
                 };

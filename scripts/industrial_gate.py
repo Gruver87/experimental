@@ -1745,6 +1745,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("evm_pure_runner must allow multi-depth call-frames (v1.3.75)")
         if "MAX_INLINE_CALL_DEPTH" not in rust_runner or "_abs_inline_depth" not in rust_runner:
             errors.append("evm_pure_runner must track inline CALL depth (v1.3.75)")
+        if "static_write_protection" not in rust_runner or "_abs_inline_read_only" not in rust_runner:
+            errors.append("evm_pure_runner must refuse STATICCALL writes on the inline path")
         # v1.3.76 — value CALL fail-closed
         if "try_inline_value_transfer" not in rust_runner or "v1.3.76" not in rust_runner:
             errors.append("evm_pure_runner must fail-closed value CALL transfer (v1.3.76)")

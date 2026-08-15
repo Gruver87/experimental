@@ -1026,6 +1026,7 @@ def evm_host_context_from_evm(ctx) -> dict:
         hooks["selfdestruct"] = ctx.selfdestruct
     if hooks:
         host["bridge_hooks"] = hooks
+    host["_abs_read_only"] = bool(getattr(ctx, "_abs_read_only", False))
     return host
 
 
