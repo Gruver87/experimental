@@ -20,6 +20,7 @@ Canonical language for this repository is **English**. Older inherited entries b
 - EVM RPC: block-level `logsBloom` on `eth_getBlockByNumber` / `ByHash` reconstructed from the log index via `QueryFacadePort.get_evm_logs_by_block` (not getLogs caps; not a sealed consensus header). `transactionsRoot` / `receiptsRoot` still stub. Soak not run.
 - EVM execution: nested inline CALL `RETURNDATACOPY` / `RETURNDATASIZE` use the live return buffer (child RETURN and REVERT data). Not a sealed header. Soak not run.
 - EVM execution: inline STATICCALL refuses SSTORE/LOG/CREATE/TSTORE/SELFDESTRUCT and value-CALL; child storage is not committed; parent continues. Soak not run.
+- EVM execution: nested CALL OOG burns all forwarded gas and does not commit child writes; REVERT still refunds unused gas. Parent continues. Soak not run.
 
 ---
 

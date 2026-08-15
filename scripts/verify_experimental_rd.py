@@ -25,6 +25,7 @@ UNIT_TESTS = [
     "tests/unit/test_evm_rpc_compat.py",
     "tests/unit/test_evm_nested_returndata.py",
     "tests/unit/test_evm_nested_staticcall.py",
+    "tests/unit/test_evm_nested_oog.py",
     "tests/unit/test_evm_precompiles.py",
     "tests/unit/test_long_range_ws.py",
     "tests/unit/test_long_range_wave2.py",

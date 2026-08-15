@@ -7,7 +7,7 @@ Scope: Absolute hybrid EVM subset on the single apply path.
 |------|--------|-------|
 | Transfer + fee burn | **Supported** | Native apply + satoshi domain |
 | CREATE / CREATE2 + deploy salt | **Supported (prod)** | `evm_create2_eip1014` + `evm_require_deploy_salt` |
-| CALL / STATICCALL host | **Partial** | Host-in-apply; nested depth cap 4. Inline CALL `RETURNDATACOPY` uses the live return buffer. Inline STATICCALL refuses SSTORE/LOG/CREATE/TSTORE/SELFDESTRUCT and value-CALL; parent continues |
+| CALL / STATICCALL host | **Partial** | Host-in-apply; nested depth cap 4. Inline CALL `RETURNDATACOPY` uses the live return buffer. Inline STATICCALL refuses SSTORE/LOG/CREATE/TSTORE/SELFDESTRUCT and value-CALL. Nested OOG burns all forwarded gas (REVERT does not) |
 | Precompiles (ecrecover, sha256, …) | **Partial** | **0x01–0x09** via `execution/evm_precompiles.py` (+ `blake2f.py`, `bn254.py`/`py_ecc`); gas/curve edge cases may still diverge from geth |
 | `eth_call` | **Supported** | Hex ABI word encoding + precompile bytes |
 | `eth_estimateGas` | **Supported** | Includes create (`to` empty) path |
