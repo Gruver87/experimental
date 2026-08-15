@@ -34,6 +34,7 @@ Canonical language for this repository is **English**. Older inherited entries b
 - EVM: precompiles 0x01–0x09 on the apply-path nested CALL/STATICCALL hook and `call_contract` (not eth_call only). Identity/sha256 evidenced. Not a geth gas audit. Soak not run.
 - EVM: host apply treats `to` in 0x01–0x09 as a message-call (not CREATE); mempool `_is_evm_deploy_tx` skips precompiles. Soak not run.
 - EVM: nested CALL to an empty account (EOA) succeeds with empty returndata and still transfers value. No-code / precompile writeback drops `set_storage` so DELEGATECALL into 0x01–0x09 cannot wipe the caller. Soak not run.
+- EVM: nested CALL/CALLCODE with value fail-closes when the caller cannot cover satoshi (`insufficient_call_value`): no child, no writeback mint via saturating_sub. Matches native inline Insufficient. Soak not run.
 
 ---
 

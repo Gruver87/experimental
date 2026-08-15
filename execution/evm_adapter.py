@@ -314,6 +314,25 @@ class EVMAdapter:
             out["native_writeback_ops"] = len(ops)
         return out
 
+    def _caller_covers_call_value(self, caller: str, value_wei: int) -> bool:
+        """Fail-closed: nested CALL value must be covered in satoshi (no writeback mint).
+
+        Writeback converts wei→sat as ``wei // 10**12`` (1 ABS = 1e18 wei = 1e6 sat).
+        Dust below one satoshi is a no-op transfer and does not fail the CALL.
+        """
+        need_wei = int(value_wei or 0)
+        if need_wei <= 0:
+            return True
+        sat_need = need_wei // 1_000_000_000_000
+        if sat_need <= 0:
+            return True
+        addr = self._normalize_addr(caller)
+        if hasattr(self.db, "get_balance_satoshi"):
+            have_sat = int(self.db.get_balance_satoshi(addr) or 0)
+        else:
+            have_sat = int(self.db.get_balance(addr) * 1_000_000)
+        return have_sat >= sat_need
+
     def _contract_call_hook(self, target: str, calldata: bytes, value: int,
                             gas: int, delegate: bool, static: bool,
                             caller_ctx: EVMContext,
@@ -322,6 +341,20 @@ class EVMAdapter:
         kind = self._nested_call_kind(delegate, static, callcode)
         parent_ro = bool(getattr(caller_ctx, "_abs_read_only", False))
         call_value = 0 if delegate else int(value or 0)
+        if (
+            call_value > 0
+            and kind in ("call", "callcode")
+            and not parent_ro
+            and not self._caller_covers_call_value(caller_ctx.address, call_value)
+        ):
+            # Same as native inline Insufficient: CALL returns 0, no child, no mint.
+            return {
+                "success": False,
+                "reverted": False,
+                "return_data": b"",
+                "gas_used": 0,
+                "error": "insufficient_call_value",
+            }
         pre_out = self._precompile_nested_call(target, calldata, gas)
         if pre_out is not None:
             if pre_out.get("reverted"):

@@ -186,3 +186,17 @@ def test_delegatecall_precompile_does_not_wipe_caller_storage(evm_db) -> None:
     raw = row["storage"] if row else "{}"
     storage = json.loads(raw) if isinstance(raw, str) else dict(raw or {})
     assert int(storage.get("1", storage.get(1))) == 99
+
+
+def test_nested_call_precompile_insufficient_value_does_not_run(evm_db) -> None:
+    adapter, db = evm_db
+    caller = "0x" + "aa" * 20
+    db.save_account(caller, balance=0.0, nonce=0, code="6000", storage="{}")
+    ctx = EVMContext(address=caller)
+    out = adapter._contract_call_hook(
+        IDENTITY, b"hi", 10**18, 100_000, False, False, ctx
+    )
+    assert out.get("success") is False
+    assert out.get("error") == "insufficient_call_value"
+    assert out.get("return_data") == b""
+    assert db.get_balance_satoshi(IDENTITY) == 0

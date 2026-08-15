@@ -67,8 +67,26 @@ def test_nested_call_to_eoa_transfers_value(tmp_path) -> None:
             EOA, b"", 10**18, 100_000, False, False, ctx
         )
         assert out.get("success") is True
-        assert db.get_balance(CALLER) == 4.0
-        assert db.get_balance(EOA) == 1.0
+        assert db.get_balance_satoshi(CALLER) == 4_000_000
+        assert db.get_balance_satoshi(EOA) == 1_000_000
+    finally:
+        db.close()
+
+
+def test_nested_call_to_eoa_insufficient_value_does_not_mint(tmp_path) -> None:
+    """Writeback used saturating_sub: recipient credited while sender clamped at 0."""
+    adapter, db = _adapter(tmp_path)
+    try:
+        db.save_account(CALLER, balance=0.0, nonce=0, code="6000", storage="{}")
+        ctx = EVMContext(address=CALLER)
+        out = adapter._contract_call_hook(
+            EOA, b"", 10**18, 100_000, False, False, ctx
+        )
+        assert out.get("success") is False
+        assert out.get("error") == "insufficient_call_value"
+        assert db.get_balance_satoshi(CALLER) == 0
+        assert db.get_balance_satoshi(EOA) == 0
+        assert db.get_account(EOA) is None
     finally:
         db.close()
 
