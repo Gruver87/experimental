@@ -195,3 +195,26 @@ def test_optional_ws_missing_digest_file_fail_closed_empty(monkeypatch, tmp_path
     d = tip.evaluate_candidate(child)
     assert d.outcome == ApplyOutcome.REJECT
     assert d.reason_code == "ws_no_anchor"
+
+
+def test_optional_ws_empty_items_file_ignores_leftover_env(monkeypatch, tmp_path) -> None:
+    """Existing persist with empty items + leftover env must not lower the anchor."""
+    import json
+
+    from consensus.tip_safety.shadow import _optional_ws_service_from_env
+
+    path = tmp_path / "ws.json"
+    path.write_text(json.dumps({"max_history": 8, "items": []}), encoding="utf-8")
+    monkeypatch.setenv("FEATURE_LONG_RANGE", "true")
+    monkeypatch.setenv("ABS_WS_CHECKPOINT_PATH", str(path))
+    monkeypatch.setenv("ABS_WS_ANCHOR_HEIGHT", "1")
+    monkeypatch.setenv("ABS_WS_ANCHOR_HASH", "bb" * 32)
+    svc = _optional_ws_service_from_env()
+    assert svc is not None
+    assert svc.get_anchor() is None
+    w, _mid, anchor = _seed()
+    tip = TipSafetyService(TipState(head=anchor), ancestry=w, ws_service=svc)
+    child = BlockRef(height=3, block_hash="cc" * 32, parent_hash=anchor.block_hash)
+    d = tip.evaluate_candidate(child)
+    assert d.outcome == ApplyOutcome.REJECT
+    assert d.reason_code == "ws_no_anchor"

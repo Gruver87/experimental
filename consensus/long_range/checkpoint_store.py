@@ -86,13 +86,18 @@ def bind_persisted_ws(
     env_height: str = "",
     env_hash: str = "",
 ) -> WeakSubjectivityService:
-    """Load WS anchor from disk; seed from env once and persist for restart.
+    """Load WS anchor from disk; seed from env only when the persist file is missing.
 
     Empty store and empty env → service with no anchor (tip-import must refuse).
+    An existing file with no usable certificate must not re-seed from leftover
+    env (wiping ``items`` must not lower the checkpoint).
     """
     svc = WeakSubjectivityService()
-    store = CheckpointStore.load_or_empty(path)
+    persist = Path(path) if path and str(path).strip() else None
+    store = CheckpointStore.load_or_empty(persist)
     if store.apply_latest(svc):
+        return svc
+    if persist is not None and persist.is_file():
         return svc
     h_raw = str(env_height or "").strip()
     hash_raw = str(env_hash or "").strip()
@@ -103,6 +108,6 @@ def bind_persisted_ws(
     )
     store.push(cert)
     svc.set_anchor(cert.anchor)
-    if path and str(path).strip():
-        store.save(path)
+    if persist is not None:
+        store.save(persist)
     return svc

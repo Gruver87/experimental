@@ -26,9 +26,10 @@ def _optional_ws_service_from_env() -> Optional[Any]:
     """Attach ADR 0017 WS gate when FEATURE_LONG_RANGE.
 
     Persist path: ``ABS_WS_CHECKPOINT_PATH`` (height+hash JSON). Optional
-    ``ABS_WS_ANCHOR_HEIGHT`` / ``ABS_WS_ANCHOR_HASH`` seed an empty store once
-    and are written to disk so a restart does not depend on env. Init errors
-    return an empty WS service (tip-import refuses) — never drop the gate.
+    ``ABS_WS_ANCHOR_HEIGHT`` / ``ABS_WS_ANCHOR_HASH`` seed only when that file
+    is missing; an existing empty store must not re-seed from leftover env.
+    Init errors return an empty WS service (tip-import refuses) — never drop
+    the gate.
     """
     import os
 

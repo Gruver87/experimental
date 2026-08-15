@@ -11,6 +11,7 @@ Wave-9: persist height+hash, restart bind, tip-import HARD REFUSE below
         and when the store is empty (no_anchor).
 Wave-10: checkpoint height is unique (wrong hash → anchor_hash_mismatch).
 Wave-11: persist JSON without digest is refused (cannot rewrite height/hash).
+Wave-12: existing empty persist file must not re-seed from leftover env.
 
 Usage:
   python scripts/long_range_lab.py
@@ -236,7 +237,21 @@ def main() -> int:
                 print(f"FAIL: expected digest error got {exc}")
                 return 1
 
-    print("Long-Range lab wave-11 (digest required on persist load)")
+    # Wave-12: wiped items + leftover env must not lower the checkpoint.
+    with tempfile.TemporaryDirectory() as tmp:
+        wiped = Path(tmp) / "empty_items.json"
+        wiped.write_text(json.dumps({"max_history": 8, "items": []}), encoding="utf-8")
+        wiped_svc = bind_persisted_ws(
+            path=wiped, env_height="1", env_hash="bb" * 32
+        )
+        if wiped_svc.get_anchor() is not None:
+            print(
+                "FAIL: empty persist re-seeded from env "
+                f"height={wiped_svc.get_anchor().height}"
+            )
+            return 1
+
+    print("Long-Range lab wave-12 (empty persist does not re-seed env)")
     print(f"  cert digest: {cert.digest[:16]}... verify={cert.verify_digest()}")
     print(f"  WS child:   accept={ok.accept} reason={ok.reason}")
     print(f"  stale fork: accept={bad.accept} reason={bad.reason}")
@@ -248,6 +263,7 @@ def main() -> int:
     print(f"  mismatch:   reject={mismatch.reason}")
     print(f"  is_anchor:  accept={exact.reason}")
     print("  no_digest:  refused")
+    print("  empty_env:  no re-seed")
     print(f"  store:      history={len(store)} latest_h={store.latest().anchor.height}")
 
     if not ok.accept or bad.accept or below.accept:

@@ -166,6 +166,27 @@ def test_bind_persisted_ws_empty_store_is_no_anchor(tmp_path) -> None:
     assert d.reason == "no_anchor"
 
 
+def test_bind_persisted_ws_existing_empty_file_does_not_reseed_env(tmp_path) -> None:
+    """Wiping items must not lower the checkpoint via leftover env."""
+    import json
+
+    path = tmp_path / "ws.json"
+    path.write_text(json.dumps({"max_history": 8, "items": []}), encoding="utf-8")
+    svc = bind_persisted_ws(
+        path=path,
+        env_height="1",
+        env_hash="bb" * 32,
+    )
+    assert svc.get_anchor() is None
+    d = svc.evaluate_stale_fork(
+        candidate_height=2,
+        candidate_hash="cc" * 32,
+        shares_ancestor_with_anchor=True,
+    )
+    assert d.accept is False
+    assert d.reason == "no_anchor"
+
+
 def test_shares_ancestor_walk() -> None:
     w, anchor, child, mid = _chain()
     assert shares_ancestor_with_anchor(w, candidate_hash=child, anchor_hash=anchor)
