@@ -13,6 +13,7 @@ This folder / [Gruver87/experimental](https://github.com/Gruver87/experimental) 
 2. Remote `audit-frozen` is fetch-only — **do not** push to the audit pin repo.
 3. Work on `experimental/libp2p-longrange-evm` / `rd/*` branches (merge to `main` when ready).
 4. Honesty: experimental ≠ public mainnet ≠ audited ≠ prod libp2p mesh.
+5. GitHub Releases here use **`rd-X.Y.Z` prerelease** tags — never Hybrid `v1.3.*`.
 
 ## Transport default
 
@@ -29,7 +30,7 @@ Profile F: [docs/sprouts/EXPERIMENTAL_RD_PROFILE.md](docs/sprouts/EXPERIMENTAL_R
 | EVM compat | [EVM_COMPAT_MATRIX.md](docs/sprouts/EVM_COMPAT_MATRIX.md) · precompiles lab |
 | Long-Range | `python scripts/long_range_lab.py` · ADR 0017 |
 | libp2p (Python dual-stack) | `python scripts/libp2p_lab_smoke.py` · ADR 0018 |
-| libp2p (rust industrial) | [ADR 0019](docs/adr/0019-rust-libp2p-industrial.md) Slices **A–CW** · `scripts/verify_adr0019_libp2p_hard.ps1` |
+| libp2p (rust industrial) | [ADR 0019](docs/adr/0019-rust-libp2p-industrial.md) Slices **A–CY** · `scripts/verify_adr0019_libp2p_hard.ps1` |
 
 ## Verify
 
@@ -39,7 +40,7 @@ cd $env:USERPROFILE\Desktop\Absolute_Blockchain_Experimental
 # Profile F units + Python labs
 python scripts\verify_experimental_rd.py
 
-# ADR 0019 rust-libp2p hard gate (111 steps after Slice CW; 112 with `-Rebuild`)
+# ADR 0019 rust-libp2p hard gate (113 steps after Slice CY; 114 with `-Rebuild`)
 powershell -ExecutionPolicy Bypass -File scripts\verify_adr0019_libp2p_hard.ps1
 
 # Optional: Hybrid (sibling) + Experimental as one operator view

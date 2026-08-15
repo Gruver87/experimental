@@ -121,6 +121,14 @@ def hard_verify_lab_paths() -> Tuple[str, ...]:
         raise RuntimeError(
             "hard-verify LABS missing Slice CW circuit-excluded-from-external-book lab"
         )
+    if "scripts/libp2p_rust_relay_client_circuit_external_book_lab.py" not in out:
+        raise RuntimeError(
+            "hard-verify LABS missing Slice CX relay-client-circuit-external-book lab"
+        )
+    if "scripts/libp2p_rust_behaviour_external_confirmed_capped_lab.py" not in out:
+        raise RuntimeError(
+            "hard-verify LABS missing Slice CY behaviour-external-confirmed-capped lab"
+        )
     return tuple(out)
 
 

@@ -92,6 +92,8 @@
 //! Slice CU: persist staging tmp is per-thread (`dest.{pid}.{tid}.tmp`).
 //! Slice CV: sweep stale other-tid persist tmp; skip in-flight writers.
 //! Slice CW: circuit `/p2p-circuit` never occupies rust-libp2p ExternalAddresses.
+//! Slice CX: relay-client circuit ExternalAddrConfirmed is omitted (crate book).
+//! Slice CY: AutoNAT/UPnP ExternalAddrConfirmed is admit-canonical-or-omit.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -297,6 +299,25 @@ pub const CIRCUIT_EXCLUDED_FROM_EXTERNAL_BOOK_MSG: &str =
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub fn circuit_excluded_from_external_book_strategy() -> &'static str {
     "never_add_external_address"
+}
+
+/// Slice CX: `libp2p-relay` client emits `ToSwarm::ExternalAddrConfirmed`
+/// on reservation accept. Swarm maps that to `add_external_address`, which
+/// occupies Identify/Kad/Relay `ExternalAddresses` (silent eviction past 20).
+/// Circuit confirm/expire from the client are omitted; listen + reservation
+/// events still complete `listen_relay`.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn relay_client_circuit_external_strategy() -> &'static str {
+    "omit_circuit_external_confirmed"
+}
+
+/// Slice CY: AutoNAT / UPnP emit `ToSwarm::ExternalAddrConfirmed` which Swarm
+/// maps to `add_external_address` (crate book of 20, silent eviction). Forward
+/// only after the unique advertised cap admits the charge key; rewrite to the
+/// canonical key so `/p2p/<peer>` suffix cannot occupy a second slot.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn behaviour_external_confirmed_strategy() -> &'static str {
+    "admit_canonical_or_omit"
 }
 
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
@@ -1720,7 +1741,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(feature = "libp2p")]
 mod enabled {
     use super::{
-        atomic_write_file, atomic_write_file_exclusive,
+        atomic_write_file, atomic_write_file_exclusive, behaviour_external_confirmed_strategy,
         circuit_excluded_from_external_book_strategy, external_addrs_replace_strategy,
         identity_create_exclusive_strategy, identity_key_callback_ace_strategy,
         identity_key_existing_acl_strategy, identity_key_mode_strategy,
@@ -1728,7 +1749,8 @@ mod enabled {
         identity_key_parent_mkdir_recheck_strategy, identity_key_parent_unattested_strategy,
         identity_key_protected_dacl_strategy, identity_key_tmp_restrict_strategy, libp2p_available,
         persist_json_acl_strategy, persist_mkdir_fsync_strategy, persist_parent_dir_fsync_strategy,
-        persist_tmp_stale_tid_strategy, persist_tmp_strategy, ABS_GOSSIP_BLOCKS_TOPIC,
+        persist_tmp_stale_tid_strategy, persist_tmp_strategy,
+        relay_client_circuit_external_strategy, ABS_GOSSIP_BLOCKS_TOPIC,
         ABS_IDENTIFY_PROTOCOL_VERSION, ABS_KAD_PROTOCOL, ABS_RENDEZVOUS_NAMESPACE,
         ABS_WIRE_PROTOCOL, CIRCUIT_EXCLUDED_FROM_EXTERNAL_BOOK_MSG,
         DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_IDENTIFY_INTERVAL_MS,
@@ -2332,6 +2354,22 @@ mod enabled {
         }
     }
 
+    /// Slice CY: AutoNAT/UPnP `ExternalAddrConfirmed` occupies the crate book
+    /// unless we admit first. Circuit never occupies. Canonical charge key
+    /// (no trailing `/p2p/<peer>`) so suffix variants cannot evict a charged
+    /// listen/operator addr.
+    fn gated_external_confirmed(st: &mut NodeState, ma: &Multiaddr) -> Option<Multiaddr> {
+        if !swarm_may_add_external_address(ma) {
+            return None;
+        }
+        let key = advertised_charge_key(ma);
+        if advertised_already_charged(st, &key) || admit_aux_advertised_external(st, &key).is_ok() {
+            key.parse().ok()
+        } else {
+            None
+        }
+    }
+
     /// Identify / DCUtR candidates often append `/p2p/<local>`. Charge against the
     /// same unique key as listen-derived / operator books (no trailing peer id).
     /// Lives next to Capped* wrappers (same `mod enabled` scope as the call sites).
@@ -2802,6 +2840,7 @@ mod enabled {
     /// Forward NewListenAddr into autonat only when circuit (uncapped) or
     /// charged against the shared advertised cap. Uncharged expansion sockets
     /// stay listening but are omitted from AutoNAT probes (not a silent leak).
+    /// Slice CY: ExternalAddrConfirmed is admit-canonical-or-omit (crate book).
     struct CappedAutonat {
         inner: autonat::Behaviour,
         state: Arc<Mutex<NodeState>>,
@@ -2947,7 +2986,32 @@ mod enabled {
                 <Self::ConnectionHandler as libp2p::swarm::ConnectionHandler>::FromBehaviour,
             >,
         > {
-            self.inner.poll(cx)
+            loop {
+                match self.inner.poll(cx) {
+                    Poll::Ready(ToSwarm::ExternalAddrConfirmed(addr)) => {
+                        let canonical = match self.state.lock() {
+                            Ok(mut st) => {
+                                let next = gated_external_confirmed(&mut st, &addr);
+                                if next.is_none() {
+                                    st.autonat_external_confirmed_omitted =
+                                        st.autonat_external_confirmed_omitted.saturating_add(1);
+                                }
+                                next
+                            }
+                            Err(_) => None,
+                        };
+                        if let Some(canonical) = canonical {
+                            return Poll::Ready(ToSwarm::ExternalAddrConfirmed(canonical));
+                        }
+                    }
+                    Poll::Ready(ToSwarm::ExternalAddrExpired(addr)) => {
+                        if swarm_may_add_external_address(&addr) {
+                            return Poll::Ready(ToSwarm::ExternalAddrExpired(addr));
+                        }
+                    }
+                    other => return other,
+                }
+            }
         }
     }
 
@@ -2956,6 +3020,7 @@ mod enabled {
     /// only when circuit (uncapped) or charged against the shared advertised
     /// cap. Uncharged expansion sockets stay listening but are omitted from
     /// IGD map requests (not a silent leak).
+    /// Slice CY: ExternalAddrConfirmed is admit-canonical-or-omit (crate book).
     struct CappedUpnp {
         inner: upnp::tokio::Behaviour,
         state: Arc<Mutex<NodeState>>,
@@ -3088,7 +3153,32 @@ mod enabled {
                 <Self::ConnectionHandler as libp2p::swarm::ConnectionHandler>::FromBehaviour,
             >,
         > {
-            self.inner.poll(cx)
+            loop {
+                match self.inner.poll(cx) {
+                    Poll::Ready(ToSwarm::ExternalAddrConfirmed(addr)) => {
+                        let canonical = match self.state.lock() {
+                            Ok(mut st) => {
+                                let next = gated_external_confirmed(&mut st, &addr);
+                                if next.is_none() {
+                                    st.upnp_external_confirmed_omitted =
+                                        st.upnp_external_confirmed_omitted.saturating_add(1);
+                                }
+                                next
+                            }
+                            Err(_) => None,
+                        };
+                        if let Some(canonical) = canonical {
+                            return Poll::Ready(ToSwarm::ExternalAddrConfirmed(canonical));
+                        }
+                    }
+                    Poll::Ready(ToSwarm::ExternalAddrExpired(addr)) => {
+                        if swarm_may_add_external_address(&addr) {
+                            return Poll::Ready(ToSwarm::ExternalAddrExpired(addr));
+                        }
+                    }
+                    other => return other,
+                }
+            }
         }
     }
 
@@ -3238,6 +3328,128 @@ mod enabled {
         }
     }
 
+    /// Slice CX: `libp2p-relay` client confirms the circuit listen as an
+    /// external addr (`ToSwarm::ExternalAddrConfirmed`). Swarm then
+    /// `add_external_address`, occupying Identify/Kad/Relay books (silent
+    /// eviction past 20 charged). Omit circuit confirm/expire; reservation
+    /// and `NewListenAddr` still complete `listen_relay`.
+    struct CappedRelayClient {
+        inner: relay::client::Behaviour,
+        state: Arc<Mutex<NodeState>>,
+    }
+
+    impl CappedRelayClient {
+        fn new(inner: relay::client::Behaviour, state: Arc<Mutex<NodeState>>) -> Self {
+            Self { inner, state }
+        }
+    }
+
+    impl NetworkBehaviour for CappedRelayClient {
+        type ConnectionHandler = <relay::client::Behaviour as NetworkBehaviour>::ConnectionHandler;
+        type ToSwarm = relay::client::Event;
+
+        fn handle_pending_inbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            local_addr: &Multiaddr,
+            remote_addr: &Multiaddr,
+        ) -> Result<(), ConnectionDenied> {
+            self.inner
+                .handle_pending_inbound_connection(connection_id, local_addr, remote_addr)
+        }
+
+        fn handle_established_inbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            peer: PeerId,
+            local_addr: &Multiaddr,
+            remote_addr: &Multiaddr,
+        ) -> Result<Self::ConnectionHandler, ConnectionDenied> {
+            self.inner.handle_established_inbound_connection(
+                connection_id,
+                peer,
+                local_addr,
+                remote_addr,
+            )
+        }
+
+        fn handle_pending_outbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            maybe_peer: Option<PeerId>,
+            addresses: &[Multiaddr],
+            effective_role: Endpoint,
+        ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
+            self.inner.handle_pending_outbound_connection(
+                connection_id,
+                maybe_peer,
+                addresses,
+                effective_role,
+            )
+        }
+
+        fn handle_established_outbound_connection(
+            &mut self,
+            connection_id: ConnectionId,
+            peer: PeerId,
+            addr: &Multiaddr,
+            role_override: Endpoint,
+            port_use: PortUse,
+        ) -> Result<Self::ConnectionHandler, ConnectionDenied> {
+            self.inner.handle_established_outbound_connection(
+                connection_id,
+                peer,
+                addr,
+                role_override,
+                port_use,
+            )
+        }
+
+        fn on_swarm_event(&mut self, event: FromSwarm<'_>) {
+            self.inner.on_swarm_event(event);
+        }
+
+        fn on_connection_handler_event(
+            &mut self,
+            peer_id: PeerId,
+            connection_id: ConnectionId,
+            event: <Self::ConnectionHandler as libp2p::swarm::ConnectionHandler>::ToBehaviour,
+        ) {
+            self.inner
+                .on_connection_handler_event(peer_id, connection_id, event);
+        }
+
+        fn poll(
+            &mut self,
+            cx: &mut Context<'_>,
+        ) -> Poll<
+            ToSwarm<
+                Self::ToSwarm,
+                <Self::ConnectionHandler as libp2p::swarm::ConnectionHandler>::FromBehaviour,
+            >,
+        > {
+            loop {
+                match self.inner.poll(cx) {
+                    Poll::Ready(ToSwarm::ExternalAddrConfirmed(addr)) => {
+                        if swarm_may_add_external_address(&addr) {
+                            return Poll::Ready(ToSwarm::ExternalAddrConfirmed(addr));
+                        }
+                        if let Ok(mut st) = self.state.lock() {
+                            st.relay_client_circuit_external_omitted =
+                                st.relay_client_circuit_external_omitted.saturating_add(1);
+                        }
+                    }
+                    Poll::Ready(ToSwarm::ExternalAddrExpired(addr)) => {
+                        if swarm_may_add_external_address(&addr) {
+                            return Poll::Ready(ToSwarm::ExternalAddrExpired(addr));
+                        }
+                    }
+                    other => return other,
+                }
+            }
+        }
+    }
+
     #[derive(NetworkBehaviour)]
     struct AbsBehaviour {
         ping: ping::Behaviour,
@@ -3247,7 +3459,7 @@ mod enabled {
         mdns: Toggle<CappedMdns>,
         kademlia: CappedKad,
         relay: relay::Behaviour,
-        relay_client: relay::client::Behaviour,
+        relay_client: CappedRelayClient,
         /// Slice N: off by default — AutoNAT probe dials raced reconnect (Slice U).
         autonat: Toggle<CappedAutonat>,
         /// Slice AD: off by default — needs IGD gateway; CI expects GatewayNotFound.
@@ -3491,6 +3703,10 @@ mod enabled {
         Shutdown {
             reply: oneshot::Sender<()>,
         },
+        /// Slice CX: rust-libp2p Swarm::external_addresses crate book.
+        SwarmExternalAddrs {
+            reply: oneshot::Sender<Vec<String>>,
+        },
     }
 
     #[derive(Clone, Default)]
@@ -3638,6 +3854,8 @@ mod enabled {
         /// Slice AT: relay client circuit direction.
         relay_inbound_circuit: u64,
         relay_outbound_circuit: u64,
+        /// Slice CX: circuit ExternalAddrConfirmed omitted from crate book.
+        relay_client_circuit_external_omitted: u64,
         /// Slice AP: optional capacity override (lab deny path); 0 = default.
         relay_max_reservations: u32,
         autonat_probes: u64,
@@ -3649,6 +3867,8 @@ mod enabled {
         autonat_outbound_probe_error: u64,
         /// Slice BY: NewListenAddr omitted from AutoNAT because the shared cap is full.
         autonat_listen_addr_omitted: u64,
+        /// Slice CY: AutoNAT ExternalAddrConfirmed omitted (uncharged / circuit).
+        autonat_external_confirmed_omitted: u64,
         /// Slice BY: non-circuit listen addrs currently forwarded into AutoNAT.
         autonat_advertised_listen: Vec<String>,
         /// 0=unknown, 1=public, 2=private (Slice N).
@@ -3688,6 +3908,8 @@ mod enabled {
         upnp_non_routable_gateway: u64,
         /// Slice BZ: NewListenAddr omitted from UPnP because the shared cap is full.
         upnp_listen_addr_omitted: u64,
+        /// Slice CY: UPnP ExternalAddrConfirmed omitted (uncharged / circuit).
+        upnp_external_confirmed_omitted: u64,
         /// Slice BZ: non-circuit listen addrs currently forwarded into UPnP.
         upnp_advertised_listen: Vec<String>,
         wire_timeout_secs: u64,
@@ -4209,7 +4431,10 @@ mod enabled {
                             }
                             relay::Behaviour::new(local, relay_cfg)
                         },
-                        relay_client,
+                        relay_client: CappedRelayClient::new(
+                            relay_client,
+                            Arc::clone(&state_bg),
+                        ),
                         autonat: if want_autonat {
                             // Lab-friendly AutoNAT: allow private/loopback peers (Slice N).
                             let cfg = autonat::Config {
@@ -4680,6 +4905,13 @@ mod enabled {
                         cmd = cmd_rx.recv() => {
                             match cmd {
                                 None => break,
+                                Some(Cmd::SwarmExternalAddrs { reply }) => {
+                                    let addrs = swarm
+                                        .external_addresses()
+                                        .map(|a| a.to_string())
+                                        .collect::<Vec<_>>();
+                                    let _ = reply.send(addrs);
+                                }
                                 Some(Cmd::Shutdown { reply }) => {
                                     let _ = reply.send(());
                                     break;
@@ -7450,29 +7682,29 @@ mod enabled {
                                 }
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::Upnp(ev)) => match ev {
                                     upnp::Event::NewExternalAddr(addr) => {
-                                        let s = addr.to_string();
-                                        let admit_ok = swarm_may_add_external_address(&addr)
-                                            && match state_bg.lock() {
-                                                Ok(mut st) => {
-                                                    admit_aux_advertised_external(&mut st, &s)
-                                                        .is_ok()
-                                                }
-                                                Err(_) => false,
-                                            };
+                                        let key = advertised_charge_key(&addr);
+                                        let admit_ok = match state_bg.lock() {
+                                            Ok(mut st) => {
+                                                gated_external_confirmed(&mut st, &addr).is_some()
+                                            }
+                                            Err(_) => false,
+                                        };
                                         if admit_ok {
-                                            swarm_add_external_if_charged(
-                                                &mut swarm,
-                                                addr.clone(),
-                                            );
+                                            if let Ok(canonical) = key.parse::<Multiaddr>() {
+                                                swarm_add_external_if_charged(
+                                                    &mut swarm,
+                                                    canonical,
+                                                );
+                                            }
                                         }
                                         if let Ok(mut st) = state_bg.lock() {
                                             st.upnp_external_addrs =
                                                 st.upnp_external_addrs.saturating_add(1);
-                                            if admit_ok && !st.external_addrs.contains(&s) {
-                                                st.external_addrs.push(s.clone());
+                                            if admit_ok && !st.external_addrs.contains(&key) {
+                                                st.external_addrs.push(key.clone());
                                             }
-                                            if !st.listen_addrs.contains(&s) {
-                                                st.listen_addrs.push(s);
+                                            if !st.listen_addrs.contains(&key) {
+                                                st.listen_addrs.push(key);
                                             }
                                         }
                                     }
@@ -8554,6 +8786,23 @@ mod enabled {
                 .unwrap_or_default()
         }
 
+        /// Slice CX: rust-libp2p `Swarm::external_addresses` crate book.
+        ///
+        /// Identify / Kad / Relay occupancy. Distinct from ``external_addrs``
+        /// (our charged book). Circuit must not appear here.
+        fn swarm_external_addrs(&self) -> PyResult<Vec<String>> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Cmd::SwarmExternalAddrs { reply: tx })
+                .map_err(|_| PyRuntimeError::new_err("libp2p swarm stopped"))?;
+            match rx.blocking_recv() {
+                Ok(addrs) => Ok(addrs),
+                Err(_) => Err(PyRuntimeError::new_err(
+                    "swarm_external_addrs reply dropped",
+                )),
+            }
+        }
+
         /// Slice AG/BO: mark multiaddr as externally reachable.
         ///
         /// Returns true if the addr was newly inserted into the local book.
@@ -9124,6 +9373,10 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_kad_mode_changed", st.kad_mode_changed)?;
                 d.set_item("libp2p_relay_reservations", st.relay_reservations)?;
+                d.set_item(
+                    "libp2p_relay_client_circuit_external_omitted",
+                    st.relay_client_circuit_external_omitted,
+                )?;
                 d.set_item("libp2p_relay_circuits", st.relay_circuits)?;
                 d.set_item(
                     "libp2p_relay_reservation_denied",
@@ -9142,6 +9395,10 @@ mod enabled {
                 d.set_item(
                     "libp2p_autonat_listen_addr_omitted",
                     st.autonat_listen_addr_omitted,
+                )?;
+                d.set_item(
+                    "libp2p_autonat_external_confirmed_omitted",
+                    st.autonat_external_confirmed_omitted,
                 )?;
                 d.set_item(
                     "libp2p_autonat_advertised_listen",
@@ -9296,6 +9553,10 @@ mod enabled {
                     st.upnp_listen_addr_omitted,
                 )?;
                 d.set_item(
+                    "libp2p_upnp_external_confirmed_omitted",
+                    st.upnp_external_confirmed_omitted,
+                )?;
+                d.set_item(
                     "libp2p_upnp_advertised_listen",
                     st.upnp_advertised_listen.len(),
                 )?;
@@ -9350,7 +9611,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 100)?;
+                d.set_item("phase", 102)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -9480,6 +9741,17 @@ mod enabled {
                     "circuit_excluded_from_external_book_strategy",
                     circuit_excluded_from_external_book_strategy(),
                 )?;
+                d.set_item("relay_client_circuit_not_in_external_book", true)?;
+                d.set_item(
+                    "relay_client_circuit_external_strategy",
+                    relay_client_circuit_external_strategy(),
+                )?;
+                d.set_item("behaviour_external_confirmed_capped", true)?;
+                d.set_item(
+                    "behaviour_external_confirmed_strategy",
+                    behaviour_external_confirmed_strategy(),
+                )?;
+                d.set_item("swarm_external_addrs", true)?;
                 d.set_item("dcutr_candidates_capped", true)?;
                 d.set_item("identify_candidates_capped", true)?;
                 d.set_item(
@@ -9785,6 +10057,10 @@ mod enabled {
                 )?;
                 d.set_item("libp2p_kad_mode_changed", st.kad_mode_changed)?;
                 d.set_item("libp2p_relay_reservations", st.relay_reservations)?;
+                d.set_item(
+                    "libp2p_relay_client_circuit_external_omitted",
+                    st.relay_client_circuit_external_omitted,
+                )?;
                 d.set_item("libp2p_relay_circuits", st.relay_circuits)?;
                 d.set_item(
                     "libp2p_relay_reservation_denied",
@@ -9803,6 +10079,10 @@ mod enabled {
                 d.set_item(
                     "libp2p_autonat_listen_addr_omitted",
                     st.autonat_listen_addr_omitted,
+                )?;
+                d.set_item(
+                    "libp2p_autonat_external_confirmed_omitted",
+                    st.autonat_external_confirmed_omitted,
                 )?;
                 d.set_item(
                     "libp2p_autonat_advertised_listen",
@@ -9946,6 +10226,10 @@ mod enabled {
                 d.set_item(
                     "libp2p_upnp_listen_addr_omitted",
                     st.upnp_listen_addr_omitted,
+                )?;
+                d.set_item(
+                    "libp2p_upnp_external_confirmed_omitted",
+                    st.upnp_external_confirmed_omitted,
                 )?;
                 d.set_item(
                     "libp2p_upnp_advertised_listen",
@@ -10688,6 +10972,14 @@ mod enabled {
             "CIRCUIT_EXCLUDED_FROM_EXTERNAL_BOOK_STRATEGY",
             circuit_excluded_from_external_book_strategy(),
         )?;
+        m.add(
+            "RELAY_CLIENT_CIRCUIT_EXTERNAL_STRATEGY",
+            relay_client_circuit_external_strategy(),
+        )?;
+        m.add(
+            "BEHAVIOUR_EXTERNAL_CONFIRMED_STRATEGY",
+            behaviour_external_confirmed_strategy(),
+        )?;
         Ok(())
     }
 }
@@ -10766,6 +11058,14 @@ mod tests {
         assert_eq!(
             super::circuit_excluded_from_external_book_strategy(),
             "never_add_external_address"
+        );
+        assert_eq!(
+            super::relay_client_circuit_external_strategy(),
+            "omit_circuit_external_confirmed"
+        );
+        assert_eq!(
+            super::behaviour_external_confirmed_strategy(),
+            "admit_canonical_or_omit"
         );
     }
 

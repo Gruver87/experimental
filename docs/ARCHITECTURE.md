@@ -49,7 +49,7 @@ flowchart TB
     CA["catchup_adapters"]
     FA["fork_adapters"]
     NIO["abs_native P2P IO · short poll"]
-    LP["rust-libp2p · ADR 0019 A–CW · FEATURE_LIBP2P opt-in"]
+    LP["rust-libp2p · ADR 0019 A–CY · FEATURE_LIBP2P opt-in"]
   end
 
   subgraph domain ["Domain — ports, no sockets"]
@@ -176,7 +176,7 @@ flowchart LR
 | [0016](adr/0016-feature-sprouts-profiles.md) | Sprouts | Profiles instead of kitchen-sink FEATURE_* |
 | [0017](adr/0017-long-range-research.md) | Long-Range | Lab / weak-subjectivity — **not** prod |
 | [0018](adr/0018-libp2p-transport.md) | Dual-stack stubs | Python labs; TCP+TLS remains default |
-| [0019](adr/0019-rust-libp2p-industrial.md) | rust-libp2p | Slices **A–CW** (phase 100) behind Cargo `libp2p`; advertised unique cap 20 |
+| [0019](adr/0019-rust-libp2p-industrial.md) | rust-libp2p | Slices **A–CY** (phase 102) behind Cargo `libp2p`; advertised unique cap 20 |
 
 ---
 
@@ -207,13 +207,13 @@ flowchart LR
 | Column | GitHub / this repo | Runtime |
 |--------|--------------------|---------|
 | Default mesh | TCP+TLS (ADR 0002 / 0008) | `feature_libp2p=false` on prod JSON |
-| Lab swarm | rust-libp2p ADR 0019 **A–CW** (phase 100) | Cargo `libp2p` + `FEATURE_LIBP2P` |
-| Advertise | unique cap **20**; circuit never in crate book | Identify/mDNS/Kad/AutoNAT/UPnP/DCUtR omit uncharged |
+| Lab swarm | rust-libp2p ADR 0019 **A–CY** (phase 102) | Cargo `libp2p` + `FEATURE_LIBP2P` |
+| Advertise | unique cap **20**; circuit never in crate book | Identify/mDNS/Kad/AutoNAT/UPnP/DCUtR omit uncharged; relay-client circuit confirm omitted; AutoNAT/UPnP confirm gated |
 | Persist | tmp+fsync+replace; `dest.{pid}.{tid}.tmp`; stale other-tid sweep | JSON last-writer-wins; identity first-create exclusive |
 | Identity | Unix 0600 / Windows protected DACL; parent ACL attested | weak/NULL/callback/unprotected DACL refuse; no silent rewrite |
 | Honesty | Lab PASS ≠ prod cutover ≠ Hybrid pin | NTFS replace **not** POSIX inode-atomic |
 
-Over-cap listen sockets are **omitted** from Identify, mDNS, Kademlia local addrs, AutoNAT probes, UPnP IGD maps, and DCUtR hole-punch candidates — not silently advertised. Identify also omits uncharged `NewExternalAddrCandidate` so they never reach the swarm. Circuit `/p2p-circuit` stays outside the unique charged cap **and** is never inserted into rust-libp2p `ExternalAddresses` (Slice CW) — otherwise a circuit add after 20 charged silently evicts a charged addr. Circuit is still forwarded on Capped* `NewListenAddr` (Identify listen). The unique advertised ceiling is **20** (rust-libp2p `ExternalAddresses` book); past that we **refuse**, because the crate silently evicts oldest confirmed externals. Advertised-externals persist replaces dest without unlinking it first (Windows `MoveFileExW`). Bootstrap, learned peerstore JSON, and identity keystore first-create use the same tmp+fsync+replace path (no truncate-in-place). Staging tmp is per-thread; stale other-tid leftovers are swept without stealing in-flight writers. Corrupt existing identity keys refuse spawn. NTFS replace is still **not** POSIX inode-atomic.
+Over-cap listen sockets are **omitted** from Identify, mDNS, Kademlia local addrs, AutoNAT probes, UPnP IGD maps, and DCUtR hole-punch candidates — not silently advertised. Identify also omits uncharged `NewExternalAddrCandidate` so they never reach the swarm. Circuit `/p2p-circuit` stays outside the unique charged cap **and** is never inserted into rust-libp2p `ExternalAddresses` (Slice CW). Relay-client reservation confirm (`ToSwarm::ExternalAddrConfirmed`) is omitted so the crate book cannot silently evict a charged addr (Slice CX). AutoNAT/UPnP `ExternalAddrConfirmed` is forwarded only after the canonical charge key is admitted, otherwise omitted (Slice CY). Circuit is still forwarded on Capped* `NewListenAddr` (Identify listen). The unique advertised ceiling is **20** (rust-libp2p `ExternalAddresses` book); past that we **refuse**, because the crate silently evicts oldest confirmed externals. Advertised-externals persist replaces dest without unlinking it first (Windows `MoveFileExW`). Bootstrap, learned peerstore JSON, and identity keystore first-create use the same tmp+fsync+replace path (no truncate-in-place). Staging tmp is per-thread; stale other-tid leftovers are swept without stealing in-flight writers. Corrupt existing identity keys refuse spawn. NTFS replace is still **not** POSIX inode-atomic.
 
 ---
 

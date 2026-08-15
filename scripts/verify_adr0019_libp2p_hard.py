@@ -377,6 +377,8 @@ LABS = [
     ("CU", "scripts/libp2p_rust_persist_tmp_per_thread_lab.py"),
     ("CV", "scripts/libp2p_rust_persist_tmp_stale_tid_lab.py"),
     ("CW", "scripts/libp2p_rust_circuit_excluded_from_external_book_lab.py"),
+    ("CX", "scripts/libp2p_rust_relay_client_circuit_external_book_lab.py"),
+    ("CY", "scripts/libp2p_rust_behaviour_external_confirmed_capped_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -570,8 +572,8 @@ def check_native_deep() -> tuple[bool, str]:
         cap = dict(a.capability_status())
         if cap.get("default_mesh") is not False:
             return False, "capability_status.default_mesh must be False"
-        if int(cap.get("phase") or 0) < 100:
-            return False, f"capability phase too low: {cap.get('phase')} (want >= 100 Slice CW)"
+        if int(cap.get("phase") or 0) < 102:
+            return False, f"capability phase too low: {cap.get('phase')} (want >= 102 Slice CY)"
         if not cap.get("external_addrs_replace_no_unlink"):
             return False, (
                 "capability external_addrs_replace_no_unlink missing "
@@ -766,6 +768,37 @@ def check_native_deep() -> tuple[bool, str]:
                 "circuit excluded from external book strategy "
                 f"{cap.get('circuit_excluded_from_external_book_strategy')!r} "
                 "!= never_add_external_address (stale wheel — --rebuild)"
+            )
+        if not cap.get("relay_client_circuit_not_in_external_book"):
+            return False, (
+                "capability relay_client_circuit_not_in_external_book missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if cap.get("relay_client_circuit_external_strategy") != (
+            "omit_circuit_external_confirmed"
+        ):
+            return False, (
+                "relay-client circuit external strategy "
+                f"{cap.get('relay_client_circuit_external_strategy')!r} "
+                "!= omit_circuit_external_confirmed (stale wheel — --rebuild)"
+            )
+        if not cap.get("swarm_external_addrs"):
+            return False, (
+                "capability swarm_external_addrs missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if not cap.get("behaviour_external_confirmed_capped"):
+            return False, (
+                "capability behaviour_external_confirmed_capped missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if cap.get("behaviour_external_confirmed_strategy") != (
+            "admit_canonical_or_omit"
+        ):
+            return False, (
+                "behaviour external confirmed strategy "
+                f"{cap.get('behaviour_external_confirmed_strategy')!r} "
+                "!= admit_canonical_or_omit (stale wheel — --rebuild)"
             )
         # Slice I API must exist
         a.block_peer(b.peer_id)

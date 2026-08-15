@@ -139,6 +139,8 @@ feature `libp2p`), exposed to Python through the existing
 | Persist tmp per-thread | Slice CU: staging `dest.{pid}.{tid}.tmp` so two threads in one PID do not share tmp; same-thread sequential persist reuses the name (leftover cleanup); dest after concurrent persist is one complete snapshot; JSON persist still last-writer-wins replace (CD); `libp2p_rust_persist_tmp_per_thread_lab.py` |
 | Persist tmp stale-tid sweep | Slice CV: unlink stale `dest.{pid}.{otherTid}.tmp` after tokio worker steal; skip in-flight writers; `libp2p_rust_persist_tmp_stale_tid_lab.py` |
 | Circuit excluded from ExternalAddresses | Slice CW: `/p2p-circuit` never `swarm.add_external_address` (no silent eviction of charged addrs from the crate book of 20); operator add and persist JSON refuse; `libp2p_rust_circuit_excluded_from_external_book_lab.py` |
+| Relay-client circuit crate book | Slice CX: omit `libp2p-relay` client `ToSwarm::ExternalAddrConfirmed` for circuit (crate would `add_external_address` and evict); `swarm_external_addrs()` dumps crate book; `libp2p_rust_relay_client_circuit_external_book_lab.py` |
+| Behaviour ExternalAddrConfirmed cap | Slice CY: AutoNAT/UPnP `ToSwarm::ExternalAddrConfirmed` admit-canonical-or-omit (charge key strips `/p2p/<peer>`; at cap omit, no silent eviction); `libp2p_rust_behaviour_external_confirmed_capped_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -247,6 +249,8 @@ feature `libp2p`), exposed to Python through the existing
 | CU | Persist staging tmp is per-thread (`dest.{pid}.{tid}.tmp`); same-thread name is stable for leftover cleanup; dest after concurrent persist is one complete snapshot; `libp2p_rust_persist_tmp_per_thread_lab.py` |
 | CV | Sweep stale other-tid persist tmp; skip in-flight concurrent writers; `libp2p_rust_persist_tmp_stale_tid_lab.py` |
 | CW | Circuit `/p2p-circuit` never occupies rust-libp2p ExternalAddresses book; operator add + persist JSON refuse; `libp2p_rust_circuit_excluded_from_external_book_lab.py` |
+| CX | Relay-client circuit `ExternalAddrConfirmed` omitted from crate book; `libp2p_rust_relay_client_circuit_external_book_lab.py` |
+| CY | AutoNAT/UPnP `ExternalAddrConfirmed` admit-canonical-or-omit (crate book); `libp2p_rust_behaviour_external_confirmed_capped_lab.py` |
 
 ## Honesty
 
@@ -342,7 +346,9 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_identity_parent_unattested_lab.py`,
   `libp2p_rust_persist_tmp_per_thread_lab.py`,
   `libp2p_rust_persist_tmp_stale_tid_lab.py`,
-  `libp2p_rust_circuit_excluded_from_external_book_lab.py`;
+  `libp2p_rust_circuit_excluded_from_external_book_lab.py`,
+  `libp2p_rust_relay_client_circuit_external_book_lab.py`,
+  `libp2p_rust_behaviour_external_confirmed_capped_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -559,6 +565,25 @@ feature `libp2p`), exposed to Python through the existing
     occupies the crate book: operator `add_external_address` and persist
     JSON refuse; Capped* still forward circuit `NewListenAddr` (Identify
     listen). Capability `circuit_excluded_from_external_book`. NTFS replace
+    remains **not** POSIX inode-atomic.
+  Slice CX: CW blocked our `swarm.add_external_address(circuit)`. The
+    rust-libp2p relay **client** still emits `ToSwarm::ExternalAddrConfirmed`
+    on reservation accept; Swarm maps that to `add_external_address` and
+    Identify/Kad/Relay `ExternalAddresses` silently evict oldest past 20.
+    `CappedRelayClient` omits circuit confirm/expire. `listen_relay` still
+    completes via `NewListenAddr` / `ReservationReqAccepted`.
+    `swarm_external_addrs()` dumps the crate book. Capability
+    `relay_client_circuit_not_in_external_book`. NTFS replace remains **not**
+    POSIX inode-atomic.
+  Slice CY: AutoNAT v1 and UPnP emit `ToSwarm::ExternalAddrConfirmed`
+    which Swarm maps to `add_external_address` **before** our admit. After 20
+    charged unique addrs that silently evicts. AutoNAT often confirms
+    `listen/p2p/<peer>`; crate `ExternalAddresses` equality includes the
+    `/p2p` suffix, so a suffix variant occupies a **second** slot.
+    `CappedAutonat` / `CappedUpnp` forward only after the charge key (suffix
+    stripped) is already charged or `admit_aux` succeeds, re-emitting the
+    canonical key. At cap: omit. `Event::NewExternalAddr` / probe events still
+    fire. Capability `behaviour_external_confirmed_capped`. NTFS replace
     remains **not** POSIX inode-atomic.
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
