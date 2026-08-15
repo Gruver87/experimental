@@ -211,11 +211,94 @@ class EVMAdapter:
             return "0x" + raw.rjust(40, "0")[-40:]
         return word_or_addr
 
+    def _precompile_nested_call(
+        self, target: str, calldata: bytes, gas: int
+    ) -> Optional[Dict[str, Any]]:
+        """Apply-path CALL/STATICCALL into 0x01–0x09. None if not a precompile."""
+        from execution.evm_precompiles import is_precompile, try_precompile
+
+        if not is_precompile(target):
+            return None
+        pre = try_precompile(target, bytes(calldata or b"").hex())
+        if pre is None:
+            return {
+                "success": False,
+                "reverted": True,
+                "return_data": b"",
+                "gas_used": 0,
+                "error": "precompile_unhandled",
+            }
+        ret = pre.return_value
+        if isinstance(ret, (bytes, bytearray)):
+            ret_b = bytes(ret)
+        elif ret is None:
+            ret_b = b""
+        elif isinstance(ret, int):
+            ret_b = int(ret).to_bytes(32, "big")
+        else:
+            ret_b = bytes(ret)
+        used = int(pre.gas_used or 0)
+        limit = int(gas or 0)
+        if limit > 0 and used > limit:
+            return {
+                "success": False,
+                "reverted": True,
+                "return_data": b"",
+                "gas_used": limit,
+                "error": "precompile_out_of_gas",
+            }
+        if not pre.success:
+            return {
+                "success": False,
+                "reverted": True,
+                "return_data": ret_b,
+                "gas_used": used,
+                "error": str(pre.error or "precompile_failed"),
+            }
+        return {
+            "success": True,
+            "reverted": False,
+            "return_data": ret_b,
+            "gas_used": used,
+        }
+
     def _contract_call_hook(self, target: str, calldata: bytes, value: int,
                             gas: int, delegate: bool, static: bool,
                             caller_ctx: EVMContext,
                             callcode: bool = False) -> Dict[str, Any]:
         target = self._normalize_addr(target)
+        pre_out = self._precompile_nested_call(target, calldata, gas)
+        if pre_out is not None:
+            if pre_out.get("reverted"):
+                return pre_out
+            kind = (
+                "staticcall"
+                if static
+                else "delegatecall"
+                if delegate
+                else "callcode"
+                if callcode
+                else "call"
+            )
+            parent_ro = bool(getattr(caller_ctx, "_abs_read_only", False))
+            call_value = 0 if delegate else int(value or 0)
+            plan = native.evm_plan_nested_call_writeback(
+                kind,
+                parent_ro,
+                caller_ctx.address,
+                target,
+                call_value,
+                True,
+                None,
+                None,
+            )
+            ops = list(plan.get("ops") or [])
+            if ops:
+                self._apply_nested_writeback_ops(ops)
+            out = dict(pre_out)
+            if ops:
+                out["native_writeback_ops"] = len(ops)
+            return out
         view = self._account_view(target)
         if view.get("corrupt"):
             return {"success": False, "reverted": True, "return_data": b"", "error": "corrupt_storage"}
@@ -819,6 +902,21 @@ class EVMAdapter:
         Загружает bytecode и storage из БД, после выполнения сохраняет изменения.
         """
         gas_limit = gas_limit or self.config.evm_gas_limit
+
+        from execution.evm_precompiles import try_precompile
+
+        pre = try_precompile(contract_addr, calldata_hex)
+        if pre is not None:
+            if int(pre.gas_used or 0) > int(gas_limit):
+                return EVMResult(
+                    success=False,
+                    error="out_of_gas",
+                    gas_used=int(gas_limit),
+                )
+            if pre.success and value > 0:
+                self.db.update_balance(caller, -value)
+                self.db.update_balance(contract_addr, value)
+            return pre
 
         account = self.db.get_account(contract_addr)
         if not account or not account.get("code"):

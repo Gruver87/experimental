@@ -8,7 +8,7 @@ Scope: Absolute hybrid EVM subset on the single apply path.
 | Transfer + fee burn | **Supported** | Native apply + satoshi domain |
 | CREATE / CREATE2 + deploy salt | **Supported (prod)** | `evm_create2_eip1014` + `evm_require_deploy_salt` |
 | CALL / STATICCALL host | **Partial** | Host-in-apply; nested depth cap 4. Inline CALL `RETURNDATACOPY` uses the live return buffer. Inline STATICCALL refuses SSTORE/LOG/CREATE/TSTORE/SELFDESTRUCT and value-CALL. Nested CALL/DELEGATECALL under STATICCALL is sticky (EIP-214): SSTORE does not commit. Nested OOG burns all forwarded gas (REVERT does not). Python interpreter handoff also refuses static writes |
-| Precompiles (ecrecover, sha256, …) | **Partial** | **0x01–0x09** via `execution/evm_precompiles.py` (+ `blake2f.py`, `bn254.py`/`py_ecc`); gas/curve edge cases may still diverge from geth |
+| Precompiles (ecrecover, sha256, …) | **Partial** | **0x01–0x09** via `execution/evm_precompiles.py` on **eth_call and apply-path nested CALL/STATICCALL / `call_contract`**. Gas/curve edge cases may still diverge from geth |
 | `eth_call` | **Supported** | Hex ABI word encoding + precompile bytes |
 | `eth_estimateGas` | **Supported** | Includes create (`to` empty) path |
 | `eth_getTransactionReceipt` | **Partial** | Core fields + logs + **logsBloom from address/topics** |
