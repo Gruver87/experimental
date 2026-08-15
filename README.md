@@ -4,6 +4,8 @@
 
 **R&D only.** rust-libp2p · Long-Range · EVM depth. **Not** the audit-freeze tree.
 
+Canonical docs language is **English**. If GitHub shows a translation, open **View original**.
+
 [![Release](https://img.shields.io/github/v/release/Gruver87/experimental?label=release)](https://github.com/Gruver87/experimental/releases/tag/rd-1.0.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Experimental R&D](https://github.com/Gruver87/experimental/actions/workflows/experimental-rd.yml/badge.svg?branch=main)](https://github.com/Gruver87/experimental/actions/workflows/experimental-rd.yml)

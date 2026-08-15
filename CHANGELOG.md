@@ -1,11 +1,13 @@
 # Changelog
 
-Все значимые изменения документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/).
+All notable changes are documented here. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 **Experimental tags:** `rd-X.Y.Z` on `main` (this repo).  
 **Hybrid industrial tags:** `v1.3.*` live in [Ultimate Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) — not this Releases page.
 
-**Текущая волна API:** `api_wave = 61` (проверка: `GET /status`)
+**Current API wave:** `api_wave = 61` (check: `GET /status`)
+
+Canonical language for this repository is **English**. Older inherited entries below may still mix Russian from the Hybrid fork history.
 
 ---
 
@@ -19,7 +21,7 @@
 
 ## [rd-1.0.0] - 2026-08-15
 
-First GitHub Release for [Gruver87/experimental](https://github.com/Gruver87/experimental) (**prerelease**). Not the Hybrid audit pin.
+First GitHub Release for [Gruver87/experimental](https://github.com/Gruver87/experimental) (GitHub **Latest** on this repo). Not the Hybrid audit pin.
 
 ### ADR 0019 rust-libp2p
 

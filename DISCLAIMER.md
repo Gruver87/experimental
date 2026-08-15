@@ -1,6 +1,4 @@
-# Disclaimer / Отказ от ответственности
-
-## English
+# Disclaimer
 
 **Absolute Blockchain Experimental** is an **R&D sandbox** (libp2p, Long-Range, EVM depth) derived from the Hybrid L1 node.
 
@@ -14,22 +12,6 @@
 
 **You may fork, study, test, and improve this sandbox.**  
 If you build on it, run your own security review before any real-world use.
-
----
-
-## Русский
-
-**Absolute Blockchain Experimental** — **R&D-песочница** (libp2p, Long-Range, глубина EVM).
-
-- Это **НЕ** audit-pin (`v1.3.1339-tip-v2-industrial` живёт в **другом** репозитории).
-- Это **НЕ** публичный mainnet, **НЕ** audited DeFi, **НЕ** листинговый токен.
-- Токен **ABS** — **внутренняя модель токеномики**.
-- **Не используйте** это ПО для реальных денег.
-- Профессионального аудита **не было**.
-- Lab PASS **не** означает cutover prod-mesh на libp2p.
-- Код предоставляется **«как есть»**.
-
----
 
 ## Tokenomics notice
 
