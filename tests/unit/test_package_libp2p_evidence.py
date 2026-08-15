@@ -53,5 +53,11 @@ def test_evidence_labs_are_hard_verify_list() -> None:
     assert "scripts/libp2p_rust_identity_null_dacl_refuse_lab.py" in pack.LABS
     assert "scripts/libp2p_rust_identity_callback_ace_refuse_lab.py" in pack.LABS
     assert "scripts/libp2p_rust_identity_protected_dacl_refuse_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_persist_json_acl_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_identity_parent_dir_refuse_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_identity_parent_mkdir_recheck_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_identity_parent_unattested_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_persist_tmp_per_thread_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_persist_tmp_stale_tid_lab.py" in pack.LABS
     for rel in pack.LABS:
         assert (ROOT / rel).is_file(), rel

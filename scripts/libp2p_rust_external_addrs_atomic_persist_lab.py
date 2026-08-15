@@ -29,6 +29,11 @@ ADVERTISED = "/ip4/203.0.113.68/tcp/4068"
 REPLACED = "/ip4/203.0.113.69/tcp/4069"
 
 
+def _staging_tmps(dest: Path) -> list[Path]:
+    """Any persist staging sibling (CK pid-only or CU pid+tid)."""
+    return sorted(dest.parent.glob(dest.name + ".*.tmp"))
+
+
 def _wait(pred, timeout: float = 5.0, step: float = 0.05) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -72,8 +77,9 @@ def main() -> int:
             if not store.is_file():
                 print("FAIL: dest missing after persist")
                 return 1
-            if tmp.exists():
-                print(f"FAIL: tmp leftover after persist: {tmp}")
+            leftovers = _staging_tmps(store)
+            if leftovers:
+                print(f"FAIL: tmp leftover after persist: {leftovers}")
                 return 1
             disk = json.loads(store.read_text(encoding="utf-8"))
             if ADVERTISED not in list(disk.get("addrs") or []):
@@ -84,8 +90,9 @@ def main() -> int:
             if not node.add_external_address(REPLACED):
                 print("FAIL: second advertised add returned False")
                 return 1
-            if tmp.exists():
-                print("FAIL: stale tmp not cleaned")
+            leftovers = _staging_tmps(store)
+            if leftovers:
+                print(f"FAIL: stale tmp not cleaned: {leftovers}")
                 return 1
             disk2 = json.loads(store.read_text(encoding="utf-8"))
             got = list(disk2.get("addrs") or [])

@@ -6,7 +6,8 @@ CF used tmp+fsync+replace. Windows ``MoveFileExW(REPLACE_EXISTING)`` and POSIX
 both saw missing). A shared ``dest.tmp`` staging file can also land process A
 bytes from process B's overwrite. Slice CK lands identity via exclusive
 replace (Windows MoveFileEx without REPLACE_EXISTING; POSIX ``link(tmp, dest)``)
-and per-process staging ``dest.{pid}.tmp``. Dest bytes are never clobbered.
+and per-process staging ``dest.{pid}.tmp`` (Slice CU: ``dest.{pid}.{tid}.tmp``).
+Dest bytes are never clobbered.
 JSON persist still uses replace (CD). Capability ``identity_create_exclusive``
 / phase >= 88.
 
@@ -52,7 +53,6 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="abs-libp2p-id-excl-") as td:
         key_path = Path(td) / "node.key"
-        tmp = Path(str(key_path) + f".{os.getpid()}.tmp")
         a = abs_native.libp2p_node_new(
             enable_mdns=False,
             enable_reconnect=False,
@@ -79,8 +79,9 @@ def main() -> int:
             if not key_path.is_file():
                 print("FAIL: key dest missing after create")
                 return 1
-            if tmp.exists():
-                print(f"FAIL: key tmp leftover: {tmp}")
+            leftovers_create = sorted(key_path.parent.glob(key_path.name + ".*.tmp"))
+            if leftovers_create:
+                print(f"FAIL: key tmp leftover: {leftovers_create}")
                 return 1
             first_bytes = key_path.read_bytes()
             if len(first_bytes) < 16:

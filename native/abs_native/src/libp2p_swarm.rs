@@ -87,6 +87,10 @@
 //! Slice CL: identity tmp is born restricted (Unix 0600 / Windows DACL at create).
 //! Slice CM: existing identity with weak ACL refuses spawn (no silent rewrite).
 //! Slice CN: existing identity NULL/absent DACL refuses spawn (grants everyone).
+//! Slice CS: mkdir identity parent then recheck ACL (inherit-only ancestor write).
+//! Slice CT: identity parent ACL is always attested (relative→cwd; volume root refuse).
+//! Slice CU: persist staging tmp is per-thread (`dest.{pid}.{tid}.tmp`).
+//! Slice CV: sweep stale other-tid persist tmp; skip in-flight writers.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -243,27 +247,171 @@ pub fn encode_external_addrs_json(addrs: &[String]) -> Result<String, String> {
     serde_json::to_string_pretty(&doc).map_err(|e| format!("external addrs encode: {e}"))
 }
 
-/// Slice BQ/CK: sibling tmp next to dest.
+/// Slice BQ/CK/CU: sibling tmp next to dest.
 ///
-/// `foo.json` → `foo.json.{pid}.tmp` so two processes do not share the
-/// staging file (a shared `.tmp` can land process A's key bytes from
-/// process B's overwrite, then exclusive dest replace still "succeeds").
+/// `foo.json` → `foo.json.{pid}.{tid}.tmp` so two processes (CK) and two
+/// threads in one process (CU) do not share the staging file. A shared `.tmp`
+/// can mix writer bytes, then dest replace still "succeeds" with a torn
+/// snapshot. Same-thread sequential persist reuses the name so leftover tmp
+/// from a failed attempt is cleaned (CL).
+///
+/// Persist also unlinks unused CK leftover `dest.{pid}.tmp` (not used for
+/// staging). Python labs plant that name because persist runs on the swarm
+/// task thread, whose tid is not the caller thread. Concurrent staging is
+/// only `{pid}.{tid}`.
+///
+/// Slice CV: a crash on tokio worker A leaves `dest.{pid}.{tidA}.tmp`. A
+/// retry on worker B must unlink that leftover. Glob-unlink of every
+/// `{pid}.*.tmp` would steal an in-flight writer (unsafe on POSIX: unlink of
+/// an open path). Sweep skips paths in a process-wide in-flight set.
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
-pub fn external_addrs_tmp_path(path: &std::path::Path) -> std::path::PathBuf {
-    let pid = std::process::id().to_string();
+pub fn persist_tmp_strategy() -> &'static str {
+    "pid_tid_tmp"
+}
+
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn persist_tmp_stale_tid_strategy() -> &'static str {
+    "unlink_not_in_flight"
+}
+
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+fn persist_tmp_thread_tag() -> String {
+    let tag: String = format!("{:?}", std::thread::current().id())
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect();
+    if tag.is_empty() {
+        "t".into()
+    } else {
+        tag
+    }
+}
+
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+fn persist_tmp_join(path: &std::path::Path, suffix_after_name: &str) -> std::path::PathBuf {
     let fname = path.file_name().map_or_else(
-        || std::ffi::OsString::from(format!("external_addrs.{pid}.tmp")),
+        || std::ffi::OsString::from(format!("external_addrs.{suffix_after_name}")),
         |n| {
             let mut s = n.to_os_string();
             s.push(".");
-            s.push(&pid);
-            s.push(".tmp");
+            s.push(suffix_after_name);
             s
         },
     );
     match path.parent() {
         Some(parent) if !parent.as_os_str().is_empty() => parent.join(fname),
         _ => std::path::PathBuf::from(fname),
+    }
+}
+
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn persist_tmp_path_pid_only(path: &std::path::Path) -> std::path::PathBuf {
+    persist_tmp_join(path, &format!("{}.tmp", std::process::id()))
+}
+
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn external_addrs_tmp_path(path: &std::path::Path) -> std::path::PathBuf {
+    persist_tmp_join(
+        path,
+        &format!("{}.{}.tmp", std::process::id(), persist_tmp_thread_tag()),
+    )
+}
+
+fn persist_tmp_parent_dir(dest: &std::path::Path) -> std::path::PathBuf {
+    match dest.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+        _ => std::path::PathBuf::from("."),
+    }
+}
+
+fn persist_tmp_name_is_ours(
+    file_name: &std::ffi::OsStr,
+    dest_name: &std::ffi::OsStr,
+    pid: &str,
+) -> bool {
+    let name = file_name.to_string_lossy();
+    if !name.ends_with(".tmp") {
+        return false;
+    }
+    let mut prefix = dest_name.to_os_string();
+    prefix.push(".");
+    prefix.push(pid);
+    prefix.push(".");
+    name.starts_with(prefix.to_string_lossy().as_ref())
+}
+
+fn persist_tmp_in_flight(
+) -> &'static std::sync::Mutex<std::collections::HashSet<std::path::PathBuf>> {
+    static SET: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashSet<std::path::PathBuf>>,
+    > = std::sync::OnceLock::new();
+    SET.get_or_init(|| std::sync::Mutex::new(std::collections::HashSet::new()))
+}
+
+struct PersistTmpInFlight {
+    path: std::path::PathBuf,
+}
+
+impl PersistTmpInFlight {
+    fn claim(path: std::path::PathBuf) -> Self {
+        let mut g = persist_tmp_in_flight()
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        g.insert(path.clone());
+        Self { path }
+    }
+}
+
+impl Drop for PersistTmpInFlight {
+    fn drop(&mut self) {
+        let mut g = persist_tmp_in_flight()
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        g.remove(&self.path);
+    }
+}
+
+fn persist_tmp_in_flight_contains(path: &std::path::Path) -> bool {
+    persist_tmp_in_flight()
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .contains(path)
+}
+
+fn unlink_one_persist_tmp_leftover(path: &std::path::Path) {
+    let _ = restrict_identity_key_acl(path);
+    let _ = std::fs::remove_file(path);
+}
+
+/// Slice CU/CV: drop unused CK `dest.{pid}.tmp` and stale `{pid}.{otherTid}.tmp`.
+/// Skip `current_tmp` and any path claimed in-flight (concurrent writer).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+fn unlink_stale_persist_tmps(dest: &std::path::Path, current_tmp: &std::path::Path) {
+    let legacy = persist_tmp_path_pid_only(dest);
+    if legacy != *current_tmp && legacy.exists() && !persist_tmp_in_flight_contains(&legacy) {
+        unlink_one_persist_tmp_leftover(&legacy);
+    }
+    let Some(dest_name) = dest.file_name() else {
+        return;
+    };
+    let pid = std::process::id().to_string();
+    let parent = persist_tmp_parent_dir(dest);
+    let Ok(entries) = std::fs::read_dir(&parent) else {
+        return;
+    };
+    for ent in entries.flatten() {
+        let name = ent.file_name();
+        if !persist_tmp_name_is_ours(&name, dest_name, &pid) {
+            continue;
+        }
+        let candidate = parent.join(&name);
+        if candidate == *current_tmp {
+            continue;
+        }
+        if persist_tmp_in_flight_contains(&candidate) {
+            continue;
+        }
+        unlink_one_persist_tmp_leftover(&candidate);
     }
 }
 
@@ -299,6 +447,16 @@ pub fn persist_parent_dir_fsync_strategy() -> &'static str {
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub fn persist_mkdir_fsync_strategy() -> &'static str {
     persist_parent_dir_fsync_strategy()
+}
+
+/// Slice CQ: JSON persist (externals / bootstrap / peerstore) uses the same
+/// restricted tmp as identity (Unix `0o600` at open / Windows CreateFile DACL).
+/// Existing JSON is not refused at load (not key material). Dest ACL is
+/// replaced on persist (CD still last-writer-wins). NTFS replace remains
+/// **not** POSIX inode-atomic.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn persist_json_acl_strategy() -> &'static str {
+    identity_key_tmp_restrict_strategy()
 }
 
 /// Slice CH/CI: identity private-key file mode.
@@ -390,6 +548,35 @@ pub fn identity_key_protected_dacl_strategy() -> &'static str {
     } else {
         "unix_mode_covers"
     }
+}
+
+/// Slice CR: file ACL (CI–CP) is bypassed if Users can write the parent
+/// directory (replace/unlink the key). Spawn refuses a world-writable
+/// parent. Directory ACL is never rewritten. Volume roots are skipped.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn identity_key_parent_dir_strategy() -> &'static str {
+    if cfg!(windows) {
+        "windows_dir_no_users_write"
+    } else {
+        "unix_dir_no_group_other_write"
+    }
+}
+
+/// Slice CS: CR walked a missing parent to the first existing ancestor and
+/// skipped inherit-only ACEs. `create_dir_all` then inherited Users write onto
+/// the new directory. Spawn now mkdir's first and rechecks the created parent.
+/// Directory ACL is never rewritten.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn identity_key_parent_mkdir_recheck_strategy() -> &'static str {
+    "mkdir_then_recheck_parent_acl"
+}
+
+/// Slice CT: CR/CS reused `should_fsync_dir`, which skips volume roots and
+/// relative one-component parents. Identity parent ACL is never skipped:
+/// relative paths resolve against cwd; volume-root parents refuse.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn identity_key_parent_unattested_strategy() -> &'static str {
+    "absolute_cwd_refuse_volume_root"
 }
 
 #[cfg(windows)]
@@ -507,6 +694,102 @@ fn fsync_dir(dir: &std::path::Path) -> Result<(), String> {
 fn should_fsync_dir(p: &std::path::Path) -> bool {
     use std::path::Component;
     p.components().any(|c| matches!(c, Component::Normal(_))) && p.components().count() >= 2
+}
+
+/// Volume root (`C:\` / `/`) has no `Normal` component. Fsync still skips
+/// these via [`should_fsync_dir`]; identity ACL must not.
+fn identity_parent_is_volume_root(p: &std::path::Path) -> bool {
+    use std::path::Component;
+    !p.components().any(|c| matches!(c, Component::Normal(_)))
+}
+
+/// Slice CT: relative identity paths are resolved against cwd so parent ACL
+/// cannot skip a one-component relative dir.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+fn identity_key_absolute_path(key_path: &std::path::Path) -> Result<std::path::PathBuf, String> {
+    if key_path.as_os_str().is_empty() {
+        return Err("identity key path is empty".into());
+    }
+    if key_path.is_absolute() {
+        return Ok(key_path.to_path_buf());
+    }
+    let cwd = std::env::current_dir().map_err(|e| format!("cwd for identity key: {e}"))?;
+    Ok(cwd.join(key_path))
+}
+
+/// Slice CR: identity key parent must not be world-writable.
+/// Slice CT: never skip this check (no fsync heuristic; volume roots refuse).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+fn identity_key_parent_dir_ok(key_path: &std::path::Path) -> Result<(), String> {
+    let abs = identity_key_absolute_path(key_path)?;
+    let Some(parent) = abs.parent().filter(|p| !p.as_os_str().is_empty()) else {
+        return Err("identity key path has no parent directory".into());
+    };
+    let target = if parent.exists() {
+        parent.to_path_buf()
+    } else {
+        let mut cur = parent.to_path_buf();
+        loop {
+            if cur.exists() {
+                break;
+            }
+            match cur.parent() {
+                Some(p) if !p.as_os_str().is_empty() => cur = p.to_path_buf(),
+                _ => {
+                    return Err("key parent cannot be attested (no existing ancestor)".into());
+                }
+            }
+        }
+        cur
+    };
+    if identity_parent_is_volume_root(&target) {
+        return Err("key parent is a volume root (refusing unattested parent ACL)".into());
+    }
+    identity_persist_dir_acl_ok(&target)
+}
+
+/// Slice CS: create a missing identity parent, then CR-check that directory
+/// (not an ancestor whose inherit-only write ACEs skip the object itself).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+fn ensure_identity_key_parent(key_path: &std::path::Path) -> Result<(), String> {
+    let abs = identity_key_absolute_path(key_path)?;
+    if let Some(parent) = abs.parent() {
+        if !parent.as_os_str().is_empty() {
+            durable_create_dir_all(parent)?;
+        }
+    }
+    identity_key_parent_dir_ok(&abs)
+}
+
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+fn identity_persist_dir_acl_ok(dir: &std::path::Path) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(dir)
+            .map_err(|e| format!("stat key parent dir: {e}"))?
+            .permissions()
+            .mode();
+        if mode & 0o1000 != 0 {
+            return Ok(());
+        }
+        if mode & 0o022 != 0 {
+            return Err(format!(
+                "key parent dir mode {:o} allows group/other write",
+                mode & 0o777
+            ));
+        }
+        Ok(())
+    }
+    #[cfg(windows)]
+    {
+        windows_identity_parent_acl_ok(dir)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = dir;
+        Ok(())
+    }
 }
 
 /// Slice CJ: `create_dir_all` then fsync created dirs and the first existing
@@ -638,6 +921,8 @@ fn atomic_write_file_inner(
         }
     }
     let tmp = external_addrs_tmp_path(path);
+    let _inflight = PersistTmpInFlight::claim(tmp.clone());
+    unlink_stale_persist_tmps(path, &tmp);
     let write_tmp = (|| -> Result<(), String> {
         let mut f = create_persist_tmp(&tmp, unix_mode)?;
         use std::io::Write;
@@ -645,10 +930,9 @@ fn atomic_write_file_inner(
             .map_err(|e| format!("write persist tmp: {e}"))?;
         f.sync_all().map_err(|e| format!("sync persist tmp: {e}"))?;
         drop(f);
-        if unix_mode.is_some() {
-            apply_unix_mode(&tmp, unix_mode)?;
-            restrict_identity_key_acl(&tmp)?;
-        }
+        // Slice CQ: JSON persist tmp is restricted too (CL covered identity only).
+        apply_unix_mode(&tmp, Some(unix_mode.unwrap_or(IDENTITY_KEY_UNIX_MODE)))?;
+        restrict_identity_key_acl(&tmp)?;
         Ok(())
     })();
     if let Err(e) = write_tmp {
@@ -659,11 +943,9 @@ fn atomic_write_file_inner(
         let _ = std::fs::remove_file(&tmp);
         return Err(e);
     }
-    if unix_mode.is_some() {
-        if let Err(e) = restrict_identity_key_acl(path) {
-            let _ = std::fs::remove_file(path);
-            return Err(e);
-        }
+    if let Err(e) = restrict_identity_key_acl(path) {
+        let _ = std::fs::remove_file(path);
+        return Err(e);
     }
     fsync_parent_dir(path)
 }
@@ -674,25 +956,26 @@ fn create_persist_tmp(
 ) -> Result<std::fs::File, String> {
     #[cfg(unix)]
     {
-        if let Some(mode) = unix_mode {
-            use std::os::unix::fs::OpenOptionsExt;
-            return std::fs::OpenOptions::new()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .mode(mode)
-                .open(tmp)
-                .map_err(|e| format!("create persist tmp: {e}"));
-        }
+        use std::os::unix::fs::OpenOptionsExt;
+        let mode = unix_mode.unwrap_or(IDENTITY_KEY_UNIX_MODE);
+        return std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(mode)
+            .open(tmp)
+            .map_err(|e| format!("create persist tmp: {e}"));
     }
     #[cfg(windows)]
     {
-        if unix_mode.is_some() {
-            return windows_create_identity_tmp(tmp, false);
-        }
+        let _ = unix_mode;
+        return windows_create_identity_tmp(tmp, false);
     }
-    let _ = unix_mode;
-    std::fs::File::create(tmp).map_err(|e| format!("create persist tmp: {e}"))
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = unix_mode;
+        std::fs::File::create(tmp).map_err(|e| format!("create persist tmp: {e}"))
+    }
 }
 
 fn apply_unix_mode(path: &std::path::Path, unix_mode: Option<u32>) -> Result<(), String> {
@@ -946,11 +1229,42 @@ fn windows_create_identity_tmp(
     Ok(unsafe { std::fs::File::from_raw_handle(handle as RawHandle) })
 }
 
+#[cfg(windows)]
+struct WindowsNamedDacl {
+    sddl: String,
+    owner_sid: String,
+    dacl_missing: bool,
+    protected: bool,
+}
+
 /// Slice CM: existing Windows identity must not grant Users/Everyone.
 /// Reads DACL as SDDL; never rewrites the file.
 #[cfg(windows)]
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 fn windows_identity_acl_ok(path: &std::path::Path) -> Result<(), String> {
+    let info = windows_read_named_dacl(path)?;
+    if info.dacl_missing {
+        return Err("key file DACL missing (NULL DACL grants everyone)".into());
+    }
+    if !info.protected {
+        return Err("key file DACL is not protected (inheritance can grant Users)".into());
+    }
+    windows_identity_dacl_sddl_ok(&info.sddl, &info.owner_sid)
+}
+
+/// Slice CR: parent directory must not grant Users/Everyone write/delete-child.
+#[cfg(windows)]
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+fn windows_identity_parent_acl_ok(path: &std::path::Path) -> Result<(), String> {
+    let info = windows_read_named_dacl(path)?;
+    if info.dacl_missing {
+        return Err("key parent dir NULL DACL (grants everyone write)".into());
+    }
+    windows_identity_dir_sddl_ok(&info.sddl, &info.owner_sid)
+}
+
+#[cfg(windows)]
+fn windows_read_named_dacl(path: &std::path::Path) -> Result<WindowsNamedDacl, String> {
     use std::ptr;
 
     #[link(name = "advapi32")]
@@ -995,6 +1309,7 @@ fn windows_identity_acl_ok(path: &std::path::Path) -> Result<(), String> {
     const DACL_SECURITY_INFORMATION: u32 = 0x4;
     const SDDL_REVISION_1: u32 = 1;
     const ERROR_SUCCESS: u32 = 0;
+    const SE_DACL_PROTECTED: u16 = 0x1000;
 
     let mut wpath = wide_path(path)?;
     let mut owner: *mut core::ffi::c_void = ptr::null_mut();
@@ -1036,9 +1351,13 @@ fn windows_identity_acl_ok(path: &std::path::Path) -> Result<(), String> {
         unsafe {
             LocalFree(sd);
         }
-        return Err("key file DACL missing (NULL DACL grants everyone)".into());
+        return Ok(WindowsNamedDacl {
+            sddl: String::new(),
+            owner_sid,
+            dacl_missing: true,
+            protected: false,
+        });
     }
-    const SE_DACL_PROTECTED: u16 = 0x1000;
     let mut control: u16 = 0;
     let mut revision: u32 = 0;
     let ctl = unsafe { GetSecurityDescriptorControl(sd, &mut control, &mut revision) };
@@ -1051,12 +1370,7 @@ fn windows_identity_acl_ok(path: &std::path::Path) -> Result<(), String> {
             std::io::Error::last_os_error()
         ));
     }
-    if control & SE_DACL_PROTECTED == 0 {
-        unsafe {
-            LocalFree(sd);
-        }
-        return Err("key file DACL is not protected (inheritance can grant Users)".into());
-    }
+    let protected = control & SE_DACL_PROTECTED != 0;
     let mut sddl_ptr: *mut u16 = ptr::null_mut();
     let ok = unsafe {
         ConvertSecurityDescriptorToStringSecurityDescriptorW(
@@ -1081,7 +1395,12 @@ fn windows_identity_acl_ok(path: &std::path::Path) -> Result<(), String> {
         LocalFree(sddl_ptr as *mut core::ffi::c_void);
         LocalFree(sd);
     }
-    windows_identity_dacl_sddl_ok(&sddl, &owner_sid)
+    Ok(WindowsNamedDacl {
+        sddl,
+        owner_sid,
+        dacl_missing: false,
+        protected,
+    })
 }
 
 #[cfg(windows)]
@@ -1202,6 +1521,101 @@ fn identity_trustee_allowed(trustee: &str, owner_sid: &str) -> bool {
     !owner_sid.is_empty() && t.eq_ignore_ascii_case(owner_sid)
 }
 
+/// Slice CR: parent-dir threat is world/Users write, not "only owner".
+/// A user Temp dir commonly grants the current user FA while owner is
+/// Administrators — that must pass. Users/Everyone/AU write must not.
+#[cfg(windows)]
+fn identity_trustee_is_world(trustee: &str) -> bool {
+    let t = trustee.trim();
+    t.eq_ignore_ascii_case("WD")
+        || t.eq_ignore_ascii_case("BU")
+        || t.eq_ignore_ascii_case("AU")
+        || t.eq_ignore_ascii_case("AN")
+        || t.eq_ignore_ascii_case("BG")
+        || t.eq_ignore_ascii_case("S-1-1-0")
+        || t.eq_ignore_ascii_case("S-1-5-32-545")
+        || t.eq_ignore_ascii_case("S-1-5-11")
+        || t.eq_ignore_ascii_case("S-1-5-7")
+        || t.eq_ignore_ascii_case("S-1-5-32-546")
+}
+
+/// Inherit-only ACEs do not apply to the directory object itself.
+/// Flags are concatenated two-letter codes (`OI`/`CI`/`IO`); substring
+/// `"IO"` must not match `"OI"` or `"CI"+"OI"` (`CIOI`).
+#[cfg(windows)]
+fn identity_ace_flags_inherit_only(flags: &str) -> bool {
+    let u = flags.trim().to_ascii_uppercase();
+    if u.len() % 2 != 0 {
+        return false;
+    }
+    u.as_bytes().chunks(2).any(|c| c == b"IO")
+}
+
+/// Directory write/delete-child bits that let Users replace a child key file.
+#[cfg(windows)]
+fn identity_sddl_rights_grant_dir_write(rights: &str) -> bool {
+    let r = rights.trim().to_ascii_uppercase();
+    if let Some(hex) = r.strip_prefix("0X") {
+        if let Ok(v) = u32::from_str_radix(hex, 16) {
+            const FILE_WRITE_DATA: u32 = 0x0000_0002;
+            const FILE_APPEND_DATA: u32 = 0x0000_0004;
+            const FILE_DELETE_CHILD: u32 = 0x0000_0040;
+            const DELETE: u32 = 0x0001_0000;
+            const WRITE_DAC: u32 = 0x0004_0000;
+            const WRITE_OWNER: u32 = 0x0008_0000;
+            const GENERIC_WRITE: u32 = 0x4000_0000;
+            const GENERIC_ALL: u32 = 0x1000_0000;
+            let mask = FILE_WRITE_DATA
+                | FILE_APPEND_DATA
+                | FILE_DELETE_CHILD
+                | DELETE
+                | WRITE_DAC
+                | WRITE_OWNER
+                | GENERIC_WRITE
+                | GENERIC_ALL;
+            return v & mask != 0;
+        }
+    }
+    ["FA", "FW", "GA", "GW", "WD", "WO", "SD", "DC", "CC"]
+        .iter()
+        .any(|code| r.contains(code))
+}
+
+/// Slice CR: parent dir may grant the current user / owner FA, and Users RX
+/// (list), but not Users/Everyone/AU write/delete-child.
+#[cfg(windows)]
+fn windows_identity_dir_sddl_ok(sddl: &str, _owner_sid: &str) -> Result<(), String> {
+    if sddl.to_ascii_uppercase().contains("NO_ACCESS_CONTROL") {
+        return Err("key parent dir NULL DACL (grants everyone write)".into());
+    }
+    for ace in identity_dacl_ace_bodies(sddl)? {
+        let parts: Vec<&str> = ace.split(';').collect();
+        if parts.len() < 6 {
+            return Err(format!("key parent dir DACL ACE unparseable: {ace}"));
+        }
+        let kind = parts[0].trim().to_ascii_uppercase();
+        if identity_ace_kind_is_audit_or_deny(&kind) {
+            continue;
+        }
+        if !identity_ace_kind_grants(&kind) {
+            return Err(format!("key parent dir DACL unknown ACE type {kind}"));
+        }
+        if identity_ace_flags_inherit_only(parts[1]) {
+            continue;
+        }
+        let trustee = parts[5].trim();
+        if !identity_trustee_is_world(trustee) {
+            continue;
+        }
+        if identity_sddl_rights_grant_dir_write(parts[2]) {
+            return Err(format!(
+                "key parent dir DACL grants {trustee} write via {kind}"
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Test/lab helper: write a NULL DACL (everyone). Not used on the spawn path.
 #[cfg(windows)]
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
@@ -1281,11 +1695,13 @@ mod enabled {
         atomic_write_file, atomic_write_file_exclusive, external_addrs_replace_strategy,
         identity_create_exclusive_strategy, identity_key_callback_ace_strategy,
         identity_key_existing_acl_strategy, identity_key_mode_strategy,
-        identity_key_null_dacl_strategy, identity_key_protected_dacl_strategy,
-        identity_key_tmp_restrict_strategy, libp2p_available, persist_mkdir_fsync_strategy,
-        persist_parent_dir_fsync_strategy, ABS_GOSSIP_BLOCKS_TOPIC, ABS_IDENTIFY_PROTOCOL_VERSION,
-        ABS_KAD_PROTOCOL, ABS_RENDEZVOUS_NAMESPACE, ABS_WIRE_PROTOCOL,
-        DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_IDENTIFY_INTERVAL_MS,
+        identity_key_null_dacl_strategy, identity_key_parent_dir_strategy,
+        identity_key_parent_mkdir_recheck_strategy, identity_key_parent_unattested_strategy,
+        identity_key_protected_dacl_strategy, identity_key_tmp_restrict_strategy, libp2p_available,
+        persist_json_acl_strategy, persist_mkdir_fsync_strategy, persist_parent_dir_fsync_strategy,
+        persist_tmp_stale_tid_strategy, persist_tmp_strategy, ABS_GOSSIP_BLOCKS_TOPIC,
+        ABS_IDENTIFY_PROTOCOL_VERSION, ABS_KAD_PROTOCOL, ABS_RENDEZVOUS_NAMESPACE,
+        ABS_WIRE_PROTOCOL, DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_IDENTIFY_INTERVAL_MS,
         DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_MDNS_TTL_SECS,
         DEFAULT_PING_INTERVAL_SECS, DEFAULT_PING_MAX_FAILS, DEFAULT_PING_TIMEOUT_SECS,
         DEFAULT_RECONNECT_BASE_MS, DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS,
@@ -1356,11 +1772,16 @@ mod enabled {
     }
 
     fn load_or_create_keypair(path: &Path) -> Result<Keypair, String> {
+        // Slice CT: relative paths resolve against cwd; volume-root parents refuse.
+        let path = super::identity_key_absolute_path(path)?;
+        // Slice CR/CS: world-writable parent can replace a locked key file.
+        // Mkdir first so the check sees the created dir, not an ancestor.
+        super::ensure_identity_key_parent(&path)?;
         if path.exists() {
             // Slice CH: existing world-readable key refuses spawn (no silent chmod).
             // Slice CM: existing Windows Users/Everyone DACL refuses spawn (no silent rewrite).
-            identity_key_mode_ok(path)?;
-            let bytes = std::fs::read(path).map_err(|e| format!("read key: {e}"))?;
+            identity_key_mode_ok(&path)?;
+            let bytes = std::fs::read(&path).map_err(|e| format!("read key: {e}"))?;
             Keypair::from_protobuf_encoding(&bytes).map_err(|e| format!("decode key: {e}"))
         } else {
             let kp = Keypair::generate_ed25519();
@@ -1372,7 +1793,7 @@ mod enabled {
             // Slice CH: Unix first-create is 0o600 (tmp mode before replace).
             // Slice CK: exclusive dest create — REPLACE_EXISTING / rename would
             // clobber a dest that appeared after exists() (two first-creates).
-            atomic_write_file_exclusive(path, &enc, Some(IDENTITY_KEY_UNIX_MODE))
+            atomic_write_file_exclusive(&path, &enc, Some(IDENTITY_KEY_UNIX_MODE))
                 .map_err(|e| format!("write key: {e}"))?;
             Ok(kp)
         }
@@ -8868,7 +9289,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 93)?;
+                d.set_item("phase", 99)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -8891,6 +9312,8 @@ mod enabled {
                     "persist_mkdir_fsync_strategy",
                     persist_mkdir_fsync_strategy(),
                 )?;
+                d.set_item("persist_json_acl_restrict", true)?;
+                d.set_item("persist_json_acl_strategy", persist_json_acl_strategy())?;
                 d.set_item("identity_key_mode_restrict", true)?;
                 d.set_item("identity_key_mode_strategy", identity_key_mode_strategy())?;
                 d.set_item("identity_key_windows_owner_dacl", cfg!(windows))?;
@@ -8923,6 +9346,28 @@ mod enabled {
                 d.set_item(
                     "identity_key_protected_dacl_strategy",
                     identity_key_protected_dacl_strategy(),
+                )?;
+                d.set_item("identity_key_parent_dir_refuse", true)?;
+                d.set_item(
+                    "identity_key_parent_dir_strategy",
+                    identity_key_parent_dir_strategy(),
+                )?;
+                d.set_item("identity_key_parent_mkdir_recheck", true)?;
+                d.set_item(
+                    "identity_key_parent_mkdir_recheck_strategy",
+                    identity_key_parent_mkdir_recheck_strategy(),
+                )?;
+                d.set_item("identity_key_parent_unattested_refuse", true)?;
+                d.set_item(
+                    "identity_key_parent_unattested_strategy",
+                    identity_key_parent_unattested_strategy(),
+                )?;
+                d.set_item("persist_tmp_per_thread", true)?;
+                d.set_item("persist_tmp_strategy", persist_tmp_strategy())?;
+                d.set_item("persist_tmp_stale_tid_sweep", true)?;
+                d.set_item(
+                    "persist_tmp_stale_tid_strategy",
+                    persist_tmp_stale_tid_strategy(),
                 )?;
                 d.set_item("ping", true)?;
                 d.set_item("ping_fail_events", true)?;
@@ -10129,6 +10574,7 @@ mod enabled {
             "PERSIST_MKDIR_FSYNC_STRATEGY",
             persist_mkdir_fsync_strategy(),
         )?;
+        m.add("PERSIST_JSON_ACL_STRATEGY", persist_json_acl_strategy())?;
         m.add("IDENTITY_KEY_UNIX_MODE", IDENTITY_KEY_UNIX_MODE)?;
         m.add("IDENTITY_KEY_MODE_STRATEGY", identity_key_mode_strategy())?;
         m.add(
@@ -10154,6 +10600,23 @@ mod enabled {
         m.add(
             "IDENTITY_KEY_PROTECTED_DACL_STRATEGY",
             identity_key_protected_dacl_strategy(),
+        )?;
+        m.add(
+            "IDENTITY_KEY_PARENT_DIR_STRATEGY",
+            identity_key_parent_dir_strategy(),
+        )?;
+        m.add(
+            "IDENTITY_KEY_PARENT_MKDIR_RECHECK_STRATEGY",
+            identity_key_parent_mkdir_recheck_strategy(),
+        )?;
+        m.add(
+            "IDENTITY_KEY_PARENT_UNATTESTED_STRATEGY",
+            identity_key_parent_unattested_strategy(),
+        )?;
+        m.add("PERSIST_TMP_STRATEGY", persist_tmp_strategy())?;
+        m.add(
+            "PERSIST_TMP_STALE_TID_STRATEGY",
+            persist_tmp_stale_tid_strategy(),
         )?;
         Ok(())
     }
@@ -10334,6 +10797,174 @@ mod tests {
             super::persist_mkdir_fsync_strategy(),
             super::persist_parent_dir_fsync_strategy()
         );
+    }
+
+    #[test]
+    fn persist_json_acl_strategy_matches_tmp_restrict() {
+        assert_eq!(
+            super::persist_json_acl_strategy(),
+            super::identity_key_tmp_restrict_strategy()
+        );
+    }
+
+    #[test]
+    fn identity_key_parent_dir_strategy_matches_os() {
+        let s = super::identity_key_parent_dir_strategy();
+        if cfg!(windows) {
+            assert_eq!(s, "windows_dir_no_users_write");
+        } else {
+            assert_eq!(s, "unix_dir_no_group_other_write");
+        }
+    }
+
+    #[test]
+    fn identity_key_parent_mkdir_recheck_strategy_is_mkdir_then_recheck() {
+        assert_eq!(
+            super::identity_key_parent_mkdir_recheck_strategy(),
+            "mkdir_then_recheck_parent_acl"
+        );
+    }
+
+    #[test]
+    fn identity_key_parent_unattested_strategy_is_absolute_cwd_refuse_volume_root() {
+        assert_eq!(
+            super::identity_key_parent_unattested_strategy(),
+            "absolute_cwd_refuse_volume_root"
+        );
+    }
+
+    #[test]
+    fn identity_key_absolute_path_joins_cwd_for_relative() {
+        let p = super::identity_key_absolute_path(std::path::Path::new("node.key"))
+            .expect("absolute relative key");
+        assert!(p.is_absolute(), "{p:?}");
+        assert_eq!(p.file_name().unwrap(), "node.key");
+        let err = super::identity_key_absolute_path(std::path::Path::new(""))
+            .expect_err("empty key path");
+        assert!(err.contains("empty"), "{err}");
+    }
+
+    #[test]
+    fn identity_key_parent_dir_ok_relative_filename_uses_cwd() {
+        super::identity_key_parent_dir_ok(std::path::Path::new("abs-ct-relative-only.key"))
+            .expect("cwd parent must be attested for a relative identity path");
+    }
+
+    #[test]
+    fn identity_parent_is_volume_root_matches_os_root() {
+        #[cfg(windows)]
+        {
+            assert!(super::identity_parent_is_volume_root(std::path::Path::new(
+                r"C:\"
+            )));
+            assert!(!super::identity_parent_is_volume_root(
+                std::path::Path::new(r"C:\Users")
+            ));
+        }
+        #[cfg(unix)]
+        {
+            assert!(super::identity_parent_is_volume_root(std::path::Path::new(
+                "/"
+            )));
+            assert!(!super::identity_parent_is_volume_root(
+                std::path::Path::new("/tmp")
+            ));
+        }
+    }
+
+    #[test]
+    fn identity_key_parent_dir_ok_refuses_volume_root() {
+        let dest = {
+            #[cfg(windows)]
+            {
+                use std::path::{Component, PathBuf};
+                let tmp = std::env::temp_dir();
+                let mut root = PathBuf::new();
+                for c in tmp.components() {
+                    match c {
+                        Component::Prefix(_) | Component::RootDir => root.push(c),
+                        _ => break,
+                    }
+                }
+                root.join(format!(
+                    "abs-ct-volroot-{}-{}.key",
+                    std::process::id(),
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_nanos())
+                        .unwrap_or(18)
+                ))
+            }
+            #[cfg(unix)]
+            {
+                std::path::PathBuf::from(format!(
+                    "/abs-ct-volroot-{}-{}.key",
+                    std::process::id(),
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_nanos())
+                        .unwrap_or(18)
+                ))
+            }
+            #[cfg(not(any(unix, windows)))]
+            {
+                return;
+            }
+        };
+        let err = super::identity_key_parent_dir_ok(&dest)
+            .expect_err("volume-root identity parent must refuse");
+        let low = err.to_ascii_lowercase();
+        assert!(
+            low.contains("volume root") || low.contains("unattested"),
+            "volume-root error too vague: {err}"
+        );
+        assert!(!dest.exists(), "volume-root key must not be created");
+    }
+
+    #[test]
+    fn identity_key_parent_dir_ok_temp_parent() {
+        let dest = std::env::temp_dir().join(format!(
+            "abs-id-parent-temp-{}-{}.key",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(14)
+        ));
+        super::identity_key_parent_dir_ok(&dest)
+            .expect("user temp parent must be an allowed identity keystore dir");
+    }
+
+    #[test]
+    fn atomic_write_file_json_born_restricted() {
+        let dir = std::env::temp_dir();
+        let dest = dir.join(format!(
+            "abs-json-acl-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(13)
+        ));
+        let tmp = super::external_addrs_tmp_path(&dest);
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&tmp);
+        super::atomic_write_file(&dest, b"{\"v\":1}").expect("json persist");
+        assert_eq!(std::fs::read(&dest).expect("read"), b"{\"v\":1}");
+        assert!(!tmp.exists(), "tmp leftover");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&dest).expect("stat").permissions().mode();
+            assert_eq!(mode & 0o777, 0o600, "JSON persist mode {:o}", mode & 0o777);
+        }
+        #[cfg(windows)]
+        {
+            super::windows_identity_acl_ok(&dest)
+                .expect("JSON persist dest DACL must be protected owner-only");
+        }
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&tmp);
     }
 
     #[test]
@@ -10590,6 +11221,164 @@ mod tests {
         let _ = std::fs::remove_file(&dest);
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn identity_ace_flags_inherit_only_is_pairwise() {
+        assert!(!super::identity_ace_flags_inherit_only("OI"));
+        assert!(!super::identity_ace_flags_inherit_only("OICI"));
+        assert!(!super::identity_ace_flags_inherit_only("CIOI"));
+        assert!(super::identity_ace_flags_inherit_only("IO"));
+        assert!(super::identity_ace_flags_inherit_only("OIIO"));
+        assert!(!super::identity_ace_flags_inherit_only("ID"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_identity_dir_sddl_users_rx_ok() {
+        super::windows_identity_dir_sddl_ok("D:(A;OICI;0x1200a9;;;BU)(A;;FA;;;SY)(A;;FA;;;BA)", "")
+            .expect("Users RX on a directory must pass");
+        super::windows_identity_dir_sddl_ok(
+            "D:(A;;FA;;;S-1-5-21-1-2-3-1004)(A;;FA;;;SY)(A;;FA;;;BA)",
+            "",
+        )
+        .expect("named user FA on a directory must pass");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_identity_dir_sddl_users_write_refuse() {
+        assert!(super::windows_identity_dir_sddl_ok("D:(A;;FW;;;BU)", "").is_err());
+        assert!(super::windows_identity_dir_sddl_ok("D:(A;;FA;;;BU)", "").is_err());
+        assert!(super::windows_identity_dir_sddl_ok("D:(A;;0x2;;;BU)", "").is_err());
+        assert!(super::windows_identity_dir_sddl_ok("D:(A;;DC;;;WD)", "").is_err());
+        assert!(super::windows_identity_dir_sddl_ok("D:(A;;FW;;;AU)", "").is_err());
+        assert!(super::windows_identity_dir_sddl_ok("D:NO_ACCESS_CONTROL", "").is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_identity_dir_sddl_inherit_only_users_fa_skipped() {
+        super::windows_identity_dir_sddl_ok("D:(A;OIIO;FA;;;BU)(A;;FA;;;SY)(A;;FA;;;BA)", "")
+            .expect("inherit-only Users FA must not apply to the directory object");
+        assert!(
+            super::windows_identity_dir_sddl_ok("D:(A;OICIID;FW;;;BU)(A;;FA;;;SY)", "").is_err(),
+            "inherited Users write on the created child must refuse"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn ensure_identity_key_parent_refuses_inherited_users_write() {
+        let anc = std::env::temp_dir().join(format!(
+            "abs-id-parent-io-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(17)
+        ));
+        let _ = std::fs::remove_dir_all(&anc);
+        std::fs::create_dir_all(&anc).expect("mkdir ancestor");
+        super::identity_key_parent_dir_ok(&anc.join("dummy.key"))
+            .expect("ancestor before inherit-only grant");
+        let grant = std::process::Command::new("icacls")
+            .arg(&anc)
+            .arg("/grant")
+            .arg("*S-1-5-32-545:(OI)(CI)(IO)(W)")
+            .output()
+            .expect("icacls");
+        assert!(
+            grant.status.success(),
+            "icacls inherit-only Users write on ancestor failed"
+        );
+        super::identity_key_parent_dir_ok(&anc.join("dummy.key"))
+            .expect("inherit-only Users write must not apply to the ancestor object");
+        let dest = anc.join("keystore").join("node.key");
+        let err = super::ensure_identity_key_parent(&dest)
+            .expect_err("created child inheriting Users write must refuse");
+        let low = err.to_ascii_lowercase();
+        assert!(
+            low.contains("parent")
+                || low.contains("write")
+                || low.contains("dacl")
+                || low.contains("dir"),
+            "inherited parent write error too vague: {err}"
+        );
+        assert!(
+            !dest.exists(),
+            "key must not be written before parent recheck"
+        );
+        let _ = std::fs::remove_dir_all(&anc);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_identity_parent_acl_ok_refuses_users_write() {
+        let dir = std::env::temp_dir().join(format!(
+            "abs-id-parent-w-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(15)
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let dest = dir.join("node.key");
+        super::identity_key_parent_dir_ok(&dest).expect("nested temp parent must pass");
+        let grant = std::process::Command::new("icacls")
+            .arg(&dir)
+            .arg("/grant")
+            .arg("*S-1-5-32-545:(W)")
+            .output()
+            .expect("icacls");
+        assert!(
+            grant.status.success(),
+            "icacls grant Users write on parent failed"
+        );
+        let err = super::identity_key_parent_dir_ok(&dest)
+            .expect_err("Users write on parent must refuse");
+        let low = err.to_ascii_lowercase();
+        assert!(
+            low.contains("parent")
+                || low.contains("write")
+                || low.contains("dacl")
+                || low.contains("dir"),
+            "parent write error too vague: {err}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn identity_key_parent_dir_refuses_group_other_write() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!(
+            "abs-id-parent-mode-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(16)
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let dest = dir.join("node.key");
+        super::identity_key_parent_dir_ok(&dest).expect("0700 parent");
+        let mut perms = std::fs::metadata(&dir).expect("stat").permissions();
+        perms.set_mode(0o0777);
+        std::fs::set_permissions(&dir, perms.clone()).expect("chmod 0777");
+        let err = super::identity_key_parent_dir_ok(&dest).expect_err("0777 parent must refuse");
+        assert!(
+            err.contains("group/other write") || err.contains("mode"),
+            "unix parent error too vague: {err}"
+        );
+        perms.set_mode(0o1777);
+        std::fs::set_permissions(&dir, perms).expect("chmod sticky");
+        super::identity_key_parent_dir_ok(&dest).expect("sticky parent must pass");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn create_persist_tmp_identity_overwrites_leftover_without_leaking_stale() {
         use std::io::Write;
@@ -10632,11 +11421,210 @@ mod tests {
         let dest = std::path::Path::new("foo.json");
         let tmp = super::external_addrs_tmp_path(dest);
         let name = tmp.file_name().unwrap().to_string_lossy();
-        assert!(
-            name.ends_with(&format!("{}.tmp", std::process::id())),
-            "tmp name {name}"
-        );
+        let pid = std::process::id().to_string();
+        let tid = super::persist_tmp_thread_tag();
         assert!(name.starts_with("foo.json."), "tmp name {name}");
+        assert!(name.contains(&pid), "tmp name {name} missing pid");
+        assert!(name.contains(&tid), "tmp name {name} missing tid");
+        assert!(name.ends_with(".tmp"), "tmp name {name}");
+        assert_eq!(
+            super::external_addrs_tmp_path(dest),
+            tmp,
+            "same-thread tmp must be stable for leftover cleanup"
+        );
+    }
+
+    #[test]
+    fn persist_tmp_strategy_is_pid_tid() {
+        assert_eq!(super::persist_tmp_strategy(), "pid_tid_tmp");
+        assert_eq!(
+            super::persist_tmp_stale_tid_strategy(),
+            "unlink_not_in_flight"
+        );
+    }
+
+    #[test]
+    fn persist_tmp_name_is_ours_requires_this_pid() {
+        let dest = std::ffi::OsStr::new("foo.json");
+        assert!(super::persist_tmp_name_is_ours(
+            std::ffi::OsStr::new("foo.json.1234.ThreadId1.tmp"),
+            dest,
+            "1234",
+        ));
+        assert!(super::persist_tmp_name_is_ours(
+            std::ffi::OsStr::new("foo.json.1234.tmp"),
+            dest,
+            "1234",
+        ));
+        assert!(!super::persist_tmp_name_is_ours(
+            std::ffi::OsStr::new("foo.json.12345.ThreadId1.tmp"),
+            dest,
+            "1234",
+        ));
+        assert!(!super::persist_tmp_name_is_ours(
+            std::ffi::OsStr::new("foo.json.bak"),
+            dest,
+            "1234",
+        ));
+    }
+
+    #[test]
+    fn atomic_write_file_sweeps_stale_other_tid_tmp() {
+        let dest = std::env::temp_dir().join(format!(
+            "abs-tmp-cv-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(22)
+        ));
+        let pid = std::process::id();
+        let stale = super::persist_tmp_join(&dest, &format!("{pid}.StaleTid.tmp"));
+        let foreign = super::persist_tmp_join(&dest, "999999999.OtherPid.tmp");
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&stale);
+        let _ = std::fs::remove_file(&foreign);
+        std::fs::write(&stale, "{stale-tid").expect("stale other tid");
+        std::fs::write(&foreign, "{other-pid").expect("other pid tmp");
+        super::atomic_write_file(&dest, b"{\"version\":1,\"addrs\":[]}").expect("persist");
+        assert!(!stale.exists(), "stale other-tid tmp not swept");
+        assert!(
+            foreign.exists(),
+            "must not unlink another process pid staging"
+        );
+        assert!(dest.is_file(), "dest missing");
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&foreign);
+    }
+
+    #[test]
+    fn atomic_write_file_skips_in_flight_other_tid() {
+        let dest = std::env::temp_dir().join(format!(
+            "abs-tmp-cv-hold-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(23)
+        ));
+        let pid = std::process::id();
+        let held = super::persist_tmp_join(&dest, &format!("{pid}.HeldTid.tmp"));
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&held);
+        std::fs::write(&held, b"in-flight").expect("held tmp");
+        let _guard = super::PersistTmpInFlight::claim(held.clone());
+        super::atomic_write_file(&dest, b"{\"version\":1,\"addrs\":[]}").expect("persist");
+        assert!(held.is_file(), "in-flight other-tid tmp was stolen");
+        assert_eq!(std::fs::read(&held).expect("read held"), b"in-flight");
+        drop(_guard);
+        let _ = std::fs::remove_file(&held);
+        let _ = std::fs::remove_file(&dest);
+    }
+
+    #[test]
+    fn persist_tmp_pid_only_differs_from_tid_path() {
+        let dest = std::path::Path::new("foo.json");
+        let tid = super::external_addrs_tmp_path(dest);
+        let pid = super::persist_tmp_path_pid_only(dest);
+        assert_ne!(tid, pid);
+        let pid_s = std::process::id().to_string();
+        let name = pid.file_name().unwrap().to_string_lossy();
+        assert_eq!(name.as_ref(), format!("foo.json.{pid_s}.tmp"));
+    }
+
+    #[test]
+    fn atomic_write_file_cleans_ck_pid_only_leftover() {
+        let dest = std::env::temp_dir().join(format!(
+            "abs-tmp-ck-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(21)
+        ));
+        let tid_tmp = super::external_addrs_tmp_path(&dest);
+        let pid_tmp = super::persist_tmp_path_pid_only(&dest);
+        let _ = std::fs::remove_file(&dest);
+        let _ = std::fs::remove_file(&tid_tmp);
+        let _ = std::fs::remove_file(&pid_tmp);
+        std::fs::write(&pid_tmp, "{stale").expect("ck leftover");
+        super::atomic_write_file(&dest, b"{\"version\":1,\"addrs\":[]}").expect("persist");
+        assert!(
+            !pid_tmp.exists(),
+            "CK dest.{{pid}}.tmp leftover not cleaned"
+        );
+        assert!(!tid_tmp.exists(), "tid tmp leftover");
+        assert!(dest.is_file(), "dest missing");
+        let _ = std::fs::remove_file(&dest);
+    }
+
+    #[test]
+    fn persist_tmp_path_differs_across_threads() {
+        let dest = std::path::Path::new("foo.json");
+        let main = super::external_addrs_tmp_path(dest);
+        let other =
+            std::thread::spawn(|| super::external_addrs_tmp_path(std::path::Path::new("foo.json")))
+                .join()
+                .expect("thread");
+        assert_ne!(
+            main, other,
+            "two threads must not share dest.{{pid}}.tmp staging"
+        );
+    }
+
+    #[test]
+    fn atomic_write_file_two_threads_dest_is_single_snapshot() {
+        let dest = std::env::temp_dir().join(format!(
+            "abs-tmp-tid-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(19)
+        ));
+        let _ = std::fs::remove_file(&dest);
+        let a = vec![0xA5u8; 32 * 1024];
+        let b = vec![0x5Au8; 32 * 1024];
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let dest_a = dest.clone();
+        let dest_b = dest.clone();
+        let body_a = a.clone();
+        let body_b = b.clone();
+        let ba = barrier.clone();
+        let bb = barrier.clone();
+        let t1 = std::thread::spawn(move || {
+            ba.wait();
+            super::atomic_write_file(&dest_a, &body_a)
+        });
+        let t2 = std::thread::spawn(move || {
+            bb.wait();
+            super::atomic_write_file(&dest_b, &body_b)
+        });
+        let r1 = t1.join().expect("t1");
+        let r2 = t2.join().expect("t2");
+        assert!(
+            r1.is_ok() || r2.is_ok(),
+            "both persists failed: {r1:?} {r2:?}"
+        );
+        let got = std::fs::read(&dest).expect("dest after concurrent persist");
+        assert!(
+            got == a || got == b,
+            "torn persist snapshot len={} first={} last={}",
+            got.len(),
+            got.first().copied().unwrap_or(0),
+            got.last().copied().unwrap_or(0)
+        );
+        if let Some(parent) = dest.parent() {
+            let prefix = dest.file_name().unwrap().to_string_lossy().into_owned();
+            for entry in std::fs::read_dir(parent).expect("parent") {
+                let p = entry.expect("entry").path();
+                let name = p.file_name().unwrap().to_string_lossy();
+                if name.starts_with(&prefix) && name.ends_with(".tmp") {
+                    panic!("leftover persist tmp {p:?}");
+                }
+            }
+        }
+        let _ = std::fs::remove_file(&dest);
     }
 
     #[test]

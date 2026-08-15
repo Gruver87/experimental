@@ -126,12 +126,18 @@ feature `libp2p`), exposed to Python through the existing
 | Identity keystore mode | Slice CH: Unix first-create `0o600`; existing group/other bits refuse spawn (no silent chmod); Windows DACL is Slice CI; `libp2p_rust_identity_key_mode_lab.py` |
 | Identity keystore Windows DACL | Slice CI: first-create protected DACL (owner + SYSTEM + Administrators; no Users/Everyone); existing ACLs not rewritten; not POSIX 0600; `libp2p_rust_identity_key_windows_dacl_lab.py` |
 | Persist mkdir fsync | Slice CJ: `create_dir_all` then fsync created dirs + first existing ancestor (volume roots skipped); still not POSIX inode-atomic on NTFS; `libp2p_rust_persist_mkdir_fsync_lab.py` |
-| Identity first-create exclusive | Slice CK: identity dest create fails if dest exists (Windows MoveFileEx without REPLACE; POSIX hard_link); staging `dest.{pid}.tmp`; no race clobber; JSON persist still replaces; `libp2p_rust_identity_create_exclusive_lab.py` |
+| Identity first-create exclusive | Slice CK: identity dest create fails if dest exists (Windows MoveFileEx without REPLACE; POSIX hard_link); staging was `dest.{pid}.tmp` (CU: `dest.{pid}.{tid}.tmp`); no race clobber; JSON persist still replaces; `libp2p_rust_identity_create_exclusive_lab.py` |
 | Identity tmp restrict at create | Slice CL: identity staging tmp is born restricted (Unix `0o600` at open; Windows `CreateFileW` with protected DACL); leftover tmp locked+unlinked; `libp2p_rust_identity_tmp_dacl_at_create_lab.py` |
 | Identity existing ACL refuse | Slice CM: existing key with Users/Everyone (Windows) or group/other bits (Unix) refuses spawn; dest ACL never rewritten; `libp2p_rust_identity_existing_acl_refuse_lab.py` |
 | Identity NULL DACL refuse | Slice CN: missing/NULL DACL (Windows grant-everyone) refuses spawn; dest ACL never rewritten; `libp2p_rust_identity_null_dacl_refuse_lab.py` |
 | Identity callback ACE refuse | Slice CO: callback/conditional allow ACEs (XA/ZA/XU) and unknown ACE types refuse spawn; dest ACL never rewritten; `libp2p_rust_identity_callback_ace_refuse_lab.py` |
 | Identity protected DACL refuse | Slice CP: existing DACL without `SE_DACL_PROTECTED` / SDDL `P` refuses spawn (inheritance cannot add Users); dest ACL never rewritten; `libp2p_rust_identity_protected_dacl_refuse_lab.py` |
+| Persist JSON ACL | Slice CQ: JSON persist tmp/dest born restricted (same DACL/0600 as identity tmp); existing JSON not refused at load; `libp2p_rust_persist_json_acl_lab.py` |
+| Identity parent-dir refuse | Slice CR: world-writable identity parent (Users write / Unix group-other write; sticky OK) refuses spawn; directory ACL never rewritten; volume roots skipped; `libp2p_rust_identity_parent_dir_refuse_lab.py` |
+| Identity parent mkdir recheck | Slice CS: mkdir missing identity parent then recheck ACL (inherit-only ancestor Users write); key not written; directory ACL never rewritten; `libp2p_rust_identity_parent_mkdir_recheck_lab.py` |
+| Identity parent unattested refuse | Slice CT: relative key paths resolve against cwd; volume-root parents refuse (no fsync-heuristic skip); `libp2p_rust_identity_parent_unattested_lab.py` |
+| Persist tmp per-thread | Slice CU: staging `dest.{pid}.{tid}.tmp` so two threads in one PID do not share tmp; same-thread sequential persist reuses the name (leftover cleanup); dest after concurrent persist is one complete snapshot; JSON persist still last-writer-wins replace (CD); `libp2p_rust_persist_tmp_per_thread_lab.py` |
+| Persist tmp stale-tid sweep | Slice CV: unlink stale `dest.{pid}.{otherTid}.tmp` after tokio worker steal; skip in-flight writers; `libp2p_rust_persist_tmp_stale_tid_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -233,6 +239,12 @@ feature `libp2p`), exposed to Python through the existing
 | CN | Existing identity NULL/absent DACL refuses spawn (Windows grant-everyone); `libp2p_rust_identity_null_dacl_refuse_lab.py` |
 | CO | Existing identity callback/conditional allow ACE (XA/ZA/XU) refuses spawn; unknown ACE types refuse; `libp2p_rust_identity_callback_ace_refuse_lab.py` |
 | CP | Existing identity unprotected DACL refuses spawn (CI protected-bit at load); `libp2p_rust_identity_protected_dacl_refuse_lab.py` |
+| CQ | JSON persist tmp/dest born restricted (Unix 0600 / Windows protected DACL); existing JSON not refused at load; `libp2p_rust_persist_json_acl_lab.py` |
+| CR | Identity parent must not grant Users/Everyone write (Windows) or group/other write unless sticky (Unix); spawn refuses; directory ACL never rewritten; `libp2p_rust_identity_parent_dir_refuse_lab.py` |
+| CS | Mkdir missing identity parent then recheck ACL (inherit-only ancestor write skipped by CR); key not written; `libp2p_rust_identity_parent_mkdir_recheck_lab.py` |
+| CT | Relative identity paths resolve against cwd; volume-root parents refuse (ACL never skipped via fsync heuristic); `libp2p_rust_identity_parent_unattested_lab.py` |
+| CU | Persist staging tmp is per-thread (`dest.{pid}.{tid}.tmp`); same-thread name is stable for leftover cleanup; dest after concurrent persist is one complete snapshot; `libp2p_rust_persist_tmp_per_thread_lab.py` |
+| CV | Sweep stale other-tid persist tmp; skip in-flight concurrent writers; `libp2p_rust_persist_tmp_stale_tid_lab.py` |
 
 ## Honesty
 
@@ -321,7 +333,13 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_identity_existing_acl_refuse_lab.py`,
   `libp2p_rust_identity_null_dacl_refuse_lab.py`,
   `libp2p_rust_identity_callback_ace_refuse_lab.py`,
-  `libp2p_rust_identity_protected_dacl_refuse_lab.py`;
+  `libp2p_rust_identity_protected_dacl_refuse_lab.py`,
+  `libp2p_rust_persist_json_acl_lab.py`,
+  `libp2p_rust_identity_parent_dir_refuse_lab.py`,
+  `libp2p_rust_identity_parent_mkdir_recheck_lab.py`,
+  `libp2p_rust_identity_parent_unattested_lab.py`,
+  `libp2p_rust_persist_tmp_per_thread_lab.py`,
+  `libp2p_rust_persist_tmp_stale_tid_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -456,9 +474,9 @@ feature `libp2p`), exposed to Python through the existing
     / POSIX `rename` (those clobber dest if it appears after `exists()`).
     Windows: `MoveFileExW` without `MOVEFILE_REPLACE_EXISTING`. POSIX:
     `link(tmp, dest)` then unlink tmp. Staging tmp is `dest.{pid}.tmp` so two
-    first-creates do not share the staging file. Capability
-    `identity_create_exclusive`. JSON persist still replaces (CD). NTFS
-    replace remains **not** POSIX inode-atomic.
+    first-creates do not share the staging file (Slice CU adds `{tid}`).
+    Capability `identity_create_exclusive`. JSON persist still replaces (CD).
+    NTFS replace remains **not** POSIX inode-atomic.
   Slice CL: identity staging tmp is created already restricted. Unix: `0o600`
     at `open`. Windows: `CreateFileW(CREATE_NEW)` with the protected DACL
     (owner+SYSTEM+Admin) so key bytes are never written under inherited
@@ -483,6 +501,51 @@ feature `libp2p`), exposed to Python through the existing
     ACL change could inherit Users onto the key. Spawn now **refuses**.
     Dest ACL is never rewritten. Capability `identity_key_protected_dacl_refuse`
     (Windows only). Unix remains Slice CH.
+  Slice CQ: JSON persist still used `File::create` for tmp (inherited
+    Users/Everyone). Tmp+dest now use the same restricted create as identity
+    (Unix `0o600` / Windows protected DACL). Existing JSON is **not** refused
+    at load (not key material). Dest ACL is replaced on persist. Capability
+    `persist_json_acl_restrict`. JSON persist still last-writer-wins replace
+    (CD). NTFS replace remains **not** POSIX inode-atomic.
+  Slice CR: CI–CP lock the key **file**. A world-writable parent still lets
+    Users replace/unlink `node.key`. Spawn now **refuses** when the parent
+    grants Users/Everyone write/delete-child (Windows) or group/other write
+    unless sticky (Unix). Named-user write (including the current user on a
+    user Temp dir) is allowed; Users/Everyone/Authenticated Users write is
+    not. Directory ACL is **never** rewritten. Volume roots
+    are skipped. Capability `identity_key_parent_dir_refuse`. NTFS replace
+    remains **not** POSIX inode-atomic.
+  Slice CS: CR checked a missing parent by walking to the first existing
+    ancestor and skipped inherit-only ACEs. `create_dir_all` then inherited
+    Users/group-other write onto the new directory, so the key landed in a
+    world-writable parent. Spawn now **mkdir's first** and rechecks the
+    created parent. The key is **not** written if that check fails.
+    Directory ACL is never rewritten. Capability
+    `identity_key_parent_mkdir_recheck`. NTFS replace remains **not** POSIX
+    inode-atomic.
+  Slice CT: CR/CS reused `should_fsync_dir`, which skips volume roots and
+    relative one-component parents (`keystore/node.key`). Identity parent ACL
+    is **never** skipped: relative paths resolve against cwd; volume-root
+    parents **refuse**. The key is not written. Directory ACL is never
+    rewritten. Fsync still skips volume roots. Capability
+    `identity_key_parent_unattested_refuse`. NTFS replace remains **not** POSIX
+    inode-atomic.
+  Slice CU: CK staging `dest.{pid}.tmp` still collides for two threads in
+    one process. Staging is now `dest.{pid}.{tid}.tmp`. Same-thread sequential
+    persist reuses the name so leftover lock+unlink still works (CL). Dest
+    after concurrent persist is one complete snapshot (all of one writer),
+    never mixed bytes. JSON persist remains last-writer-wins replace (CD).
+    Identity first-create remains exclusive (CK). Persist also unlinks unused
+    CK leftover `dest.{pid}.tmp` (Python labs plant that name; persist runs on
+    the swarm task thread, not the caller tid). Capability
+    `persist_tmp_per_thread`. NTFS replace remains **not** POSIX inode-atomic.
+  Slice CV: CU leftover cleanup is same-thread. A crash on tokio worker A
+    leaves `dest.{pid}.{tidA}.tmp`; a retry on worker B would miss it.
+    Persist now sweeps this-pid staging siblings that are **not** in the
+    process in-flight set (so a concurrent writer is not stolen; POSIX unlink
+    of an open path would drop the writer's rename). Other-pid tmp is left
+    alone. Capability `persist_tmp_stale_tid_sweep`. NTFS replace remains
+    **not** POSIX inode-atomic.
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.

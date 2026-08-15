@@ -370,6 +370,12 @@ LABS = [
     ("CN", "scripts/libp2p_rust_identity_null_dacl_refuse_lab.py"),
     ("CO", "scripts/libp2p_rust_identity_callback_ace_refuse_lab.py"),
     ("CP", "scripts/libp2p_rust_identity_protected_dacl_refuse_lab.py"),
+    ("CQ", "scripts/libp2p_rust_persist_json_acl_lab.py"),
+    ("CR", "scripts/libp2p_rust_identity_parent_dir_refuse_lab.py"),
+    ("CS", "scripts/libp2p_rust_identity_parent_mkdir_recheck_lab.py"),
+    ("CT", "scripts/libp2p_rust_identity_parent_unattested_lab.py"),
+    ("CU", "scripts/libp2p_rust_persist_tmp_per_thread_lab.py"),
+    ("CV", "scripts/libp2p_rust_persist_tmp_stale_tid_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -528,6 +534,18 @@ def check_native_deep() -> tuple[bool, str]:
         return False, f"bad ABS_GOSSIP_BLOCKS_TOPIC={gossip!r}"
     if kad != "/absolute/kad/1.0.0":
         return False, f"bad ABS_KAD_PROTOCOL={kad!r}"
+    persist_tmp = str(getattr(abs_native, "PERSIST_TMP_STRATEGY", ""))
+    if persist_tmp != "pid_tid_tmp":
+        return False, (
+            f"bad PERSIST_TMP_STRATEGY={persist_tmp!r} "
+            "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+        )
+    stale_tid = str(getattr(abs_native, "PERSIST_TMP_STALE_TID_STRATEGY", ""))
+    if stale_tid != "unlink_not_in_flight":
+        return False, (
+            f"bad PERSIST_TMP_STALE_TID_STRATEGY={stale_tid!r} "
+            "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+        )
 
     a = abs_native.libp2p_node_new()
     b = abs_native.libp2p_node_new()
@@ -551,8 +569,8 @@ def check_native_deep() -> tuple[bool, str]:
         cap = dict(a.capability_status())
         if cap.get("default_mesh") is not False:
             return False, "capability_status.default_mesh must be False"
-        if int(cap.get("phase") or 0) < 8:
-            return False, f"capability phase too low: {cap.get('phase')}"
+        if int(cap.get("phase") or 0) < 99:
+            return False, f"capability phase too low: {cap.get('phase')} (want >= 99 Slice CV)"
         if not cap.get("external_addrs_replace_no_unlink"):
             return False, (
                 "capability external_addrs_replace_no_unlink missing "
@@ -666,6 +684,74 @@ def check_native_deep() -> tuple[bool, str]:
             return False, (
                 "capability identity_key_protected_dacl_refuse missing "
                 "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if not cap.get("persist_json_acl_restrict"):
+            return False, (
+                "capability persist_json_acl_restrict missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if not cap.get("identity_key_parent_dir_refuse"):
+            return False, (
+                "capability identity_key_parent_dir_refuse missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        want_parent = (
+            "windows_dir_no_users_write"
+            if os.name == "nt"
+            else "unix_dir_no_group_other_write"
+        )
+        got_parent = cap.get("identity_key_parent_dir_strategy")
+        if got_parent != want_parent:
+            return False, (
+                f"identity parent dir strategy {got_parent!r} != {want_parent} "
+                "(stale wheel — --rebuild)"
+            )
+        if not cap.get("identity_key_parent_mkdir_recheck"):
+            return False, (
+                "capability identity_key_parent_mkdir_recheck missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if cap.get("identity_key_parent_mkdir_recheck_strategy") != (
+            "mkdir_then_recheck_parent_acl"
+        ):
+            return False, (
+                "identity parent mkdir recheck strategy "
+                f"{cap.get('identity_key_parent_mkdir_recheck_strategy')!r} "
+                "!= mkdir_then_recheck_parent_acl (stale wheel — --rebuild)"
+            )
+        if not cap.get("identity_key_parent_unattested_refuse"):
+            return False, (
+                "capability identity_key_parent_unattested_refuse missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if cap.get("identity_key_parent_unattested_strategy") != (
+            "absolute_cwd_refuse_volume_root"
+        ):
+            return False, (
+                "identity parent unattested strategy "
+                f"{cap.get('identity_key_parent_unattested_strategy')!r} "
+                "!= absolute_cwd_refuse_volume_root (stale wheel — --rebuild)"
+            )
+        if not cap.get("persist_tmp_per_thread"):
+            return False, (
+                "capability persist_tmp_per_thread missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if cap.get("persist_tmp_strategy") != "pid_tid_tmp":
+            return False, (
+                f"persist tmp strategy {cap.get('persist_tmp_strategy')!r} "
+                "!= pid_tid_tmp (stale wheel — --rebuild)"
+            )
+        if not cap.get("persist_tmp_stale_tid_sweep"):
+            return False, (
+                "capability persist_tmp_stale_tid_sweep missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if cap.get("persist_tmp_stale_tid_strategy") != "unlink_not_in_flight":
+            return False, (
+                "persist tmp stale-tid strategy "
+                f"{cap.get('persist_tmp_stale_tid_strategy')!r} "
+                "!= unlink_not_in_flight (stale wheel — --rebuild)"
             )
         # Slice I API must exist
         a.block_peer(b.peer_id)

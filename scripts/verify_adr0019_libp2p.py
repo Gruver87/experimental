@@ -138,6 +138,12 @@ LABS = [
     ("CN", "scripts/libp2p_rust_identity_null_dacl_refuse_lab.py"),
     ("CO", "scripts/libp2p_rust_identity_callback_ace_refuse_lab.py"),
     ("CP", "scripts/libp2p_rust_identity_protected_dacl_refuse_lab.py"),
+    ("CQ", "scripts/libp2p_rust_persist_json_acl_lab.py"),
+    ("CR", "scripts/libp2p_rust_identity_parent_dir_refuse_lab.py"),
+    ("CS", "scripts/libp2p_rust_identity_parent_mkdir_recheck_lab.py"),
+    ("CT", "scripts/libp2p_rust_identity_parent_unattested_lab.py"),
+    ("CU", "scripts/libp2p_rust_persist_tmp_per_thread_lab.py"),
+    ("CV", "scripts/libp2p_rust_persist_tmp_stale_tid_lab.py"),
 ]
 
 
