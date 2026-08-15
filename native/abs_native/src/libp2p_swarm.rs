@@ -94,6 +94,7 @@
 //! Slice CW: circuit `/p2p-circuit` never occupies rust-libp2p ExternalAddresses.
 //! Slice CX: relay-client circuit ExternalAddrConfirmed is omitted (crate book).
 //! Slice CY: AutoNAT/UPnP ExternalAddrConfirmed is admit-canonical-or-omit.
+//! Slice CZ: observed / SwarmEvent confirm charges the canonical key (no `/p2p` suffix).
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -318,6 +319,14 @@ pub fn relay_client_circuit_external_strategy() -> &'static str {
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub fn behaviour_external_confirmed_strategy() -> &'static str {
     "admit_canonical_or_omit"
+}
+
+/// Slice CZ: Identify observed addrs often append `/p2p/<peer>`. Charge and
+/// crate-book insert use the canonical key (suffix stripped) so a suffix
+/// variant cannot occupy a second unique slot or evict a charged listen.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn observed_external_charge_key_strategy() -> &'static str {
+    "admit_canonical_charge_key"
 }
 
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
@@ -1004,18 +1013,18 @@ fn create_persist_tmp(
     {
         use std::os::unix::fs::OpenOptionsExt;
         let mode = unix_mode.unwrap_or(IDENTITY_KEY_UNIX_MODE);
-        return std::fs::OpenOptions::new()
+        std::fs::OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true)
             .mode(mode)
             .open(tmp)
-            .map_err(|e| format!("create persist tmp: {e}"));
+            .map_err(|e| format!("create persist tmp: {e}"))
     }
     #[cfg(windows)]
     {
         let _ = unix_mode;
-        return windows_create_identity_tmp(tmp, false);
+        windows_create_identity_tmp(tmp, false)
     }
     #[cfg(not(any(unix, windows)))]
     {
@@ -1032,7 +1041,7 @@ fn apply_unix_mode(path: &std::path::Path, unix_mode: Option<u32>) -> Result<(),
             std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
                 .map_err(|e| format!("chmod persist tmp: {e}"))?;
         }
-        return Ok(());
+        Ok(())
     }
     #[cfg(not(unix))]
     {
@@ -1748,7 +1757,8 @@ mod enabled {
         identity_key_null_dacl_strategy, identity_key_parent_dir_strategy,
         identity_key_parent_mkdir_recheck_strategy, identity_key_parent_unattested_strategy,
         identity_key_protected_dacl_strategy, identity_key_tmp_restrict_strategy, libp2p_available,
-        persist_json_acl_strategy, persist_mkdir_fsync_strategy, persist_parent_dir_fsync_strategy,
+        observed_external_charge_key_strategy, persist_json_acl_strategy,
+        persist_mkdir_fsync_strategy, persist_parent_dir_fsync_strategy,
         persist_tmp_stale_tid_strategy, persist_tmp_strategy,
         relay_client_circuit_external_strategy, ABS_GOSSIP_BLOCKS_TOPIC,
         ABS_IDENTIFY_PROTOCOL_VERSION, ABS_KAD_PROTOCOL, ABS_RENDEZVOUS_NAMESPACE,
@@ -6181,9 +6191,16 @@ mod enabled {
                                                 ));
                                                 continue;
                                             }
+                                            let key = advertised_charge_key(&ma);
                                             let admit = match state_bg.lock() {
                                                 Ok(mut st) => {
-                                                    admit_aux_advertised_external(&mut st, &s)
+                                                    if advertised_already_charged(&st, &key) {
+                                                        Ok(false)
+                                                    } else {
+                                                        admit_aux_advertised_external(
+                                                            &mut st, &key,
+                                                        )
+                                                    }
                                                 }
                                                 Err(_) => {
                                                     Err("state lock poisoned".into())
@@ -6193,7 +6210,20 @@ mod enabled {
                                                 let _ = reply.send(Err(msg));
                                                 continue;
                                             }
-                                            swarm_add_external_if_charged(&mut swarm, ma);
+                                            match key.parse::<Multiaddr>() {
+                                                Ok(canonical) => {
+                                                    swarm_add_external_if_charged(
+                                                        &mut swarm,
+                                                        canonical,
+                                                    );
+                                                }
+                                                Err(e) => {
+                                                    let _ = reply.send(Err(format!(
+                                                        "bad observed charge key: {e}"
+                                                    )));
+                                                    continue;
+                                                }
+                                            }
                                             if let Ok(mut st) = state_bg.lock() {
                                                 st.external_addr_confirmed = st
                                                     .external_addr_confirmed
@@ -6201,8 +6231,8 @@ mod enabled {
                                                 st.observed_addr_confirmed = st
                                                     .observed_addr_confirmed
                                                     .saturating_add(1);
-                                                if !st.external_addrs.contains(&s) {
-                                                    st.external_addrs.push(s.clone());
+                                                if !st.external_addrs.contains(&key) {
+                                                    st.external_addrs.push(key);
                                                 }
                                             }
                                             let _ = reply.send(Ok(s));
@@ -6925,25 +6955,29 @@ mod enabled {
                                 }
                                 SwarmEvent::ExternalAddrConfirmed { address } => {
                                     let s = address.to_string();
+                                    let key = advertised_charge_key(&address);
                                     let is_circuit = address
                                         .iter()
                                         .any(|p| matches!(p, Protocol::P2pCircuit));
                                     if let Ok(mut st) = state_bg.lock() {
-                                        let listen_derived =
-                                            st.listen_addrs.iter().any(|a| a == &s);
+                                        let listen_derived = st.listen_addrs.iter().any(|a| {
+                                            a == &s || a == &key
+                                        });
                                         let admit_ok = if is_circuit {
                                             false
                                         } else if listen_derived {
-                                            admit_listen_derived_external(&mut st, &s).is_ok()
+                                            admit_listen_derived_external(&mut st, &key).is_ok()
                                         } else {
-                                            admit_aux_advertised_external(&mut st, &s).is_ok()
+                                            advertised_already_charged(&st, &key)
+                                                || admit_aux_advertised_external(&mut st, &key)
+                                                    .is_ok()
                                         };
                                         if admit_ok {
                                             st.external_addr_confirmed = st
                                                 .external_addr_confirmed
                                                 .saturating_add(1);
-                                            if !st.external_addrs.contains(&s) {
-                                                st.external_addrs.push(s.clone());
+                                            if !st.external_addrs.contains(&key) {
+                                                st.external_addrs.push(key.clone());
                                             }
                                         }
                                         if is_circuit {
@@ -6968,13 +7002,17 @@ mod enabled {
                                 }
                                 SwarmEvent::ExternalAddrExpired { address } => {
                                     let s = address.to_string();
+                                    let key = advertised_charge_key(&address);
                                     if let Ok(mut st) = state_bg.lock() {
                                         st.external_addr_expired =
                                             st.external_addr_expired.saturating_add(1);
-                                        st.external_addrs.retain(|a| a != &s);
-                                        st.listen_derived_external.retain(|a| a != &s);
-                                        st.aux_advertised_external.retain(|a| a != &s);
-                                        st.dcutr_advertised_candidates.retain(|a| a != &s);
+                                        st.external_addrs.retain(|a| a != &s && a != &key);
+                                        st.listen_derived_external
+                                            .retain(|a| a != &s && a != &key);
+                                        st.aux_advertised_external
+                                            .retain(|a| a != &s && a != &key);
+                                        st.dcutr_advertised_candidates
+                                            .retain(|a| a != &s && a != &key);
                                     }
                                 }
                                 SwarmEvent::NewExternalAddrCandidate { address } => {
@@ -7201,22 +7239,28 @@ mod enabled {
                                             // Slice BU: same shared cap; skip swarm add over limit.
                                             if auto_confirm && !obs.is_empty() {
                                                 if let Ok(ma) = obs.parse::<Multiaddr>() {
-                                                    let s = ma.to_string();
+                                                    let key = advertised_charge_key(&ma);
                                                     let admit_ok = swarm_may_add_external_address(
                                                         &ma,
                                                     ) && match state_bg.lock() {
                                                             Ok(mut st) => {
-                                                                admit_aux_advertised_external(
-                                                                    &mut st, &s,
+                                                                advertised_already_charged(
+                                                                    &st, &key,
+                                                                ) || admit_aux_advertised_external(
+                                                                    &mut st, &key,
                                                                 )
                                                                 .is_ok()
                                                             }
                                                             Err(_) => false,
                                                         };
                                                     if admit_ok {
-                                                        swarm_add_external_if_charged(
-                                                            &mut swarm, ma,
-                                                        );
+                                                        if let Ok(canonical) =
+                                                            key.parse::<Multiaddr>()
+                                                        {
+                                                            swarm_add_external_if_charged(
+                                                                &mut swarm, canonical,
+                                                            );
+                                                        }
                                                         if let Ok(mut st) = state_bg.lock() {
                                                             st.external_addr_confirmed = st
                                                                 .external_addr_confirmed
@@ -7224,8 +7268,9 @@ mod enabled {
                                                             st.observed_addr_confirmed = st
                                                                 .observed_addr_confirmed
                                                                 .saturating_add(1);
-                                                            if !st.external_addrs.contains(&s) {
-                                                                st.external_addrs.push(s);
+                                                            if !st.external_addrs.contains(&key)
+                                                            {
+                                                                st.external_addrs.push(key);
                                                             }
                                                         }
                                                     }
@@ -9611,7 +9656,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 102)?;
+                d.set_item("phase", 103)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -9750,6 +9795,11 @@ mod enabled {
                 d.set_item(
                     "behaviour_external_confirmed_strategy",
                     behaviour_external_confirmed_strategy(),
+                )?;
+                d.set_item("observed_external_charge_key", true)?;
+                d.set_item(
+                    "observed_external_charge_key_strategy",
+                    observed_external_charge_key_strategy(),
                 )?;
                 d.set_item("swarm_external_addrs", true)?;
                 d.set_item("dcutr_candidates_capped", true)?;
@@ -10980,6 +11030,10 @@ mod enabled {
             "BEHAVIOUR_EXTERNAL_CONFIRMED_STRATEGY",
             behaviour_external_confirmed_strategy(),
         )?;
+        m.add(
+            "OBSERVED_EXTERNAL_CHARGE_KEY_STRATEGY",
+            observed_external_charge_key_strategy(),
+        )?;
         Ok(())
     }
 }
@@ -11066,6 +11120,10 @@ mod tests {
         assert_eq!(
             super::behaviour_external_confirmed_strategy(),
             "admit_canonical_or_omit"
+        );
+        assert_eq!(
+            super::observed_external_charge_key_strategy(),
+            "admit_canonical_charge_key"
         );
     }
 

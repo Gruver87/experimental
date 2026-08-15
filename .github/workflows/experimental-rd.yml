@@ -70,8 +70,10 @@ jobs:
         with:
           python-version: "3.12"
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install maturin
-        run: python -m pip install --upgrade pip maturin
+      - name: Install Python deps + maturin
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt maturin
       - name: Build abs_native wheel with libp2p feature
         working-directory: native/abs_native
         run: maturin build --release --features "pyo3/extension-module,libp2p"
@@ -296,7 +298,9 @@ jobs:
         run: python scripts/libp2p_rust_relay_client_circuit_external_book_lab.py
       - name: rust-libp2p AutoNAT/UPnP ExternalAddrConfirmed capped lab (Slice CY)
         run: python scripts/libp2p_rust_behaviour_external_confirmed_capped_lab.py
+      - name: rust-libp2p observed-addr charge-key canonicalization lab (Slice CZ)
+        run: python scripts/libp2p_rust_observed_external_charge_key_lab.py
       - name: adapter + wire-bridge units
-        run: pytest -q tests/unit/test_libp2p_adapter.py tests/unit/test_libp2p_wire_bridge.py tests/unit/test_libp2p_status_metrics.py tests/unit/test_cargo_test_abs_native.py tests/unit/test_package_libp2p_evidence.py
+        run: python -m pytest -q tests/unit/test_libp2p_adapter.py tests/unit/test_libp2p_wire_bridge.py tests/unit/test_libp2p_status_metrics.py tests/unit/test_cargo_test_abs_native.py tests/unit/test_package_libp2p_evidence.py
       - name: package ADR 0019 evidence pack
         run: python scripts/package_libp2p_evidence.py

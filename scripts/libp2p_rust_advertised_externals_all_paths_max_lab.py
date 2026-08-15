@@ -26,6 +26,14 @@ if str(ROOT) not in sys.path:
 OP1 = "/ip4/203.0.113.92/tcp/4092"
 
 
+def _charge_key(addr: str) -> str:
+    """Slice CZ: confirm books the canonical key (strip trailing /p2p/<peer>)."""
+    parts = addr.strip("/").split("/")
+    if len(parts) >= 2 and parts[-2] == "p2p" and parts[-1] != "p2p-circuit":
+        return "/" + "/".join(parts[:-2])
+    return addr
+
+
 def _wait(pred, timeout: float = 8.0, step: float = 0.05) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -98,8 +106,12 @@ def main() -> int:
             print("FAIL: confirm_observed_addr did not raise at shared cap")
             return 1
         book = list(client.external_addrs())
+        key = _charge_key(obs)
         if obs in book:
             print(f"FAIL: refused observed in book: {book}")
+            return 1
+        if key != OP1 and key in book:
+            print(f"FAIL: refused observed charge key in book key={key!r} book={book}")
             return 1
         if OP1 not in book:
             print(f"FAIL: operator missing after refuse: {book}")

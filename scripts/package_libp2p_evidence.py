@@ -129,6 +129,10 @@ def hard_verify_lab_paths() -> Tuple[str, ...]:
         raise RuntimeError(
             "hard-verify LABS missing Slice CY behaviour-external-confirmed-capped lab"
         )
+    if "scripts/libp2p_rust_observed_external_charge_key_lab.py" not in out:
+        raise RuntimeError(
+            "hard-verify LABS missing Slice CZ observed-external-charge-key lab"
+        )
     return tuple(out)
 
 

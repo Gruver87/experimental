@@ -141,6 +141,7 @@ feature `libp2p`), exposed to Python through the existing
 | Circuit excluded from ExternalAddresses | Slice CW: `/p2p-circuit` never `swarm.add_external_address` (no silent eviction of charged addrs from the crate book of 20); operator add and persist JSON refuse; `libp2p_rust_circuit_excluded_from_external_book_lab.py` |
 | Relay-client circuit crate book | Slice CX: omit `libp2p-relay` client `ToSwarm::ExternalAddrConfirmed` for circuit (crate would `add_external_address` and evict); `swarm_external_addrs()` dumps crate book; `libp2p_rust_relay_client_circuit_external_book_lab.py` |
 | Behaviour ExternalAddrConfirmed cap | Slice CY: AutoNAT/UPnP `ToSwarm::ExternalAddrConfirmed` admit-canonical-or-omit (charge key strips `/p2p/<peer>`; at cap omit, no silent eviction); `libp2p_rust_behaviour_external_confirmed_capped_lab.py` |
+| Observed confirm charge key | Slice CZ: Identify observed / SwarmEvent confirm charge the canonical key (no `/p2p/<peer>` suffix slot); `confirm_observed_addr` still returns the **raw** observed string; `libp2p_rust_observed_external_charge_key_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -251,6 +252,7 @@ feature `libp2p`), exposed to Python through the existing
 | CW | Circuit `/p2p-circuit` never occupies rust-libp2p ExternalAddresses book; operator add + persist JSON refuse; `libp2p_rust_circuit_excluded_from_external_book_lab.py` |
 | CX | Relay-client circuit `ExternalAddrConfirmed` omitted from crate book; `libp2p_rust_relay_client_circuit_external_book_lab.py` |
 | CY | AutoNAT/UPnP `ExternalAddrConfirmed` admit-canonical-or-omit (crate book); `libp2p_rust_behaviour_external_confirmed_capped_lab.py` |
+| CZ | Identify observed confirm charges canonical key (no `/p2p/<peer>` second slot); API still returns raw observed; `libp2p_rust_observed_external_charge_key_lab.py` |
 
 ## Honesty
 
@@ -348,7 +350,8 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_persist_tmp_stale_tid_lab.py`,
   `libp2p_rust_circuit_excluded_from_external_book_lab.py`,
   `libp2p_rust_relay_client_circuit_external_book_lab.py`,
-  `libp2p_rust_behaviour_external_confirmed_capped_lab.py`;
+  `libp2p_rust_behaviour_external_confirmed_capped_lab.py`,
+  `libp2p_rust_observed_external_charge_key_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -585,6 +588,15 @@ feature `libp2p`), exposed to Python through the existing
     canonical key. At cap: omit. `Event::NewExternalAddr` / probe events still
     fire. Capability `behaviour_external_confirmed_capped`. NTFS replace
     remains **not** POSIX inode-atomic.
+  Slice CZ: Identify `observed_addr` often appends `/p2p/<peer>`. Confirm /
+    auto-confirm / SwarmEvent confirm previously charged and crate-inserted
+    the **raw** string, so a suffix variant occupied a second unique slot (or
+    evicted a charged listen after 20). Charge + crate insert now use
+    `advertised_charge_key`. `confirm_observed_addr()` still returns `Ok(raw)`.
+    Python `external_addrs` stores the canonical key. Expire retains both raw
+    and key. Circuit never occupies the crate book. Capability
+    `observed_external_charge_key`. NTFS replace remains **not** POSIX
+    inode-atomic.
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.

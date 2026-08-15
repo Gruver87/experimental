@@ -15,7 +15,8 @@ Canonical language for this repository is **English**. Older inherited entries b
 
 ### Experimental R&D
 
-(none after `rd-1.0.0`)
+- Slice CZ: Identify observed confirm charges the canonical key (trailing `/p2p/<peer>` does not occupy a second unique slot); `confirm_observed_addr` still returns the raw observed string
+- Hard gate **115 PASS / 115** with `--rebuild` (operator-local, 2026-08-15)
 
 ---
 

@@ -61,9 +61,9 @@ noise-protocol
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `rd-1.0.0` — first R&D GitHub Release (prerelease); ADR 0019 A–CY phase 102 |
+| **Tag** | `rd-1.0.0` — first R&D GitHub Release (prerelease); `main` through Slice CZ phase 103 |
 | **ADR stack** | Hybrid 0001–0016 inherited · **0017–0019** Experimental |
-| **Hard gate** | 114 steps with `--rebuild` |
+| **Hard gate** | 115 steps with `--rebuild` |
 | **Notes** | [CHANGELOG](../CHANGELOG.md) · [RELEASING](../docs/RELEASING.md) |
 | **Industrial sibling** | [`Absolute_Blockchain_Ultimate_Hybrid`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) — **not** this freeze |
 | **Self-check** | `python scripts/verify_experimental_rd.py` · `.\scripts\verify_adr0019_libp2p_hard.ps1 -Rebuild` |
@@ -79,6 +79,6 @@ noise-protocol
 
 ## Honest positioning (release / About)
 
-- **Is:** R&D sandbox; rust-libp2p labs through Slice CY; fail-closed advertised cap
+- **Is:** R&D sandbox; rust-libp2p labs through Slice CZ; fail-closed advertised cap
 - **Is not:** Hybrid audit pin; live public mainnet; prod libp2p mesh
 - **Banner:** evergreen `docs/assets/repo-banner.svg` (no Hybrid version chip)

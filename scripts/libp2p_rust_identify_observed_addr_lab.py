@@ -82,8 +82,13 @@ def main() -> int:
         if confirmed != client_obs:
             print(f"FAIL: confirm returned {confirmed!r} want {client_obs!r}")
             return 1
-        if confirmed not in client.external_addrs():
-            print(f"FAIL: not in external book: {client.external_addrs()}")
+        book = list(client.external_addrs())
+        parts = confirmed.strip("/").split("/")
+        key = confirmed
+        if len(parts) >= 2 and parts[-2] == "p2p" and parts[-1] != "p2p-circuit":
+            key = "/" + "/".join(parts[:-2])
+        if key not in book and confirmed not in book:
+            print(f"FAIL: charge key not in external book key={key!r} book={book}")
             return 1
         if not _wait(
             lambda: int(client.metrics().get("libp2p_observed_addr_confirmed", 0))

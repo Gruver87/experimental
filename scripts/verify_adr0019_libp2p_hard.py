@@ -379,6 +379,7 @@ LABS = [
     ("CW", "scripts/libp2p_rust_circuit_excluded_from_external_book_lab.py"),
     ("CX", "scripts/libp2p_rust_relay_client_circuit_external_book_lab.py"),
     ("CY", "scripts/libp2p_rust_behaviour_external_confirmed_capped_lab.py"),
+    ("CZ", "scripts/libp2p_rust_observed_external_charge_key_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -506,6 +507,7 @@ def check_repo_honesty() -> tuple[bool, str]:
         "Slice CA",
         "Slice CB",
         "Slice CC",
+        "Slice CZ",
         "FEATURE_LIBP2P",
         "## Honesty",
     )
@@ -549,6 +551,12 @@ def check_native_deep() -> tuple[bool, str]:
             f"bad PERSIST_TMP_STALE_TID_STRATEGY={stale_tid!r} "
             "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
         )
+    obs_charge = str(getattr(abs_native, "OBSERVED_EXTERNAL_CHARGE_KEY_STRATEGY", ""))
+    if obs_charge != "admit_canonical_charge_key":
+        return False, (
+            f"bad OBSERVED_EXTERNAL_CHARGE_KEY_STRATEGY={obs_charge!r} "
+            "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+        )
 
     a = abs_native.libp2p_node_new()
     b = abs_native.libp2p_node_new()
@@ -572,8 +580,8 @@ def check_native_deep() -> tuple[bool, str]:
         cap = dict(a.capability_status())
         if cap.get("default_mesh") is not False:
             return False, "capability_status.default_mesh must be False"
-        if int(cap.get("phase") or 0) < 102:
-            return False, f"capability phase too low: {cap.get('phase')} (want >= 102 Slice CY)"
+        if int(cap.get("phase") or 0) < 103:
+            return False, f"capability phase too low: {cap.get('phase')} (want >= 103 Slice CZ)"
         if not cap.get("external_addrs_replace_no_unlink"):
             return False, (
                 "capability external_addrs_replace_no_unlink missing "
@@ -799,6 +807,19 @@ def check_native_deep() -> tuple[bool, str]:
                 "behaviour external confirmed strategy "
                 f"{cap.get('behaviour_external_confirmed_strategy')!r} "
                 "!= admit_canonical_or_omit (stale wheel — --rebuild)"
+            )
+        if not cap.get("observed_external_charge_key"):
+            return False, (
+                "capability observed_external_charge_key missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if cap.get("observed_external_charge_key_strategy") != (
+            "admit_canonical_charge_key"
+        ):
+            return False, (
+                "observed external charge-key strategy "
+                f"{cap.get('observed_external_charge_key_strategy')!r} "
+                "!= admit_canonical_charge_key (stale wheel — --rebuild)"
             )
         # Slice I API must exist
         a.block_peer(b.peer_id)

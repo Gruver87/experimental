@@ -59,11 +59,22 @@ def main() -> int:
         hub_addr = hub.listen("/ip4/127.0.0.1/tcp/0")[0]
         client.listen("/ip4/127.0.0.1/tcp/0")
         client.dial(hub_addr)
+
+        def _booked(node) -> bool:
+            obs = str(node.metrics().get("libp2p_last_observed_addr", ""))
+            if not obs:
+                return False
+            parts = obs.strip("/").split("/")
+            key = obs
+            if len(parts) >= 2 and parts[-2] == "p2p" and parts[-1] != "p2p-circuit":
+                key = "/" + "/".join(parts[:-2])
+            book = list(node.external_addrs())
+            return key in book or obs in book
+
         if not _wait(
             lambda: int(client.metrics().get("libp2p_observed_addr_confirmed", 0)) >= 1
             and int(client.metrics().get("libp2p_observed_addr_updates", 0)) >= 1
-            and str(client.metrics().get("libp2p_last_observed_addr", ""))
-            in client.external_addrs(),
+            and _booked(client),
             timeout=6.0,
         ):
             print(
@@ -75,8 +86,7 @@ def main() -> int:
         # Hub side should also auto-confirm when it receives client's identify.
         if not _wait(
             lambda: int(hub.metrics().get("libp2p_observed_addr_confirmed", 0)) >= 1
-            and str(hub.metrics().get("libp2p_last_observed_addr", ""))
-            in hub.external_addrs(),
+            and _booked(hub),
             timeout=4.0,
         ):
             print(
