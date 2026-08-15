@@ -8,7 +8,7 @@ This is **not** the Hybrid industrial line (`v1.3.*-tip-v2-industrial`).
 - Tag green ≠ prod libp2p mesh ≠ public mainnet ≠ Hybrid audit pin
 - Do **not** claim 48h soak unless `hard_fails=0` was actually run on this tree
 - Do **not** reuse Hybrid tag names (`v1.3.*`)
-- GitHub Release for this repo is a **prerelease** snapshot unless a future ADR says otherwise
+- GitHub **Latest** on this repo is the R&D snapshot (`rd-X.Y.Z`). That is **not** the Hybrid industrial pin.
 
 ## Versioning
 

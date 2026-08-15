@@ -1,6 +1,6 @@
 # rd-1.0.0 — ADR 0019 rust-libp2p through Slice CY (R&D snapshot)
 
-**Tag:** `rd-1.0.0` (prerelease)  
+**Tag:** `rd-1.0.0` (GitHub Latest on this repo — R&D snapshot, **not** Hybrid audit pin)  
 **Repo:** [Gruver87/experimental](https://github.com/Gruver87/experimental)  
 **Purpose:** first public GitHub Release for the Experimental sandbox so the repo has a real Releases page — **not** the Hybrid audit pin.
 

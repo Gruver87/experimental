@@ -4,7 +4,7 @@
 
 **R&D only.** rust-libp2p · Long-Range · EVM depth. **Not** the audit-freeze tree.
 
-[![Release](https://img.shields.io/github/v/release/Gruver87/experimental?include_prereleases&label=rd-release)](https://github.com/Gruver87/experimental/releases)
+[![Release](https://img.shields.io/github/v/release/Gruver87/experimental?label=release)](https://github.com/Gruver87/experimental/releases/tag/rd-1.0.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Experimental R&D](https://github.com/Gruver87/experimental/actions/workflows/experimental-rd.yml/badge.svg?branch=main)](https://github.com/Gruver87/experimental/actions/workflows/experimental-rd.yml)
 [![Tests CI](https://github.com/Gruver87/experimental/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/Gruver87/experimental/actions/workflows/test.yml)

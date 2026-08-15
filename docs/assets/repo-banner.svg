@@ -30,18 +30,18 @@
   </g>
   <rect x="72" y="96" width="8" height="78" rx="4" fill="url(#accent)"/>
   <text x="100" y="136" fill="#f8fafc" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="52" font-weight="700">Absolute Blockchain</text>
-  <text x="100" y="192" fill="#94a3b8" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="26" font-weight="500">Experimental — R&amp;D sandbox · not the audit pin</text>
+  <text x="100" y="192" fill="#94a3b8" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="26" font-weight="500">Experimental &#8212; R&amp;D sandbox &#8212; not the audit pin</text>
   <rect x="100" y="230" width="720" height="2" fill="url(#line)"/>
-  <text x="100" y="278" fill="#cbd5e1" font-family="Consolas, Menlo, monospace" font-size="18">ADR 0019 rust-libp2p · Long-Range · EVM depth · default mesh = TCP+TLS</text>
+  <text x="100" y="278" fill="#cbd5e1" font-family="Consolas, Menlo, monospace" font-size="18">ADR 0019 rust-libp2p &#183; Long-Range &#183; EVM depth &#183; default mesh = TCP+TLS</text>
   <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="17" fill="#e2e8f0">
     <rect x="100" y="320" width="228" height="44" rx="8" fill="#312e81" stroke="#a78bfa" stroke-width="1.4"/>
-    <text x="118" y="348">Lab PASS ? cutover</text>
+    <text x="118" y="348">Lab PASS &#8800; cutover</text>
     <rect x="348" y="320" width="236" height="44" rx="8" fill="#0c4a6e" stroke="#38bdf8" stroke-width="1.4"/>
     <text x="366" y="348">FEATURE_* off on prod JSON</text>
     <rect x="604" y="320" width="250" height="44" rx="8" fill="#1e293b" stroke="#64748b" stroke-width="1.4"/>
     <text x="622" y="348">Not a public mainnet</text>
   </g>
-  <text x="100" y="420" fill="#94a3b8" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="17">Sibling of Ultimate Hybrid audit pin · rust-libp2p opt-in · soak not claimed here</text>
+  <text x="100" y="420" fill="#94a3b8" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="17">Sibling of Ultimate Hybrid audit pin &#8212; rust-libp2p opt-in &#8212; soak not claimed here</text>
   <text x="100" y="560" fill="#64748b" font-family="Consolas, Menlo, monospace" font-size="15">github.com/Gruver87/experimental</text>
-  <text x="100" y="592" fill="#475569" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15">Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: Gruver87</text>
+  <text x="100" y="592" fill="#475569" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15">Author: ULADZIMIR DABRANSKI (D.U.P.) &#183; Owner: Gruver87</text>
 </svg>
