@@ -95,6 +95,8 @@
 //! Slice CX: relay-client circuit ExternalAddrConfirmed is omitted (crate book).
 //! Slice CY: AutoNAT/UPnP ExternalAddrConfirmed is admit-canonical-or-omit.
 //! Slice CZ: observed / SwarmEvent confirm charges the canonical key (no `/p2p` suffix).
+//! Slice DA: add/remove/expire use the canonical key (suffix cannot miss crate slot).
+//! Slice DB: persist JSON load/restore collapses `/p2p/<peer>` to the charge key.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -196,6 +198,32 @@ pub fn classify_abs_wire_codec(data: &[u8]) -> &'static str {
 
 /// Slice BP: parse advertised external multiaddr JSON (fail-closed).
 ///
+/// Slice DB: trailing `/p2p/<peer>` is the same unique as the transport prefix.
+/// Circuit tokens are refused before this runs. Empty strip is refused by caller.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn advertised_json_charge_key(s: &str) -> String {
+    let parts: Vec<&str> = s.split('/').collect();
+    if parts.len() >= 3
+        && parts[parts.len() - 2] == "p2p"
+        && parts[parts.len() - 1] != "p2p-circuit"
+        && !parts[parts.len() - 1].is_empty()
+    {
+        let joined = parts[..parts.len() - 2].join("/");
+        if joined.is_empty() || joined == "/" {
+            return s.to_string();
+        }
+        return joined;
+    }
+    s.to_string()
+}
+
+/// Slice DB: persist load collapses suffix variants so JSON cannot occupy a
+/// second unique advertised slot (crate ExternalAddresses silent eviction).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn persist_external_charge_key_strategy() -> &'static str {
+    "load_canonical_charge_key"
+}
+
 /// Expected shape: `{"version":1,"addrs":["/ip4/.../tcp/..."]}`.
 /// Missing file is handled by [`load_external_addrs_file`]. Corrupt JSON,
 /// missing `addrs` array, non-string entries, or non-multiaddr strings error.
@@ -223,8 +251,12 @@ pub fn parse_external_addrs_json(raw: &str) -> Result<Vec<String>, String> {
         if multiaddr_is_p2p_circuit(s) {
             return Err(CIRCUIT_EXCLUDED_FROM_EXTERNAL_BOOK_MSG.into());
         }
-        if seen.insert(s.to_string()) {
-            out.push(s.to_string());
+        let key = advertised_json_charge_key(s);
+        if !key.starts_with('/') {
+            return Err(format!("external addrs json: not a multiaddr: {s}"));
+        }
+        if seen.insert(key.clone()) {
+            out.push(key);
         }
     }
     if out.len() > MAX_ADVERTISED_EXTERNAL_ADDRS {
@@ -327,6 +359,14 @@ pub fn behaviour_external_confirmed_strategy() -> &'static str {
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub fn observed_external_charge_key_strategy() -> &'static str {
     "admit_canonical_charge_key"
+}
+
+/// Slice DA: AutoNAT/UPnP/relay-client `ExternalAddrExpired` must address the
+/// crate slot we inserted at confirm (canonical key). Operator add/remove of a
+/// `/p2p/<peer>` suffix must match the same unique, not occupy or miss a slot.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn behaviour_external_expired_strategy() -> &'static str {
+    "expire_canonical_charge_key"
 }
 
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
@@ -1751,14 +1791,15 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 mod enabled {
     use super::{
         atomic_write_file, atomic_write_file_exclusive, behaviour_external_confirmed_strategy,
-        circuit_excluded_from_external_book_strategy, external_addrs_replace_strategy,
-        identity_create_exclusive_strategy, identity_key_callback_ace_strategy,
-        identity_key_existing_acl_strategy, identity_key_mode_strategy,
-        identity_key_null_dacl_strategy, identity_key_parent_dir_strategy,
-        identity_key_parent_mkdir_recheck_strategy, identity_key_parent_unattested_strategy,
-        identity_key_protected_dacl_strategy, identity_key_tmp_restrict_strategy, libp2p_available,
-        observed_external_charge_key_strategy, persist_json_acl_strategy,
-        persist_mkdir_fsync_strategy, persist_parent_dir_fsync_strategy,
+        behaviour_external_expired_strategy, circuit_excluded_from_external_book_strategy,
+        external_addrs_replace_strategy, identity_create_exclusive_strategy,
+        identity_key_callback_ace_strategy, identity_key_existing_acl_strategy,
+        identity_key_mode_strategy, identity_key_null_dacl_strategy,
+        identity_key_parent_dir_strategy, identity_key_parent_mkdir_recheck_strategy,
+        identity_key_parent_unattested_strategy, identity_key_protected_dacl_strategy,
+        identity_key_tmp_restrict_strategy, libp2p_available,
+        observed_external_charge_key_strategy, persist_external_charge_key_strategy,
+        persist_json_acl_strategy, persist_mkdir_fsync_strategy, persist_parent_dir_fsync_strategy,
         persist_tmp_stale_tid_strategy, persist_tmp_strategy,
         relay_client_circuit_external_strategy, ABS_GOSSIP_BLOCKS_TOPIC,
         ABS_IDENTIFY_PROTOCOL_VERSION, ABS_KAD_PROTOCOL, ABS_RENDEZVOUS_NAMESPACE,
@@ -2391,6 +2432,31 @@ mod enabled {
         ma.to_string()
     }
 
+    fn advertised_query_key(s: &str) -> String {
+        s.parse::<Multiaddr>()
+            .map(|ma| advertised_charge_key(&ma))
+            .unwrap_or_else(|_| s.to_string())
+    }
+
+    /// Slice DA: expire the crate slot we occupied at confirm (canonical key).
+    /// Circuit never occupies the book — omit expire as well.
+    fn gated_external_expired(ma: &Multiaddr) -> Option<Multiaddr> {
+        if !swarm_may_add_external_address(ma) {
+            return None;
+        }
+        advertised_charge_key(ma).parse().ok()
+    }
+
+    fn swarm_remove_charged<B: NetworkBehaviour>(swarm: &mut libp2p::Swarm<B>, ma: Multiaddr) {
+        let key = advertised_charge_key(&ma);
+        if let Ok(kma) = key.parse::<Multiaddr>() {
+            if kma != ma {
+                swarm.remove_external_address(&kma);
+            }
+        }
+        swarm.remove_external_address(&ma);
+    }
+
     /// Slice BV: Identify 0.45 has no `hide_listen_addrs`. Forward NewListenAddr
     /// into identify only when the addr is circuit (uncapped) or charged against
     /// the shared advertised cap. Slice CC: also omit uncharged
@@ -2542,7 +2608,8 @@ mod enabled {
                             Err(_) => false,
                         };
                         if forward {
-                            return Poll::Ready(ToSwarm::NewExternalAddrCandidate(addr));
+                            let emit = key.parse::<Multiaddr>().unwrap_or(addr);
+                            return Poll::Ready(ToSwarm::NewExternalAddrCandidate(emit));
                         }
                     }
                     other => return other,
@@ -3015,8 +3082,8 @@ mod enabled {
                         }
                     }
                     Poll::Ready(ToSwarm::ExternalAddrExpired(addr)) => {
-                        if swarm_may_add_external_address(&addr) {
-                            return Poll::Ready(ToSwarm::ExternalAddrExpired(addr));
+                        if let Some(canonical) = gated_external_expired(&addr) {
+                            return Poll::Ready(ToSwarm::ExternalAddrExpired(canonical));
                         }
                     }
                     other => return other,
@@ -3182,8 +3249,8 @@ mod enabled {
                         }
                     }
                     Poll::Ready(ToSwarm::ExternalAddrExpired(addr)) => {
-                        if swarm_may_add_external_address(&addr) {
-                            return Poll::Ready(ToSwarm::ExternalAddrExpired(addr));
+                        if let Some(canonical) = gated_external_expired(&addr) {
+                            return Poll::Ready(ToSwarm::ExternalAddrExpired(canonical));
                         }
                     }
                     other => return other,
@@ -3441,17 +3508,25 @@ mod enabled {
             loop {
                 match self.inner.poll(cx) {
                     Poll::Ready(ToSwarm::ExternalAddrConfirmed(addr)) => {
-                        if swarm_may_add_external_address(&addr) {
-                            return Poll::Ready(ToSwarm::ExternalAddrConfirmed(addr));
-                        }
-                        if let Ok(mut st) = self.state.lock() {
-                            st.relay_client_circuit_external_omitted =
-                                st.relay_client_circuit_external_omitted.saturating_add(1);
+                        let is_circuit = !swarm_may_add_external_address(&addr);
+                        let canonical = match self.state.lock() {
+                            Ok(mut st) => {
+                                let next = gated_external_confirmed(&mut st, &addr);
+                                if next.is_none() && is_circuit {
+                                    st.relay_client_circuit_external_omitted =
+                                        st.relay_client_circuit_external_omitted.saturating_add(1);
+                                }
+                                next
+                            }
+                            Err(_) => None,
+                        };
+                        if let Some(canonical) = canonical {
+                            return Poll::Ready(ToSwarm::ExternalAddrConfirmed(canonical));
                         }
                     }
                     Poll::Ready(ToSwarm::ExternalAddrExpired(addr)) => {
-                        if swarm_may_add_external_address(&addr) {
-                            return Poll::Ready(ToSwarm::ExternalAddrExpired(addr));
+                        if let Some(canonical) = gated_external_expired(&addr) {
+                            return Poll::Ready(ToSwarm::ExternalAddrExpired(canonical));
                         }
                     }
                     other => return other,
@@ -4516,10 +4591,15 @@ mod enabled {
                         if !swarm_may_add_external_address(&ma) {
                             continue;
                         }
-                        swarm_add_external_if_charged(&mut swarm, ma);
+                        // Slice DB: restore the canonical key (JSON may still
+                        // carry a `/p2p/<peer>` suffix from an older write).
+                        let key = advertised_charge_key(&ma);
+                        let add_ma = key.parse::<Multiaddr>().unwrap_or(ma);
+                        swarm_add_external_if_charged(&mut swarm, add_ma);
                         if let Ok(mut st) = state_bg.lock() {
-                            if !st.external_addrs.contains(&s) {
-                                st.external_addrs.push(s.clone());
+                            if !st.external_addrs.iter().any(|a| advertised_query_key(a) == key)
+                            {
+                                st.external_addrs.push(key);
                             }
                             st.external_addr_loaded = st.external_addr_loaded.saturating_add(1);
                         }
@@ -5580,10 +5660,13 @@ mod enabled {
                                                 ));
                                                 continue;
                                             }
-                                            let s = ma.to_string();
+                                            let key = advertised_charge_key(&ma);
                                             let present = match state_bg.lock() {
                                                 Ok(st) => {
-                                                    st.external_addrs.iter().any(|a| a == &s)
+                                                    advertised_already_charged(&st, &key)
+                                                        || st.external_addrs.iter().any(|a| {
+                                                            advertised_query_key(a) == key
+                                                        })
                                                 }
                                                 Err(_) => {
                                                     let _ = reply.send(Err(
@@ -5598,7 +5681,9 @@ mod enabled {
                                             }
                                             let persist = match state_bg.lock() {
                                                 Ok(mut st) => {
-                                                    if !st.advertised_external.contains(&s) {
+                                                    if !st.advertised_external.iter().any(|a| {
+                                                        advertised_query_key(a) == key
+                                                    }) {
                                                         if advertised_at_cap(&st) {
                                                             let msg = refuse_advertised_over_cap(
                                                                 &mut st,
@@ -5607,7 +5692,7 @@ mod enabled {
                                                             let _ = reply.send(Err(msg));
                                                             continue;
                                                         }
-                                                        st.advertised_external.push(s.clone());
+                                                        st.advertised_external.push(key.clone());
                                                     }
                                                     (
                                                         st.external_addrs_path.clone(),
@@ -5626,18 +5711,23 @@ mod enabled {
                                                 &persist.1,
                                             ) {
                                                 if let Ok(mut st) = state_bg.lock() {
-                                                    st.advertised_external.retain(|a| a != &s);
+                                                    st.advertised_external.retain(|a| {
+                                                        advertised_query_key(a) != key
+                                                    });
                                                 }
                                                 let _ = reply.send(Err(e));
                                                 continue;
                                             }
-                                            swarm_add_external_if_charged(&mut swarm, ma);
+                                            let add_ma = key.parse::<Multiaddr>().unwrap_or(ma);
+                                            swarm_add_external_if_charged(&mut swarm, add_ma);
                                             if let Ok(mut st) = state_bg.lock() {
                                                 st.external_addr_confirmed = st
                                                     .external_addr_confirmed
                                                     .saturating_add(1);
-                                                if !st.external_addrs.contains(&s) {
-                                                    st.external_addrs.push(s);
+                                                if !st.external_addrs.iter().any(|a| {
+                                                    advertised_query_key(a) == key
+                                                }) {
+                                                    st.external_addrs.push(key);
                                                 }
                                                 if !persist.0.is_empty() {
                                                     st.external_addr_persisted = st
@@ -5654,12 +5744,16 @@ mod enabled {
                                 }
                                 Some(Cmd::RemoveExternalAddress { addr, reply }) => {
                                     // Slice BN: bool = was present in our book; bump expired only then.
+                                    // Slice DA: `/p2p/<peer>` suffix matches the canonical charged key.
                                     match addr.parse::<Multiaddr>() {
                                         Ok(ma) => {
-                                            let s = ma.to_string();
+                                            let key = advertised_charge_key(&ma);
                                             let present = match state_bg.lock() {
                                                 Ok(st) => {
-                                                    st.external_addrs.iter().any(|a| a == &s)
+                                                    advertised_already_charged(&st, &key)
+                                                        || st.external_addrs.iter().any(|a| {
+                                                            advertised_query_key(a) == key
+                                                        })
                                                 }
                                                 Err(_) => {
                                                     let _ = reply.send(Err(
@@ -5669,15 +5763,19 @@ mod enabled {
                                                 }
                                             };
                                             if !present {
-                                                swarm.remove_external_address(&ma);
+                                                swarm_remove_charged(&mut swarm, ma);
                                                 let _ = reply.send(Ok(false));
                                                 continue;
                                             }
                                             let persist = match state_bg.lock() {
                                                 Ok(mut st) => {
-                                                    let was_advertised =
-                                                        st.advertised_external.iter().any(|a| a == &s);
-                                                    st.advertised_external.retain(|a| a != &s);
+                                                    let was_advertised = st
+                                                        .advertised_external
+                                                        .iter()
+                                                        .any(|a| advertised_query_key(a) == key);
+                                                    st.advertised_external.retain(|a| {
+                                                        advertised_query_key(a) != key
+                                                    });
                                                     (
                                                         st.external_addrs_path.clone(),
                                                         st.advertised_external.clone(),
@@ -5697,22 +5795,30 @@ mod enabled {
                                             ) {
                                                 if persist.2 {
                                                     if let Ok(mut st) = state_bg.lock() {
-                                                        if !st.advertised_external.contains(&s) {
-                                                            st.advertised_external.push(s.clone());
+                                                        if !st.advertised_external.iter().any(|a| {
+                                                            advertised_query_key(a) == key
+                                                        }) {
+                                                            st.advertised_external.push(key.clone());
                                                         }
                                                     }
                                                 }
                                                 let _ = reply.send(Err(e));
                                                 continue;
                                             }
-                                            swarm.remove_external_address(&ma);
+                                            swarm_remove_charged(&mut swarm, ma);
                                             if let Ok(mut st) = state_bg.lock() {
                                                 st.external_addr_expired = st
                                                     .external_addr_expired
                                                     .saturating_add(1);
-                                                st.external_addrs.retain(|a| a != &s);
-                                                st.listen_derived_external.retain(|a| a != &s);
-                                                st.aux_advertised_external.retain(|a| a != &s);
+                                                st.external_addrs.retain(|a| {
+                                                    advertised_query_key(a) != key
+                                                });
+                                                st.listen_derived_external.retain(|a| {
+                                                    advertised_query_key(a) != key
+                                                });
+                                                st.aux_advertised_external.retain(|a| {
+                                                    advertised_query_key(a) != key
+                                                });
                                                 if !persist.0.is_empty() {
                                                     st.external_addr_persisted = st
                                                         .external_addr_persisted
@@ -5766,7 +5872,7 @@ mod enabled {
                                     let n = snap.len();
                                     for s in &snap {
                                         if let Ok(ma) = s.parse::<Multiaddr>() {
-                                            swarm.remove_external_address(&ma);
+                                            swarm_remove_charged(&mut swarm, ma);
                                         }
                                     }
                                     if let Ok(mut st) = state_bg.lock() {
@@ -6420,6 +6526,7 @@ mod enabled {
                                     address,
                                 } => {
                                     let s = address.to_string();
+                                    let key = advertised_charge_key(&address);
                                     let is_circuit = address
                                         .iter()
                                         .any(|p| matches!(p, Protocol::P2pCircuit));
@@ -6436,7 +6543,7 @@ mod enabled {
                                     let advertise_listen = if !is_circuit {
                                         match state_bg.lock() {
                                             Ok(mut st) => {
-                                                admit_listen_derived_external(&mut st, &s).is_ok()
+                                                admit_listen_derived_external(&mut st, &key).is_ok()
                                             }
                                             Err(_) => false,
                                         }
@@ -6444,10 +6551,8 @@ mod enabled {
                                         false
                                     };
                                     if advertise_listen {
-                                        swarm_add_external_if_charged(
-                                            &mut swarm,
-                                            address.clone(),
-                                        );
+                                        let add_ma = key.parse::<Multiaddr>().unwrap_or(address.clone());
+                                        swarm_add_external_if_charged(&mut swarm, add_ma);
                                     }
                                     if let Ok(mut st) = state_bg.lock() {
                                         st.new_listen_addr =
@@ -6459,8 +6564,10 @@ mod enabled {
                                             st.external_addr_confirmed = st
                                                 .external_addr_confirmed
                                                 .saturating_add(1);
-                                            if !st.external_addrs.contains(&s) {
-                                                st.external_addrs.push(s.clone());
+                                            if !st.external_addrs.iter().any(|a| {
+                                                advertised_query_key(a) == key
+                                            }) {
+                                                st.external_addrs.push(key.clone());
                                             }
                                         }
                                         if is_circuit && !st.circuit_addrs.contains(&s) {
@@ -9656,7 +9763,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 103)?;
+                d.set_item("phase", 105)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -9800,6 +9907,16 @@ mod enabled {
                 d.set_item(
                     "observed_external_charge_key_strategy",
                     observed_external_charge_key_strategy(),
+                )?;
+                d.set_item("behaviour_external_expired_canonical", true)?;
+                d.set_item(
+                    "behaviour_external_expired_strategy",
+                    behaviour_external_expired_strategy(),
+                )?;
+                d.set_item("persist_external_charge_key", true)?;
+                d.set_item(
+                    "persist_external_charge_key_strategy",
+                    persist_external_charge_key_strategy(),
                 )?;
                 d.set_item("swarm_external_addrs", true)?;
                 d.set_item("dcutr_candidates_capped", true)?;
@@ -10539,9 +10656,18 @@ mod enabled {
     }
 
     fn advertised_already_charged(st: &NodeState, s: &str) -> bool {
-        st.advertised_external.iter().any(|a| a == s)
-            || st.listen_derived_external.iter().any(|a| a == s)
-            || st.aux_advertised_external.iter().any(|a| a == s)
+        let q = advertised_query_key(s);
+        st.advertised_external
+            .iter()
+            .any(|a| advertised_query_key(a) == q)
+            || st
+                .listen_derived_external
+                .iter()
+                .any(|a| advertised_query_key(a) == q)
+            || st
+                .aux_advertised_external
+                .iter()
+                .any(|a| advertised_query_key(a) == q)
     }
 
     fn advertised_at_cap(st: &NodeState) -> bool {
@@ -11034,6 +11160,14 @@ mod enabled {
             "OBSERVED_EXTERNAL_CHARGE_KEY_STRATEGY",
             observed_external_charge_key_strategy(),
         )?;
+        m.add(
+            "BEHAVIOUR_EXTERNAL_EXPIRED_STRATEGY",
+            behaviour_external_expired_strategy(),
+        )?;
+        m.add(
+            "PERSIST_EXTERNAL_CHARGE_KEY_STRATEGY",
+            persist_external_charge_key_strategy(),
+        )?;
         Ok(())
     }
 }
@@ -11065,6 +11199,22 @@ mod tests {
         let v = parse_external_addrs_json(r#"{"version":1,"addrs":["/ip4/203.0.113.8/tcp/4001"]}"#)
             .expect("parse");
         assert_eq!(v, vec!["/ip4/203.0.113.8/tcp/4001".to_string()]);
+    }
+
+    #[test]
+    fn parse_external_addrs_collapses_p2p_suffix() {
+        let raw = r#"{"version":1,"addrs":[
+            "/ip4/203.0.113.8/tcp/4001",
+            "/ip4/203.0.113.8/tcp/4001/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN"
+        ]}"#;
+        let v = parse_external_addrs_json(raw).expect("parse");
+        assert_eq!(v, vec!["/ip4/203.0.113.8/tcp/4001".to_string()]);
+        assert_eq!(
+            super::advertised_json_charge_key(
+                "/ip4/203.0.113.8/tcp/4001/p2p/12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN"
+            ),
+            "/ip4/203.0.113.8/tcp/4001"
+        );
     }
 
     #[test]
@@ -11124,6 +11274,14 @@ mod tests {
         assert_eq!(
             super::observed_external_charge_key_strategy(),
             "admit_canonical_charge_key"
+        );
+        assert_eq!(
+            super::behaviour_external_expired_strategy(),
+            "expire_canonical_charge_key"
+        );
+        assert_eq!(
+            super::persist_external_charge_key_strategy(),
+            "load_canonical_charge_key"
         );
     }
 

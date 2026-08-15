@@ -16,7 +16,9 @@ Canonical language for this repository is **English**. Older inherited entries b
 ### Experimental R&D
 
 - Slice CZ: Identify observed confirm charges the canonical key (trailing `/p2p/<peer>` does not occupy a second unique slot); `confirm_observed_addr` still returns the raw observed string
-- Hard gate **115 PASS / 115** with `--rebuild` (operator-local, 2026-08-15)
+- Slice DA: operator add/remove and behaviour expire match the canonical charge key (suffix cannot occupy or miss the crate slot)
+- Slice DB: persist JSON load collapses trailing `/p2p/<peer>` so restore cannot occupy a second unique slot
+- Hard gate **117 PASS / 117** with `--rebuild` (operator-local, 2026-08-15)
 - EVM RPC: block-level `logsBloom` on `eth_getBlockByNumber` / `ByHash` reconstructed from the log index via `QueryFacadePort.get_evm_logs_by_block` (not getLogs caps; not a sealed consensus header). `transactionsRoot` / `receiptsRoot` still stub. Soak not run.
 - EVM execution: nested inline CALL `RETURNDATACOPY` / `RETURNDATASIZE` use the live return buffer (child RETURN and REVERT data). Not a sealed header. Soak not run.
 - EVM execution: inline STATICCALL refuses SSTORE/LOG/CREATE/TSTORE/SELFDESTRUCT and value-CALL; child storage is not committed; parent continues. Soak not run.

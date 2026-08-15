@@ -16,8 +16,8 @@ The audit-freeze pin · public audited mainnet · listed ABS · prod libp2p mesh
 |---|---|
 | Repo | [`Gruver87/experimental`](https://github.com/Gruver87/experimental) · default **`main`** |
 | R&D tag | **`rd-1.0.0`** (prerelease snapshot) |
-| ADR 0019 | Slices **A–CZ** · phase **103** |
-| Hard gate | **115** steps with `--rebuild` (2026-08-15, operator-local) |
+| ADR 0019 | Slices **A–DB** · phase **105** |
+| Hard gate | **117** steps with `--rebuild` (operator-local, 2026-08-15) |
 | Default transport | **TCP+TLS** — `feature_libp2p=false` on prod JSON |
 | Industrial pin | [Hybrid `v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial) |
 | 48h soak here | **Not run** |
@@ -27,12 +27,13 @@ The audit-freeze pin · public audited mainnet · listed ABS · prod libp2p mesh
 
 | Proven (lab) | Not claimed |
 |--------------|-------------|
-| rust-libp2p swarm A–CZ behind Cargo `libp2p` | Prod mesh cutover |
+| rust-libp2p swarm A–DB behind Cargo `libp2p` | Prod mesh cutover |
 | Advertised unique cap 20; circuit out of crate book | Public IPFS DHT / Noise = mTLS |
 | AutoNAT/UPnP confirm admit-canonical-or-omit | 48h soak / tip proof |
 | Identify observed confirm charges canonical key | Firm audit PDF |
+| Add/remove/expire match canonical charge key | NTFS replace = POSIX inode-atomic |
 | Long-Range / EVM precompile labs | Public VPS testnet / launched mainnet |
-| Fail-closed identity/persist ACL labs (Windows) | NTFS replace = POSIX inode-atomic |
+| Fail-closed identity/persist ACL labs (Windows) | Merging Dependabot major bumps |
 
 ## Where R&D lives
 

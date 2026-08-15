@@ -148,6 +148,8 @@ LABS = [
     ("CX", "scripts/libp2p_rust_relay_client_circuit_external_book_lab.py"),
     ("CY", "scripts/libp2p_rust_behaviour_external_confirmed_capped_lab.py"),
     ("CZ", "scripts/libp2p_rust_observed_external_charge_key_lab.py"),
+    ("DA", "scripts/libp2p_rust_behaviour_external_expired_canonical_lab.py"),
+    ("DB", "scripts/libp2p_rust_persist_external_charge_key_lab.py"),
 ]
 
 

@@ -380,6 +380,8 @@ LABS = [
     ("CX", "scripts/libp2p_rust_relay_client_circuit_external_book_lab.py"),
     ("CY", "scripts/libp2p_rust_behaviour_external_confirmed_capped_lab.py"),
     ("CZ", "scripts/libp2p_rust_observed_external_charge_key_lab.py"),
+    ("DA", "scripts/libp2p_rust_behaviour_external_expired_canonical_lab.py"),
+    ("DB", "scripts/libp2p_rust_persist_external_charge_key_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -508,6 +510,8 @@ def check_repo_honesty() -> tuple[bool, str]:
         "Slice CB",
         "Slice CC",
         "Slice CZ",
+        "Slice DA",
+        "Slice DB",
         "FEATURE_LIBP2P",
         "## Honesty",
     )
@@ -557,6 +561,18 @@ def check_native_deep() -> tuple[bool, str]:
             f"bad OBSERVED_EXTERNAL_CHARGE_KEY_STRATEGY={obs_charge!r} "
             "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
         )
+    exp_charge = str(getattr(abs_native, "BEHAVIOUR_EXTERNAL_EXPIRED_STRATEGY", ""))
+    if exp_charge != "expire_canonical_charge_key":
+        return False, (
+            f"bad BEHAVIOUR_EXTERNAL_EXPIRED_STRATEGY={exp_charge!r} "
+            "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+        )
+    persist_ck = str(getattr(abs_native, "PERSIST_EXTERNAL_CHARGE_KEY_STRATEGY", ""))
+    if persist_ck != "load_canonical_charge_key":
+        return False, (
+            f"bad PERSIST_EXTERNAL_CHARGE_KEY_STRATEGY={persist_ck!r} "
+            "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+        )
 
     a = abs_native.libp2p_node_new()
     b = abs_native.libp2p_node_new()
@@ -580,8 +596,8 @@ def check_native_deep() -> tuple[bool, str]:
         cap = dict(a.capability_status())
         if cap.get("default_mesh") is not False:
             return False, "capability_status.default_mesh must be False"
-        if int(cap.get("phase") or 0) < 103:
-            return False, f"capability phase too low: {cap.get('phase')} (want >= 103 Slice CZ)"
+        if int(cap.get("phase") or 0) < 105:
+            return False, f"capability phase too low: {cap.get('phase')} (want >= 105 Slice DB)"
         if not cap.get("external_addrs_replace_no_unlink"):
             return False, (
                 "capability external_addrs_replace_no_unlink missing "
@@ -820,6 +836,32 @@ def check_native_deep() -> tuple[bool, str]:
                 "observed external charge-key strategy "
                 f"{cap.get('observed_external_charge_key_strategy')!r} "
                 "!= admit_canonical_charge_key (stale wheel — --rebuild)"
+            )
+        if not cap.get("behaviour_external_expired_canonical"):
+            return False, (
+                "capability behaviour_external_expired_canonical missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if cap.get("behaviour_external_expired_strategy") != (
+            "expire_canonical_charge_key"
+        ):
+            return False, (
+                "behaviour external expired strategy "
+                f"{cap.get('behaviour_external_expired_strategy')!r} "
+                "!= expire_canonical_charge_key (stale wheel — --rebuild)"
+            )
+        if not cap.get("persist_external_charge_key"):
+            return False, (
+                "capability persist_external_charge_key missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if cap.get("persist_external_charge_key_strategy") != (
+            "load_canonical_charge_key"
+        ):
+            return False, (
+                "persist external charge-key strategy "
+                f"{cap.get('persist_external_charge_key_strategy')!r} "
+                "!= load_canonical_charge_key (stale wheel — --rebuild)"
             )
         # Slice I API must exist
         a.block_peer(b.peer_id)

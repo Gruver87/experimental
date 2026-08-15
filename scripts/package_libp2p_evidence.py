@@ -133,6 +133,14 @@ def hard_verify_lab_paths() -> Tuple[str, ...]:
         raise RuntimeError(
             "hard-verify LABS missing Slice CZ observed-external-charge-key lab"
         )
+    if "scripts/libp2p_rust_behaviour_external_expired_canonical_lab.py" not in out:
+        raise RuntimeError(
+            "hard-verify LABS missing Slice DA behaviour-external-expired-canonical lab"
+        )
+    if "scripts/libp2p_rust_persist_external_charge_key_lab.py" not in out:
+        raise RuntimeError(
+            "hard-verify LABS missing Slice DB persist-external-charge-key lab"
+        )
     return tuple(out)
 
 

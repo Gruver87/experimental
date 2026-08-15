@@ -142,6 +142,8 @@ feature `libp2p`), exposed to Python through the existing
 | Relay-client circuit crate book | Slice CX: omit `libp2p-relay` client `ToSwarm::ExternalAddrConfirmed` for circuit (crate would `add_external_address` and evict); `swarm_external_addrs()` dumps crate book; `libp2p_rust_relay_client_circuit_external_book_lab.py` |
 | Behaviour ExternalAddrConfirmed cap | Slice CY: AutoNAT/UPnP `ToSwarm::ExternalAddrConfirmed` admit-canonical-or-omit (charge key strips `/p2p/<peer>`; at cap omit, no silent eviction); `libp2p_rust_behaviour_external_confirmed_capped_lab.py` |
 | Observed confirm charge key | Slice CZ: Identify observed / SwarmEvent confirm charge the canonical key (no `/p2p/<peer>` suffix slot); `confirm_observed_addr` still returns the **raw** observed string; `libp2p_rust_observed_external_charge_key_lab.py` |
+| Add/remove/expire charge key | Slice DA: operator add/remove and AutoNAT/UPnP/relay-client `ExternalAddrExpired` use the canonical key (suffix cannot occupy or miss the crate slot); `libp2p_rust_behaviour_external_expired_canonical_lab.py` |
+| Persist JSON charge key | Slice DB: load/restore collapses `/p2p/<peer>` suffix (JSON cannot occupy a second unique); Identify candidate re-emit and NewListenAddr charge the key; `libp2p_rust_persist_external_charge_key_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -253,6 +255,8 @@ feature `libp2p`), exposed to Python through the existing
 | CX | Relay-client circuit `ExternalAddrConfirmed` omitted from crate book; `libp2p_rust_relay_client_circuit_external_book_lab.py` |
 | CY | AutoNAT/UPnP `ExternalAddrConfirmed` admit-canonical-or-omit (crate book); `libp2p_rust_behaviour_external_confirmed_capped_lab.py` |
 | CZ | Identify observed confirm charges canonical key (no `/p2p/<peer>` second slot); API still returns raw observed; `libp2p_rust_observed_external_charge_key_lab.py` |
+| DA | Operator add/remove and behaviour expire use canonical charge key (suffix cannot occupy or miss crate slot); `libp2p_rust_behaviour_external_expired_canonical_lab.py` |
+| DB | Persist JSON load collapses `/p2p/<peer>` suffix; Identify candidate / NewListenAddr charge the key; `libp2p_rust_persist_external_charge_key_lab.py` |
 
 ## Honesty
 
@@ -351,7 +355,9 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_circuit_excluded_from_external_book_lab.py`,
   `libp2p_rust_relay_client_circuit_external_book_lab.py`,
   `libp2p_rust_behaviour_external_confirmed_capped_lab.py`,
-  `libp2p_rust_observed_external_charge_key_lab.py`;
+  `libp2p_rust_observed_external_charge_key_lab.py`,
+  `libp2p_rust_behaviour_external_expired_canonical_lab.py`,
+  `libp2p_rust_persist_external_charge_key_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -596,6 +602,22 @@ feature `libp2p`), exposed to Python through the existing
     Python `external_addrs` stores the canonical key. Expire retains both raw
     and key. Circuit never occupies the crate book. Capability
     `observed_external_charge_key`. NTFS replace remains **not** POSIX
+    inode-atomic.
+  Slice DA: After CZ the crate book holds the canonical key. Operator
+    `add_external_address(listen/p2p/<peer>)` previously occupied a **second**
+    unique slot. `remove_external_address(suffix)` and AutoNAT/UPnP/relay-client
+    `ExternalAddrExpired` previously used exact Multiaddr equality, so expire
+    missed the crate slot (unique-cap lie). Add/remove/expire now match
+    `advertised_charge_key`. Relay-client non-circuit confirm uses the same
+    admit-canonical-or-omit gate as CY. Capability
+    `behaviour_external_expired_canonical`. NTFS replace remains **not** POSIX
+    inode-atomic.
+  Slice DB: persist JSON deduped exact strings, so
+    `listen` + `listen/p2p/<peer>` loaded as two unique advertised addrs and
+    restore inserted both into the crate book. Load now collapses to
+    `advertised_json_charge_key`. Identify `NewExternalAddrCandidate` re-emits
+    the canonical key; NewListenAddr charges the key. Capability
+    `persist_external_charge_key`. NTFS replace remains **not** POSIX
     inode-atomic.
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.

@@ -63,5 +63,7 @@ def test_evidence_labs_are_hard_verify_list() -> None:
     assert "scripts/libp2p_rust_relay_client_circuit_external_book_lab.py" in pack.LABS
     assert "scripts/libp2p_rust_behaviour_external_confirmed_capped_lab.py" in pack.LABS
     assert "scripts/libp2p_rust_observed_external_charge_key_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_behaviour_external_expired_canonical_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_persist_external_charge_key_lab.py" in pack.LABS
     for rel in pack.LABS:
         assert (ROOT / rel).is_file(), rel

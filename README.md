@@ -42,10 +42,12 @@ Explorer (solo): http://localhost:8080
 
 | Claim | Status | Proof |
 |-------|--------|-------|
-| ADR 0019 rust-libp2p slices **A–CZ** (phase 103) | **Lab PASS** | hard gate **115** steps with `--rebuild` |
+| ADR 0019 rust-libp2p slices **A–DB** (phase 105) | **Lab PASS** | hard gate **117** steps with `--rebuild` |
 | Circuit never occupies crate ExternalAddresses | **Lab PASS** | Slices CW–CX |
 | AutoNAT/UPnP confirm gated to advertised cap | **Lab PASS** | Slice CY |
 | Identify observed confirm charges canonical key | **Lab PASS** | Slice CZ |
+| Add/remove/expire match canonical charge key | **Lab PASS** | Slice DA |
+| Persist JSON load collapses `/p2p/<peer>` suffix | **Lab PASS** | Slice DB |
 | Default mesh stays TCP+TLS | **By design** | `feature_libp2p=false` on prod JSON |
 | Profile F Long-Range / EVM depth labs | **Lab only** | ADR 0017 · `EVM_COMPAT_MATRIX` |
 | Hybrid 48h soak / firm audit / public mainnet | **No — other repo** | [Hybrid pin](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) |
@@ -60,7 +62,7 @@ Explorer (solo): http://localhost:8080
 
 | Track | Status | Entry |
 |-------|--------|-------|
-| **ADR 0019 rust-libp2p** | Slices **A–CZ** (phase 103) behind Cargo `libp2p` | [ADR 0019](docs/adr/0019-rust-libp2p-industrial.md) |
+| **ADR 0019 rust-libp2p** | Slices **A–DB** (phase 105) behind Cargo `libp2p` | [ADR 0019](docs/adr/0019-rust-libp2p-industrial.md) |
 | **ADR 0018 dual-stack / stubs** | Labs + adapter | `scripts/libp2p_*_lab.py` |
 | **ADR 0017 Long-Range** | Lab / WS tip gate | `python scripts/long_range_lab.py` |
 | **EVM depth / precompiles** | Profile F waves | [EVM_COMPAT_MATRIX](docs/sprouts/EVM_COMPAT_MATRIX.md) |
@@ -71,7 +73,7 @@ Latest ADR 0019 work lands on `main`. Historical slice PRs: [#16](https://github
 
 ## Clone & verify
 
-### Experimental only (ADR 0019 hard — 114 steps, 115 with `--rebuild`)
+### Experimental only (ADR 0019 hard — 116 steps, 117 with `--rebuild`)
 
 ```powershell
 # Windows — rebuild native libp2p wheel when Rust changed
@@ -149,4 +151,4 @@ MIT — [LICENSE](LICENSE)
 ---
 
 *Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87) · Default branch: `main`*  
-*Last surface update: **2026-08-15** — ADR 0019 through Slice **CZ** (phase 103) on `main`. Last tag `rd-1.0.0`. Not a launched public mainnet.*
+*Last surface update: **2026-08-15** — ADR 0019 through Slice **DB** (phase 105) on `main`. Last tag `rd-1.0.0`. Not a launched public mainnet.*
