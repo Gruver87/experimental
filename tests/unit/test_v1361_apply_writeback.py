@@ -81,6 +81,73 @@ def test_python_fallback_apply():
     assert int(py["accounts"]["0xb"]["balance_satoshi"]) == 1_000_000
 
 
+def test_apply_transfer_insufficient_does_not_mint():
+    accounts = {
+        "0xfrom": {"address": "0xfrom", "balance_satoshi": 0, "balance": 0.0},
+        "0xto": {"address": "0xto", "balance_satoshi": 0, "balance": 0.0},
+    }
+    ops = [{"op": "transfer_value", "from": "0xfrom", "to": "0xto", "value_wei": 10**18}]
+    try:
+        native.evm_apply_writeback_ops(accounts, ops)
+        raise AssertionError("expected insufficient_writeback_value")
+    except ValueError as exc:
+        assert "insufficient_writeback_value" in str(exc)
+    assert int(accounts["0xfrom"]["balance_satoshi"]) == 0
+    assert int(accounts["0xto"]["balance_satoshi"]) == 0
+
+
+def test_python_fallback_transfer_insufficient_does_not_mint():
+    accounts = {"0xa": {"balance_satoshi": 0, "storage": "{}"}}
+    ops = [{"op": "transfer_value", "from": "0xa", "to": "0xb", "value_wei": 10**18}]
+    try:
+        native._evm_apply_writeback_ops_py(accounts, ops)
+        raise AssertionError("expected insufficient_writeback_value")
+    except ValueError as exc:
+        assert "insufficient_writeback_value" in str(exc)
+    assert int(accounts["0xa"]["balance_satoshi"]) == 0
+
+
+def test_adapter_writeback_insufficient_does_not_mint(tmp_path):
+    from execution.evm_adapter import EVMAdapter
+    from runtime.config import Config
+    from storage.database import Database
+
+    cfg = Config()
+    cfg.db_path = str(tmp_path / "wb.db")
+    db = Database(cfg.db_path, synchronous="NORMAL")
+    db.initialize()
+    try:
+        sender = "0x" + "11" * 20
+        dest = "0x" + "22" * 20
+        db.save_account(sender, balance=0.0, nonce=0, code="6000", storage="{}")
+        adapter = EVMAdapter(db, cfg)
+        try:
+            adapter._apply_nested_writeback_ops_now(
+                [
+                    {
+                        "op": "transfer_value",
+                        "from": sender,
+                        "to": dest,
+                        "value_wei": 10**18,
+                    }
+                ]
+            )
+            raise AssertionError("expected insufficient_writeback_value")
+        except (ValueError, RuntimeError) as exc:
+            assert "insufficient_writeback_value" in str(exc)
+        assert db.get_balance_satoshi(sender) == 0
+        assert db.get_balance_satoshi(dest) == 0
+    finally:
+        db.close()
+    py = native._evm_apply_writeback_ops_py(
+        {"0xa": {"balance_satoshi": 2_000_000, "storage": "{}"}},
+        [{"op": "transfer_value", "from": "0xa", "to": "0xb", "value_wei": 10**18}],
+    )
+    assert py["native_apply"] is False
+    assert int(py["accounts"]["0xa"]["balance_satoshi"]) == 1_000_000
+    assert int(py["accounts"]["0xb"]["balance_satoshi"]) == 1_000_000
+
+
 def test_adapter_wires_native_apply():
     adapter = (ROOT / "execution" / "evm_adapter.py").read_text(encoding="utf-8")
     assert "evm_apply_writeback_ops" in adapter

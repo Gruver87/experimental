@@ -733,7 +733,9 @@ class EVMAdapter:
                         if logs:
                             self._persist_logs(addr, logs)
                 return
-            except Exception:
+            except Exception as exc:
+                if "insufficient_writeback_value" in str(exc):
+                    raise
                 pass
         # Fallback: per-op Python DB apply.
         for op in ops:
@@ -761,9 +763,14 @@ class EVMAdapter:
                 value_wei = int(op.get("value_wei") or 0)
                 if value_wei <= 0:
                     continue
-                wei_to_abs = value_wei / 10**18
                 from_addr = self._normalize_addr(str(op.get("from") or ""))
                 to_addr = self._normalize_addr(str(op.get("to") or ""))
+                sat_need = value_wei // 1_000_000_000_000
+                if sat_need > 0:
+                    have = int(self.db.get_balance_satoshi(from_addr) or 0)
+                    if have < sat_need:
+                        raise RuntimeError("insufficient_writeback_value")
+                wei_to_abs = value_wei / 10**18
                 self.db.update_balance(from_addr, -wei_to_abs)
                 self.db.update_balance(to_addr, wei_to_abs)
             elif kind == "append_logs":

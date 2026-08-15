@@ -1603,6 +1603,13 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "execution" / "evm_adapter.py"
         ).read_text(encoding="utf-8"):
             errors.append("evm_adapter must wire evm_apply_writeback_ops")
+        wb_apply = (
+            ROOT / "native" / "abs_native" / "src" / "evm_writeback.rs"
+        ).read_text(encoding="utf-8")
+        if "insufficient_writeback_value" not in wb_apply:
+            errors.append("evm_writeback.rs must fail-closed on insufficient transfer_value")
+        if "insufficient_writeback_value" not in native_py:
+            errors.append("crypto/native.py must fail-closed on insufficient transfer_value")
         # v1.3.62 — store-lock Rocks writeback commit
         storage_rs = (
             ROOT / "native" / "abs_native" / "src" / "storage" / "mod.rs"

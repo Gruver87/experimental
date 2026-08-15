@@ -1634,8 +1634,36 @@ def evm_plan_create_writeback(
     )
 
 
+def _writeback_transfers_covered(accounts: dict, ops: list) -> None:
+    """Fail-closed: refuse transfer_value that would mint via clamp-to-zero."""
+    bals: dict = {}
+    for addr, row in dict(accounts or {}).items():
+        row = dict(row or {})
+        if row.get("balance_satoshi") is not None:
+            bals[str(addr)] = max(0, int(row["balance_satoshi"]))
+        else:
+            bals[str(addr)] = max(0, int(float(row.get("balance") or 0) * 1_000_000))
+    for op in list(ops or []):
+        if str(op.get("op") or "") != "transfer_value":
+            continue
+        from_addr = str(op.get("from") or "")
+        to_addr = str(op.get("to") or "")
+        value_wei = max(0, int(op.get("value_wei") or 0))
+        if not from_addr or not to_addr or value_wei <= 0:
+            continue
+        sat = value_wei // 1_000_000_000_000
+        if sat <= 0:
+            continue
+        have = int(bals.get(from_addr, 0) or 0)
+        if have < sat:
+            raise ValueError("insufficient_writeback_value")
+        bals[from_addr] = have - sat
+        bals[to_addr] = int(bals.get(to_addr, 0) or 0) + sat
+
+
 def _evm_apply_writeback_ops_py(accounts: dict, ops: list) -> dict:
     """Python reference: apply writeback ops to an in-memory accounts map."""
+    _writeback_transfers_covered(accounts, ops)
     accounts = {str(k): dict(v) for k, v in dict(accounts or {}).items()}
     log_batches = []
     touched = []
@@ -1709,7 +1737,10 @@ def _evm_apply_writeback_ops_py(accounts: dict, ops: list) -> dict:
                 continue
             fr = _ensure(from_addr)
             to = _ensure(to_addr)
-            _set_sat(fr, _sat(fr) - sat)
+            have = _sat(fr)
+            if have < sat:
+                raise ValueError("insufficient_writeback_value")
+            _set_sat(fr, have - sat)
             _set_sat(to, _sat(to) + sat)
             if from_addr not in touched:
                 touched.append(from_addr)
@@ -1737,6 +1768,7 @@ def _evm_apply_writeback_ops_py(accounts: dict, ops: list) -> dict:
 
 def evm_apply_writeback_ops(accounts: dict, ops: list) -> dict:
     """Apply writeback ops to an in-memory accounts map (v1.3.61)."""
+    _writeback_transfers_covered(accounts, ops)
     if _native is not None and hasattr(_native, "evm_apply_writeback_ops"):
         raw = _native.evm_apply_writeback_ops(
             json.dumps(accounts or {}),

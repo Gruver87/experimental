@@ -451,7 +451,12 @@ pub fn evm_apply_writeback_ops_py(accounts_json: String, ops_json: String) -> Py
                 {
                     let row = ensure_account_obj(&mut accounts, &from);
                     let cur = account_satoshi(row);
-                    set_balance_sat(row, cur.saturating_sub(sat));
+                    if cur < sat {
+                        return Err(pyo3::exceptions::PyValueError::new_err(
+                            "insufficient_writeback_value",
+                        ));
+                    }
+                    set_balance_sat(row, cur - sat);
                 }
                 {
                     let row = ensure_account_obj(&mut accounts, &to);
