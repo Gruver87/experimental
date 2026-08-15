@@ -248,6 +248,102 @@ def test_p2p_enforce_refuses_gap_without_calling_chain() -> None:
     chain.import_block.assert_not_called()
 
 
+def _p2p_enforce_node(chain: _FakeChain) -> P2PNode:
+    cfg = Config()
+    cfg.p2p_native_transport = False
+    cfg.require_native_crypto = False
+    cfg.deployment_mode = "dev"
+    cfg.bootstrap_peers = []
+    node = P2PNode(cfg, chain, MagicMock())
+    node.tip_safety_shadow = TipSafetyShadowObserver(enabled=True, enforce=True)
+    return node
+
+
+def test_p2p_import_refuses_below_persisted_ws_anchor(monkeypatch, tmp_path) -> None:
+    """P2P import_block (enforce) must refuse a child below a persisted WS anchor.
+
+    Lab-armed: FEATURE_LONG_RANGE env only. Industrial JSON stays false.
+    """
+    from consensus.long_range import bind_persisted_ws
+
+    path = tmp_path / "ws.json"
+    bind_persisted_ws(path=path, env_height="10", env_hash="ff" * 32)
+    monkeypatch.setenv("FEATURE_LONG_RANGE", "true")
+    monkeypatch.setenv("ABS_WS_CHECKPOINT_PATH", str(path))
+    monkeypatch.delenv("ABS_WS_ANCHOR_HEIGHT", raising=False)
+    monkeypatch.delenv("ABS_WS_ANCHOR_HASH", raising=False)
+
+    chain = _FakeChain(2)
+    node = _p2p_enforce_node(chain)
+    assert node.tip_safety_shadow.sync_from_chain(chain) is True
+    chain.import_block = MagicMock(  # type: ignore[method-assign]
+        side_effect=AssertionError("must not import below WS anchor")
+    )
+    tip = chain.get_last_block()
+    cand = {
+        "height": 3,
+        "hash": _h(0xB0),
+        "parent_hash": tip["hash"],
+        "transactions": [],
+    }
+    assert node.import_block(cand) is False
+    assert int(node.tip_safety_shadow.reject_by_code.get("ws_below_ws_anchor", 0)) >= 1
+    assert node.tip_safety_shadow.enforce_refuse_total >= 1
+    chain.import_block.assert_not_called()
+
+
+def test_p2p_import_accepts_child_of_persisted_ws_anchor(monkeypatch, tmp_path) -> None:
+    """Valid extend above the persisted checkpoint still imports."""
+    from consensus.long_range import bind_persisted_ws
+
+    chain = _FakeChain(2)
+    tip = chain.get_last_block()
+    path = tmp_path / "ws.json"
+    bind_persisted_ws(
+        path=path,
+        env_height=str(tip["height"]),
+        env_hash=str(tip["hash"]),
+    )
+    monkeypatch.setenv("FEATURE_LONG_RANGE", "true")
+    monkeypatch.setenv("ABS_WS_CHECKPOINT_PATH", str(path))
+    monkeypatch.delenv("ABS_WS_ANCHOR_HEIGHT", raising=False)
+    monkeypatch.delenv("ABS_WS_ANCHOR_HASH", raising=False)
+
+    node = _p2p_enforce_node(chain)
+    assert node.tip_safety_shadow.sync_from_chain(chain) is True
+    cand = {
+        "height": 3,
+        "hash": _h(0xC0),
+        "parent_hash": tip["hash"],
+        "transactions": [],
+    }
+    assert node.import_block(cand) is True
+    assert chain.get_height() == 3
+
+
+def test_p2p_import_flag_off_does_not_apply_ws_anchor(monkeypatch, tmp_path) -> None:
+    """Industrial default: persist exists but FEATURE_LONG_RANGE off → AncestryWindow only."""
+    from consensus.long_range import bind_persisted_ws
+
+    path = tmp_path / "ws.json"
+    bind_persisted_ws(path=path, env_height="10", env_hash="ff" * 32)
+    monkeypatch.setenv("FEATURE_LONG_RANGE", "false")
+    monkeypatch.setenv("ABS_WS_CHECKPOINT_PATH", str(path))
+
+    chain = _FakeChain(2)
+    node = _p2p_enforce_node(chain)
+    assert node.tip_safety_shadow.sync_from_chain(chain) is True
+    tip = chain.get_last_block()
+    cand = {
+        "height": 3,
+        "hash": _h(0xD0),
+        "parent_hash": tip["hash"],
+        "transactions": [],
+    }
+    assert node.import_block(cand) is True
+    assert "ws_below_ws_anchor" not in node.tip_safety_shadow.reject_by_code
+
+
 def test_enforce_implies_allows_import_false_on_none() -> None:
     obs = TipSafetyShadowObserver(enabled=True, enforce=True)
     assert obs.allows_import(None) is False
