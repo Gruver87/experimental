@@ -55,6 +55,40 @@ def test_deploy_insufficient_value_does_not_mint(tmp_path) -> None:
         db.close()
 
 
+def test_deploy_constructor_can_forward_endowment(tmp_path) -> None:
+    """Endowment must sit on the new account before init runs (payable constructor)."""
+    adapter, db = _adapter(tmp_path)
+    eoa = "0x" + "99" * 20
+    try:
+        db.save_account(DEPLOYER, balance=5.0, nonce=0, code="", storage="{}")
+        addr_bytes = bytes.fromhex(eoa.replace("0x", ""))
+        init = bytes(
+            [0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x34, 0x73]
+            + list(addr_bytes)
+            + [0x5A, 0xF1, 0x00]
+        )
+        r = adapter.deploy_contract(DEPLOYER, init.hex(), value=1.0, salt="fwd")
+        assert r.success is True, r.error
+        created = str(r.return_value)
+        assert db.get_balance_satoshi(DEPLOYER) == 4_000_000
+        assert db.get_balance_satoshi(eoa) == 1_000_000
+        assert db.get_balance_satoshi(created) == 0
+    finally:
+        db.close()
+
+
+def test_deploy_constructor_revert_refunds_endowment(tmp_path) -> None:
+    adapter, db = _adapter(tmp_path)
+    try:
+        db.save_account(DEPLOYER, balance=5.0, nonce=0, code="", storage="{}")
+        r = adapter.deploy_contract(DEPLOYER, "60006000fd", value=1.0, salt="rv")
+        assert r.success is False
+        assert r.error == "constructor_reverted"
+        assert db.get_balance_satoshi(DEPLOYER) == 5_000_000
+    finally:
+        db.close()
+
+
 def test_call_contract_value_transfers_once(tmp_path) -> None:
     adapter, db = _adapter(tmp_path)
     try:

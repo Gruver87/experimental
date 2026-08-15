@@ -37,6 +37,7 @@ Canonical language for this repository is **English**. Older inherited entries b
 - EVM: nested CALL/CALLCODE with value fail-closes when the caller cannot cover satoshi (`insufficient_call_value`): no child, no writeback mint via saturating_sub. Matches native inline Insufficient. Soak not run.
 - EVM: `evm_apply_writeback_ops` fail-closes `transfer_value` with `insufficient_writeback_value` (no saturating_sub mint). Python port, adapter fallback, and adapter native-error path must not credit the recipient. Soak not run.
 - EVM: host `deploy_contract` endows once (save_account balance 0 + one fail-closed transfer). `call_contract` value uses `try_debit_satoshi`, not clamp `update_balance`. Soak not run.
+- EVM: CREATE/deploy endowment is transferred before init so a payable constructor can forward `CALLVALUE`. Constructor revert refunds the endowment. Nested CREATE stamps `save_account` with live satoshi (no second transfer). Soak not run.
 
 ---
 

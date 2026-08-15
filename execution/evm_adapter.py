@@ -346,22 +346,34 @@ class EVMAdapter:
         self, from_addr: str, to_addr: str, amount_abs: float
     ) -> Optional[str]:
         """Move ABS value once in satoshi. None on success. No clamp-to-zero mint."""
-        from runtime.amount import from_satoshi_float, to_satoshi, try_debit_satoshi
+        from runtime.amount import to_satoshi
 
-        need = int(to_satoshi(amount_abs or 0))
+        return self._transfer_sat_fail_closed(
+            from_addr, to_addr, int(to_satoshi(amount_abs or 0))
+        )
+
+    def _transfer_sat_fail_closed(
+        self, from_addr: str, to_addr: str, sat: int
+    ) -> Optional[str]:
+        from runtime.amount import from_satoshi_float
+
+        need = int(sat or 0)
         if need <= 0:
             return None
         from_addr = self._normalize_addr(from_addr)
         to_addr = self._normalize_addr(to_addr)
         have = int(self.db.get_balance_satoshi(from_addr) or 0)
-        try:
-            new_from = try_debit_satoshi(have, amount_abs)
-        except ValueError:
+        if have < need:
             return "insufficient_call_value"
         to_have = int(self.db.get_balance_satoshi(to_addr) or 0)
-        self.db.set_balance(from_addr, from_satoshi_float(new_from))
+        self.db.set_balance(from_addr, from_satoshi_float(have - need))
         self.db.set_balance(to_addr, from_satoshi_float(to_have + need))
         return None
+
+    def _refund_sat(self, from_addr: str, to_addr: str, sat: int) -> None:
+        err = self._transfer_sat_fail_closed(from_addr, to_addr, sat)
+        if err:
+            raise RuntimeError(err)
 
     def _contract_call_hook(self, target: str, calldata: bytes, value: int,
                             gas: int, delegate: bool, static: bool,
@@ -836,6 +848,24 @@ class EVMAdapter:
                 int(caller_ctx.block_number),
                 len(init_code),
             )
+        endowment_sat = int(value or 0) // 1_000_000_000_000
+        if endowment_sat > 0:
+            if not self._caller_covers_call_value(deployer, int(value or 0)):
+                return {
+                    "success": False,
+                    "reverted": True,
+                    "gas_used": 0,
+                    "error": "insufficient_call_value",
+                }
+            err = self._transfer_sat_fail_closed(deployer, contract_addr, endowment_sat)
+            if err:
+                return {
+                    "success": False,
+                    "reverted": True,
+                    "gas_used": 0,
+                    "error": err,
+                }
+        journal_snap = len(self._writeback_journal)
         try:
             result = self._run_evm(
                 init_code, {}, self.config.evm_gas_limit,
@@ -844,9 +874,15 @@ class EVMAdapter:
                 value=value,
             )
         except Exception:
+            self._writeback_journal = self._writeback_journal[:journal_snap]
+            if endowment_sat > 0:
+                self._refund_sat(contract_addr, deployer, endowment_sat)
             return {"success": False, "reverted": True, "gas_used": 0}
 
         if result.get("reverted"):
+            self._writeback_journal = self._writeback_journal[:journal_snap]
+            if endowment_sat > 0:
+                self._refund_sat(contract_addr, deployer, endowment_sat)
             return {
                 "success": False,
                 "reverted": True,
@@ -855,16 +891,35 @@ class EVMAdapter:
 
         ret_code = result.get("return_data") or b""
         code_hex = ret_code.hex() if ret_code else init_code.hex()
+        # Endowment already on the account so constructor could spend it.
         plan = native.evm_plan_create_writeback(
             deployer,
             contract_addr,
-            int(value or 0),
+            0,
             True,
             code_hex,
             result.get("storage"),
         )
         ops = list(plan.get("ops") or [])
-        if ops:
+        from runtime.amount import from_satoshi_float
+
+        live = int(
+            self.db.get_balance_satoshi(self._normalize_addr(contract_addr)) or 0
+        )
+        for op in ops:
+            if str(op.get("op") or "") == "save_account":
+                op["balance"] = from_satoshi_float(live)
+                op["balance_satoshi"] = live
+        if self._writeback_journaling:
+            save_ops = [op for op in ops if str(op.get("op") or "") == "save_account"]
+            rest = [op for op in ops if str(op.get("op") or "") != "save_account"]
+            self._writeback_journal = (
+                self._writeback_journal[:journal_snap]
+                + save_ops
+                + self._writeback_journal[journal_snap:]
+                + rest
+            )
+        elif ops:
             self._apply_nested_writeback_ops(ops)
 
         return {
@@ -971,7 +1026,15 @@ class EVMAdapter:
         if float(value or 0) > 0 and not self._abs_covers(deployer, value):
             return EVMResult(success=False, error="insufficient_deploy_value")
 
-        # Выполняем конструктор
+        from runtime.amount import from_satoshi_float, to_satoshi
+
+        endowment_sat = int(to_satoshi(value or 0))
+        if endowment_sat > 0:
+            err = self._transfer_sat_fail_closed(deployer, contract_addr, endowment_sat)
+            if err:
+                return EVMResult(success=False, error="insufficient_deploy_value")
+
+        # Constructor sees the endowment (BALANCE / value-CALL). Journal rolls nested ops.
         self.begin_writeback_journal()
         try:
             result = self._run_evm(
@@ -982,29 +1045,27 @@ class EVMAdapter:
             )
         except Exception as e:
             self.discard_writeback_journal()
+            if endowment_sat > 0:
+                self._refund_sat(contract_addr, deployer, endowment_sat)
             return EVMResult(success=False, error=str(e))
 
         if result.get("reverted"):
             self.discard_writeback_journal()
+            if endowment_sat > 0:
+                self._refund_sat(contract_addr, deployer, endowment_sat)
             return EVMResult(success=False, error="constructor_reverted",
                              gas_used=result["gas_used"])
 
-        # Nested CREATE writeback already uses balance=0 + one transfer_value.
-        # Do not save_account(balance=value) and then credit value again (mint).
+        self.commit_writeback_journal()
+        live = int(self.db.get_balance_satoshi(self._normalize_addr(contract_addr)) or 0)
         self.db.save_account(
             address=contract_addr,
-            balance=0.0,
+            balance=from_satoshi_float(live),
             nonce=0,
             code=bytecode_hex,
             storage=json.dumps(result.get("storage", {})),
         )
         self._persist_logs(contract_addr, result.get("logs", []))
-        self.commit_writeback_journal()
-
-        if float(value or 0) > 0:
-            err = self._transfer_abs_fail_closed(deployer, contract_addr, value)
-            if err:
-                return EVMResult(success=False, error="insufficient_deploy_value")
 
         return EVMResult(
             success=True,
@@ -1062,6 +1123,14 @@ class EVMAdapter:
         except ValueError:
             return EVMResult(success=False, error="invalid_calldata")
 
+        from runtime.amount import to_satoshi
+
+        value_sat = int(to_satoshi(value or 0))
+        if value_sat > 0:
+            err = self._transfer_sat_fail_closed(caller, contract_addr, value_sat)
+            if err:
+                return EVMResult(success=False, error=err)
+
         self.begin_writeback_journal()
         try:
             result = self._run_evm(
@@ -1073,10 +1142,14 @@ class EVMAdapter:
             )
         except Exception as e:
             self.discard_writeback_journal()
+            if value_sat > 0:
+                self._refund_sat(contract_addr, caller, value_sat)
             return EVMResult(success=False, error=str(e))
 
         if result.get("reverted"):
             self.discard_writeback_journal()
+            if value_sat > 0:
+                self._refund_sat(contract_addr, caller, value_sat)
             return EVMResult(success=False, error="execution_reverted",
                              gas_used=result["gas_used"])
 
@@ -1085,12 +1158,6 @@ class EVMAdapter:
         self.db.update_account_storage(contract_addr, new_storage)
         self._persist_logs(contract_addr, result.get("logs", []))
         self.commit_writeback_journal()
-
-        # Перевод value от caller к контракту
-        if float(value or 0) > 0:
-            err = self._transfer_abs_fail_closed(caller, contract_addr, value)
-            if err:
-                return EVMResult(success=False, error=err, gas_used=result["gas_used"])
 
         # Возвращаемое значение — return_data или стек
         ret = result.get("return_data") or b""
