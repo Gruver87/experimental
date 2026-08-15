@@ -9,6 +9,7 @@ Wave-7: CheckpointStore.apply_latest → WeakSubjectivityService.
 Wave-8: CheckpointStore save/load JSON persistence.
 Wave-9: persist height+hash, restart bind, tip-import HARD REFUSE below
         and when the store is empty (no_anchor).
+Wave-10: checkpoint height is unique (wrong hash → anchor_hash_mismatch).
 
 Usage:
   python scripts/long_range_lab.py
@@ -31,6 +32,7 @@ from consensus.long_range import (
     bind_persisted_ws,
     evaluate_with_window,
 )
+from consensus.long_range.ancestry_bridge import evaluate_block_ref
 from consensus.tip_safety import TipSafetyService
 from consensus.tip_safety.ancestry_window import AncestryWindow
 from consensus.tip_safety.tip_state import TipState
@@ -173,7 +175,37 @@ def main() -> int:
             )
             return 1
 
-    print("Long-Range lab wave-9 (persist restart + tip-import HARD REFUSE)")
+    # Wave-10: checkpoint height is unique (wrong hash is not a descendant).
+    mismatch = svc.evaluate_stale_fork(
+        candidate_height=2,
+        candidate_hash="ee" * 32,
+        shares_ancestor_with_anchor=True,
+    )
+    if mismatch.accept or mismatch.reason != "anchor_hash_mismatch":
+        print(
+            f"FAIL: expected anchor_hash_mismatch got "
+            f"accept={mismatch.accept} reason={mismatch.reason}"
+        )
+        return 1
+    exact = svc.evaluate_stale_fork(
+        candidate_height=2,
+        candidate_hash=anchor_h,
+        shares_ancestor_with_anchor=False,
+    )
+    if not exact.accept or exact.reason != "is_anchor":
+        print(f"FAIL: expected is_anchor got accept={exact.accept} reason={exact.reason}")
+        return 1
+
+    lie = BlockRef(height=2, block_hash="ee" * 32, parent_hash=anchor_h)
+    lie_dec = evaluate_block_ref(svc, window, lie)
+    if lie_dec.accept or lie_dec.reason != "anchor_hash_mismatch":
+        print(
+            f"FAIL: evaluate_block_ref expected anchor_hash_mismatch got "
+            f"accept={lie_dec.accept} reason={lie_dec.reason}"
+        )
+        return 1
+
+    print("Long-Range lab wave-10 (anchor height unique hash + persist refuse)")
     print(f"  cert digest: {cert.digest[:16]}... verify={cert.verify_digest()}")
     print(f"  WS child:   accept={ok.accept} reason={ok.reason}")
     print(f"  stale fork: accept={bad.accept} reason={bad.reason}")
@@ -182,6 +214,8 @@ def main() -> int:
     print(f"  tip gate:   reject={tip_dec.reason_code}")
     print(f"  restart:    reject={restart_dec.reason_code}")
     print(f"  no_anchor:  reject={empty_dec.reason_code}")
+    print(f"  mismatch:   reject={mismatch.reason}")
+    print(f"  is_anchor:  accept={exact.reason}")
     print(f"  store:      history={len(store)} latest_h={store.latest().anchor.height}")
 
     if not ok.accept or bad.accept or below.accept:

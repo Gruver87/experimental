@@ -51,3 +51,29 @@ def test_no_anchor_fail_closed() -> None:
     )
     assert d.accept is False
     assert d.reason == "no_anchor"
+
+
+def test_exact_anchor_accepted_even_if_unlinked() -> None:
+    """The checkpoint identity is height+hash; linkage is not required."""
+    svc = WeakSubjectivityService()
+    svc.set_anchor(WeakSubjectivityAnchor(height=10, block_hash="aa" * 32))
+    d = svc.evaluate_stale_fork(
+        candidate_height=10,
+        candidate_hash="AA" * 32,
+        shares_ancestor_with_anchor=False,
+    )
+    assert d.accept is True
+    assert d.reason == "is_anchor"
+
+
+def test_same_height_wrong_hash_refused_even_if_linked() -> None:
+    """A sibling at the checkpoint height is not a descendant of the checkpoint."""
+    svc = WeakSubjectivityService()
+    svc.set_anchor(WeakSubjectivityAnchor(height=10, block_hash="aa" * 32))
+    d = svc.evaluate_stale_fork(
+        candidate_height=10,
+        candidate_hash="bb" * 32,
+        shares_ancestor_with_anchor=True,
+    )
+    assert d.accept is False
+    assert d.reason == "anchor_hash_mismatch"

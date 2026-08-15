@@ -29,6 +29,35 @@ def test_evaluate_block_ref_unrecorded_child() -> None:
     assert d.accept is True
 
 
+def test_evaluate_block_ref_same_height_wrong_hash_refuses() -> None:
+    """parent_hash = anchor at the checkpoint height is not a descendant."""
+    w, _mid, anchor = _seed()
+    sibling = BlockRef(
+        height=anchor.height,
+        block_hash="ee" * 32,
+        parent_hash=anchor.block_hash,
+    )
+    svc = WeakSubjectivityService()
+    svc.set_anchor(CheckpointCertificate.issue(height=2, block_hash=anchor.block_hash).anchor)
+    d = evaluate_block_ref(svc, w, sibling)
+    assert d.accept is False
+    assert d.reason == "anchor_hash_mismatch"
+
+
+def test_tip_safety_ws_gate_refuses_competing_hash_at_anchor() -> None:
+    """Same-height reorg at the checkpoint must not replace the pinned hash."""
+    w, mid, anchor = _seed()
+    ws = WeakSubjectivityService()
+    ws.set_anchor(
+        CheckpointCertificate.issue(height=2, block_hash=anchor.block_hash).anchor
+    )
+    tip = TipSafetyService(TipState(head=anchor), ancestry=w, ws_service=ws)
+    rival = BlockRef(height=2, block_hash="ee" * 32, parent_hash=mid.block_hash)
+    d = tip.evaluate_candidate(rival)
+    assert d.outcome == ApplyOutcome.REJECT
+    assert d.reason_code == "ws_anchor_hash_mismatch"
+
+
 def test_tip_safety_ws_gate_refuses_below_anchor() -> None:
     w, _mid, tip_block = _seed()
     ws = WeakSubjectivityService()

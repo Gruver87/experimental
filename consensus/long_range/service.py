@@ -16,6 +16,9 @@ class WeakSubjectivityService:
     When no anchor is set, ``evaluate_stale_fork`` returns accept=False /
     ``no_anchor``. Tip-import with this service attached must refuse that
     reason (armed Long-Range without a checkpoint is not protection).
+    At the checkpoint height only the pinned hash is accepted (``is_anchor``);
+    any other hash is ``anchor_hash_mismatch``, even if the caller claims
+    shared ancestry.
     """
 
     def __init__(self) -> None:
@@ -59,17 +62,26 @@ class WeakSubjectivityService:
                 anchor_height=ah,
                 candidate_height=cand_h,
             )
+        # Checkpoint height is unique: only the pinned hash is that block.
+        # A sibling that claims to share ancestry must not count as a descendant.
+        if cand_h == ah:
+            if cand_hash == self._anchor.block_hash:
+                return StaleForkDecision(
+                    accept=True,
+                    reason="is_anchor",
+                    anchor_height=ah,
+                    candidate_height=cand_h,
+                )
+            return StaleForkDecision(
+                accept=False,
+                reason="anchor_hash_mismatch",
+                anchor_height=ah,
+                candidate_height=cand_h,
+            )
         if not shares_ancestor_with_anchor:
             return StaleForkDecision(
                 accept=False,
                 reason="long_range_fork_below_anchor",
-                anchor_height=ah,
-                candidate_height=cand_h,
-            )
-        if cand_hash == self._anchor.block_hash and cand_h == ah:
-            return StaleForkDecision(
-                accept=True,
-                reason="is_anchor",
                 anchor_height=ah,
                 candidate_height=cand_h,
             )
