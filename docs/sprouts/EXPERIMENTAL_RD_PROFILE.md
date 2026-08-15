@@ -35,8 +35,11 @@ Compatibility gaps: [EVM_COMPAT_MATRIX.md](EVM_COMPAT_MATRIX.md).
 - `cargo test` for `abs_native` must link CPython (`scripts/cargo_test_abs_native.py`);
   crate default `extension-module` is wheel-only and does **not** link libpython.
 - Unified Hybrid+Experimental operator view: `scripts/verify_absolute_unified.ps1`.
-- Long-Range tip gate (when `FEATURE_LONG_RANGE=true`): optional
-  `ABS_WS_ANCHOR_HEIGHT` + `ABS_WS_ANCHOR_HASH` on tip-safety shadow sync.
-  Without an anchor, tip import is **not** blocked (`no_anchor` is informational).
+- Long-Range tip gate (when `FEATURE_LONG_RANGE=true`): persist
+  `ABS_WS_CHECKPOINT_PATH` (height+hash JSON) across restart. Optional
+  `ABS_WS_ANCHOR_HEIGHT` + `ABS_WS_ANCHOR_HASH` seed an empty store once and
+  are written to that path. Armed without an anchor is **HARD REFUSE**
+  (`ws_no_anchor`). Candidate history below the anchor is **HARD REFUSE**.
+  Not a live finality quorum. Industrial JSON keeps the flag **false**.
 
 See [EXPERIMENTAL_SANDBOX.md](../../EXPERIMENTAL_SANDBOX.md).

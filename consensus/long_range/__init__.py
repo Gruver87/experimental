@@ -2,7 +2,7 @@
 
 from consensus.long_range.ancestry_bridge import evaluate_with_window, shares_ancestor_with_anchor
 from consensus.long_range.checkpoint import CheckpointCertificate
-from consensus.long_range.checkpoint_store import CheckpointStore
+from consensus.long_range.checkpoint_store import CheckpointStore, bind_persisted_ws
 from consensus.long_range.ports import WeakSubjectivityPort, StaleForkDecision
 from consensus.long_range.service import WeakSubjectivityService
 
@@ -12,6 +12,7 @@ __all__ = [
     "WeakSubjectivityService",
     "CheckpointCertificate",
     "CheckpointStore",
+    "bind_persisted_ws",
     "evaluate_with_window",
     "shares_ancestor_with_anchor",
 ]

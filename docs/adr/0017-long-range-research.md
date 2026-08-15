@@ -16,15 +16,18 @@ need an explicit weak-subjectivity (WS) story before claiming Long-Range safety.
    **stale-fork policy** used only when `FEATURE_LONG_RANGE=true`.
 2. Keep industrial prod mesh (`778888`) with `feature_long_range=false`.
 3. Lab proof: `scripts/long_range_lab.py` simulates a stale competing history
-   below a WS anchor and asserts refuse/accept policy; TipSafety tip-import
-   gate may refuse when a WS anchor is set (`FEATURE_LONG_RANGE`).
+   below a WS anchor and asserts refuse/accept policy. TipSafety tip-import
+   with `FEATURE_LONG_RANGE` attached **HARD REFUSE**s histories below a
+   persisted height+hash checkpoint (`ABS_WS_CHECKPOINT_PATH`) and **HARD
+   REFUSE**s when the store is empty (`ws_no_anchor`).
 4. Do **not** set `finality_quorum_live=true` from this ADR.
 
 ## Honesty
 
 - Lab PASS ≠ mainnet Long-Range proof.
+- Persist is digest-only JSON (not BLS, not a live checkpoint quorum).
 - AncestryWindow remains the production tip-safety bound unless the flag is on.
-- Audit-pin tree must not enable this flag.
+- Audit-pin tree must not enable this flag. Industrial JSON stays `false`.
 
 ## Consequences
 

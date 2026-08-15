@@ -7,6 +7,8 @@ Wave-5: TipSafetyService WS tip-import gate (below-anchor refuse).
 Wave-6: CheckpointStore rotation (bounded history).
 Wave-7: CheckpointStore.apply_latest → WeakSubjectivityService.
 Wave-8: CheckpointStore save/load JSON persistence.
+Wave-9: persist height+hash, restart bind, tip-import HARD REFUSE below
+        and when the store is empty (no_anchor).
 
 Usage:
   python scripts/long_range_lab.py
@@ -26,6 +28,7 @@ from consensus.long_range import (
     CheckpointCertificate,
     CheckpointStore,
     WeakSubjectivityService,
+    bind_persisted_ws,
     evaluate_with_window,
 )
 from consensus.tip_safety import TipSafetyService
@@ -129,13 +132,56 @@ def main() -> int:
         print("FAIL: checkpoint store save/load")
         return 1
 
-    print("Long-Range lab wave-8 (store persist + tip-import WS gate)")
+    # Wave-9: disk persist survives a new service; below-anchor is HARD REFUSE.
+    with tempfile.TemporaryDirectory() as tmp:
+        persist = Path(tmp) / "ws_restart.json"
+        seeded = bind_persisted_ws(
+            path=persist, env_height="10", env_hash="ff" * 32
+        )
+        if seeded.get_anchor() is None or seeded.get_anchor().height != 10:
+            print("FAIL: env seed did not persist anchor")
+            return 1
+        restarted = bind_persisted_ws(path=persist)
+        if restarted.get_anchor() is None or restarted.get_anchor().height != 10:
+            print("FAIL: restart did not load persisted height+hash")
+            return 1
+        restart_tip = TipSafetyService(
+            TipState(head=tip_block), ancestry=tip_w, ws_service=restarted
+        )
+        restart_dec = restart_tip.evaluate_candidate(tip_child)
+        if (
+            restart_dec.outcome != ApplyOutcome.REJECT
+            or restart_dec.reason_code != "ws_below_ws_anchor"
+        ):
+            print(
+                f"FAIL: restart tip gate expected ws_below_ws_anchor got "
+                f"{restart_dec.outcome}/{restart_dec.reason_code}"
+            )
+            return 1
+        empty = bind_persisted_ws(path=Path(tmp) / "missing.json")
+        empty_tip = TipSafetyService(
+            TipState(head=tip_block), ancestry=tip_w, ws_service=empty
+        )
+        empty_dec = empty_tip.evaluate_candidate(tip_child)
+        if (
+            empty_dec.outcome != ApplyOutcome.REJECT
+            or empty_dec.reason_code != "ws_no_anchor"
+        ):
+            print(
+                f"FAIL: empty store expected ws_no_anchor got "
+                f"{empty_dec.outcome}/{empty_dec.reason_code}"
+            )
+            return 1
+
+    print("Long-Range lab wave-9 (persist restart + tip-import HARD REFUSE)")
     print(f"  cert digest: {cert.digest[:16]}... verify={cert.verify_digest()}")
     print(f"  WS child:   accept={ok.accept} reason={ok.reason}")
     print(f"  stale fork: accept={bad.accept} reason={bad.reason}")
     print(f"  below:      accept={below.accept} reason={below.reason}")
     print(f"  import:     digest_match={restored.digest == cert.digest}")
     print(f"  tip gate:   reject={tip_dec.reason_code}")
+    print(f"  restart:    reject={restart_dec.reason_code}")
+    print(f"  no_anchor:  reject={empty_dec.reason_code}")
     print(f"  store:      history={len(store)} latest_h={store.latest().anchor.height}")
 
     if not ok.accept or bad.accept or below.accept:
@@ -149,7 +195,7 @@ def main() -> int:
     if below.reason != "below_ws_anchor":
         print(f"FAIL: expected below_ws_anchor got {below.reason}")
         return 1
-    print("OK: long_range_lab PASS (research only; not tip proof)")
+    print("OK: long_range_lab PASS (research only; persist+refuse; not tip proof)")
     return 0
 
 

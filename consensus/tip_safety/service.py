@@ -115,9 +115,9 @@ class TipSafetyService:
                 from consensus.long_range.ancestry_bridge import evaluate_block_ref
 
                 ws_dec = evaluate_block_ref(self._ws, self._ancestry, candidate)
-                # no_anchor is informational — do not block tip import until
-                # an operator sets a WS checkpoint (ADR 0017).
-                if not ws_dec.accept and ws_dec.reason != "no_anchor":
+                # FEATURE_LONG_RANGE attached: refuse including no_anchor.
+                # Armed without a persisted checkpoint is not Long-Range protection.
+                if not ws_dec.accept:
                     _LOG.info(
                         "evaluate_candidate WS refuse reason=%s height=%s",
                         ws_dec.reason,

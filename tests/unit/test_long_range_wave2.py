@@ -6,6 +6,7 @@ from consensus.long_range import (
     CheckpointCertificate,
     CheckpointStore,
     WeakSubjectivityService,
+    bind_persisted_ws,
     evaluate_with_window,
     shares_ancestor_with_anchor,
 )
@@ -76,9 +77,54 @@ def test_checkpoint_store_save_load(tmp_path) -> None:
     store.push(CheckpointCertificate.issue(height=2, block_hash="bb" * 32))
     path = tmp_path / "ws.json"
     store.save(path)
+    assert not path.with_name(path.name + ".tmp").exists()
     loaded = CheckpointStore.load(path)
     assert len(loaded) == 2
     assert loaded.latest().digest == store.latest().digest
+
+
+def test_bind_persisted_ws_restart_loads_disk_not_env(tmp_path) -> None:
+    path = tmp_path / "ws.json"
+    store = CheckpointStore()
+    store.push(CheckpointCertificate.issue(height=10, block_hash="aa" * 32))
+    store.save(path)
+    svc = bind_persisted_ws(
+        path=path,
+        env_height="1",
+        env_hash="bb" * 32,
+    )
+    assert svc.get_anchor() is not None
+    assert svc.get_anchor().height == 10
+    assert svc.get_anchor().block_hash == "aa" * 32
+
+
+def test_bind_persisted_ws_env_seeds_and_survives_restart(tmp_path) -> None:
+    path = tmp_path / "ws.json"
+    first = bind_persisted_ws(
+        path=path,
+        env_height="7",
+        env_hash="cc" * 32,
+    )
+    assert first.get_anchor() is not None
+    assert first.get_anchor().height == 7
+    assert path.is_file()
+    restarted = bind_persisted_ws(path=path)
+    assert restarted.get_anchor() is not None
+    assert restarted.get_anchor().height == 7
+    assert restarted.get_anchor().block_hash == "cc" * 32
+
+
+def test_bind_persisted_ws_empty_store_is_no_anchor(tmp_path) -> None:
+    path = tmp_path / "missing.json"
+    svc = bind_persisted_ws(path=path)
+    assert svc.get_anchor() is None
+    d = svc.evaluate_stale_fork(
+        candidate_height=1,
+        candidate_hash="ee" * 32,
+        shares_ancestor_with_anchor=True,
+    )
+    assert d.accept is False
+    assert d.reason == "no_anchor"
 
 
 def test_shares_ancestor_walk() -> None:

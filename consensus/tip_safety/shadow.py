@@ -23,27 +23,31 @@ _GENESIS_HASH = "0" * 64
 
 
 def _optional_ws_service_from_env() -> Optional[Any]:
-    """Attach ADR 0017 WS gate when FEATURE_LONG_RANGE (optional anchor via env)."""
+    """Attach ADR 0017 WS gate when FEATURE_LONG_RANGE.
+
+    Persist path: ``ABS_WS_CHECKPOINT_PATH`` (height+hash JSON). Optional
+    ``ABS_WS_ANCHOR_HEIGHT`` / ``ABS_WS_ANCHOR_HASH`` seed an empty store once
+    and are written to disk so a restart does not depend on env. Init errors
+    return an empty WS service (tip-import refuses) — never drop the gate.
+    """
     import os
 
     flag = str(os.environ.get("FEATURE_LONG_RANGE", "") or "").strip().lower()
     if flag not in ("1", "true", "yes", "on"):
         return None
     try:
-        from consensus.long_range import CheckpointCertificate, WeakSubjectivityService
+        from consensus.long_range.checkpoint_store import bind_persisted_ws
 
-        svc = WeakSubjectivityService()
-        h_raw = str(os.environ.get("ABS_WS_ANCHOR_HEIGHT", "") or "").strip()
-        hash_raw = str(os.environ.get("ABS_WS_ANCHOR_HASH", "") or "").strip()
-        if h_raw and hash_raw:
-            cert = CheckpointCertificate.issue(
-                height=int(h_raw), block_hash=hash_raw, issuer="env"
-            )
-            svc.set_anchor(cert.anchor)
-        return svc
+        return bind_persisted_ws(
+            path=str(os.environ.get("ABS_WS_CHECKPOINT_PATH", "") or "").strip() or None,
+            env_height=str(os.environ.get("ABS_WS_ANCHOR_HEIGHT", "") or "").strip(),
+            env_hash=str(os.environ.get("ABS_WS_ANCHOR_HASH", "") or "").strip(),
+        )
     except Exception as exc:
-        _LOG.warning("FEATURE_LONG_RANGE WS service init failed: %s", exc)
-        return None
+        _LOG.warning("FEATURE_LONG_RANGE WS service init failed (fail-closed empty): %s", exc)
+        from consensus.long_range import WeakSubjectivityService
+
+        return WeakSubjectivityService()
 
 
 def block_ref_from_mapping(data: Mapping[str, Any]) -> BlockRef:

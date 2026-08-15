@@ -21,6 +21,7 @@ Canonical language for this repository is **English**. Older inherited entries b
 - EVM execution: nested inline CALL `RETURNDATACOPY` / `RETURNDATASIZE` use the live return buffer (child RETURN and REVERT data). Not a sealed header. Soak not run.
 - EVM execution: inline STATICCALL refuses SSTORE/LOG/CREATE/TSTORE/SELFDESTRUCT and value-CALL; child storage is not committed; parent continues. Soak not run.
 - EVM execution: nested CALL OOG burns all forwarded gas and does not commit child writes; REVERT still refunds unused gas. Parent continues. Soak not run.
+- Long-Range (ADR 0017): persisted WS checkpoint (`ABS_WS_CHECKPOINT_PATH`, height+hash) survives restart; tip-import HARD REFUSE below the anchor and when the store is empty (`ws_no_anchor`). Digest-only JSON, not a live quorum. `feature_long_range=false` on industrial JSON. Soak not run.
 
 ---
 

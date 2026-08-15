@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections import deque
 from pathlib import Path
 from typing import Deque, List, Optional, Union
@@ -43,14 +44,16 @@ class CheckpointStore:
         return True
 
     def save(self, path: Union[str, Path]) -> Path:
-        """Persist history as JSON (wave-8 lab handoff)."""
+        """Persist history as JSON (atomic replace)."""
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "max_history": self._max,
             "items": [dict(c.to_dict()) for c in self._items],
         }
-        p.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        tmp = p.with_name(p.name + ".tmp")
+        tmp.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        os.replace(tmp, p)
         return p
 
     @classmethod
@@ -63,5 +66,43 @@ class CheckpointStore:
             store.push(CheckpointCertificate.from_dict(item))
         return store
 
+    @classmethod
+    def load_or_empty(cls, path: Union[str, Path, None]) -> "CheckpointStore":
+        """Missing path/file → empty store (caller must fail-closed on no_anchor)."""
+        if path is None or not str(path).strip():
+            return cls()
+        p = Path(path)
+        if not p.is_file():
+            return cls()
+        return cls.load(p)
+
     def __len__(self) -> int:
         return len(self._items)
+
+
+def bind_persisted_ws(
+    *,
+    path: Union[str, Path, None] = None,
+    env_height: str = "",
+    env_hash: str = "",
+) -> WeakSubjectivityService:
+    """Load WS anchor from disk; seed from env once and persist for restart.
+
+    Empty store and empty env → service with no anchor (tip-import must refuse).
+    """
+    svc = WeakSubjectivityService()
+    store = CheckpointStore.load_or_empty(path)
+    if store.apply_latest(svc):
+        return svc
+    h_raw = str(env_height or "").strip()
+    hash_raw = str(env_hash or "").strip()
+    if not h_raw or not hash_raw:
+        return svc
+    cert = CheckpointCertificate.issue(
+        height=int(h_raw), block_hash=hash_raw, issuer="env"
+    )
+    store.push(cert)
+    svc.set_anchor(cert.anchor)
+    if path and str(path).strip():
+        store.save(path)
+    return svc

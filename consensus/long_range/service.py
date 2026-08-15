@@ -13,8 +13,9 @@ from consensus.long_range.ports import (
 class WeakSubjectivityService:
     """Refuse histories that fork below the WS anchor (classic Long-Range refuse).
 
-    When no anchor is set, decisions are informational only (accept=False with
-    reason ``no_anchor``) so industrial defaults stay fail-closed.
+    When no anchor is set, ``evaluate_stale_fork`` returns accept=False /
+    ``no_anchor``. Tip-import with this service attached must refuse that
+    reason (armed Long-Range without a checkpoint is not protection).
     """
 
     def __init__(self) -> None:
