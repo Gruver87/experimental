@@ -10,6 +10,7 @@ Wave-8: CheckpointStore save/load JSON persistence.
 Wave-9: persist height+hash, restart bind, tip-import HARD REFUSE below
         and when the store is empty (no_anchor).
 Wave-10: checkpoint height is unique (wrong hash → anchor_hash_mismatch).
+Wave-11: persist JSON without digest is refused (cannot rewrite height/hash).
 
 Usage:
   python scripts/long_range_lab.py
@@ -17,6 +18,7 @@ Usage:
 
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 from pathlib import Path
@@ -205,7 +207,36 @@ def main() -> int:
         )
         return 1
 
-    print("Long-Range lab wave-10 (anchor height unique hash + persist refuse)")
+    # Wave-11: missing digest cannot rewrite height/hash into a loaded anchor.
+    with tempfile.TemporaryDirectory() as tmp:
+        bad_path = Path(tmp) / "no_digest.json"
+        bad_path.write_text(
+            json.dumps(
+                {
+                    "max_history": 8,
+                    "items": [
+                        {
+                            "height": 1,
+                            "block_hash": "aa" * 32,
+                            "epoch": 0,
+                            "issuer": "lab",
+                            "issued_at_height": 1,
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        try:
+            bind_persisted_ws(path=bad_path)
+            print("FAIL: missing digest loaded as WS anchor")
+            return 1
+        except ValueError as exc:
+            if "digest" not in str(exc).lower():
+                print(f"FAIL: expected digest error got {exc}")
+                return 1
+
+    print("Long-Range lab wave-11 (digest required on persist load)")
     print(f"  cert digest: {cert.digest[:16]}... verify={cert.verify_digest()}")
     print(f"  WS child:   accept={ok.accept} reason={ok.reason}")
     print(f"  stale fork: accept={bad.accept} reason={bad.reason}")
@@ -216,6 +247,7 @@ def main() -> int:
     print(f"  no_anchor:  reject={empty_dec.reason_code}")
     print(f"  mismatch:   reject={mismatch.reason}")
     print(f"  is_anchor:  accept={exact.reason}")
+    print("  no_digest:  refused")
     print(f"  store:      history={len(store)} latest_h={store.latest().anchor.height}")
 
     if not ok.accept or bad.accept or below.accept:

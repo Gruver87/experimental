@@ -48,6 +48,45 @@ def test_checkpoint_from_dict_digest_mismatch() -> None:
         CheckpointCertificate.from_dict(bad)
 
 
+def test_checkpoint_from_dict_refuses_missing_digest() -> None:
+    """Omitting digest must not accept a rewritten height/hash."""
+    import pytest
+
+    c = CheckpointCertificate.issue(height=10, block_hash="aa" * 32)
+    stripped = dict(c.to_dict())
+    stripped.pop("digest", None)
+    stripped["height"] = 1
+    with pytest.raises(ValueError, match="digest missing"):
+        CheckpointCertificate.from_dict(stripped)
+
+
+def test_checkpoint_store_load_refuses_item_without_digest(tmp_path) -> None:
+    import json
+
+    import pytest
+
+    path = tmp_path / "ws.json"
+    path.write_text(
+        json.dumps(
+            {
+                "max_history": 8,
+                "items": [
+                    {
+                        "height": 1,
+                        "block_hash": "aa" * 32,
+                        "epoch": 0,
+                        "issuer": "lab",
+                        "issued_at_height": 1,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="digest missing"):
+        CheckpointStore.load(path)
+
+
 def test_checkpoint_store_rotation() -> None:
     store = CheckpointStore(max_history=2)
     a = CheckpointCertificate.issue(height=1, block_hash="aa" * 32)

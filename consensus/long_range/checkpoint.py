@@ -75,7 +75,11 @@ class CheckpointCertificate:
 
     @staticmethod
     def from_dict(data: Mapping[str, Any]) -> "CheckpointCertificate":
-        """Rehydrate a certificate and re-verify digest (fail-closed)."""
+        """Rehydrate a certificate and require a matching digest (fail-closed).
+
+        A missing digest is not a valid persist record: otherwise height/hash
+        can be rewritten and the checksum skipped.
+        """
         if not isinstance(data, Mapping):
             raise ValueError("checkpoint must be a mapping")
         cert = CheckpointCertificate.issue(
@@ -89,8 +93,10 @@ class CheckpointCertificate:
                 else data["height"]
             ),
         )
-        expected = str(data.get("digest") or "").lower()
-        if expected and expected != cert.digest:
+        expected = str(data.get("digest") or "").strip().lower()
+        if not expected:
+            raise ValueError("checkpoint digest missing")
+        if expected != cert.digest:
             raise ValueError("checkpoint digest mismatch")
         if not cert.verify_digest():
             raise ValueError("checkpoint digest invalid")

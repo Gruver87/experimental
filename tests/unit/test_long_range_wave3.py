@@ -156,3 +156,42 @@ def test_optional_ws_restart_from_checkpoint_path(monkeypatch, tmp_path) -> None
     d = tip.evaluate_candidate(child)
     assert d.outcome == ApplyOutcome.REJECT
     assert d.reason_code == "ws_below_ws_anchor"
+
+
+def test_optional_ws_missing_digest_file_fail_closed_empty(monkeypatch, tmp_path) -> None:
+    """Corrupt persist (no digest) must not drop the WS gate or load a lowered height."""
+    import json
+
+    from consensus.tip_safety.shadow import _optional_ws_service_from_env
+
+    path = tmp_path / "ws.json"
+    path.write_text(
+        json.dumps(
+            {
+                "max_history": 8,
+                "items": [
+                    {
+                        "height": 1,
+                        "block_hash": "aa" * 32,
+                        "epoch": 0,
+                        "issuer": "lab",
+                        "issued_at_height": 1,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("FEATURE_LONG_RANGE", "true")
+    monkeypatch.setenv("ABS_WS_CHECKPOINT_PATH", str(path))
+    monkeypatch.delenv("ABS_WS_ANCHOR_HEIGHT", raising=False)
+    monkeypatch.delenv("ABS_WS_ANCHOR_HASH", raising=False)
+    svc = _optional_ws_service_from_env()
+    assert svc is not None
+    assert svc.get_anchor() is None
+    w, _mid, anchor = _seed()
+    tip = TipSafetyService(TipState(head=anchor), ancestry=w, ws_service=svc)
+    child = BlockRef(height=3, block_hash="bb" * 32, parent_hash=anchor.block_hash)
+    d = tip.evaluate_candidate(child)
+    assert d.outcome == ApplyOutcome.REJECT
+    assert d.reason_code == "ws_no_anchor"
