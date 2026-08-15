@@ -144,6 +144,7 @@ LABS = [
     ("CT", "scripts/libp2p_rust_identity_parent_unattested_lab.py"),
     ("CU", "scripts/libp2p_rust_persist_tmp_per_thread_lab.py"),
     ("CV", "scripts/libp2p_rust_persist_tmp_stale_tid_lab.py"),
+    ("CW", "scripts/libp2p_rust_circuit_excluded_from_external_book_lab.py"),
 ]
 
 

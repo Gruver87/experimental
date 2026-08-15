@@ -290,6 +290,8 @@ jobs:
         run: python scripts/libp2p_rust_persist_tmp_per_thread_lab.py
       - name: rust-libp2p persist tmp stale-tid sweep lab (Slice CV)
         run: python scripts/libp2p_rust_persist_tmp_stale_tid_lab.py
+      - name: rust-libp2p circuit excluded from ExternalAddresses book lab (Slice CW)
+        run: python scripts/libp2p_rust_circuit_excluded_from_external_book_lab.py
       - name: adapter + wire-bridge units
         run: pytest -q tests/unit/test_libp2p_adapter.py tests/unit/test_libp2p_wire_bridge.py tests/unit/test_libp2p_status_metrics.py tests/unit/test_cargo_test_abs_native.py tests/unit/test_package_libp2p_evidence.py
       - name: package ADR 0019 evidence pack

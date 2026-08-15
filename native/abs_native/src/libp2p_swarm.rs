@@ -91,6 +91,7 @@
 //! Slice CT: identity parent ACL is always attested (relative→cwd; volume root refuse).
 //! Slice CU: persist staging tmp is per-thread (`dest.{pid}.{tid}.tmp`).
 //! Slice CV: sweep stale other-tid persist tmp; skip in-flight writers.
+//! Slice CW: circuit `/p2p-circuit` never occupies rust-libp2p ExternalAddresses.
 //!
 //! Honesty: compiled swarm ≠ prod industrial mesh (TCP+TLS remains default).
 
@@ -156,10 +157,12 @@ pub const DEFAULT_IDENTIFY_INTERVAL_MS: u64 = 5 * 60 * 1000;
 /// evicts the oldest confirmed external past this count. Slice CA: our
 /// advertised unique cap must not exceed this book — refuse, not silent drop.
 pub const LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX: usize = 20;
-/// Slice BR/BS/BT/BU/CA: hard ceiling on advertised externals. Unique charged
+/// Slice BR/BS/BT/BU/CA/CW: hard ceiling on advertised externals. Unique charged
 /// addrs (operator + listen-derived + observed/UPnP/rendezvous aux) ≤ this
-/// value. Circuit `/p2p-circuit` is not counted. Env/arg may only lower this;
-/// values above refuse spawn. Must equal `LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX`.
+/// value. Circuit `/p2p-circuit` is not counted **and** is never inserted into
+/// the crate ExternalAddresses book (silent eviction of a charged addr).
+/// Env/arg may only lower this; values above refuse spawn. Must equal
+/// `LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX`.
 pub const MAX_ADVERTISED_EXTERNAL_ADDRS: usize = LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX;
 
 const _: () = assert!(
@@ -213,6 +216,9 @@ pub fn parse_external_addrs_json(raw: &str) -> Result<Vec<String>, String> {
         }
         if !s.starts_with('/') {
             return Err(format!("external addrs json: not a multiaddr: {s}"));
+        }
+        if multiaddr_is_p2p_circuit(s) {
+            return Err(CIRCUIT_EXCLUDED_FROM_EXTERNAL_BOOK_MSG.into());
         }
         if seen.insert(s.to_string()) {
             out.push(s.to_string());
@@ -272,6 +278,25 @@ pub fn persist_tmp_strategy() -> &'static str {
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub fn persist_tmp_stale_tid_strategy() -> &'static str {
     "unlink_not_in_flight"
+}
+
+/// Slice CW: `/p2p-circuit` must not occupy rust-libp2p `ExternalAddresses`
+/// slots. Circuit is excluded from the unique advertised cap, so
+/// `Swarm::add_external_address(circuit)` after 20 charged unique addrs
+/// silently evicts a charged operator/listen addr (crate book = 20).
+/// Protocol component is the exact token `p2p-circuit` (not a DNS label).
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn multiaddr_is_p2p_circuit(s: &str) -> bool {
+    s.split('/').any(|p| p == "p2p-circuit")
+}
+
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub const CIRCUIT_EXCLUDED_FROM_EXTERNAL_BOOK_MSG: &str =
+    "circuit /p2p-circuit excluded from ExternalAddresses book";
+
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
+pub fn circuit_excluded_from_external_book_strategy() -> &'static str {
+    "never_add_external_address"
 }
 
 #[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
@@ -1666,6 +1691,9 @@ pub fn save_external_addrs_file(path: &std::path::Path, addrs: &[String]) -> Res
             MAX_ADVERTISED_EXTERNAL_ADDRS
         ));
     }
+    if addrs.iter().any(|a| multiaddr_is_p2p_circuit(a)) {
+        return Err(CIRCUIT_EXCLUDED_FROM_EXTERNAL_BOOK_MSG.into());
+    }
     let body = encode_external_addrs_json(addrs)?;
     atomic_write_file(path, body.as_bytes())
 }
@@ -1692,7 +1720,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(feature = "libp2p")]
 mod enabled {
     use super::{
-        atomic_write_file, atomic_write_file_exclusive, external_addrs_replace_strategy,
+        atomic_write_file, atomic_write_file_exclusive,
+        circuit_excluded_from_external_book_strategy, external_addrs_replace_strategy,
         identity_create_exclusive_strategy, identity_key_callback_ace_strategy,
         identity_key_existing_acl_strategy, identity_key_mode_strategy,
         identity_key_null_dacl_strategy, identity_key_parent_dir_strategy,
@@ -1701,7 +1730,8 @@ mod enabled {
         persist_json_acl_strategy, persist_mkdir_fsync_strategy, persist_parent_dir_fsync_strategy,
         persist_tmp_stale_tid_strategy, persist_tmp_strategy, ABS_GOSSIP_BLOCKS_TOPIC,
         ABS_IDENTIFY_PROTOCOL_VERSION, ABS_KAD_PROTOCOL, ABS_RENDEZVOUS_NAMESPACE,
-        ABS_WIRE_PROTOCOL, DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_IDENTIFY_INTERVAL_MS,
+        ABS_WIRE_PROTOCOL, CIRCUIT_EXCLUDED_FROM_EXTERNAL_BOOK_MSG,
+        DEFAULT_BOOTSTRAP_DIAL_TIMEOUT_SECS, DEFAULT_IDENTIFY_INTERVAL_MS,
         DEFAULT_IDLE_CONNECTION_TIMEOUT_SECS, DEFAULT_MAX_DIALS, DEFAULT_MDNS_TTL_SECS,
         DEFAULT_PING_INTERVAL_SECS, DEFAULT_PING_MAX_FAILS, DEFAULT_PING_TIMEOUT_SECS,
         DEFAULT_RECONNECT_BASE_MS, DEFAULT_RECONNECT_DIAL_TIMEOUT_SECS,
@@ -2282,6 +2312,24 @@ mod enabled {
         }
         io.flush().await?;
         Ok(())
+    }
+
+    /// Slice CW: circuit `/p2p-circuit` must not occupy rust-libp2p
+    /// `ExternalAddresses` (Identify / Kad / Relay / rendezvous PeerRecord).
+    /// Circuit is excluded from the unique advertised cap, so adding it to the
+    /// crate book of 20 after 20 charged unique addrs silently evicts a charged
+    /// addr. Advertise circuit via Capped* `NewListenAddr` only.
+    fn swarm_may_add_external_address(ma: &Multiaddr) -> bool {
+        !ma.iter().any(|p| matches!(p, Protocol::P2pCircuit))
+    }
+
+    fn swarm_add_external_if_charged<B: NetworkBehaviour>(
+        swarm: &mut libp2p::Swarm<B>,
+        ma: Multiaddr,
+    ) {
+        if swarm_may_add_external_address(&ma) {
+            swarm.add_external_address(ma);
+        }
     }
 
     /// Identify / DCUtR candidates often append `/p2p/<local>`. Charge against the
@@ -4229,7 +4277,11 @@ mod enabled {
                     .unwrap_or_default();
                 for s in restore {
                     if let Ok(ma) = s.parse::<Multiaddr>() {
-                        swarm.add_external_address(ma);
+                        // Slice CW: circuit never occupies the crate book.
+                        if !swarm_may_add_external_address(&ma) {
+                            continue;
+                        }
+                        swarm_add_external_if_charged(&mut swarm, ma);
                         if let Ok(mut st) = state_bg.lock() {
                             if !st.external_addrs.contains(&s) {
                                 st.external_addrs.push(s.clone());
@@ -5163,11 +5215,9 @@ mod enabled {
                                         .unwrap_or_default();
                                     for a in listen_snapshot {
                                         if let Ok(ma) = a.parse::<Multiaddr>() {
-                                            let is_circuit = ma
-                                                .iter()
-                                                .any(|p| matches!(p, Protocol::P2pCircuit));
-                                            if is_circuit {
-                                                swarm.add_external_address(ma);
+                                            // Slice CW: circuit stays on listen; do not occupy
+                                            // rust-libp2p ExternalAddresses (silent eviction).
+                                            if !swarm_may_add_external_address(&ma) {
                                                 continue;
                                             }
                                             let admit = match state_bg.lock() {
@@ -5182,7 +5232,7 @@ mod enabled {
                                             };
                                             match admit {
                                                 Ok(_) => {
-                                                    swarm.add_external_address(ma);
+                                                    swarm_add_external_if_charged(&mut swarm, ma);
                                                     if let Ok(mut st) = state_bg.lock() {
                                                         if !st.external_addrs.contains(&a) {
                                                             st.external_addrs.push(a);
@@ -5279,8 +5329,15 @@ mod enabled {
                                 Some(Cmd::AddExternalAddress { addr, reply }) => {
                                     // Slice BO: bool = newly inserted; bump confirmed only then.
                                     // Slice BP: persist operator-advertised addrs (fail-closed).
+                                    // Slice CW: circuit never occupies rust-libp2p ExternalAddresses.
                                     match addr.parse::<Multiaddr>() {
                                         Ok(ma) => {
+                                            if !swarm_may_add_external_address(&ma) {
+                                                let _ = reply.send(Err(
+                                                    CIRCUIT_EXCLUDED_FROM_EXTERNAL_BOOK_MSG.into(),
+                                                ));
+                                                continue;
+                                            }
                                             let s = ma.to_string();
                                             let present = match state_bg.lock() {
                                                 Ok(st) => {
@@ -5332,7 +5389,7 @@ mod enabled {
                                                 let _ = reply.send(Err(e));
                                                 continue;
                                             }
-                                            swarm.add_external_address(ma);
+                                            swarm_add_external_if_charged(&mut swarm, ma);
                                             if let Ok(mut st) = state_bg.lock() {
                                                 st.external_addr_confirmed = st
                                                     .external_addr_confirmed
@@ -5886,24 +5943,25 @@ mod enabled {
                                     match addr.parse::<Multiaddr>() {
                                         Ok(ma) => {
                                             let s = ma.to_string();
-                                            let is_circuit = ma
-                                                .iter()
-                                                .any(|p| matches!(p, Protocol::P2pCircuit));
-                                            if !is_circuit {
-                                                let admit = match state_bg.lock() {
-                                                    Ok(mut st) => {
-                                                        admit_aux_advertised_external(&mut st, &s)
-                                                    }
-                                                    Err(_) => {
-                                                        Err("state lock poisoned".into())
-                                                    }
-                                                };
-                                                if let Err(msg) = admit {
-                                                    let _ = reply.send(Err(msg));
-                                                    continue;
-                                                }
+                                            if !swarm_may_add_external_address(&ma) {
+                                                let _ = reply.send(Err(
+                                                    CIRCUIT_EXCLUDED_FROM_EXTERNAL_BOOK_MSG.into(),
+                                                ));
+                                                continue;
                                             }
-                                            swarm.add_external_address(ma);
+                                            let admit = match state_bg.lock() {
+                                                Ok(mut st) => {
+                                                    admit_aux_advertised_external(&mut st, &s)
+                                                }
+                                                Err(_) => {
+                                                    Err("state lock poisoned".into())
+                                                }
+                                            };
+                                            if let Err(msg) = admit {
+                                                let _ = reply.send(Err(msg));
+                                                continue;
+                                            }
+                                            swarm_add_external_if_charged(&mut swarm, ma);
                                             if let Ok(mut st) = state_bg.lock() {
                                                 st.external_addr_confirmed = st
                                                     .external_addr_confirmed
@@ -6124,7 +6182,10 @@ mod enabled {
                                         false
                                     };
                                     if advertise_listen {
-                                        swarm.add_external_address(address.clone());
+                                        swarm_add_external_if_charged(
+                                            &mut swarm,
+                                            address.clone(),
+                                        );
                                     }
                                     if let Ok(mut st) = state_bg.lock() {
                                         st.new_listen_addr =
@@ -6639,7 +6700,7 @@ mod enabled {
                                         let listen_derived =
                                             st.listen_addrs.iter().any(|a| a == &s);
                                         let admit_ok = if is_circuit {
-                                            true
+                                            false
                                         } else if listen_derived {
                                             admit_listen_derived_external(&mut st, &s).is_ok()
                                         } else {
@@ -6909,11 +6970,9 @@ mod enabled {
                                             if auto_confirm && !obs.is_empty() {
                                                 if let Ok(ma) = obs.parse::<Multiaddr>() {
                                                     let s = ma.to_string();
-                                                    let is_circuit = ma.iter().any(|p| {
-                                                        matches!(p, Protocol::P2pCircuit)
-                                                    });
-                                                    let admit_ok = is_circuit
-                                                        || match state_bg.lock() {
+                                                    let admit_ok = swarm_may_add_external_address(
+                                                        &ma,
+                                                    ) && match state_bg.lock() {
                                                             Ok(mut st) => {
                                                                 admit_aux_advertised_external(
                                                                     &mut st, &s,
@@ -6923,7 +6982,9 @@ mod enabled {
                                                             Err(_) => false,
                                                         };
                                                     if admit_ok {
-                                                        swarm.add_external_address(ma);
+                                                        swarm_add_external_if_charged(
+                                                            &mut swarm, ma,
+                                                        );
                                                         if let Ok(mut st) = state_bg.lock() {
                                                             st.external_addr_confirmed = st
                                                                 .external_addr_confirmed
@@ -7390,11 +7451,8 @@ mod enabled {
                                 SwarmEvent::Behaviour(AbsBehaviourEvent::Upnp(ev)) => match ev {
                                     upnp::Event::NewExternalAddr(addr) => {
                                         let s = addr.to_string();
-                                        let is_circuit = addr
-                                            .iter()
-                                            .any(|p| matches!(p, Protocol::P2pCircuit));
-                                        let admit_ok = is_circuit
-                                            || match state_bg.lock() {
+                                        let admit_ok = swarm_may_add_external_address(&addr)
+                                            && match state_bg.lock() {
                                                 Ok(mut st) => {
                                                     admit_aux_advertised_external(&mut st, &s)
                                                         .is_ok()
@@ -7402,7 +7460,10 @@ mod enabled {
                                                 Err(_) => false,
                                             };
                                         if admit_ok {
-                                            swarm.add_external_address(addr.clone());
+                                            swarm_add_external_if_charged(
+                                                &mut swarm,
+                                                addr.clone(),
+                                            );
                                         }
                                         if let Ok(mut st) = state_bg.lock() {
                                             st.upnp_external_addrs =
@@ -9289,7 +9350,7 @@ mod enabled {
                 let d = pyo3::types::PyDict::new_bound(py);
                 d.set_item("available", true)?;
                 d.set_item("transport", "libp2p")?;
-                d.set_item("phase", 99)?;
+                d.set_item("phase", 100)?;
                 d.set_item("noise", true)?;
                 d.set_item("yamux", true)?;
                 d.set_item("gossipsub", true)?;
@@ -9414,6 +9475,11 @@ mod enabled {
                 d.set_item("autonat_listen_addrs_capped", true)?;
                 d.set_item("upnp_listen_addrs_capped", true)?;
                 d.set_item("advertised_externals_libp2p_book_aligned", true)?;
+                d.set_item("circuit_excluded_from_external_book", true)?;
+                d.set_item(
+                    "circuit_excluded_from_external_book_strategy",
+                    circuit_excluded_from_external_book_strategy(),
+                )?;
                 d.set_item("dcutr_candidates_capped", true)?;
                 d.set_item("identify_candidates_capped", true)?;
                 d.set_item(
@@ -10618,6 +10684,10 @@ mod enabled {
             "PERSIST_TMP_STALE_TID_STRATEGY",
             persist_tmp_stale_tid_strategy(),
         )?;
+        m.add(
+            "CIRCUIT_EXCLUDED_FROM_EXTERNAL_BOOK_STRATEGY",
+            circuit_excluded_from_external_book_strategy(),
+        )?;
         Ok(())
     }
 }
@@ -10678,6 +10748,53 @@ mod tests {
             super::LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX
         );
         assert_eq!(super::LIBP2P_SWARM_EXTERNAL_ADDRESSES_MAX, 20);
+    }
+
+    #[test]
+    fn multiaddr_is_p2p_circuit_token_only() {
+        assert!(super::multiaddr_is_p2p_circuit(
+            "/ip4/192.0.2.1/tcp/4001/p2p-circuit"
+        ));
+        assert!(super::multiaddr_is_p2p_circuit(
+            "/ip4/127.0.0.1/tcp/4001/p2p-circuit/p2p/12D3KooWabcdef"
+        ));
+        assert!(!super::multiaddr_is_p2p_circuit("/ip4/192.0.2.1/tcp/4001"));
+        assert!(
+            !super::multiaddr_is_p2p_circuit("/dns4/p2p-circuit.example/tcp/4001"),
+            "DNS label must not count as the circuit protocol"
+        );
+        assert_eq!(
+            super::circuit_excluded_from_external_book_strategy(),
+            "never_add_external_address"
+        );
+    }
+
+    #[test]
+    fn parse_external_addrs_rejects_circuit() {
+        let err = parse_external_addrs_json(r#"{"addrs":["/ip4/192.0.2.1/tcp/4001/p2p-circuit"]}"#)
+            .expect_err("circuit");
+        assert!(
+            err.contains("p2p-circuit"),
+            "refuse text must name circuit: {err}"
+        );
+    }
+
+    #[test]
+    fn save_external_addrs_refuses_circuit() {
+        let dest = std::env::temp_dir().join(format!(
+            "abs-ext-circuit-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(23)
+        ));
+        let err =
+            super::save_external_addrs_file(&dest, &["/ip4/192.0.2.1/tcp/4001/p2p-circuit".into()])
+                .expect_err("circuit");
+        assert!(err.contains("p2p-circuit"), "{err}");
+        assert!(!dest.exists());
+        let _ = std::fs::remove_file(&dest);
     }
 
     #[test]

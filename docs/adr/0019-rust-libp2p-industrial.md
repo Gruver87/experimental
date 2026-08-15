@@ -138,6 +138,7 @@ feature `libp2p`), exposed to Python through the existing
 | Identity parent unattested refuse | Slice CT: relative key paths resolve against cwd; volume-root parents refuse (no fsync-heuristic skip); `libp2p_rust_identity_parent_unattested_lab.py` |
 | Persist tmp per-thread | Slice CU: staging `dest.{pid}.{tid}.tmp` so two threads in one PID do not share tmp; same-thread sequential persist reuses the name (leftover cleanup); dest after concurrent persist is one complete snapshot; JSON persist still last-writer-wins replace (CD); `libp2p_rust_persist_tmp_per_thread_lab.py` |
 | Persist tmp stale-tid sweep | Slice CV: unlink stale `dest.{pid}.{otherTid}.tmp` after tokio worker steal; skip in-flight writers; `libp2p_rust_persist_tmp_stale_tid_lab.py` |
+| Circuit excluded from ExternalAddresses | Slice CW: `/p2p-circuit` never `swarm.add_external_address` (no silent eviction of charged addrs from the crate book of 20); operator add and persist JSON refuse; `libp2p_rust_circuit_excluded_from_external_book_lab.py` |
 | Build | Cargo feature `libp2p` (opt-in); default wheel/CI without feature stays lean |
 | Repo | `Gruver87/experimental` only — never audit-pin |
 
@@ -245,6 +246,7 @@ feature `libp2p`), exposed to Python through the existing
 | CT | Relative identity paths resolve against cwd; volume-root parents refuse (ACL never skipped via fsync heuristic); `libp2p_rust_identity_parent_unattested_lab.py` |
 | CU | Persist staging tmp is per-thread (`dest.{pid}.{tid}.tmp`); same-thread name is stable for leftover cleanup; dest after concurrent persist is one complete snapshot; `libp2p_rust_persist_tmp_per_thread_lab.py` |
 | CV | Sweep stale other-tid persist tmp; skip in-flight concurrent writers; `libp2p_rust_persist_tmp_stale_tid_lab.py` |
+| CW | Circuit `/p2p-circuit` never occupies rust-libp2p ExternalAddresses book; operator add + persist JSON refuse; `libp2p_rust_circuit_excluded_from_external_book_lab.py` |
 
 ## Honesty
 
@@ -339,7 +341,8 @@ feature `libp2p`), exposed to Python through the existing
   `libp2p_rust_identity_parent_mkdir_recheck_lab.py`,
   `libp2p_rust_identity_parent_unattested_lab.py`,
   `libp2p_rust_persist_tmp_per_thread_lab.py`,
-  `libp2p_rust_persist_tmp_stale_tid_lab.py`;
+  `libp2p_rust_persist_tmp_stale_tid_lab.py`,
+  `libp2p_rust_circuit_excluded_from_external_book_lab.py`;
   evidence via `package_libp2p_evidence.py`.
 - Python edge: `wire_bridge` (ADR 0008 encode/admit/detect/admit_inbox),
   `Libp2pPeerPolicy` → PeerManager; `adapter.send_abs_wire` / `poll_admit_inbox`;
@@ -546,6 +549,17 @@ feature `libp2p`), exposed to Python through the existing
     of an open path would drop the writer's rename). Other-pid tmp is left
     alone. Capability `persist_tmp_stale_tid_sweep`. NTFS replace remains
     **not** POSIX inode-atomic.
+  Slice CW: CA aligned the unique charged cap to the crate
+    `ExternalAddresses` book of 20 because the crate silently evicts oldest
+    confirmed externals past that. Circuit `/p2p-circuit` is excluded from
+    the unique cap, but rendezvous / confirm-observed / UPnP / auto-confirm
+    still called `swarm.add_external_address` for circuit. A circuit add
+    after 20 charged unique addrs evicts a charged operator/listen addr
+    (wire Identify/Kad/rendezvous PeerRecord then lie). Circuit now never
+    occupies the crate book: operator `add_external_address` and persist
+    JSON refuse; Capped* still forward circuit `NewListenAddr` (Identify
+    listen). Capability `circuit_excluded_from_external_book`. NTFS replace
+    remains **not** POSIX inode-atomic.
   `status_metrics.LIBP2P_STATUS_METRIC_KEYS` shared with `/status`.
 - `get_p2p_security_status()["libp2p"]` + `/status` hardening snapshot fields.
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.

@@ -117,6 +117,10 @@ def hard_verify_lab_paths() -> Tuple[str, ...]:
         raise RuntimeError("hard-verify LABS missing Slice CU persist-tmp-per-thread lab")
     if "scripts/libp2p_rust_persist_tmp_stale_tid_lab.py" not in out:
         raise RuntimeError("hard-verify LABS missing Slice CV persist-tmp-stale-tid lab")
+    if "scripts/libp2p_rust_circuit_excluded_from_external_book_lab.py" not in out:
+        raise RuntimeError(
+            "hard-verify LABS missing Slice CW circuit-excluded-from-external-book lab"
+        )
     return tuple(out)
 
 

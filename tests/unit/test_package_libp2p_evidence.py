@@ -59,5 +59,6 @@ def test_evidence_labs_are_hard_verify_list() -> None:
     assert "scripts/libp2p_rust_identity_parent_unattested_lab.py" in pack.LABS
     assert "scripts/libp2p_rust_persist_tmp_per_thread_lab.py" in pack.LABS
     assert "scripts/libp2p_rust_persist_tmp_stale_tid_lab.py" in pack.LABS
+    assert "scripts/libp2p_rust_circuit_excluded_from_external_book_lab.py" in pack.LABS
     for rel in pack.LABS:
         assert (ROOT / rel).is_file(), rel

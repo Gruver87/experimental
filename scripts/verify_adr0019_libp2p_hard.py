@@ -376,6 +376,7 @@ LABS = [
     ("CT", "scripts/libp2p_rust_identity_parent_unattested_lab.py"),
     ("CU", "scripts/libp2p_rust_persist_tmp_per_thread_lab.py"),
     ("CV", "scripts/libp2p_rust_persist_tmp_stale_tid_lab.py"),
+    ("CW", "scripts/libp2p_rust_circuit_excluded_from_external_book_lab.py"),
 ]
 
 PROD_JSONS = (
@@ -569,8 +570,8 @@ def check_native_deep() -> tuple[bool, str]:
         cap = dict(a.capability_status())
         if cap.get("default_mesh") is not False:
             return False, "capability_status.default_mesh must be False"
-        if int(cap.get("phase") or 0) < 99:
-            return False, f"capability phase too low: {cap.get('phase')} (want >= 99 Slice CV)"
+        if int(cap.get("phase") or 0) < 100:
+            return False, f"capability phase too low: {cap.get('phase')} (want >= 100 Slice CW)"
         if not cap.get("external_addrs_replace_no_unlink"):
             return False, (
                 "capability external_addrs_replace_no_unlink missing "
@@ -752,6 +753,19 @@ def check_native_deep() -> tuple[bool, str]:
                 "persist tmp stale-tid strategy "
                 f"{cap.get('persist_tmp_stale_tid_strategy')!r} "
                 "!= unlink_not_in_flight (stale wheel — --rebuild)"
+            )
+        if not cap.get("circuit_excluded_from_external_book"):
+            return False, (
+                "capability circuit_excluded_from_external_book missing "
+                "(stale wheel — run verify_adr0019_libp2p_hard.py --rebuild)"
+            )
+        if cap.get("circuit_excluded_from_external_book_strategy") != (
+            "never_add_external_address"
+        ):
+            return False, (
+                "circuit excluded from external book strategy "
+                f"{cap.get('circuit_excluded_from_external_book_strategy')!r} "
+                "!= never_add_external_address (stale wheel — --rebuild)"
             )
         # Slice I API must exist
         a.block_peer(b.peer_id)
