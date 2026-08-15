@@ -117,7 +117,9 @@ class RustBridge:
             if not self._rust_bin:
                 msg = "Rust bridge binary not found"
                 print(f"[Bridge] ERROR: {msg} at '{config.rust_bridge_path}'")
-                if self._is_prod:
+                # Prod + bridge OFF still pins bridge_mode=rust; do not crash the node
+                # until the live cutover actually enables the bridge.
+                if self._is_prod and bool(getattr(config, "bridge_enabled", False)):
                     raise RuntimeError(msg)
                 self._mode = "unavailable"
             else:

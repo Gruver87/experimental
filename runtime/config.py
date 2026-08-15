@@ -1013,7 +1013,10 @@ class Config:
             resolved = self.resolve_rust_bridge_path()
             if not os.path.isfile(resolved):
                 msg = f"bridge_mode=rust but binary missing: {resolved}"
-                if self.is_production:
+                # Industrial mesh keeps bridge_mode=rust (simulator/fake forbidden)
+                # while bridge_enabled=false until L1 contracts. Missing abs_bridge_bin
+                # is an error only when the bridge is actually on (MAINNET_GAP / v1.3.09).
+                if self.is_production and self.bridge_enabled:
                     errors.append(msg)
         if self.is_production and self.bridge_mode == "simulator":
             errors.append("prod deployment should use bridge_mode=rust (or disable bridge)")

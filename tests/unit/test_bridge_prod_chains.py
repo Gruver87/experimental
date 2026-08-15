@@ -18,8 +18,10 @@ def _prod_bridge():
     db.initialize()
     cfg = Config(db_path=db.db_path)
     cfg.deployment_mode = "prod"
+    cfg.bridge_enabled = False
     cfg.bridge_mode = "rust"
-    cfg.rust_bridge_path = "bridge/abs_bridge_bin"
+    # Chain-policy unit test: path must exist so RustBridge constructs; not a live CLI.
+    cfg.rust_bridge_path = __file__
     return RustBridge(cfg, db)
 
 

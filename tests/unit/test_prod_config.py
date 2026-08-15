@@ -104,6 +104,31 @@ def test_prod_rejects_bridge_dev_adapter():
     assert any("BRIDGE_DEV_ADAPTER_ENABLED" in e for e in errs)
 
 
+def test_prod_missing_rust_bridge_ok_when_bridge_off():
+    """bridge_mode=rust + missing bin is not an error while bridge_enabled=false."""
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.bridge_enabled = False
+    cfg.bridge_mode = "rust"
+    cfg.rust_bridge_path = "bridge/abs_bridge_bin_absent_for_test"
+    cfg.require_wallet_file = False
+    cfg.rpc_api_key_required = False
+    errs = cfg.validate()
+    assert not any("binary missing" in e for e in errs), errs
+
+
+def test_prod_missing_rust_bridge_errors_when_bridge_on():
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.bridge_enabled = True
+    cfg.bridge_mode = "rust"
+    cfg.rust_bridge_path = "bridge/abs_bridge_bin_absent_for_test"
+    cfg.require_wallet_file = False
+    cfg.rpc_api_key_required = False
+    errs = cfg.validate()
+    assert any("binary missing" in e for e in errs), errs
+
+
 def test_prod_requires_jwt_secret():
     cfg = Config()
     cfg.deployment_mode = "prod"

@@ -30,7 +30,9 @@ def test_preflight_bridge_disabled_warns_only():
 def test_cutover_gate_fails_on_placeholder_rpc(monkeypatch):
     monkeypatch.setenv("ETH_RPC_URL", "https://rpc.example.com")
     monkeypatch.setenv("BRIDGE_REQUIRE_L1_EVENT", "true")
-    errors, warnings, meta = run_cutover_gate(probe_l1=False)
+    monkeypatch.setenv("RUST_BRIDGE_PATH", __file__)
+    with patch("bridge.health.check_rust_bridge_binary", return_value={"ok": True}):
+        errors, warnings, meta = run_cutover_gate(probe_l1=False)
     assert errors == []
     assert any("placeholder" in w for w in warnings)
     assert meta["ok"] is True
@@ -41,6 +43,7 @@ def test_cutover_gate_static_ok_with_valid_rpc(monkeypatch):
     monkeypatch.setenv("BRIDGE_L1_LOCK_CONTRACT", "0x" + "11" * 20)
     monkeypatch.setenv("BRIDGE_L1_MINT_CONTRACT", "0x" + "22" * 20)
     monkeypatch.setenv("BRIDGE_REQUIRE_L1_EVENT", "true")
+    monkeypatch.setenv("RUST_BRIDGE_PATH", __file__)
     monkeypatch.delenv("BRIDGE_ALLOW_SYNTHETIC", raising=False)
     with patch("bridge.health.check_rust_bridge_binary", return_value={"ok": True}):
         errors, _warnings, meta = run_cutover_gate(probe_l1=False)
@@ -131,6 +134,7 @@ def test_cutover_live_uses_prod_smoke(monkeypatch):
     monkeypatch.setenv("BRIDGE_L1_LOCK_CONTRACT", "0x" + "11" * 20)
     monkeypatch.setenv("BRIDGE_L1_MINT_CONTRACT", "0x" + "22" * 20)
     monkeypatch.delenv("BRIDGE_ALLOW_SYNTHETIC", raising=False)
+    monkeypatch.setenv("RUST_BRIDGE_PATH", __file__)
     fake_report = {
         "ok": True,
         "errors": [],

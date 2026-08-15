@@ -241,6 +241,16 @@ def test_prod_rpc_requires_key_and_restricts_cors(tmp_path):
     time.sleep(0.5)
     url = f"http://127.0.0.1:{cfg.rpc_port}"
 
+    def _urlopen_retry(request, timeout=5):
+        last_exc = None
+        for _ in range(4):
+            try:
+                return urllib.request.urlopen(request, timeout=timeout)
+            except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError, TimeoutError) as exc:
+                last_exc = exc
+                time.sleep(0.15)
+        raise last_exc
+
     try:
         payload = {"jsonrpc": "2.0", "method": "eth_chainId", "params": [], "id": 1}
         data = json.dumps(payload).encode()
@@ -255,7 +265,7 @@ def test_prod_rpc_requires_key_and_restricts_cors(tmp_path):
             method="POST",
         )
         with pytest.raises(urllib.error.HTTPError) as exc_info:
-            urllib.request.urlopen(req, timeout=5)
+            _urlopen_retry(req)
         assert exc_info.value.code == 401
         assert exc_info.value.headers["Access-Control-Allow-Origin"] == "https://explorer.example.com"
 
@@ -269,7 +279,7 @@ def test_prod_rpc_requires_key_and_restricts_cors(tmp_path):
             },
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with _urlopen_retry(req) as resp:
             body = json.loads(resp.read().decode())
             assert resp.headers["Access-Control-Allow-Origin"] == "https://explorer.example.com"
         assert body["result"] == hex(cfg.chain_id)
@@ -280,7 +290,7 @@ def test_prod_rpc_requires_key_and_restricts_cors(tmp_path):
             method="GET",
         )
         with pytest.raises(urllib.error.HTTPError) as exc_info:
-            urllib.request.urlopen(get_req, timeout=5)
+            _urlopen_retry(get_req)
         assert exc_info.value.code == 405
     finally:
         server.shutdown()

@@ -44,6 +44,7 @@ def test_bridge_lock_queues_outbound(monkeypatch):
     cfg = Config()
     cfg.db_path = os.path.join(tmp, "b.db")
     cfg.bridge_l1_queue_path = queue_path
+    cfg.rust_bridge_path = __file__
     db = Database(cfg.db_path)
     db.initialize()
     sender = "0x" + "aa" * 20
