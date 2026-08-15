@@ -1,39 +1,44 @@
-# Releasing
+# Releasing — Experimental
 
-How Absolute Blockchain Ultimate Hybrid ships tags. Pattern matches industrial
-waves already on `master` (v1.3.65+).
+How [Gruver87/experimental](https://github.com/Gruver87/experimental) ships **R&D** tags.
+This is **not** the Hybrid industrial line (`v1.3.*-tip-v2-industrial`).
 
 ## Honesty first
 
-- Tag green ≠ public mainnet
-- `industrial_gate` may exit 0 with **warnings** (ceremony pin, external audit pending)
-- Do **not** claim tip proof / libp2p / full Rust message-loop / completed external audit in release notes
-
-## Checklist (maintainer)
-
-1. **Implement** one Priority slice (Rust gate + Python control plane + tests).
-2. **Build native** when Rust changed: `.\scripts\build_native.ps1` or `make build`.
-3. **Verify:** `python scripts/verify_industrial_waves.py` (or `make test-quick`).
-4. **Docs:** `RELEASE_NOTES_vX.Y.Z.md`, `CHANGELOG.md`, `docs/PORTING_ROADMAP.md`, version badge.
-5. **Commit** (exclude `dist/` wheels).
-6. **Tag** annotated: `git tag -a vX.Y.Z -m "…"`.
-7. **Push** `master` + tag; `gh release create vX.Y.Z --notes-file RELEASE_NOTES_vX.Y.Z.md`.
-8. Optional: confirm CI badges on the tag / release.
+- Tag green ≠ prod libp2p mesh ≠ public mainnet ≠ Hybrid audit pin
+- Do **not** claim 48h soak unless `hard_fails=0` was actually run on this tree
+- Do **not** reuse Hybrid tag names (`v1.3.*`)
+- GitHub Release for this repo is a **prerelease** snapshot unless a future ADR says otherwise
 
 ## Versioning
 
-- `runtime/config.py` → `node_version = "X.Y.Z-industrial"`
-- Git tag → `vX.Y.Z`
-- Prefer one industrial Priority per tag (auditable history)
+| Field | Experimental | Hybrid (other repo) |
+|-------|----------------|---------------------|
+| Git tag | `rd-X.Y.Z` | `v1.3.*-industrial` |
+| Default branch | `main` | `master` |
+| GitHub Release | prerelease | Latest industrial pin |
+| PyPI `abs_native` | **never** from this repo (name collision) | Hybrid only |
+
+## Checklist (maintainer)
+
+1. Land the slice on `main` (kernel + lab + hard gate).
+2. Native libp2p wheel when Rust changed: `python scripts/verify_adr0019_libp2p_hard.py --rebuild`.
+3. Docs: `README.md`, `docs/AT_A_GLANCE.md`, `CHANGELOG.md`, `RELEASE_NOTES_rd-X.Y.Z.md`.
+4. Commit (exclude wheels / `.env` / `data/`).
+5. Push `main`.
+6. Annotated tag: `git tag -a rd-X.Y.Z -m "…"`.
+7. `git push origin rd-X.Y.Z`.
+8. `gh release create rd-X.Y.Z --prerelease --notes-file RELEASE_NOTES_rd-X.Y.Z.md`.
 
 ## Supply chain
 
 - Dependabot: [`.github/dependabot.yml`](../.github/dependabot.yml)
 - SBOM on release: [`.github/workflows/sbom-on-release.yml`](../.github/workflows/sbom-on-release.yml)
+- Wheel attached to GitHub Release (libp2p feature). **PyPI upload is refused** for this repository.
 - Secrets: `python scripts/check_secrets.py`
 
 ## See also
 
 - [SUPPORT.md](../SUPPORT.md)
-- [docs/AUDITS.md](AUDITS.md)
 - [SECURITY.md](../SECURITY.md)
+- Hybrid releasing (other tree): not this file

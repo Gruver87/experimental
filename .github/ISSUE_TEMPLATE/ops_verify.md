@@ -1,6 +1,6 @@
 ---
 name: Ops / verify fail
-about: Gate or mesh self-check fails locally — help triage without dumping secrets
+about: Experimental lab or hard gate fails locally — help triage without dumping secrets
 title: "[OPS] "
 labels: ["ops", "question"]
 assignees: Gruver87
@@ -9,8 +9,9 @@ assignees: Gruver87
 ## What you ran
 
 ```text
-.\scripts\operator_verify.ps1 -SkipNativeBuild
-# or Mode Standard / Live
+python scripts/verify_experimental_rd.py
+# or:
+.\scripts\verify_adr0019_libp2p_hard.ps1 -Rebuild
 ```
 
 Exit code / last FAIL step:
@@ -20,17 +21,13 @@ Exit code / last FAIL step:
 - OS:
 - Python:
 - Git tag / commit:
-- Native wheel installed? (`abs_native` import OK?)
+- Native wheel installed with Cargo `libp2p`? (`abs_native.libp2p_available()`)
 
-## Reports (paths only if large)
-
-- `data/check_all.json`
-- `data/verify_industrial_waves.json`
-- `data/industrial_gate.json`
+## Reports
 
 Paste the **error lines** (redact secrets), not full DB dumps.
 
 ## Checklist
 
 - [ ] No `.env` / private keys / wallet JSON pasted
-- [ ] Re-read [AT_A_GLANCE](../../docs/AT_A_GLANCE.md) — is the failure a known org blocker (ceremony pin / external audit)?
+- [ ] Re-read [AT_A_GLANCE](../../docs/AT_A_GLANCE.md) — is this a known R&D gap vs Hybrid pin?

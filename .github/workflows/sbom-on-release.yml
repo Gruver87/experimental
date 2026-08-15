@@ -1,7 +1,7 @@
-# SBOM on release — Absolute Blockchain Ultimate Hybrid
+# SBOM on release — Absolute Blockchain Experimental
 #
 # Generates a CycloneDX SBOM artifact for supply-chain transparency.
-# Honesty: SBOM ≠ external audit / public mainnet.
+# Honesty: SBOM ≠ external audit / public mainnet / Hybrid pin.
 
 name: sbom-on-release
 

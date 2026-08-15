@@ -2,7 +2,7 @@
 
 Brief description of what changed and **why**.
 
-> Absolute Blockchain Ultimate Hybrid is a **production-hardened R&D / devnet** stack — **not** a launched public mainnet. Do not claim mainnet readiness without updating [docs/EVIDENCE_MATRIX.md](../docs/EVIDENCE_MATRIX.md).
+> This is **Absolute Blockchain Experimental** — R&D sandbox, **not** the Hybrid audit pin and **not** a launched public mainnet. Do not claim prod libp2p cutover without updating honesty docs.
 
 ## Related issues
 
@@ -11,7 +11,8 @@ Fixes #
 ## Type of change
 
 - [ ] Bug fix
-- [ ] Feature / industrial hardening (P2P / mempool / sync gate)
+- [ ] ADR 0019 / libp2p slice
+- [ ] Long-Range / EVM depth lab
 - [ ] Documentation / evidence honesty
 - [ ] Tests / CI
 - [ ] Security-related
@@ -20,11 +21,11 @@ Fixes #
 ## Checklist
 
 - [ ] `python scripts/check_secrets.py` clean (no secrets)
-- [ ] Local verify: `.\scripts\operator_verify.ps1 -SkipNativeBuild` **or** targeted pytest for the wave
-- [ ] Docs / release notes / `node_version` updated if this is a shippable wave
-- [ ] No false “mainnet / audit complete / tip proof / libp2p” claims
+- [ ] Local verify: `python scripts/verify_experimental_rd.py` **or** `.\scripts\verify_adr0019_libp2p_hard.ps1 -Rebuild` when native/libp2p changed
+- [ ] Docs / `CHANGELOG` / release notes updated if this is a shippable `rd-*` snapshot
+- [ ] No false “mainnet / audit complete / soak / prod libp2p” claims
+- [ ] PR targets **`main`** (never Hybrid `master` for R&D kernels)
 
 ## Test plan
 
 - [ ] …
-- [ ] (optional) `.\scripts\check_all.ps1 -Mode Standard`

@@ -1,6 +1,6 @@
 ﻿---
 name: Bug report
-about: Report a reproducible defect in the hybrid node / mesh / gates
+about: Report a reproducible defect in Experimental labs / ADR 0019 / Profile F
 title: "[BUG] "
 labels: ["bug"]
 assignees: Gruver87
@@ -14,8 +14,8 @@ Clear description of the failure.
 
 - OS:
 - Python:
-- Git tag / commit: (prefer latest industrial release tag)
-- How you ran the node: `python main.py` / Docker prod mesh / other:
+- Git tag / commit: (prefer latest `rd-*` tag on `main`)
+- How you ran: ADR 0019 hard gate / `verify_experimental_rd.py` / solo `main.py` / other:
 
 ## Steps to reproduce
 
@@ -31,18 +31,15 @@ Clear description of the failure.
 ## Self-check already run?
 
 ```text
-.\scripts\operator_verify.ps1 -SkipNativeBuild
-# or: .\scripts\check_all.ps1 -Mode Quick
+python scripts/verify_experimental_rd.py
+# if native/libp2p:
+.\scripts\verify_adr0019_libp2p_hard.ps1 -Rebuild
 ```
 
-Paste the **FAIL** step + report path if the gate failed (`data/check_all.json`).
-
-## Logs / artifacts
-
-Paste relevant log lines (**redact secrets**). Link soak/probe artifacts if relevant.
+Paste the **FAIL** step + stdout (redact secrets).
 
 ## Checklist
 
 - [ ] Not a secrets leak (no `.env`, keys, or wallet JSON)
-- [ ] Checked [EVIDENCE_MATRIX](../../docs/EVIDENCE_MATRIX.md) — is this already a known gap?
-- [ ] Not claiming “public mainnet / audit complete” without evidence
+- [ ] Not claiming “public mainnet / audit complete / prod libp2p” without evidence
+- [ ] This is Experimental — Hybrid pin bugs go to Ultimate Hybrid

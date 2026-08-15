@@ -1,21 +1,55 @@
 # Absolute Blockchain — Experimental sandbox
 
-> **[Gruver87/experimental](https://github.com/Gruver87/experimental)** — R&D only  
-> **Not** the audit-freeze tree. Industrial pin lives in a separate repo.
+![Absolute Blockchain Experimental — R&D sandbox](docs/assets/repo-banner.svg)
 
-| Role | Repo / path |
-|------|-------------|
-| **Audit freeze (do not break)** | [`Absolute_Blockchain_Ultimate_Hybrid`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · tag [`v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial) |
-| **This sandbox** | Profile F R&D: rust-libp2p · Long-Range · EVM depth |
+**R&D only.** rust-libp2p · Long-Range · EVM depth. **Not** the audit-freeze tree.
 
+[![Release](https://img.shields.io/github/v/release/Gruver87/experimental?include_prereleases&label=rd-release)](https://github.com/Gruver87/experimental/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Experimental R&D](https://github.com/Gruver87/experimental/actions/workflows/experimental-rd.yml/badge.svg?branch=main)](https://github.com/Gruver87/experimental/actions/workflows/experimental-rd.yml)
-[![PR #16 libp2p](https://img.shields.io/badge/PR-16%20ADR%200019-blue)](https://github.com/Gruver87/experimental/pull/16)
+[![Tests CI](https://github.com/Gruver87/experimental/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/Gruver87/experimental/actions/workflows/test.yml)
+[![Security checks](https://github.com/Gruver87/experimental/actions/workflows/security-audit.yml/badge.svg?branch=main)](https://github.com/Gruver87/experimental/actions/workflows/security-audit.yml)
 
-**Default industrial transport = TCP+TLS.**  
-`FEATURE_LIBP2P` / Cargo feature `libp2p` are **opt-in labs** — PASS here ≠ prod mesh cutover ≠ public mainnet.
+> **Industrial pin lives next door:** [`Absolute_Blockchain_Ultimate_Hybrid`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · tag [`v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial)  
+> **This repo:** Profile F labs. Default industrial transport remains **TCP+TLS**. Do not port these kernels onto the Hybrid pin.
 
-See [EXPERIMENTAL_SANDBOX.md](EXPERIMENTAL_SANDBOX.md) · Profile F [EXPERIMENTAL_RD_PROFILE](docs/sprouts/EXPERIMENTAL_RD_PROFILE.md).
+**Default mesh = TCP+TLS.** `FEATURE_LIBP2P` / Cargo `libp2p` are **opt-in labs** — PASS here ≠ prod mesh cutover ≠ public mainnet.
+
+Sandbox rules: [EXPERIMENTAL_SANDBOX.md](EXPERIMENTAL_SANDBOX.md) · Profile F: [EXPERIMENTAL_RD_PROFILE](docs/sprouts/EXPERIMENTAL_RD_PROFILE.md) · one-screen card: [AT_A_GLANCE](docs/AT_A_GLANCE.md)
+
+---
+
+## Start in 60 seconds
+
+```bash
+git clone https://github.com/Gruver87/experimental.git
+cd experimental
+pip install -r requirements.txt && cp .env.example .env
+```
+
+| OS | Native | R&D self-check | ADR 0019 hard (libp2p) |
+|----|--------|----------------|------------------------|
+| **Windows** | `.\scripts\build_native.ps1` | `python scripts/verify_experimental_rd.py` | `.\scripts\verify_adr0019_libp2p_hard.ps1 -Rebuild` |
+| **Linux / macOS** | `make build` | same Python | `python scripts/verify_adr0019_libp2p_hard.py --rebuild` |
+
+Explorer (solo): http://localhost:8080
+
+---
+
+## Proven vs not
+
+| Claim | Status | Proof |
+|-------|--------|-------|
+| ADR 0019 rust-libp2p slices **A–CY** (phase 102) | **Lab PASS** | hard gate **114** steps with `--rebuild` |
+| Circuit never occupies crate ExternalAddresses | **Lab PASS** | Slices CW–CX |
+| AutoNAT/UPnP confirm gated to advertised cap | **Lab PASS** | Slice CY |
+| Default mesh stays TCP+TLS | **By design** | `feature_libp2p=false` on prod JSON |
+| Profile F Long-Range / EVM depth labs | **Lab only** | ADR 0017 · `EVM_COMPAT_MATRIX` |
+| Hybrid 48h soak / firm audit / public mainnet | **No — other repo** | [Hybrid pin](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) |
+| Prod libp2p cutover | **No** | never flip audit-pin JSON |
+| 48h soak on this tree | **Not run** | do not claim |
+
+**Jump:** [Tracks](#what-is-active-here) · [Verify](#clone--verify) · [Docs](#docs-map) · [Contribute](CONTRIBUTING.md)
 
 ---
 
@@ -23,7 +57,7 @@ See [EXPERIMENTAL_SANDBOX.md](EXPERIMENTAL_SANDBOX.md) · Profile F [EXPERIMENTA
 
 | Track | Status | Entry |
 |-------|--------|-------|
-| **ADR 0019 rust-libp2p** | Slices **A–CW** (phase 100) behind Cargo `libp2p` | [ADR 0019](docs/adr/0019-rust-libp2p-industrial.md) · hard verify below |
+| **ADR 0019 rust-libp2p** | Slices **A–CY** (phase 102) behind Cargo `libp2p` | [ADR 0019](docs/adr/0019-rust-libp2p-industrial.md) |
 | **ADR 0018 dual-stack / stubs** | Labs + adapter | `scripts/libp2p_*_lab.py` |
 | **ADR 0017 Long-Range** | Lab / WS tip gate | `python scripts/long_range_lab.py` |
 | **EVM depth / precompiles** | Profile F waves | [EVM_COMPAT_MATRIX](docs/sprouts/EVM_COMPAT_MATRIX.md) |
@@ -34,24 +68,15 @@ Latest ADR 0019 work lands on `main`. Historical slice PRs: [#16](https://github
 
 ## Clone & verify
 
-```bash
-git clone https://github.com/Gruver87/experimental.git
-cd experimental
-pip install -r requirements.txt
-cp .env.example .env
-```
-
-### Experimental only (ADR 0019 hard — 110 steps, 111 with `--rebuild`)
+### Experimental only (ADR 0019 hard — 113 steps, 114 with `--rebuild`)
 
 ```powershell
 # Windows — rebuild native libp2p wheel when Rust changed
 powershell -ExecutionPolicy Bypass -File scripts\verify_adr0019_libp2p_hard.ps1 -Rebuild
-# or without rebuild:
-powershell -ExecutionPolicy Bypass -File scripts\verify_adr0019_libp2p_hard.ps1
 ```
 
 ```bash
-python scripts/verify_adr0019_libp2p_hard.py
+python scripts/verify_adr0019_libp2p_hard.py --rebuild
 python scripts/verify_experimental_rd.py
 ```
 
@@ -88,6 +113,7 @@ Default Hybrid CI / prod mesh builds **without** the `libp2p` feature.
 - `feature_libp2p` must stay **false** on prod mesh JSON (`778888`).
 - Do **not** push R&D into the audit-freeze Hybrid repo.
 - ABS tokenomics in-repo model ≠ listed asset / public mainnet.
+- Experimental tags are `rd-X.Y.Z` — **never** the Hybrid `v1.3.*-industrial` line.
 
 ---
 
@@ -95,16 +121,29 @@ Default Hybrid CI / prod mesh builds **without** the `libp2p` feature.
 
 | Need | Open |
 |------|------|
+| One-screen card | [AT_A_GLANCE](docs/AT_A_GLANCE.md) |
 | Sandbox rules | [EXPERIMENTAL_SANDBOX.md](EXPERIMENTAL_SANDBOX.md) |
 | rust-libp2p industrial slices | [docs/adr/0019-rust-libp2p-industrial.md](docs/adr/0019-rust-libp2p-industrial.md) |
+| Architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Profile F flags | [docs/sprouts/EXPERIMENTAL_RD_PROFILE.md](docs/sprouts/EXPERIMENTAL_RD_PROFILE.md) |
+| Releasing | [docs/RELEASING.md](docs/RELEASING.md) · [CHANGELOG](CHANGELOG.md) |
+| Security / contribute | [SECURITY](SECURITY.md) · [CONTRIBUTING](CONTRIBUTING.md) · [SUPPORT](SUPPORT.md) · [Code of Conduct](CODE_OF_CONDUCT.md) |
+| GitHub About paste | [REPO_PROFILE](.github/REPO_PROFILE.md) |
 | Audit pin (other repo) | [Ultimate Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · [EVIDENCE_MATRIX](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/EVIDENCE_MATRIX.md) |
 
 ---
+
+## Contribute
+
+1. **Star** · **Watch → Releases**
+2. Issues with lab/gate evidence — [CONTRIBUTING.md](CONTRIBUTING.md)
+3. PRs to **`main`** (this sandbox). Never open Hybrid PRs for R&D kernels.
 
 ## License
 
 MIT — [LICENSE](LICENSE)
 
-Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87)  
-Last surface update: **2026-08-15** — ADR 0019 through Slice **CW** (phase 100).
+---
+
+*Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87) · Default branch: `main`*  
+*Last surface update: **2026-08-15** — first R&D release `rd-1.0.0` · ADR 0019 through Slice **CY** (phase 102). Not a launched public mainnet.*

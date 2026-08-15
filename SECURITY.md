@@ -1,21 +1,22 @@
-# Security Policy
+# Security Policy — Experimental
 
 ## Supported versions
 
 | Version | Supported |
 |---------|-----------|
-| `v1.3.x` on `master` (latest industrial tag) | Yes |
-| Older `v1.2.x` / earlier tags | Limited — prefer latest release |
+| Latest `rd-X.Y.Z` tag on `main` | Yes (R&D snapshot) |
+| Hybrid `v1.3.*-industrial` tags | **Other repo** — [Ultimate Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) |
 
-This project is a **production-hardened R&D / devnet** stack. It is **not** a launched public mainnet and has **not** completed an independent external security audit. See [docs/AUDITS.md](docs/AUDITS.md).
+This repository is an **R&D sandbox** (libp2p / Long-Range / EVM depth). It is **not** a launched public mainnet, **not** the audit pin, and has **not** completed an independent external security audit.
 
 ## Reporting a vulnerability
 
-1. **Do not** open a public issue with exploit details that could harm operators.
+1. **Do not** open a public issue with exploit details.
 2. Prefer private reporting:
-   - [Open a private vulnerability report](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/security/advisories/new)
+   - [Open a private vulnerability report](https://github.com/Gruver87/experimental/security/advisories/new)
    - Or contact the repository owner **Gruver87** via GitHub
-3. Include: affected version/tag, reproduction steps, impact, and whether a fix is proposed.
+3. Include: affected tag/commit, reproduction steps, impact, and whether a fix is proposed.
+4. If the issue is in the industrial mesh / soak path, report it on **Hybrid** as well — do not assume Experimental is the pin.
 
 CI “Security checks” = dependency / supply-chain gates — **not** an independent external audit.
 
@@ -33,31 +34,14 @@ CI “Security checks” = dependency / supply-chain gates — **not** an indepe
 
 ## Cryptography
 
-Transaction ECDSA uses **`cryptography`** (OpenSSL), not `python-ecdsa` (CVE-2024-23342 / Minerva).
+Transaction ECDSA uses **`cryptography`** (OpenSSL), not `python-ecdsa`.
+Production-profile Hybrid requires Rust/PyO3 `abs_native`. Experimental libp2p is **opt-in** (`FEATURE_LIBP2P` / Cargo `libp2p`) and is **not** a drop-in for mesh mTLS.
 
-Production profile requires Rust/PyO3 `abs_native` (`ABS_REQUIRE_NATIVE_CRYPTO=true`).
+## P2P
 
-## Admin JWT (production)
-
-`GET /auth/token` is **disabled** in prod. Mint an admin token from `JWT_SECRET`:
-
-```bash
-python scripts/mint_admin_jwt.py --address ops-admin --hours 24
-# Authorization: Bearer <token>
-```
-
-Protected admin POSTs require JWT claim `role=admin` (user role → 403).
-
-## P2P TLS / mTLS
-
-- Prod profiles enable P2P TLS + mTLS; handshake `node_id` must match peer cert CN/SAN.
-- Mesh: `.\scripts\docker_prod_3node.ps1` (default TLS). Single-node: `.\scripts\docker_prod.ps1 -P2pTls`.
-- Details: [docs/P2P_TLS.md](docs/P2P_TLS.md)
-
-## Rate limiting
-
-- In-memory RPM is per-process (fine for single-node).
-- Multi-node: set `REDIS_RATE_LIMIT=true` + `REDIS_URL`. In **prod**, Redis failure does **not** fall back to memory (boot fails closed).
+- Default industrial transport remains **TCP+TLS**.
+- rust-libp2p labs must not disable TLS verification on the TCP+TLS path.
+- Rate-limit inbound; semantic validation; soft-refuse (not hard bans as default).
 
 ## Pre-push check
 
@@ -65,13 +49,12 @@ Protected admin POSTs require JWT claim `role=admin` (user role → 403).
 python scripts/check_secrets.py
 ```
 
-Runs in CI — commits with embedded secrets should fail.
-
 ## Supply chain
 
-- Dependabot: [`.github/dependabot.yml`](.github/dependabot.yml) (pip / cargo / actions)
-- SBOM artifact on GitHub Release: workflow `sbom-on-release.yml`
+- Dependabot: [`.github/dependabot.yml`](.github/dependabot.yml)
+- SBOM artifact on GitHub Release: `sbom-on-release.yml`
 - Release process: [docs/RELEASING.md](docs/RELEASING.md)
+- **Never** publish Experimental `abs_native` wheels to PyPI (would collide with Hybrid).
 
 ## If a secret was committed
 

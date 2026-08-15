@@ -1,6 +1,6 @@
 ﻿---
 name: Feature request
-about: Propose a concrete improvement with evidence impact
+about: Propose a concrete Experimental / ADR 0019 improvement with evidence
 title: "[FEATURE] "
 labels: ["enhancement"]
 assignees: Gruver87
@@ -12,11 +12,11 @@ What is missing or painful today?
 
 ## Proposal
 
-Concrete change (API, P2P gate, ops script, docs). Prefer small, shippable waves over “rewrite everything”.
+Concrete change (libp2p slice, Long-Range lab, EVM depth, docs). Prefer small, shippable slices over “rewrite everything”.
 
 ## Evidence impact
 
-Does this change any row in [EVIDENCE_MATRIX](../../docs/EVIDENCE_MATRIX.md)? If yes, how would we prove it (command + artifact)?
+How would we prove it (lab script + hard gate step)?
 
 ## Alternatives considered
 
@@ -27,5 +27,6 @@ Does this change any row in [EVIDENCE_MATRIX](../../docs/EVIDENCE_MATRIX.md)? If
 Explicitly list what this does **not** claim, for example:
 
 - not public mainnet launch
-- not external audit complete
-- not tip proof / Long-Range / libp2p / full Rust P2P
+- not Hybrid audit-pin change
+- not prod libp2p cutover
+- not 48h soak unless actually run

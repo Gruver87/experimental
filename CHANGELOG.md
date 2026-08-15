@@ -2,11 +2,51 @@
 
 Все значимые изменения документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/).
 
+**Experimental tags:** `rd-X.Y.Z` on `main` (this repo).  
+**Hybrid industrial tags:** `v1.3.*` live in [Ultimate Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) — not this Releases page.
+
 **Текущая волна API:** `api_wave = 61` (проверка: `GET /status`)
 
 ---
 
 ## [Unreleased]
+
+### Experimental R&D
+
+(none after `rd-1.0.0`)
+
+---
+
+## [rd-1.0.0] - 2026-08-15
+
+First GitHub Release for [Gruver87/experimental](https://github.com/Gruver87/experimental) (**prerelease**). Not the Hybrid audit pin.
+
+### ADR 0019 rust-libp2p
+
+- Slices **A–CY** (phase 102) behind Cargo `libp2p`
+- Hard gate **114 PASS / 114** with `--rebuild` (operator-local, 2026-08-15)
+- Slice CX: relay-client circuit `ExternalAddrConfirmed` omitted from crate ExternalAddresses book
+- Slice CY: AutoNAT/UPnP `ExternalAddrConfirmed` admit-canonical-or-omit (canonical charge key; at cap omit)
+- Circuit `/p2p-circuit` never occupies the crate book (CW–CX)
+- TCP+TLS remains default mesh; `feature_libp2p=false` on prod JSON
+
+### GitHub surface
+
+- README / AT_A_GLANCE / community files (CoC, Contributing, Security, Support) point at **this** repo
+- Issue/PR templates and releasing docs use `rd-*` tags and `main`
+- Wheel-on-release attaches a libp2p wheel to GitHub Release; **PyPI upload refused** (would collide with Hybrid `abs_native`)
+
+### Inherited Profile F (already on `main`)
+
+- `FEATURE_LIBP2P` / `FEATURE_LONG_RANGE` default + prod forced **off** on industrial JSON
+- ADR 0017 Long-Range labs · ADR 0018 dual-stack adapter · EVM precompile waves
+- CI: `.github/workflows/experimental-rd.yml`
+
+---
+
+## [Unreleased] (Hybrid-inherited history below)
+
+The remainder of this file is the changelog inherited from the Hybrid tree at fork time, plus Experimental waves that landed before `rd-1.0.0`. Hybrid audit-pin releases are **not** published from this repository.
 
 ### Experimental R&D (Gruver87/experimental only)
 

@@ -34,9 +34,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip maturin
           cd native/abs_native
-          python -m maturin build --release --out target/wheels
+          if [ "${{ github.repository }}" = "Gruver87/experimental" ]; then
+            python -m maturin build --release --features "pyo3/extension-module,libp2p" --out target/wheels
+          else
+            python -m maturin build --release --out target/wheels
+          fi
 
       - name: Publish to PyPI
+        if: github.repository == 'Gruver87/Absolute_Blockchain_Ultimate_Hybrid'
         env:
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
           TWINE_USERNAME: __token__

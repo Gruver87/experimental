@@ -1,17 +1,20 @@
 blank_issues_enabled: false
 contact_links:
   - name: At a glance (30-second card)
-    url: https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/AT_A_GLANCE.md
-    about: Proven vs not — read before filing “mainnet ready” issues.
-  - name: Evidence matrix (what is proven)
-    url: https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/EVIDENCE_MATRIX.md
-    about: Check live ops evidence before feature claims.
-  - name: Operator verify (self-check)
-    url: https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/COMMANDS_REFERENCE.md
-    about: Run .\scripts\operator_verify.ps1 before opening an ops bug.
+    url: https://github.com/Gruver87/experimental/blob/main/docs/AT_A_GLANCE.md
+    about: Proven vs not — read before filing “mainnet ready” or “prod libp2p” issues.
+  - name: Sandbox rules
+    url: https://github.com/Gruver87/experimental/blob/main/EXPERIMENTAL_SANDBOX.md
+    about: This repo is R&D only. The audit pin is Ultimate Hybrid.
+  - name: ADR 0019 rust-libp2p
+    url: https://github.com/Gruver87/experimental/blob/main/docs/adr/0019-rust-libp2p-industrial.md
+    about: Slice ledger and honesty for the optional libp2p swarm.
   - name: Security / secrets policy
-    url: https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/SECURITY.md
+    url: https://github.com/Gruver87/experimental/blob/main/SECURITY.md
     about: Never paste private keys, .env contents, or wallet files into issues.
   - name: Private vulnerability report
-    url: https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/security/advisories/new
+    url: https://github.com/Gruver87/experimental/security/advisories/new
     about: Report security issues privately (not in public issues).
+  - name: Hybrid audit pin (other repo)
+    url: https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid
+    about: Industrial freeze v1.3.1339-tip-v2-industrial — do not file Hybrid bugs here.

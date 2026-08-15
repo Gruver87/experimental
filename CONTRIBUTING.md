@@ -1,83 +1,75 @@
-﻿# Contributing — Absolute Blockchain Ultimate
+﻿# Contributing — Absolute Blockchain Experimental
 
-Спасибо за интерес! Это **production-hardened R&D / devnet** проект (локальный prod-mesh evidence, **не** launched public mainnet) — вклад в код, тесты и честную документацию приветствуется.
+Thank you. This is the **R&D sandbox** ([Gruver87/experimental](https://github.com/Gruver87/experimental)) — rust-libp2p, Long-Range, EVM depth. It is **not** the audit-freeze Hybrid pin and **not** a launched public mainnet.
 
-## Перед началом
+## Before you start
 
-1. **30 секунд:** [docs/AT_A_GLANCE.md](docs/AT_A_GLANCE.md) — что proven / что нет.
-2. [DISCLAIMER.md](DISCLAIMER.md) — это **не** launched public audited mainnet.
-3. Запуск: `python main.py` (не `_archive/`).
+1. **30 seconds:** [docs/AT_A_GLANCE.md](docs/AT_A_GLANCE.md)
+2. [DISCLAIMER.md](DISCLAIMER.md) · [EXPERIMENTAL_SANDBOX.md](EXPERIMENTAL_SANDBOX.md)
+3. Industrial pin is the **other** repo: [Ultimate Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid). Do **not** open Hybrid PRs for Experimental kernels.
 
 ## 60-second setup
 
 ```bash
-git clone https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid.git
-cd Absolute_Blockchain_Ultimate_Hybrid
+git clone https://github.com/Gruver87/experimental.git
+cd experimental
 pip install -r requirements.txt && cp .env.example .env
-# Linux/macOS:  make build && make test-quick && python main.py
-# Windows:      .\scripts\build_native.ps1 ; .\scripts\check_all.ps1 ; python main.py
 ```
 
-http://localhost:8080
+```powershell
+python scripts/verify_experimental_rd.py
+# ADR 0019 rust-libp2p (when native changed):
+.\scripts\verify_adr0019_libp2p_hard.ps1 -Rebuild
+```
 
-## Как помочь
+## How to help
 
-| Действие | Зачем |
-|----------|-------|
-| Star / Watch Releases | Видимость репо |
-| Issues + evidence | Баги с `data/check_all.json` / soak |
-| Docs / PR | Фиксы, тесты — в **`master`** |
+| Action | Why |
+|--------|-----|
+| Star / Watch Releases | Visibility of this sandbox |
+| Issues + lab evidence | Bugs with hard-gate / lab stdout |
+| Docs / PR | Fixes and tests → **`main`** |
 
-## Ветки
+## Branches
 
-| Ветка | Назначение |
-|-------|------------|
-| **`master`** | Default development |
-| **`main`** | Mirror of `master` (CI sync) |
+| Branch | Role |
+|--------|------|
+| **`main`** | Default — R&D landing |
+| `rd/*` | Slice work before merge |
 
-PR → **`master`**. Мы **не** ведём фейковую историю «командных» PR ради hiring optics.
+PR → **`main`**. We do not invent a fake “team PR” history.
 
-## Разработка
+## Development
 
 ```bash
-git checkout -b feature/my-change
-# ... правки ...
-pytest tests/ -q
-python tests/smoke/merkle_light.py
-python scripts/final_audit.py
-git commit -m "feat: описание"
-git push origin feature/my-change
+git checkout -b rd/my-change
+# ... edits ...
+python scripts/verify_experimental_rd.py
+git commit -m "feat(rd): description"
+git push origin rd/my-change
 ```
 
-Создайте Pull Request на GitHub.
+Open a Pull Request on GitHub against **`main`**.
 
 ## Code style
 
-- Минимальный diff — не рефакторить несвязанный код
-- Следовать стилю соседних файлов
-- Комментарии только для неочевидной логики
-- Не коммитить: `.env`, `data/`, ключи, `__pycache__`
+- Minimal diff — do not refactor unrelated code
+- Fail-closed: no silent fallbacks that paint green
+- Money = satoshi integers
+- Do not commit: `.env`, `data/`, keys, `__pycache__`, wheels
 
 ## Commit messages
 
 ```
-feat: add SPV endpoint for block proofs
-fix: pool lock check in mempool
-docs: update README tokenomics section
-test: merkle light client cases
+feat(rd): ADR 0019 Slice CZ …
+fix(rd): refuse uncharged AutoNAT confirm at cap
+docs: update Experimental README release badge
+test: extend verify_adr0019_libp2p_hard
 ```
 
-## Идеи для контрибьюторов
+## Questions
 
-- Улучшение P2P и синхронизации между узлами
-- Больше pytest-тестов вместо script-style tests
-- Усиление production-hardening и security gates
-- Перевод документации
-- CI (GitHub Actions): `pytest tests/`, `tests/smoke/merkle_light.py`, `scripts/final_audit.py`
+- Issues: https://github.com/Gruver87/experimental/issues
+- Author: [@Gruver87](https://github.com/Gruver87)
 
-## Вопросы
-
-- Issues: https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/issues
-- Автор: [@Gruver87](https://github.com/Gruver87)
-
-**Спасибо за развитие Absolute Blockchain Ultimate вместе с сообществом!**
+Thank you for keeping Experimental honest — lab PASS is not prod cutover.
