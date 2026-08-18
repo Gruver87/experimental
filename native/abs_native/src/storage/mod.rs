@@ -443,6 +443,42 @@ impl RocksEngine {
         }))
     }
 
+    /// Previous key/value under prefix, strictly before `before` (reverse seek).
+    fn prefix_prev<'py>(
+        &self,
+        py: Python<'py>,
+        prefix: &[u8],
+        before: &[u8],
+    ) -> PyResult<Option<(Py<PyBytes>, Py<PyBytes>)>> {
+        let row = self.prefix_prev_bytes(prefix, before)?;
+        Ok(row.map(|(k, v)| {
+            (
+                PyBytes::new_bound(py, &k).unbind(),
+                PyBytes::new_bound(py, &v).unbind(),
+            )
+        }))
+    }
+
+    /// Forward scan in [start, end_exclusive). Dual-CF merge like prefix_scan.
+    #[pyo3(signature = (start, end_exclusive, limit=10_000))]
+    fn scan_range<'py>(
+        &self,
+        py: Python<'py>,
+        start: &[u8],
+        end_exclusive: &[u8],
+        limit: usize,
+    ) -> PyResult<Vec<(Py<PyBytes>, Py<PyBytes>)>> {
+        let rows = self.scan_range_bytes(start, end_exclusive, limit)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for (key, value) in rows {
+            out.push((
+                PyBytes::new_bound(py, &key).unbind(),
+                PyBytes::new_bound(py, &value).unbind(),
+            ));
+        }
+        Ok(out)
+    }
+
     fn checkpoint(&self, dest: &str) -> PyResult<()> {
         let checkpoint =
             rocksdb::checkpoint::Checkpoint::new(self.db.as_ref()).map_err(map_db_err)?;
@@ -639,6 +675,132 @@ impl RocksEngine {
             }
         }
         Ok(best)
+    }
+
+    fn prefix_prev_in_cf(
+        &self,
+        cf_name: &str,
+        prefix: &[u8],
+        before: &[u8],
+    ) -> PyResult<Option<(Vec<u8>, Vec<u8>)>> {
+        let cf = self.cf_handle(cf_name)?;
+        let iter = self
+            .db
+            .iterator_cf(cf, IteratorMode::From(before, Direction::Reverse));
+        for item in iter {
+            let (key, value) = item.map_err(map_db_err)?;
+            if !key.starts_with(prefix) {
+                return Ok(None);
+            }
+            if key.as_ref() < before {
+                return Ok(Some((key.to_vec(), value.to_vec())));
+            }
+        }
+        Ok(None)
+    }
+
+    fn prefix_prev_bytes(
+        &self,
+        prefix: &[u8],
+        before: &[u8],
+    ) -> PyResult<Option<(Vec<u8>, Vec<u8>)>> {
+        if before.is_empty() {
+            return Ok(None);
+        }
+        if !self.column_families {
+            let iter = self
+                .db
+                .iterator(IteratorMode::From(before, Direction::Reverse));
+            for item in iter {
+                let (key, value) = item.map_err(map_db_err)?;
+                if !key.starts_with(prefix) {
+                    return Ok(None);
+                }
+                if key.as_ref() < before {
+                    return Ok(Some((key.to_vec(), value.to_vec())));
+                }
+            }
+            return Ok(None);
+        }
+        let mut best: Option<(Vec<u8>, Vec<u8>)> = None;
+        for cf_name in [cf_name_for_key(prefix), CF_DEFAULT] {
+            if let Some((key, value)) = self.prefix_prev_in_cf(cf_name, prefix, before)? {
+                match &best {
+                    Some((best_key, _)) if key.as_slice() <= best_key.as_slice() => {}
+                    _ => best = Some((key, value)),
+                }
+            }
+        }
+        Ok(best)
+    }
+
+    fn collect_range_into(
+        &self,
+        out: &mut BTreeMap<Vec<u8>, Vec<u8>>,
+        cf_name: &str,
+        start: &[u8],
+        end_exclusive: &[u8],
+        limit: usize,
+    ) -> PyResult<()> {
+        if out.len() >= limit {
+            return Ok(());
+        }
+        let cf = self.cf_handle(cf_name)?;
+        let iter = self
+            .db
+            .iterator_cf(cf, IteratorMode::From(start, Direction::Forward));
+        for item in iter {
+            if out.len() >= limit {
+                break;
+            }
+            let (key, value) = item.map_err(map_db_err)?;
+            if key.as_ref() >= end_exclusive {
+                break;
+            }
+            out.entry(key.to_vec()).or_insert_with(|| value.to_vec());
+        }
+        Ok(())
+    }
+
+    fn scan_range_bytes(
+        &self,
+        start: &[u8],
+        end_exclusive: &[u8],
+        limit: usize,
+    ) -> PyResult<Vec<(Vec<u8>, Vec<u8>)>> {
+        if start.is_empty() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "scan_range_empty_start",
+            ));
+        }
+        if end_exclusive <= start || limit == 0 {
+            return Ok(Vec::new());
+        }
+        let limit = limit.min(100_000);
+        if !self.column_families {
+            let mut out = Vec::new();
+            let iter = self
+                .db
+                .iterator(IteratorMode::From(start, Direction::Forward));
+            for item in iter {
+                if out.len() >= limit {
+                    break;
+                }
+                let (key, value) = item.map_err(map_db_err)?;
+                if key.as_ref() >= end_exclusive {
+                    break;
+                }
+                out.push((key.to_vec(), value.to_vec()));
+            }
+            return Ok(out);
+        }
+        let mut merged: BTreeMap<Vec<u8>, Vec<u8>> = BTreeMap::new();
+        let cf = cf_name_for_key(start);
+        self.collect_range_into(&mut merged, cf, start, end_exclusive, limit)?;
+        if cf != CF_DEFAULT {
+            self.collect_range_into(&mut merged, CF_DEFAULT, start, end_exclusive, limit)?;
+        }
+        Ok(merged.into_iter().take(limit).collect())
     }
 
     fn prefix_scan_single<'py>(

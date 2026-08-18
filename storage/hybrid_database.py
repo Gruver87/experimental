@@ -477,6 +477,9 @@ class HybridDatabase:
     def count_transactions_by_address(self, address: str, direction: str = "all") -> int:
         return self._core.count_transactions_by_address(address, direction)
 
+    def count_address_transactions(self, address: str, direction: str = "all") -> int:
+        return self._core.count_address_transactions(address, direction)
+
     def get_address_activity(self, address: str) -> Dict:
         return self._core.get_address_activity(address)
 
@@ -487,6 +490,15 @@ class HybridDatabase:
         proposer: str = "",
     ) -> List[Dict]:
         return self._core.get_proposer_audit_log(limit, offset, proposer)
+
+    def count_proposer_audit(self, proposer: str = "") -> int | None:
+        return self._core.count_proposer_audit(proposer)
+
+    def get_proposer_stats(self, limit: int = 20) -> List[Dict]:
+        return self._core.get_proposer_stats(limit)
+
+    def get_proposer_detail(self, address: str, recent_limit: int = 10) -> Dict:
+        return self._core.get_proposer_detail(address, recent_limit=recent_limit)
 
     def record_burn(self, block_height: int, burned_amount: float) -> None:
         self._core.record_burn(block_height, burned_amount)

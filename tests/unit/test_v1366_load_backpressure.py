@@ -53,5 +53,7 @@ def test_needles_wave2():
         encoding="utf-8"
     )
     assert "fn prefix_last" in rust
+    assert "fn prefix_prev" in rust
+    assert "fn scan_range" in rust
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_chain_apply_expired_total" in metrics

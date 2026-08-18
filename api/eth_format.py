@@ -36,6 +36,87 @@ def _topic_bytes(topic: str) -> bytes:
 
 
 EMPTY_LOGS_BLOOM = "0x" + ("0" * 512)
+ZERO_ROOT = "0x" + ("0" * 64)
+
+
+def _as_eth_root(value: str) -> str:
+    """Normalize a 32-byte hex digest to 0x-prefixed RPC form."""
+    s = str(value or "").strip().lower()
+    if s.startswith("0x"):
+        s = s[2:]
+    if len(s) != 64 or any(c not in "0123456789abcdef" for c in s):
+        raise ValueError(f"invalid merkle root encoding: {value!r}")
+    return "0x" + s
+
+
+def _abs_tx_merkle_root(items: List[str]) -> str:
+    """Absolute SHA256 merkle (same as Block.tx_root). Not Ethereum Hexary MPT."""
+    from crypto.merkle import merkle_root
+
+    cleaned = [str(x) for x in items if str(x)]
+    raw = merkle_root(cleaned) if cleaned else merkle_root(["empty"])
+    return _as_eth_root(raw)
+
+
+def _tx_hash_from_block_item(tx: Any) -> str:
+    if isinstance(tx, dict):
+        return str(tx.get("hash") or tx.get("tx_hash") or "")
+    return str(tx or "")
+
+
+def block_transactions_root(blk: Dict[str, Any]) -> str:
+    """RPC transactionsRoot: stored Block.tx_root, else merkle of tx hashes.
+
+    Empty blocks use merkle_root(['empty']) — the same leaf as core.Block.
+    This is not geth Hexary MPT; wallets must not treat it as Ethereum-identical.
+    """
+    stored = blk.get("tx_root") or blk.get("transactions_root") or blk.get("transactionsRoot")
+    if stored:
+        try:
+            return _as_eth_root(str(stored))
+        except ValueError:
+            pass
+    txs = blk.get("transactions") or []
+    hashes = []
+    if isinstance(txs, list):
+        for tx in txs:
+            h = _tx_hash_from_block_item(tx)
+            if h:
+                hashes.append(h)
+    return _abs_tx_merkle_root(hashes)
+
+
+def block_receipts_root(blk: Dict[str, Any]) -> str:
+    """RPC receiptsRoot: stored receipts_root, else merkle of hash:status leaves.
+
+    Status comes from tx rows already on the block (no extra receipt scan).
+    Empty / hash-only lists follow the same empty merkle as transactionsRoot.
+    Not Ethereum Hexary MPT.
+    """
+    stored = blk.get("receipts_root") or blk.get("receiptsRoot")
+    if stored:
+        try:
+            return _as_eth_root(str(stored))
+        except ValueError:
+            pass
+    txs = blk.get("transactions") or []
+    leaves: List[str] = []
+    if isinstance(txs, list):
+        for tx in txs:
+            if isinstance(tx, dict):
+                h = str(tx.get("hash") or tx.get("tx_hash") or "")
+                if not h:
+                    continue
+                try:
+                    status = int(tx.get("status") or 0)
+                except (TypeError, ValueError):
+                    status = 0
+                leaves.append(f"{h}:{status}")
+            else:
+                s = str(tx or "")
+                if s:
+                    leaves.append(s)
+    return _abs_tx_merkle_root(leaves)
 
 
 def logs_bloom(logs: Sequence[Dict[str, Any]]) -> str:
@@ -145,9 +226,9 @@ def format_block(
         "nonce": "0x0000000000000000",
         "sha3Uncles": "0x" + "0" * 64,
         "logsBloom": block_logs_bloom(blk, query=query, bc=bc),
-        "transactionsRoot": "0x" + "0" * 64,
-        "stateRoot": state_root or ("0x" + "0" * 64),
-        "receiptsRoot": "0x" + "0" * 64,
+        "transactionsRoot": block_transactions_root(blk),
+        "stateRoot": state_root or ZERO_ROOT,
+        "receiptsRoot": block_receipts_root(blk),
         "miner": blk.get("miner", blk.get("proposer", "")),
         "difficulty": "0x0",
         "totalDifficulty": "0x0",

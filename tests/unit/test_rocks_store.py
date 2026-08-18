@@ -300,12 +300,171 @@ def test_address_tx_index_direction_and_pagination(rocks):
 
     page = rocks.get_transactions_by_address("0xaaa", limit=1, offset=1)
     assert len(page) == 1
+    assert page[0]["block_height"] == 1
 
     act = rocks.get_address_activity("0xaaa")
     assert act["sent_count"] == 2
     assert act["received_count"] == 0
     assert act["tx_count"] == 2
     assert act["last_tx_height"] == 3
+    assert "balance_satoshi" in act
+    assert act["blocks_proposed_known"] is True
+    assert rocks.count_address_transactions("0xaaa", "sent") == 2
+
+
+def test_address_tx_page_does_not_prefix_scan(rocks, monkeypatch):
+    sender = "0xaaa"
+    for i in range(1, 6):
+        rocks.persist_block_atomic(
+            {
+                "height": i,
+                "hash": hex(i)[2:].zfill(64),
+                "parent_hash": "0" * 64,
+                "timestamp": 200 + i,
+                "miner": "0x" + "1" * 40,
+            },
+            [
+                {
+                    "hash": hex(i + 200)[2:].zfill(64),
+                    "block_height": i,
+                    "from_addr": sender,
+                    "to_addr": "0xbbb",
+                    "value": 1,
+                    "fee": 0.01,
+                    "burned": 0.0,
+                    "gas_used": 21000,
+                    "status": 1,
+                    "timestamp": 200 + i,
+                }
+            ],
+        )
+    scans = []
+    orig = rocks._scan_prefix
+
+    def _spy(prefix):
+        scans.append(prefix)
+        return orig(prefix)
+
+    monkeypatch.setattr(rocks, "_scan_prefix", _spy)
+    page = rocks.get_transactions_by_address(sender, limit=2, offset=1, direction="sent")
+    assert [t["block_height"] for t in page] == [4, 3]
+    assert rocks.count_transactions_by_address(sender, "sent") == 5
+    assert scans == []
+
+
+def test_get_address_activity_does_not_scan_proposer_audit(rocks, monkeypatch):
+    from storage import keycodec as kc
+
+    miner = "0x" + "aa" * 20
+    for h in range(1, 6):
+        rocks.persist_block_atomic(
+            {
+                "height": h,
+                "hash": f"{h:064x}",
+                "parent_hash": f"{h-1:064x}",
+                "timestamp": 1700000000 + h,
+                "miner": miner,
+                "transactions": [],
+            },
+            [],
+        )
+    scans = []
+    orig = rocks._scan_prefix
+
+    def _spy(prefix):
+        scans.append(prefix)
+        return orig(prefix)
+
+    monkeypatch.setattr(rocks, "_scan_prefix", _spy)
+    act = rocks.get_address_activity(miner)
+    assert act["blocks_proposed"] == 5
+    assert act["blocks_proposed_known"] is True
+    assert kc.P_PROPOSER_AUDIT not in scans
+
+
+def test_get_chain_metrics_uses_cached_counts_not_full_tx_scan(rocks, monkeypatch):
+    from storage import keycodec as kc
+
+    rocks.persist_block_atomic(
+        {
+            "height": 1,
+            "hash": "a" * 64,
+            "parent_hash": "0" * 64,
+            "timestamp": 1700000001,
+            "miner": "0x" + "1" * 40,
+        },
+        [
+            {
+                "hash": "b" * 64,
+                "block_height": 1,
+                "from_addr": "0xaaa",
+                "to_addr": "0xbbb",
+                "value": 1,
+                "fee": 0.01,
+                "burned": 0.0,
+                "gas_used": 21000,
+                "status": 1,
+                "timestamp": 1700000001,
+            }
+        ],
+    )
+    first = rocks.get_chain_metrics(window=8)
+    assert first["tx_count"] >= 1
+    assert first["proposer_audit_count"] >= 1
+    scans = []
+    orig = rocks._scan_prefix
+
+    def _spy(prefix):
+        scans.append(prefix)
+        return orig(prefix)
+
+    monkeypatch.setattr(rocks, "_scan_prefix", _spy)
+    second = rocks.get_chain_metrics(window=8)
+    assert second["tx_count"] == first["tx_count"]
+    assert kc.P_TX not in scans
+    assert kc.P_TX_RECEIPT not in scans
+    assert kc.P_PROPOSER_AUDIT not in scans
+
+
+def test_proposer_audit_log_seeks_by_height_not_prefix_scan(rocks, monkeypatch):
+    from storage import keycodec as kc
+
+    miner_a = "0x" + "aa" * 20
+    miner_b = "0x" + "bb" * 20
+    for h in range(1, 8):
+        rocks.persist_block_atomic(
+            {
+                "height": h,
+                "hash": f"{h:064x}",
+                "parent_hash": f"{h-1:064x}",
+                "timestamp": 1700000000 + h,
+                "miner": miner_a if h % 2 else miner_b,
+            },
+            [],
+        )
+    scans = []
+    orig = rocks._scan_prefix
+
+    def _spy(prefix):
+        scans.append(prefix)
+        return orig(prefix)
+
+    monkeypatch.setattr(rocks, "_scan_prefix", _spy)
+    page = rocks.get_proposer_audit_log(limit=3, offset=1)
+    assert [r["height"] for r in page] == [6, 5, 4]
+    assert kc.P_PROPOSER_AUDIT not in scans
+    filtered = rocks.get_proposer_audit_log(limit=10, proposer=miner_a)
+    assert all(r["proposer"] == miner_a for r in filtered)
+    assert len(filtered) == 4
+    assert rocks.count_proposer_audit() == 7
+    assert rocks.count_proposer_audit(proposer=miner_a) == 4
+    stats = rocks.get_proposer_stats(limit=5)
+    assert stats[0]["proposer"] == miner_a
+    assert stats[0]["blocks_proposed"] == 4
+    detail = rocks.get_proposer_detail(miner_a, recent_limit=2)
+    assert detail["blocks_proposed"] == 4
+    assert detail["blocks_proposed_known"] is True
+    assert len(detail["recent_blocks"]) == 2
 
 
 def test_reorg_removes_address_tx_indexes(rocks):
@@ -574,6 +733,14 @@ def test_rocksdb_column_families_roundtrip_and_legacy_dual_read(tmp_path):
     assert last is not None
     last_key, _ = last
     assert kc.unpack_u64(bytes(last_key)[1:9]) == 2
+    prev = store_cf._engine.prefix_prev(kc.prefix_block_heights(), bytes(last_key))
+    assert prev is not None
+    assert kc.unpack_u64(bytes(prev[0])[1:9]) == 1
+    ranged = store_cf._engine.scan_range(
+        kc.key_block_height(1), kc.key_block_height(3), 10
+    )
+    heights = [kc.unpack_u64(bytes(k)[1:9]) for k, _ in ranged]
+    assert heights == [1, 2]
     runtime = store_cf.get_rocks_runtime_stats()
     assert "total_transactions" not in runtime
     assert "total_accounts" not in runtime
@@ -608,3 +775,111 @@ def test_save_validator_and_bridge_lock_refuse_bool(rocks):
     rocks.save_validator("0x" + "c" * 40, 32.0)
     vals = rocks.get_validators(active_only=False)
     assert any(abs(float(v.get("stake", 0)) - 32.0) < 1e-9 for v in vals)
+
+
+def test_query_evm_logs_seeks_height_range_not_all_logs(rocks, monkeypatch):
+    from storage import keycodec as kc
+
+    contract = "0x" + "aa" * 20
+    for height, data in ((1, "aa"), (5, "bb"), (9, "cc")):
+        rocks.save_evm_logs(
+            contract,
+            [{"topics": ["0x01"], "data": data}],
+            block_height=height,
+            tx_hash=f"0x{height:064x}",
+        )
+    ranges = []
+    orig_range = rocks._scan_range
+
+    def _range_spy(start, end_exclusive, limit):
+        ranges.append((start, end_exclusive, limit))
+        return orig_range(start, end_exclusive, limit)
+
+    monkeypatch.setattr(rocks, "_scan_range", _range_spy)
+    rows = rocks.query_evm_logs(from_block=5, to_block=5, limit=10)
+    assert [row["data"] for row in rows] == ["bb"]
+    assert ranges
+    start, end, _limit = ranges[0]
+    assert start == kc.prefix_evm_logs_block(5)
+    assert end == kc.prefix_evm_logs_block(6)
+
+    scans = []
+    orig_scan = rocks._scan_prefix
+
+    def _scan_spy(prefix, limit=100_000):
+        scans.append(prefix)
+        return orig_scan(prefix, limit=limit)
+
+    monkeypatch.setattr(rocks, "_scan_prefix", _scan_spy)
+    again = rocks.query_evm_logs(from_block=5, to_block=5, limit=10)
+    assert [row["data"] for row in again] == ["bb"]
+    assert kc.prefix_evm_logs() not in scans
+    assert scans == []
+
+
+def test_get_latest_blocks_does_not_prefix_scan_heights(rocks, monkeypatch):
+    from storage import keycodec as kc
+
+    miner = "0x" + "1" * 40
+    for h in range(1, 6):
+        rocks.persist_block_atomic(
+            {
+                "height": h,
+                "hash": f"{h:064x}",
+                "parent_hash": f"{h-1:064x}",
+                "timestamp": 1700000000 + h,
+                "miner": miner,
+                "transactions": [],
+            },
+            [],
+        )
+    scans = []
+    orig = rocks._scan_prefix
+
+    def _spy(prefix, limit=100_000):
+        scans.append(prefix)
+        return orig(prefix, limit=limit)
+
+    monkeypatch.setattr(rocks, "_scan_prefix", _spy)
+    latest = rocks.get_latest_blocks(limit=3)
+    assert [int(b["height"]) for b in latest] == [5, 4, 3]
+    assert kc.prefix_block_heights() not in scans
+
+
+def test_get_recent_transactions_does_not_unbounded_prefix_scan(rocks, monkeypatch):
+    rocks.persist_block_atomic(
+        {
+            "height": 1,
+            "hash": "a" * 64,
+            "parent_hash": "0" * 64,
+            "timestamp": 1700000001,
+            "miner": "0x" + "1" * 40,
+            "transactions": [],
+        },
+        [
+            {
+                "hash": "b" * 64,
+                "block_height": 1,
+                "from_addr": "0x" + "2" * 40,
+                "to_addr": "0x" + "3" * 40,
+                "value": 1.0,
+                "gas": 21000,
+                "fee": 0.1,
+                "burned": 0.0,
+                "nonce": 0,
+                "status": 1,
+                "timestamp": 1700000002,
+            }
+        ],
+    )
+    scans = []
+    orig = rocks._scan_prefix
+
+    def _spy(prefix, limit=100_000):
+        scans.append(prefix)
+        return orig(prefix, limit=limit)
+
+    monkeypatch.setattr(rocks, "_scan_prefix", _spy)
+    recent = rocks.get_recent_transactions(limit=1)
+    assert len(recent) == 1
+    assert scans == []

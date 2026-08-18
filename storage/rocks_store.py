@@ -287,6 +287,10 @@ class RocksChainStore:
         target = self._schema_version.encode("utf-8")
         if existing is None:
             self._raw_put(kc.key_meta("schema_version"), target)
+            # Empty store: proposer counters are authoritative from genesis.
+            # Legacy volumes already have schema_version — do not invent counts.
+            self._raw_put(kc.key_meta("proposer_counts_v1"), b"1")
+            self._raw_put(kc.key_meta("addr_tx_counts_v1"), b"1")
             return
         # One-way honesty: bump meta when CF mode is enabled on a legacy DB.
         if self.column_families and existing != target:
@@ -483,8 +487,75 @@ class RocksChainStore:
             return text if text else default
 
     def _invalidate_obs_meta(self) -> None:
-        for meta_key in ("stats_tx_count", "stats_account_count", "total_supply_abs"):
+        for meta_key in (
+            "stats_tx_count",
+            "stats_account_count",
+            "stats_receipt_count",
+            "stats_proposer_audit",
+            "total_supply_abs",
+        ):
             self._raw_delete(kc.key_meta(meta_key))
+
+    def _proposer_counts_enabled(self) -> bool:
+        raw = self._raw_get(kc.key_meta("proposer_counts_v1"))
+        return raw == b"1"
+
+    def _bump_proposer_count(self, addr: str, delta: int) -> None:
+        if not self._proposer_counts_enabled():
+            return
+        name = f"proposer_count:{SqliteDatabase._normalize_address(addr)}"
+        cur = self._read_plain_meta_int(name)
+        if cur is None:
+            if int(delta) < 0:
+                return
+            cur = 0
+        nxt = max(0, int(cur) + int(delta))
+        self._raw_put(kc.key_meta(name), str(nxt).encode("utf-8"))
+
+    def _addr_tx_counts_enabled(self) -> bool:
+        raw = self._raw_get(kc.key_meta("addr_tx_counts_v1"))
+        return raw == b"1"
+
+    def _bump_addr_tx_count(self, addr: str, kind: str, delta: int) -> None:
+        if not self._addr_tx_counts_enabled():
+            return
+        name = f"tx_{kind}_count:{SqliteDatabase._normalize_address(addr)}"
+        cur = self._read_plain_meta_int(name)
+        if cur is None:
+            if int(delta) < 0:
+                return
+            cur = 0
+        nxt = max(0, int(cur) + int(delta))
+        self._raw_put(kc.key_meta(name), str(nxt).encode("utf-8"))
+
+    def _max_indexed_tx_height(self, addr: str) -> int | None:
+        """O(1) last-tx height from address indexes (no tx blob decode)."""
+        prefixes = (kc.prefix_tx_from(addr), kc.prefix_tx_to(addr))
+        engine = self._engine
+        max_h: int | None = None
+        for prefix in prefixes:
+            last_kv = None
+            if engine is not None and hasattr(engine, "prefix_last"):
+                try:
+                    last_kv = engine.prefix_last(prefix)
+                except Exception as exc:
+                    logger.warning(
+                        "[RocksStore] prefix_last address index failed: %s", exc
+                    )
+                    last_kv = None
+            if last_kv:
+                key = bytes(last_kv[0])
+            else:
+                rows = self._scan_prefix(prefix)
+                if not rows:
+                    continue
+                key = max(rows, key=lambda kv: kv[0])[0]
+            rest = key[len(prefix) :]
+            if len(rest) < 8:
+                continue
+            h = kc.unpack_u64(rest[:8])
+            max_h = h if max_h is None else max(max_h, h)
+        return max_h
 
     def _read_plain_meta_int(self, name: str) -> int | None:
         raw = self._raw_get(kc.key_meta(name))
@@ -591,7 +662,11 @@ class RocksChainStore:
             "block_ts": int(block.get("timestamp", int(time.time())) or 0),
             "recorded_at": int(time.time()),
         }
+        created = self._raw_get(kc.key_proposer_audit(height)) is None
         self._raw_put(kc.key_proposer_audit(height), json.dumps(audit).encode("utf-8"))
+        if created:
+            self._bump_plain_meta_int("stats_proposer_audit", 1)
+            self._bump_proposer_count(str(audit["proposer"]), 1)
         self._touch_live_state_root_meta(block)
 
     def _touch_live_state_root_meta(self, block: Dict) -> None:
@@ -626,10 +701,20 @@ class RocksChainStore:
         return self.get_block(kc.unpack_u64(raw_h))
 
     def get_latest_blocks(self, limit: int = 20) -> List[Dict]:
-        rows = self._scan_prefix(kc.prefix_block_heights())
+        """Newest `limit` blocks via tip point-reads. Never prefix-scan heights."""
+        limit = max(1, min(int(limit), 200))
+        tip = int(self.get_chain_tip() or 0)
         blocks: List[Dict] = []
-        for _key, value in sorted(rows, key=lambda kv: kc.unpack_u64(kv[0][1:9]), reverse=True)[:limit]:
-            block = self._loads_block_blob_or_none(value, context="latest_block")
+        h = tip
+        sought = 0
+        max_seek = max(limit * 4, limit + 64)
+        while h >= 0 and len(blocks) < limit and sought < max_seek:
+            raw = self._raw_get(kc.key_block_height(h))
+            sought += 1
+            h -= 1
+            if raw is None:
+                continue
+            block = self._loads_block_blob_or_none(raw, context="latest_block")
             if block is None:
                 logger.warning(
                     "[RocksStore] corrupt latest_block row skipped "
@@ -1165,10 +1250,24 @@ class RocksChainStore:
         bh = int(row.get("block_height", 0) or 0)
         from_addr = row.get("from_addr", "")
         to_addr = row.get("to_addr", "")
+        created_from = False
+        created_to = False
         if from_addr:
-            self._raw_put(kc.key_tx_from_index(from_addr, bh, tx_hash), b"\x01")
+            key = kc.key_tx_from_index(from_addr, bh, tx_hash)
+            created_from = self._raw_get(key) is None
+            self._raw_put(key, b"\x01")
+            if created_from:
+                self._bump_addr_tx_count(from_addr, "from", 1)
         if to_addr:
-            self._raw_put(kc.key_tx_to_index(to_addr, bh, tx_hash), b"\x01")
+            key = kc.key_tx_to_index(to_addr, bh, tx_hash)
+            created_to = self._raw_get(key) is None
+            self._raw_put(key, b"\x01")
+            if created_to:
+                self._bump_addr_tx_count(to_addr, "to", 1)
+        if from_addr and created_from:
+            self._bump_addr_tx_count(from_addr, "touch", 1)
+        if to_addr and created_to and to_addr != from_addr:
+            self._bump_addr_tx_count(to_addr, "touch", 1)
         ts = int(row.get("timestamp", 0) or 0)
         self._raw_put(kc.key_tx_recent_index(bh, ts, tx_hash), b"\x01")
 
@@ -1180,9 +1279,20 @@ class RocksChainStore:
         from_addr = row.get("from_addr", "")
         to_addr = row.get("to_addr", "")
         if from_addr:
-            self._raw_delete(kc.key_tx_from_index(from_addr, bh, tx_hash))
+            key = kc.key_tx_from_index(from_addr, bh, tx_hash)
+            existed = self._raw_get(key) is not None
+            self._raw_delete(key)
+            if existed:
+                self._bump_addr_tx_count(from_addr, "from", -1)
+                self._bump_addr_tx_count(from_addr, "touch", -1)
         if to_addr:
-            self._raw_delete(kc.key_tx_to_index(to_addr, bh, tx_hash))
+            key = kc.key_tx_to_index(to_addr, bh, tx_hash)
+            existed = self._raw_get(key) is not None
+            self._raw_delete(key)
+            if existed:
+                self._bump_addr_tx_count(to_addr, "to", -1)
+                if to_addr != from_addr:
+                    self._bump_addr_tx_count(to_addr, "touch", -1)
         ts = int(row.get("timestamp", 0) or 0)
         self._raw_delete(kc.key_tx_recent_index(bh, ts, tx_hash))
 
@@ -1198,41 +1308,144 @@ class RocksChainStore:
             return ""
         return "0x" + body[16:].hex()
 
-    def _rows_from_address_index(
-        self, addr: str, direction: str
-    ) -> List[Dict]:
-        addr = SqliteDatabase._normalize_address(addr)
+    def _prefix_last_kv(self, prefix: bytes) -> Optional[tuple[bytes, bytes]]:
+        engine = self._engine
+        if engine is None or not hasattr(engine, "prefix_last"):
+            return None
+        try:
+            row = engine.prefix_last(prefix)
+        except Exception as exc:
+            logger.warning("[RocksStore] prefix_last failed: %s", exc)
+            return None
+        if not row:
+            return None
+        return bytes(row[0]), bytes(row[1])
+
+    def _prefix_prev_kv(
+        self, prefix: bytes, before: bytes
+    ) -> Optional[tuple[bytes, bytes]]:
+        engine = self._engine
+        if engine is None or not hasattr(engine, "prefix_prev"):
+            return None
+        try:
+            row = engine.prefix_prev(prefix, before)
+        except Exception as exc:
+            logger.warning("[RocksStore] prefix_prev failed: %s", exc)
+            return None
+        if not row:
+            return None
+        return bytes(row[0]), bytes(row[1])
+
+    def _scan_range(
+        self, start: bytes, end_exclusive: bytes, limit: int
+    ) -> List[tuple[bytes, bytes]]:
+        """Forward scan [start, end_exclusive). Never a full-CF walk."""
+        limit = max(0, min(int(limit), 100_000))
+        if limit == 0 or not start or end_exclusive <= start:
+            return []
+        engine = self._engine
+        if engine is not None and hasattr(engine, "scan_range"):
+            try:
+                rows = engine.scan_range(start, end_exclusive, limit)
+            except Exception as exc:
+                logger.warning("[RocksStore] scan_range failed: %s", exc)
+            else:
+                return [(bytes(k), bytes(v)) for k, v in rows]
+        # Old wheel: prefix_scan from `start` then clip. Multi-height EVM
+        # ranges must not use this path (query_evm_logs loops heights).
+        clipped: List[tuple[bytes, bytes]] = []
+        for key, value in self._scan_prefix(start, limit=limit):
+            if key >= end_exclusive:
+                break
+            clipped.append((key, value))
+            if len(clipped) >= limit:
+                break
+        return clipped
+
+    def _address_index_page_hashes(
+        self, addr: str, direction: str, limit: int, offset: int
+    ) -> List[str]:
+        """Newest-first unique tx hashes from address indexes. No full CF scan."""
         prefixes: List[bytes] = []
         if direction in ("all", "sent"):
             prefixes.append(kc.prefix_tx_from(addr))
         if direction in ("all", "received"):
             prefixes.append(kc.prefix_tx_to(addr))
+        need = max(0, int(offset)) + max(1, int(limit))
+        cursors: List[Optional[tuple[bytes, bytes]]] = [
+            self._prefix_last_kv(p) for p in prefixes
+        ]
         seen: set[str] = set()
-        rows: List[Dict] = []
-        for prefix in prefixes:
-            for key, _marker in self._scan_prefix(prefix):
-                tx_hash = self._tx_hash_from_index_key(key, prefix)
-                if not tx_hash or tx_hash in seen:
+        ordered: List[str] = []
+        while len(ordered) < need and any(c is not None for c in cursors):
+            best_i = -1
+            best_key: Optional[bytes] = None
+            for i, kv in enumerate(cursors):
+                if kv is None:
                     continue
+                if best_key is None or kv[0] > best_key:
+                    best_key = kv[0]
+                    best_i = i
+            if best_i < 0 or best_key is None:
+                break
+            prefix = prefixes[best_i]
+            key = cursors[best_i][0]  # type: ignore[index]
+            tx_hash = self._tx_hash_from_index_key(key, prefix)
+            cursors[best_i] = self._prefix_prev_kv(prefix, key)
+            if tx_hash and tx_hash not in seen:
                 seen.add(tx_hash)
-                raw = self._raw_get(kc.key_tx(tx_hash))
-                if raw:
-                    row = self._loads_tx_blob_or_none(
-                        raw, context=f"address_tx {tx_hash[:16]}"
-                    )
-                    if row is None:
-                        logger.warning(
-                            "[RocksStore] corrupt address_tx row skipped "
-                            "(decode_failures=%s)",
-                            self._json_decode_failures,
-                        )
-                        continue
-                    rows.append(row)
-        rows.sort(
-            key=lambda r: (int(r.get("block_height", 0)), int(r.get("timestamp", 0))),
-            reverse=True,
-        )
-        return rows
+                ordered.append(tx_hash)
+        return ordered[offset : offset + limit]
+
+    def count_transactions_by_address(
+        self, address: str, direction: str = "all"
+    ) -> int:
+        addr = SqliteDatabase._normalize_address(address)
+        if direction == "sent":
+            kind = "from"
+        elif direction == "received":
+            kind = "to"
+        else:
+            kind = "touch"
+        n = self._read_plain_meta_int(f"tx_{kind}_count:{addr}")
+        if self._addr_tx_counts_enabled():
+            return int(n or 0)
+        # Legacy volumes: do not prefix-scan. Unknown count is 0, not a full index walk.
+        return int(n or 0)
+
+    def count_address_transactions(
+        self, address: str, direction: str = "all"
+    ) -> int:
+        return self.count_transactions_by_address(address, direction)
+
+    def get_transactions_by_address(
+        self,
+        address: str,
+        limit: int = 50,
+        offset: int = 0,
+        direction: str = "all",
+    ) -> List[Dict]:
+        addr = SqliteDatabase._normalize_address(address)
+        limit = max(1, min(int(limit), 200))
+        offset = max(0, int(offset))
+        hashes = self._address_index_page_hashes(addr, direction, limit, offset)
+        out: List[Dict] = []
+        for tx_hash in hashes:
+            raw = self._raw_get(kc.key_tx(tx_hash))
+            if not raw:
+                continue
+            row = self._loads_tx_blob_or_none(
+                raw, context=f"address_tx {tx_hash[:16]}"
+            )
+            if row is None:
+                logger.warning(
+                    "[RocksStore] corrupt address_tx row skipped "
+                    "(decode_failures=%s)",
+                    self._json_decode_failures,
+                )
+                continue
+            out.append(self._serialize_tx_row(row, addr))
+        return out
 
     def _insert_tx_receipt(self, tx: Dict, block_hash: str, block_height: int) -> None:
         from runtime.amount import tx_money_abs
@@ -1256,10 +1469,11 @@ class RocksChainStore:
             "created_at": int(time.time()),
         }
         # v1.3.151: typed ATXR value when native pack_receipt_row is available.
-        self._raw_put(
-            kc.P_TX_RECEIPT + kc.key_tx(tx_hash)[1:],
-            self._pack_receipt_blob(receipt),
-        )
+        rkey = kc.P_TX_RECEIPT + kc.key_tx(tx_hash)[1:]
+        created = self._raw_get(rkey) is None
+        self._raw_put(rkey, self._pack_receipt_blob(receipt))
+        if created:
+            self._bump_plain_meta_int("stats_receipt_count", 1)
 
     def save_transaction(self, tx: Dict) -> bool:
         with self._write_lock:
@@ -1297,7 +1511,10 @@ class RocksChainStore:
     def get_recent_transactions(self, limit: int = 30) -> List[Dict]:
         limit = max(1, min(int(limit), 200))
         out: List[Dict] = []
-        for key, _marker in self._scan_prefix(kc.prefix_tx_recent(), limit=limit * 2):
+        # Inverted height/ts keys: lexicographic first == newest.
+        start = kc.prefix_tx_recent()
+        end = kc.prefix_family_end(start)
+        for key, _marker in self._scan_range(start, end, limit * 2):
             tx_hash = self._tx_hash_from_recent_key(key)
             if not tx_hash:
                 continue
@@ -1404,72 +1621,62 @@ class RocksChainStore:
             rows.append(row)
         return rows
 
-    def count_transactions_by_address(
-        self, address: str, direction: str = "all"
-    ) -> int:
-        addr = SqliteDatabase._normalize_address(address)
-        if direction == "sent":
-            return len(self._scan_prefix(kc.prefix_tx_from(addr)))
-        if direction == "received":
-            return len(self._scan_prefix(kc.prefix_tx_to(addr)))
-        hashes: set[str] = set()
-        for prefix in (kc.prefix_tx_from(addr), kc.prefix_tx_to(addr)):
-            for key, _marker in self._scan_prefix(prefix):
-                tx_hash = self._tx_hash_from_index_key(key, prefix)
-                if tx_hash:
-                    hashes.add(tx_hash)
-        return len(hashes)
-
-    def get_transactions_by_address(
-        self,
-        address: str,
-        limit: int = 50,
-        offset: int = 0,
-        direction: str = "all",
-    ) -> List[Dict]:
-        addr = SqliteDatabase._normalize_address(address)
-        limit = max(1, min(int(limit), 200))
-        offset = max(0, int(offset))
-        matched = self._rows_from_address_index(addr, direction)
-        page = matched[offset : offset + limit]
-        return [self._serialize_tx_row(row, addr) for row in page]
-
     def get_address_activity(self, address: str) -> Dict:
+        from runtime.amount import account_balance_abs, account_satoshi
+
         addr = SqliteDatabase._normalize_address(address)
         sent = self.count_transactions_by_address(addr, "sent")
         received = self.count_transactions_by_address(addr, "received")
         total = self.count_transactions_by_address(addr, "all")
+        last_h = self._max_indexed_tx_height(addr)
         blocks_proposed = 0
-        last_h: int | None = None
-        for row in self._rows_from_address_index(addr, "all"):
-            bh = int(row.get("block_height", 0) or 0)
-            if last_h is None or bh > last_h:
-                last_h = bh
-        for _key, value in self._scan_prefix(kc.P_PROPOSER_AUDIT):
-            try:
-                audit = json.loads(value.decode("utf-8"))
-            except Exception as exc:
-                self._json_decode_failures += 1
-                logger.warning(
-                    "[RocksStore] corrupt proposer_audit row skipped "
-                    "(decode_failures=%s): %s",
-                    self._json_decode_failures,
-                    exc,
-                )
-                continue
-            if SqliteDatabase._normalize_address(audit.get("proposer", "")) == addr:
-                blocks_proposed += 1
+        blocks_proposed_known = False
+        if self._proposer_counts_enabled():
+            counted = self._read_plain_meta_int(f"proposer_count:{addr}")
+            blocks_proposed = int(counted or 0)
+            blocks_proposed_known = True
         acct = self._load_account(addr)
         return {
             "address": addr,
-            "balance": float(acct.get("balance", 0.0) or 0.0),
+            "balance": account_balance_abs(acct),
+            "balance_satoshi": account_satoshi(acct),
             "nonce": int(acct.get("nonce", 0) or 0),
             "sent_count": sent,
             "received_count": received,
             "tx_count": total,
             "blocks_proposed": blocks_proposed,
+            "blocks_proposed_known": blocks_proposed_known,
             "last_tx_height": last_h,
             "is_contract": bool(acct.get("code")),
+        }
+
+    def _decode_proposer_audit_blob(self, raw: bytes | None) -> Optional[Dict]:
+        if raw is None:
+            return None
+        try:
+            audit = json.loads(raw.decode("utf-8"))
+        except Exception as exc:
+            self._json_decode_failures += 1
+            logger.warning(
+                "[RocksStore] corrupt proposer_audit list row skipped "
+                "(decode_failures=%s): %s",
+                self._json_decode_failures,
+                exc,
+            )
+            return None
+        return audit if isinstance(audit, dict) else None
+
+    def _format_proposer_audit_row(self, audit: Dict) -> Dict:
+        from runtime.amount import money_abs
+
+        return {
+            "height": audit.get("height", 0),
+            "block_hash": audit.get("block_hash", ""),
+            "proposer": audit.get("proposer", ""),
+            "tx_count": audit.get("tx_count", 0),
+            "total_burned": money_abs(audit.get("total_burned", 0.0), field="total_burned"),
+            "timestamp": audit.get("block_ts", audit.get("timestamp", 0)),
+            "recorded_at": audit.get("recorded_at", 0),
         }
 
     def get_proposer_audit_log(
@@ -1478,42 +1685,90 @@ class RocksChainStore:
         offset: int = 0,
         proposer: str = "",
     ) -> List[Dict]:
-        from runtime.amount import money_abs
-
+        """Newest-first page via height keys. Never prefix-scans the audit CF."""
         limit = max(1, min(int(limit), 200))
         offset = max(0, int(offset))
-        rows: List[Dict] = []
-        for _key, value in self._scan_prefix(kc.P_PROPOSER_AUDIT):
-            try:
-                audit = json.loads(value.decode("utf-8"))
-            except Exception as exc:
-                self._json_decode_failures += 1
-                logger.warning(
-                    "[RocksStore] corrupt proposer_audit list row skipped "
-                    "(decode_failures=%s): %s",
-                    self._json_decode_failures,
-                    exc,
-                )
+        want = SqliteDatabase._normalize_address(proposer) if proposer else ""
+        tip = int(self.get_chain_tip() or 0)
+        collected: List[Dict] = []
+        if not want:
+            h = tip - offset
+            skip = 0
+            max_seek = limit + 64
+        else:
+            h = tip
+            skip = offset
+            max_seek = max(512, (offset + limit) * 8)
+        sought = 0
+        while h >= 0 and len(collected) < limit and sought < max_seek:
+            raw = self._raw_get(kc.key_proposer_audit(h))
+            sought += 1
+            h -= 1
+            audit = self._decode_proposer_audit_blob(raw)
+            if not audit:
                 continue
-            if proposer:
-                want = SqliteDatabase._normalize_address(proposer)
-                if SqliteDatabase._normalize_address(audit.get("proposer", "")) != want:
-                    continue
-            rows.append(audit)
-        rows.sort(key=lambda r: int(r.get("height", 0)), reverse=True)
-        page = rows[offset : offset + limit]
-        return [
-            {
-                "height": r.get("height", 0),
-                "block_hash": r.get("block_hash", ""),
-                "proposer": r.get("proposer", ""),
-                "tx_count": r.get("tx_count", 0),
-                "total_burned": money_abs(r.get("total_burned", 0.0), field="total_burned"),
-                "timestamp": r.get("block_ts", r.get("timestamp", 0)),
-                "recorded_at": r.get("recorded_at", 0),
-            }
-            for r in page
-        ]
+            if want and SqliteDatabase._normalize_address(audit.get("proposer", "")) != want:
+                continue
+            if skip > 0:
+                skip -= 1
+                continue
+            collected.append(audit)
+        return [self._format_proposer_audit_row(r) for r in collected]
+
+    def count_proposer_audit(self, proposer: str = "") -> int | None:
+        if not str(proposer or "").strip():
+            return self._cached_prefix_len("stats_proposer_audit", kc.P_PROPOSER_AUDIT)
+        if not self._proposer_counts_enabled():
+            return None
+        addr = SqliteDatabase._normalize_address(proposer)
+        n = self._read_plain_meta_int(f"proposer_count:{addr}")
+        return int(n or 0)
+
+    def get_proposer_stats(self, limit: int = 20) -> List[Dict]:
+        """Top proposers from O(proposers) meta counters — not a full audit scan."""
+        from runtime.amount import money_abs
+
+        limit = max(1, min(int(limit), 100))
+        if not self._proposer_counts_enabled():
+            return []
+        prefix = kc.key_meta("proposer_count:")
+        rows: List[Dict] = []
+        for key, value in self._scan_prefix(prefix):
+            try:
+                addr = key[len(prefix) :].decode("utf-8")
+                n = int(value.decode("utf-8"))
+            except (UnicodeDecodeError, ValueError, TypeError):
+                continue
+            rows.append(
+                {
+                    "proposer": addr,
+                    "blocks_proposed": n,
+                    "total_txs": 0,
+                    "total_burned": money_abs(0, field="total_burned"),
+                    "last_height": None,
+                    "first_height": None,
+                }
+            )
+        rows.sort(key=lambda r: int(r.get("blocks_proposed", 0) or 0), reverse=True)
+        return rows[:limit]
+
+    def get_proposer_detail(self, address: str, recent_limit: int = 10) -> Dict:
+        from runtime.amount import money_abs
+
+        addr = SqliteDatabase._normalize_address(address)
+        known = self._proposer_counts_enabled()
+        n = self._read_plain_meta_int(f"proposer_count:{addr}") if known else None
+        recent = self.get_proposer_audit_log(limit=recent_limit, offset=0, proposer=addr)
+        return {
+            "proposer": addr,
+            "blocks_proposed": int(n or 0),
+            "blocks_proposed_known": bool(known),
+            "total_txs": 0,
+            "total_burned": money_abs(0, field="total_burned"),
+            "first_height": recent[-1]["height"] if recent else None,
+            "last_height": recent[0]["height"] if recent else None,
+            "recent_blocks": recent,
+        }
 
     # ── bridge (cross-chain) ─────────────────────────────────────────────
 
@@ -1565,7 +1820,11 @@ class RocksChainStore:
     def get_bridge_locks(self, limit: int = 50) -> List[Dict]:
         limit = max(1, min(int(limit), 5000))
         rows: List[Dict] = []
-        for _key, value in self._scan_prefix(kc.prefix_bridge_locks()):
+        start = kc.prefix_bridge_locks()
+        # Keys are tx-hash order, not time. Bound the walk; do not scan 100k.
+        for _key, value in self._scan_range(
+            start, kc.prefix_family_end(start), 5000
+        ):
             try:
                 rows.append(json.loads(value.decode("utf-8")))
             except Exception as exc:
@@ -1851,8 +2110,14 @@ class RocksChainStore:
                 continue
             if int(row.get("block_height", 0) or 0) > cut:
                 self._raw_delete(key)
-        for key, _value in self._scan_prefix(kc.P_PROPOSER_AUDIT):
+        for key, value in self._scan_prefix(kc.P_PROPOSER_AUDIT):
             if kc.unpack_u64(key[1:9]) > cut:
+                if self._proposer_counts_enabled():
+                    audit = self._loads_json_or_none(
+                        value, context="reorg proposer_audit"
+                    )
+                    if audit:
+                        self._bump_proposer_count(str(audit.get("proposer", "")), -1)
                 self._raw_delete(key)
         for key, _value in self._scan_prefix(kc.P_BURN):
             if kc.unpack_u64(key[1:9]) > cut:
@@ -2214,6 +2479,45 @@ class RocksChainStore:
         logs.sort(key=lambda r: (int(r.get("log_index", 0) or 0), int(r.get("block_height", 0) or 0)))
         return logs
 
+    def _evm_log_tip_height(self) -> int:
+        last = self._prefix_last_kv(kc.P_EVM_LOG)
+        if last is not None and len(last[0]) >= 1 + 8:
+            try:
+                return int(kc.unpack_u64(last[0][1:9]))
+            except ValueError:
+                pass
+        return int(self.get_chain_tip() or 0)
+
+    def _scan_evm_log_blobs(
+        self, from_block: int, to_block: Optional[int], budget: int
+    ) -> List[tuple[bytes, bytes]]:
+        """Logs in [from_block, to_block], O(rows in range) — not all P_EVM_LOG."""
+        start = kc.prefix_evm_logs_block(from_block)
+        engine = self._engine
+        if to_block is None and engine is not None and hasattr(engine, "scan_range"):
+            end = kc.prefix_family_end(kc.P_EVM_LOG)
+            return self._scan_range(start, end, budget)
+        if to_block is None:
+            to_block = self._evm_log_tip_height()
+        to_block = int(to_block)
+        if from_block > to_block:
+            return []
+        end = kc.prefix_evm_logs_block(to_block + 1)
+        if engine is not None and hasattr(engine, "scan_range"):
+            return self._scan_range(start, end, budget)
+        # Old wheel: per-height prefix, never a full P_EVM_LOG walk.
+        out: List[tuple[bytes, bytes]] = []
+        remaining = budget
+        for height in range(from_block, to_block + 1):
+            if remaining <= 0:
+                break
+            chunk = self._scan_prefix(
+                kc.prefix_evm_logs_block(height), limit=remaining
+            )
+            out.extend(chunk)
+            remaining -= len(chunk)
+        return out
+
     def query_evm_logs(
         self,
         from_block: int = 0,
@@ -2222,20 +2526,25 @@ class RocksChainStore:
         topics: Optional[List] = None,
         limit: int = 10_000,
     ) -> List[Dict]:
-        to_block = 2**63 - 1 if to_block is None else int(to_block)
         from_block = max(0, int(from_block))
         limit = max(1, min(int(limit), 10_000))
         addr_set = None
         if addresses:
             addr_set = {kc.normalize_address_key(a) for a in addresses if a}
-        rows = self._scan_prefix(kc.prefix_evm_logs(), limit=50_000)
+        if addr_set or topics:
+            budget = min(50_000, max(limit * 32, 256))
+        else:
+            budget = limit
+        rows = self._scan_evm_log_blobs(from_block, to_block, budget)
         out: List[Dict] = []
         for _, val in rows:
             row = self._decode_evm_log_row(val)
             if row is None:
                 continue
             bh = int(row.get("block_height", 0) or 0)
-            if bh < from_block or bh > to_block:
+            if to_block is not None and (bh < from_block or bh > int(to_block)):
+                continue
+            if bh < from_block:
                 continue
             if addr_set and kc.normalize_address_key(row.get("contract_address", "")) not in addr_set:
                 continue
@@ -2416,22 +2725,26 @@ class RocksChainStore:
         )
 
     def get_nft_sales(self, limit: int = 100) -> List[Dict]:
-        rows = self._scan_prefix(kc.prefix_nft_sales(), limit=50_000)
+        limit = max(1, min(int(limit), 500))
+        start = kc.prefix_nft_sales()
+        # Inverted timestamp keys: lexicographic first == newest.
+        rows = self._scan_range(start, kc.prefix_family_end(start), limit)
         out = [
             row
             for row in (self._decode_nft_sale(val) for _, val in rows)
             if row is not None
         ]
         out.sort(key=lambda r: int(r.get("timestamp", 0) or 0), reverse=True)
-        return out[: max(1, int(limit))]
+        return out[:limit]
 
     def get_chain_metrics(self, window: int = 32) -> Dict:
         from runtime.amount import from_satoshi_float, to_satoshi
 
         tip = self.get_chain_tip()
-        tx_rows = self._iter_transaction_rows()
-        receipt_rows = self._scan_prefix(kc.P_TX_RECEIPT)
-        audit_rows = self._scan_prefix(kc.P_PROPOSER_AUDIT)
+        # Cached prefix lengths — never materialize every tx/receipt/audit on HTTP.
+        tx_count = self._cached_prefix_len("stats_tx_count", kc.P_TX)
+        receipt_count = self._cached_prefix_len("stats_receipt_count", kc.P_TX_RECEIPT)
+        audit_count = self._cached_prefix_len("stats_proposer_audit", kc.P_PROPOSER_AUDIT)
         blocks = self.get_latest_blocks(limit=max(2, int(window)))
         avg_block_time = 0.0
         if len(blocks) >= 2:
@@ -2459,9 +2772,9 @@ class RocksChainStore:
         tps = (window_tx / max(window_elapsed, 1.0)) if window_elapsed > 0 else 0.0
         return {
             "height": tip,
-            "tx_count": len(tx_rows),
-            "receipt_count": len(receipt_rows),
-            "proposer_audit_count": len(audit_rows),
+            "tx_count": tx_count,
+            "receipt_count": receipt_count,
+            "proposer_audit_count": audit_count,
             "receipts_enabled": True,
             "proposer_audit_enabled": True,
             "state_root_strict_p2p": True,

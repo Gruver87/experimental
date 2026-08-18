@@ -3,7 +3,13 @@
 
 import pytest
 
-from storage.keycodec import key_account, normalize_address_key
+from storage.keycodec import (
+    key_account,
+    normalize_address_key,
+    prefix_evm_logs_block,
+    prefix_family_end,
+    P_EVM_LOG,
+)
 
 
 @pytest.mark.parametrize(
@@ -27,3 +33,11 @@ def test_key_account_roundtrip_bytes():
     addr = "0xtreasury00000000000000000000000000001"
     suffix = key_account(addr)[1:]
     assert suffix.decode("utf-8") == addr
+
+
+def test_prefix_evm_logs_block_orders_by_height():
+    a = prefix_evm_logs_block(5)
+    b = prefix_evm_logs_block(6)
+    assert a.startswith(P_EVM_LOG)
+    assert a < b
+    assert prefix_family_end(P_EVM_LOG) == bytes([P_EVM_LOG[0] + 1])

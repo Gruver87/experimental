@@ -12,7 +12,7 @@ Scope: Absolute hybrid EVM subset on the single apply path.
 | `eth_call` | **Supported** | Hex ABI word encoding + precompile bytes |
 | `eth_estimateGas` | **Supported** | Includes create (`to` empty) path |
 | `eth_getTransactionReceipt` | **Partial** | Core fields + logs + **logsBloom from address/topics** |
-| `eth_getBlockByNumber` / `ByHash` | **Partial** | Header fields + **block `logsBloom` reconstructed from log index** (OR of address/topics; cap 10k logs/block). `transactionsRoot` / `receiptsRoot` still stub |
+| `eth_getBlockByNumber` / `ByHash` | **Partial** | Header fields + **block `logsBloom` reconstructed from log index** (OR of address/topics; cap 10k logs/block). `transactionsRoot` / `receiptsRoot` are **Absolute SHA256 merkle** (same leaf rule as `Block.tx_root` / hash:status receipts) — **not** Ethereum Hexary MPT |
 | Blob txs (EIP-4844) | **Not claimed** | Optional / out of scope |
 | EOF | **Not claimed** | Out of scope |
 | Full geth JSON-RPC surface | **Not claimed** | Wave-gated methods only |

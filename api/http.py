@@ -2820,10 +2820,15 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "proposer audit not available"); return
                 limit = min(max(int(qs.get("limit", ["20"])[0]), 1), 100)
                 rows = db.get_proposer_stats(limit=limit)
+                audit_total = (
+                    db.count_proposer_audit()
+                    if hasattr(db, "count_proposer_audit")
+                    else None
+                )
                 self._json({
                     "count": len(rows),
                     "proposers": rows,
-                    "audit_total": db.count_proposer_audit(),
+                    "audit_total": audit_total,
                 })
 
             elif path == "/chain/proposers/history":
@@ -2833,7 +2838,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                 limit = min(max(int(qs.get("limit", ["50"])[0]), 1), 200)
                 offset = max(int(qs.get("offset", ["0"])[0]), 0)
                 proposer = qs.get("proposer", [""])[0]
-                total = db.count_proposer_audit(proposer=proposer)
+                total = (
+                    db.count_proposer_audit(proposer=proposer)
+                    if hasattr(db, "count_proposer_audit")
+                    else None
+                )
                 rows = db.get_proposer_audit_log(
                     limit=limit, offset=offset, proposer=proposer
                 )

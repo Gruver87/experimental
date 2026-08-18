@@ -804,6 +804,16 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         )
         if "def block_logs_bloom" not in eth_fmt_py_adr:
             errors.append("api/eth_format.py must compute block logsBloom (not a zero stub)")
+        if "def block_transactions_root" not in eth_fmt_py_adr:
+            errors.append("eth_format must expose block_transactions_root (Absolute merkle)")
+        if "def block_receipts_root" not in eth_fmt_py_adr:
+            errors.append("eth_format must expose block_receipts_root (Absolute merkle)")
+        if '"transactionsRoot": "0x" + "0" * 64' in eth_fmt_py_adr:
+            errors.append("eth_format must not stub transactionsRoot as zero")
+        if '"receiptsRoot": "0x" + "0" * 64' in eth_fmt_py_adr:
+            errors.append("eth_format must not stub receiptsRoot as zero")
+        if "merkle_root" not in eth_fmt_py_adr:
+            errors.append("block tx/receipt roots must use crypto.merkle.merkle_root")
         if not (ROOT / "api" / "eth_format.py").is_file():
             errors.append("api/eth_format.py missing (ADR 0011)")
         if not (ROOT / "api" / "fake_rpc.py").is_file():
@@ -888,7 +898,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("rocks_store get_all_accounts must warn on corrupt decode")
         if "corrupt validator row skipped" not in rocks_py:
             errors.append("rocks_store get_validators must warn on corrupt decode")
-        if "corrupt proposer_audit row skipped" not in rocks_py:
+        if (
+            "corrupt proposer_audit row skipped" not in rocks_py
+            and "corrupt proposer_audit list row skipped" not in rocks_py
+        ):
             errors.append("rocks_store proposer_audit must warn on corrupt decode")
         if "corrupt bridge_lock row skipped" not in rocks_py:
             errors.append("rocks_store bridge_locks must warn on corrupt decode")
@@ -1786,6 +1799,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("p2p must coalesce sync/connect tasks (v1.3.66)")
         if "fn prefix_last" not in storage_rs:
             errors.append("RocksEngine must expose prefix_last (v1.3.66)")
+        if "fn prefix_prev" not in storage_rs:
+            errors.append("RocksEngine must expose prefix_prev (address index pagination)")
+        if "fn scan_range" not in storage_rs:
+            errors.append("RocksEngine must expose scan_range (bounded EVM log / recent-tx walks)")
         if "lexicographically last key across" not in storage_rs:
             errors.append(
                 "prefix_last must merge target CF + legacy default (not primary-first)"
@@ -4145,6 +4162,113 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("RocksStore.get_total_burned must display via money_abs")
         if 'float(row.get("balance") or 0)' in rocks_py:
             errors.append("Rocks writeback merge must not float() balance")
+        act_fn = rocks_py.split("def get_address_activity", 1)[-1].split(
+            "def get_proposer_audit_log", 1
+        )[0]
+        if "_scan_prefix(kc.P_PROPOSER_AUDIT)" in act_fn:
+            errors.append(
+                "Rocks get_address_activity must not prefix-scan proposer_audit"
+            )
+        if "account_balance_abs" not in act_fn:
+            errors.append("Rocks get_address_activity must display via account_balance_abs")
+        if "_max_indexed_tx_height" not in act_fn:
+            errors.append(
+                "Rocks get_address_activity must use indexed last_tx_height (not tx blob scan)"
+            )
+        log_fn = rocks_py.split("def get_proposer_audit_log", 1)[-1].split(
+            "def count_proposer_audit", 1
+        )[0]
+        if "_scan_prefix(kc.P_PROPOSER_AUDIT)" in log_fn:
+            errors.append(
+                "Rocks get_proposer_audit_log must not prefix-scan proposer_audit"
+            )
+        if "key_proposer_audit" not in log_fn:
+            errors.append("Rocks get_proposer_audit_log must seek by height key")
+        if "def count_proposer_audit" not in rocks_py:
+            errors.append("RocksChainStore must implement count_proposer_audit")
+        if "def get_proposer_stats" not in rocks_py:
+            errors.append("RocksChainStore must implement get_proposer_stats")
+        if "def get_proposer_detail" not in rocks_py:
+            errors.append("RocksChainStore must implement get_proposer_detail")
+        hybrid_py = (ROOT / "storage" / "hybrid_database.py").read_text(encoding="utf-8")
+        if "def count_proposer_audit" not in hybrid_py:
+            errors.append("HybridDatabase must forward count_proposer_audit")
+        if "def get_proposer_stats" not in hybrid_py:
+            errors.append("HybridDatabase must forward get_proposer_stats")
+        if 'hasattr(db, "count_proposer_audit")' not in http_py:
+            errors.append(
+                "HTTP proposer history/stats must not assume count_proposer_audit"
+            )
+        metrics_fn = rocks_py.split("def get_chain_metrics", 1)[-1].split(
+            "def ", 1
+        )[0]
+        if "_iter_transaction_rows()" in metrics_fn:
+            errors.append("Rocks get_chain_metrics must not iterate every tx row")
+        if "_scan_prefix(kc.P_TX_RECEIPT)" in metrics_fn:
+            errors.append("Rocks get_chain_metrics must not scan every receipt")
+        if "_cached_prefix_len(\"stats_tx_count\"" not in metrics_fn:
+            errors.append("Rocks get_chain_metrics must use cached prefix lengths")
+        tx_addr_fn = rocks_py.split("def get_transactions_by_address", 1)[-1].split(
+            "def ", 1
+        )[0]
+        if "_rows_from_address_index" in tx_addr_fn:
+            errors.append(
+                "Rocks get_transactions_by_address must not load the full address index"
+            )
+        if "_scan_prefix" in tx_addr_fn:
+            errors.append(
+                "Rocks get_transactions_by_address must paginate via prefix_prev, not prefix_scan"
+            )
+        if "_address_index_page_hashes" not in tx_addr_fn:
+            errors.append("Rocks get_transactions_by_address must page index hashes newest-first")
+        if "def count_address_transactions" not in rocks_py:
+            errors.append("RocksChainStore must implement count_address_transactions")
+        if "def count_address_transactions" not in hybrid_py:
+            errors.append("HybridDatabase must forward count_address_transactions")
+        if 'len(self._scan_prefix(kc.prefix_tx_from' in rocks_py:
+            errors.append("Rocks address tx count must not prefix-scan the from-index")
+        keycodec_py = (ROOT / "storage" / "keycodec.py").read_text(encoding="utf-8")
+        if "def prefix_evm_logs_block" not in keycodec_py:
+            errors.append("keycodec must expose prefix_evm_logs_block for height-bounded log seeks")
+        if "def prefix_family_end" not in keycodec_py:
+            errors.append("keycodec must expose prefix_family_end for exclusive family scans")
+        qlog_fn = rocks_py.split("def query_evm_logs", 1)[-1].split(
+            "def _decode_nft_token", 1
+        )[0]
+        if "_scan_prefix" in qlog_fn:
+            errors.append(
+                "Rocks query_evm_logs must not prefix-scan; delegate to _scan_evm_log_blobs"
+            )
+        if "_scan_evm_log_blobs" not in qlog_fn:
+            errors.append("Rocks query_evm_logs must seek via _scan_evm_log_blobs")
+        evm_blob_fn = rocks_py.split("def _scan_evm_log_blobs", 1)[-1].split(
+            "def query_evm_logs", 1
+        )[0]
+        if "_scan_prefix(kc.prefix_evm_logs()" in evm_blob_fn:
+            errors.append("_scan_evm_log_blobs must not scan the full P_EVM_LOG family")
+        if "prefix_evm_logs_block" not in evm_blob_fn:
+            errors.append("_scan_evm_log_blobs must seek per-height EVM log prefixes")
+        recent_fn = rocks_py.split("def get_recent_transactions", 1)[-1].split(
+            "def ", 1
+        )[0]
+        if "_scan_prefix" in recent_fn:
+            errors.append(
+                "Rocks get_recent_transactions must scan_range the inverted recent index"
+            )
+        if "_scan_range" not in recent_fn:
+            errors.append("Rocks get_recent_transactions must use _scan_range")
+        lock_fn = rocks_py.split("def get_bridge_locks", 1)[-1].split("def ", 1)[0]
+        if "_scan_prefix(kc.prefix_bridge_locks())" in lock_fn:
+            errors.append("Rocks get_bridge_locks must not unbounded prefix-scan locks")
+        if "_scan_range" not in lock_fn:
+            errors.append("Rocks get_bridge_locks must bound the lock walk via _scan_range")
+        latest_fn = rocks_py.split("def get_latest_blocks", 1)[-1].split(
+            "def ", 1
+        )[0]
+        if "_scan_prefix(kc.prefix_block_heights())" in latest_fn:
+            errors.append("Rocks get_latest_blocks must not prefix-scan all heights")
+        if "key_block_height" not in latest_fn:
+            errors.append("Rocks get_latest_blocks must point-read key_block_height from tip")
         if 'float(ch["capacity"])' in db_py or 'float(will["amount"])' in db_py:
             errors.append("SQLite lightning/will persist must use money_abs, not float()")
         if 'float(dep["amount"])' in db_py or 'float(ex["amount"])' in db_py:

@@ -190,6 +190,18 @@ def prefix_evm_logs() -> bytes:
     return P_EVM_LOG
 
 
+def prefix_evm_logs_block(height: int) -> bytes:
+    """Inclusive start of logs at `height` (P_EVM_LOG || u64 height)."""
+    return P_EVM_LOG + pack_u64(int(height))
+
+
+def prefix_family_end(prefix: bytes) -> bytes:
+    """Exclusive end of a one-byte key family (next prefix byte)."""
+    if not prefix:
+        raise ValueError("empty prefix family")
+    return bytes([(prefix[0] + 1) & 0xFF])
+
+
 def prefix_evm_logs_tx(tx_hash: str) -> bytes:
     return P_EVM_LOG_TX + _tx_hash_body(tx_hash)
 

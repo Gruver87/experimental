@@ -1460,13 +1460,14 @@ def _send_propagation_tx_signed(
 ) -> dict:
     """POST /tx/send with a locally signed tx (prod profile; no auto_sign)."""
     from crypto.wallet import Wallet
+    from runtime.amount import money_abs, to_satoshi
 
     wallet = Wallet.import_wallet(wallet_path)
     chain_id = int(s1.get("chain_id", MAINNET_V1_CHAIN_ID))
     addr_info = _api(f"{url1}/address/{wallet.address}")
     nonce = int(addr_info.get("nonce", 0) or 0)
-    balance = float(addr_info.get("balance", 0) or 0)
-    if balance < 1.0:
+    balance = money_abs(addr_info.get("balance", 0), field="balance")
+    if to_satoshi(balance) < to_satoshi(1):
         raise RuntimeError(
             f"prod-smoke signer balance too low ({balance}); miner rewards may not have accrued"
         )

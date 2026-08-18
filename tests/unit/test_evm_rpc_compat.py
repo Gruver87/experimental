@@ -101,9 +101,15 @@ def test_format_receipt_bloom_from_injected_logs(monkeypatch) -> None:
 
 
 def test_format_block_empty_bloom_without_query() -> None:
+    from crypto.merkle import merkle_root
+
     out = format_block({"height": 3, "hash": "0x" + "aa" * 32, "transactions": []})
     assert out is not None
     assert out["logsBloom"] == EMPTY_LOGS_BLOOM
+    empty = "0x" + merkle_root(["empty"])
+    assert out["transactionsRoot"] == empty
+    assert out["receiptsRoot"] == empty
+    assert out["transactionsRoot"] != "0x" + "0" * 64
 
 
 def test_format_block_bloom_from_query_logs() -> None:
@@ -264,3 +270,62 @@ def test_query_facade_logs_by_block_uses_store() -> None:
     rows = QueryFacade(_BC()).get_evm_logs_by_block(9)
     assert len(rows) == 1
     assert rows[0]["block_height"] == 9
+
+
+def test_format_block_uses_stored_tx_root() -> None:
+    stored = "ab" * 32
+    out = format_block(
+        {
+            "height": 1,
+            "hash": "0x" + "aa" * 32,
+            "tx_root": stored,
+            "transactions": ["0x" + "11" * 32],
+        }
+    )
+    assert out is not None
+    assert out["transactionsRoot"] == "0x" + stored
+
+
+def test_format_block_tx_root_matches_core_merkle() -> None:
+    from crypto.merkle import merkle_root
+
+    h1 = "0x" + "11" * 32
+    h2 = "0x" + "22" * 32
+    out = format_block(
+        {
+            "height": 4,
+            "hash": "0x" + "aa" * 32,
+            "transactions": [h1, h2],
+        }
+    )
+    assert out is not None
+    assert out["transactionsRoot"] == "0x" + merkle_root([h1, h2])
+    assert out["transactionsRoot"] != "0x" + "0" * 64
+    # Hash-only list: receiptsRoot uses the same leaves.
+    assert out["receiptsRoot"] == out["transactionsRoot"]
+
+
+def test_format_block_receipts_root_includes_status() -> None:
+    from crypto.merkle import merkle_root
+
+    h1 = "0x" + "11" * 32
+    txs = [
+        {"hash": h1, "status": 1},
+        {"hash": "0x" + "22" * 32, "status": 0},
+    ]
+    out = format_block({"height": 5, "hash": "0x" + "aa" * 32, "transactions": txs})
+    assert out is not None
+    assert out["transactionsRoot"] == "0x" + merkle_root([h1, txs[1]["hash"]])
+    assert out["receiptsRoot"] == "0x" + merkle_root([f"{h1}:1", f"{txs[1]['hash']}:0"])
+    assert out["receiptsRoot"] != out["transactionsRoot"]
+
+
+def test_eth_get_block_by_number_roots_are_not_zero_stub() -> None:
+    client = _block_with_log(height=10, block_hash="0x" + "ab" * 32)
+    out = client.call("eth_getBlockByNumber", ["latest", False])
+    assert out.get("error") is None
+    result = out["result"]
+    assert result["transactionsRoot"] != "0x" + "0" * 64
+    assert result["receiptsRoot"] != "0x" + "0" * 64
+    assert result["transactionsRoot"].startswith("0x")
+    assert len(result["transactionsRoot"]) == 66

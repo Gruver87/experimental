@@ -45,3 +45,27 @@ def test_evm_logs_rocks_roundtrip(hybrid_db):
     queried = hybrid_db.query_evm_logs(from_block=0, to_block=10, limit=10)
     assert len(queried) == 1
     assert hybrid_db.get_meta("aux_evm_logs_migrated_v1") is True
+
+
+def test_query_evm_logs_single_height_skips_neighbors(hybrid_db):
+    contract = "0x" + "22" * 20
+    hybrid_db.save_evm_logs(
+        contract,
+        [{"topics": ["0x01"], "data": "old"}],
+        block_height=1,
+        tx_hash="0x" + "11" * 32,
+    )
+    hybrid_db.save_evm_logs(
+        contract,
+        [{"topics": ["0x01"], "data": "mid"}],
+        block_height=4,
+        tx_hash="0x" + "44" * 32,
+    )
+    hybrid_db.save_evm_logs(
+        contract,
+        [{"topics": ["0x01"], "data": "new"}],
+        block_height=9,
+        tx_hash="0x" + "99" * 32,
+    )
+    rows = hybrid_db.query_evm_logs(from_block=4, to_block=4, limit=10)
+    assert [row["data"] for row in rows] == ["mid"]
