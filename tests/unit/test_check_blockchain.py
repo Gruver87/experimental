@@ -30,20 +30,53 @@ def test_check_blockchain_scripts_exist():
 def test_verify_full_blockchain_scripts_exist_and_do_not_start_soak():
     py = ROOT / "scripts" / "verify_full_blockchain.py"
     ps1 = ROOT / "scripts" / "verify_full_blockchain.ps1"
+    hard = ROOT / "scripts" / "verify_hard_all.ps1"
     assert py.is_file()
     assert ps1.is_file()
+    assert hard.is_file()
     src = py.read_text(encoding="utf-8")
     wrap = ps1.read_text(encoding="utf-8")
+    hard_src = hard.read_text(encoding="utf-8")
     assert "Does NOT start 48h soak" in src
     assert "Does NOT rebuild Docker" in src
     assert "start_soak" not in src.lower()
     assert "start_soak" not in wrap.lower()
+    assert "start_soak" not in hard_src.lower()
     assert "scan-all" in src
+    assert "--hard" in src
+    assert "refuses skip flags" in src
+    assert "verify_hard_all.ps1" in src
+    assert "verify_experimental_rd.py" in src
     assert "_bind_prod_smoke_wallet" in src
     assert "PROD_SMOKE_WALLET_PATH" in src
     wrap.encode("ascii")
+    hard_src.encode("ascii")
     run_all = (ROOT / "scripts" / "run_all_tests.ps1").read_text(encoding="utf-8")
     assert "verify_full_blockchain.ps1" in run_all
+    assert "verify_hard_all.ps1" in run_all
+
+
+def test_verify_hard_refuses_skip_flags():
+    import subprocess
+    import sys
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "verify_full_blockchain.py"),
+            "--hard",
+            "--skip-live",
+        ],
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    assert proc.returncode == 1
+    combined = (proc.stdout or "") + (proc.stderr or "")
+    assert "refuses skip flags" in combined
+    assert "--skip-live" in combined
 
 
 def test_run_all_tests_script_exists_and_does_not_start_soak():

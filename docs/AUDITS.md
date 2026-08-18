@@ -1,5 +1,7 @@
 # Audits — honest status (Experimental)
 
+**External third-party L1 / smart-contract / penetration audit: not completed.**
+
 **This repository is not the audit pin.** External third-party L1 audit is tracked on
 [Ultimate Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid)
 tag [`v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial).

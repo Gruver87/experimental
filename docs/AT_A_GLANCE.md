@@ -21,7 +21,7 @@ The audit-freeze pin · public audited mainnet · listed ABS · prod libp2p mesh
 | Default transport | **TCP+TLS** — `feature_libp2p=false` on prod JSON |
 | Industrial pin | [Hybrid `v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial) |
 | 48h soak here | **FAIL** (2026-08-16→18, `hard_fails=87`) — Hybrid `375d14f` is a different tree |
-| Self-check | `python scripts/verify_experimental_rd.py` · `.\scripts\verify_adr0019_libp2p_hard.ps1 -Rebuild` |
+| Self-check | `.\scripts\verify_hard_all.ps1` (fail-closed, no soak start) · `python scripts/verify_experimental_rd.py` · `.\scripts\verify_adr0019_libp2p_hard.ps1 -Rebuild` |
 
 ## Proven vs not (honest)
 

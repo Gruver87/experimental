@@ -3,6 +3,10 @@
 # Does NOT start 48h soak. Does NOT rebuild Docker. Does NOT claim mainnet.
 # Scan-all: a FAIL does not skip later steps. Scoreboard at the end.
 #
+# Hard (one command, no skips):
+#   .\scripts\verify_hard_all.ps1
+#   .\scripts\verify_full_blockchain.ps1 -Hard
+#
 # From repo root:
 #   .\scripts\verify_full_blockchain.ps1
 #   .\scripts\verify_full_blockchain.ps1 -SkipLive
@@ -12,8 +16,10 @@
 #
 # Report: logs\verify_full_blockchain.json
 # Exit: 0 OK, 1 FAIL, 2 live mesh unreachable (static steps may still have passed)
+# Hard exit: 0 OK, 1 FAIL (no soft exit 2)
 
 param(
+    [switch]$Hard,
     [switch]$SkipLive,
     [switch]$SkipNative,
     [switch]$SkipCargo,
@@ -47,6 +53,8 @@ if ($Help) {
     Write-Host "    probe, harness, catch-up, /status SLO, soak preflight, p2p_ci"
     Write-Host "    baked committed state_root inside node1 (WARN if image stale)"
     Write-Host ""
+    Write-Host "  .\scripts\verify_hard_all.ps1          (fail-closed, no skips)"
+    Write-Host "  .\scripts\verify_full_blockchain.ps1 -Hard"
     Write-Host "  .\scripts\verify_full_blockchain.ps1"
     Write-Host "  .\scripts\verify_full_blockchain.ps1 -SkipLive"
     Write-Host "  .\scripts\verify_full_blockchain.ps1 -QuickPytest"
@@ -61,6 +69,7 @@ if ($Help) {
 }
 
 $pyArgs = @("scripts/verify_full_blockchain.py")
+if ($Hard) { $pyArgs += "--hard" }
 if ($SkipLive) { $pyArgs += "--skip-live" }
 if ($SkipNative) { $pyArgs += "--skip-native" }
 if ($SkipCargo) { $pyArgs += "--skip-cargo" }

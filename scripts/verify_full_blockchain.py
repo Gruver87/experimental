@@ -10,6 +10,7 @@ step failed. Exit 2 if the only failures are live mesh unreachable.
 
 Usage (repo root)::
 
+    python scripts/verify_full_blockchain.py --hard
     python scripts/verify_full_blockchain.py
     python scripts/verify_full_blockchain.py --skip-live
     python scripts/verify_full_blockchain.py --skip-cargo --skip-native
@@ -17,7 +18,8 @@ Usage (repo root)::
 
 Windows::
 
-    .\\scripts\\verify_full_blockchain.ps1
+    .\\scripts\\verify_hard_all.ps1
+    .\\scripts\\verify_full_blockchain.ps1 -Hard
     .\\scripts\\verify_full_blockchain.ps1 -SkipLive
     .\\scripts\\verify_full_blockchain.ps1 -Help
 
@@ -173,6 +175,11 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description="Deep Experimental blockchain check (does not start soak)"
     )
+    ap.add_argument(
+        "--hard",
+        action="store_true",
+        help="Fail-closed full project: no skip flags, cargo required, live mesh required, baked root required. Does not start soak.",
+    )
     ap.add_argument("--skip-live", action="store_true")
     ap.add_argument("--skip-native", action="store_true")
     ap.add_argument("--skip-cargo", action="store_true")
@@ -189,6 +196,29 @@ def main() -> int:
     ap.add_argument("--p2p-wait", type=int, default=90)
     args = ap.parse_args()
 
+    if args.hard:
+        forbidden = [
+            name
+            for name, on in (
+                ("--skip-live", args.skip_live),
+                ("--skip-native", args.skip_native),
+                ("--skip-cargo", args.skip_cargo),
+                ("--skip-pytest", args.skip_pytest),
+                ("--quick-pytest", args.quick_pytest),
+                ("--skip-gate", args.skip_gate),
+            )
+            if on
+        ]
+        if forbidden:
+            print("FAIL: --hard refuses skip flags: " + ", ".join(forbidden))
+            print("  Use .\\scripts\\verify_hard_all.ps1 with no extra switches.")
+            return 1
+        args.require_baked_root = True
+        if int(args.pytest_timeout) < 1800:
+            args.pytest_timeout = 1800
+        if int(args.p2p_wait) < 120:
+            args.p2p_wait = 120
+
     py = sys.executable
     started = time.time()
     steps: list[dict[str, Any]] = []
@@ -200,7 +230,10 @@ def main() -> int:
     print(f" Repo: {ROOT}")
     print(" Honesty: PASS != public mainnet. Soak is NOT started. Docker is NOT rebuilt.")
     print(" Mesh: :18180 miner  :18181 full1  :18182 full2  chain 778888")
-    print(" Mode: scan-all (later steps still run after a FAIL)")
+    if args.hard:
+        print(" Mode: HARD fail-closed (no skips; cargo+mesh+baked root required; soak NOT started)")
+    else:
+        print(" Mode: scan-all (later steps still run after a FAIL)")
 
     def step(
         name: str,
@@ -252,9 +285,28 @@ def main() -> int:
     if not args.skip_cargo:
         cargo = shutil.which("cargo")
         if cargo is None:
-            warnings.append("cargo not on PATH; skipped abs_native cargo test")
-            print("WARN: cargo not on PATH — skip native cargo test")
-            steps.append({"name": "cargo test abs_native", "rc": 0, "required": False, "skipped": True})
+            if args.hard:
+                errors.append("cargo not on PATH (required by --hard)")
+                print("FAIL: cargo not on PATH — required by --hard")
+                steps.append(
+                    {
+                        "name": "cargo test abs_native",
+                        "rc": 127,
+                        "required": True,
+                        "skipped": False,
+                    }
+                )
+            else:
+                warnings.append("cargo not on PATH; skipped abs_native cargo test")
+                print("WARN: cargo not on PATH — skip native cargo test")
+                steps.append(
+                    {
+                        "name": "cargo test abs_native",
+                        "rc": 0,
+                        "required": False,
+                        "skipped": True,
+                    }
+                )
         else:
             step(
                 "cargo test abs_native",
@@ -262,6 +314,18 @@ def main() -> int:
                 timeout=900,
                 required=True,
             )
+            if args.hard:
+                step(
+                    "cargo test rust_bridge",
+                    [
+                        cargo,
+                        "test",
+                        "--manifest-path",
+                        str(ROOT / "bridge" / "rust_bridge" / "Cargo.toml"),
+                    ],
+                    timeout=600,
+                    required=True,
+                )
 
     step("secrets scan", [py, "scripts/check_secrets.py"])
 
@@ -273,6 +337,23 @@ def main() -> int:
             "industrial_gate",
             [py, "scripts/industrial_gate.py"],
             timeout=180,
+        )
+
+    if args.hard:
+        step(
+            "industrial waves needles",
+            [
+                py,
+                "scripts/verify_industrial_waves.py",
+                "--skip-gate",
+                "--skip-pytest",
+            ],
+            timeout=180,
+        )
+        step(
+            "experimental R&D (units + labs)",
+            [py, "scripts/verify_experimental_rd.py", "-q"],
+            timeout=1800,
         )
 
     if not args.skip_pytest:
@@ -352,8 +433,19 @@ def main() -> int:
         )
         docker = shutil.which("docker")
         if docker is None:
-            warnings.append("docker not on PATH; skipped baked state-root")
-            print("WARN: docker not on PATH — skip baked state-root")
+            if args.hard or args.require_baked_root:
+                errors.append("docker not on PATH (baked state_root required)")
+                print("FAIL: docker not on PATH — baked state_root required")
+                steps.append(
+                    {
+                        "name": "baked committed state_root (running image)",
+                        "rc": 127,
+                        "required": True,
+                    }
+                )
+            else:
+                warnings.append("docker not on PATH; skipped baked state-root")
+                print("WARN: docker not on PATH — skip baked state-root")
         else:
             step(
                 "baked committed state_root (running image)",
@@ -365,7 +457,7 @@ def main() -> int:
                     "scripts/check_baked_state_root.py",
                 ],
                 timeout=60,
-                required=bool(args.require_baked_root),
+                required=bool(args.require_baked_root or args.hard),
             )
 
     ok = not errors
@@ -385,8 +477,13 @@ def main() -> int:
             "this script does not rebuild Docker",
             "live mesh Python may be older than host until the next bake",
             "last Experimental 48h soak is FAIL until a new passed=true hard_fails=0 report",
+            "--hard does not require a 48h soak PASS (read-only honesty only)",
+            "ADR 0019 rust-libp2p hard gate is a separate command (needs Cargo feature libp2p)",
         ],
+        "hard": bool(args.hard),
         "run": [
+            ".\\scripts\\verify_hard_all.ps1",
+            "python scripts/verify_full_blockchain.py --hard",
             ".\\scripts\\verify_full_blockchain.ps1",
             "python scripts/verify_full_blockchain.py",
             "python scripts/verify_full_blockchain.py --skip-live",
@@ -421,7 +518,7 @@ def main() -> int:
          or "status SLO" in e or "p2p_ci" in e.lower() or "preflight" in e.lower())
         for e in errors
     )
-    if mesh_down and live_only:
+    if (not args.hard) and mesh_down and live_only:
         return 2
     return 1
 

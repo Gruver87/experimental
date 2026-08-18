@@ -16,7 +16,11 @@ if str(ROOT) not in sys.path:
 def test_rocks_audit_list_paths_bump_decode_failures():
     rocks = Path("storage/rocks_store.py").read_text(encoding="utf-8")
     assert rocks.count("self._json_decode_failures += 1") >= 15
-    assert "corrupt proposer_audit row skipped" in rocks
+    # Experimental list-path log is more specific than Hybrid's row log.
+    assert (
+        "corrupt proposer_audit row skipped" in rocks
+        or "corrupt proposer_audit list row skipped" in rocks
+    )
     assert "corrupt bridge_lock row skipped" in rocks
     assert "corrupt state_root_mismatch row skipped" in rocks
 
