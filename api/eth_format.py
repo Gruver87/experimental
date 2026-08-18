@@ -200,6 +200,30 @@ def _bloom_add(bloom: bytearray, data: bytes) -> None:
         bloom[byte_index] |= 1 << (bit_index % 8)
 
 
+def block_sha3_uncles(blk: Dict[str, Any]) -> str:
+    """Yellow Paper sha3Uncles: keccak256(rlp([])) when the uncle list is empty.
+
+    Absolute has no uncle headers. A non-empty `uncles` field is hashed with
+    Absolute SHA256 merkle (same as tx_root) — not a geth uncle trie.
+    Never return the zero digest for an empty list (that is not keccak(0xc0)).
+    """
+    uncles = blk.get("uncles") or []
+    if isinstance(uncles, list) and uncles:
+        hashes: List[str] = []
+        for uncle in uncles:
+            if isinstance(uncle, dict):
+                h = str(uncle.get("hash") or uncle.get("block_hash") or "")
+            else:
+                h = str(uncle or "")
+            if h:
+                hashes.append(h)
+        return _abs_tx_merkle_root(hashes)
+    from crypto import native
+
+    digest = native.keccak256_digest(b"\xc0")
+    return "0x" + digest.hex()
+
+
 def format_block(
     blk: Optional[Dict],
     full_tx: bool = False,
@@ -224,7 +248,7 @@ def format_block(
         "hash": blk.get("hash", blk.get("block_hash", "")),
         "parentHash": blk.get("parent_hash", ""),
         "nonce": "0x0000000000000000",
-        "sha3Uncles": "0x" + "0" * 64,
+        "sha3Uncles": block_sha3_uncles(blk),
         "logsBloom": block_logs_bloom(blk, query=query, bc=bc),
         "transactionsRoot": block_transactions_root(blk),
         "stateRoot": state_root or ZERO_ROOT,

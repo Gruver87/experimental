@@ -102,8 +102,11 @@ def try_precompile(contract_addr: str, calldata_hex: str = "") -> Optional[Any]:
         # Failure / bad sig → success with empty return (geth parity).
         gas = 3000
         empty = b"\x00" * 32
-        if len(data) != 128:
-            return EVMResult(success=True, return_value=empty, gas_used=gas)
+        # geth getData(inOff, 128): truncate/pad — never require exact length.
+        if len(data) < 128:
+            data = data + b"\x00" * (128 - len(data))
+        else:
+            data = data[:128]
         prehash = data[0:32]
         v_word = data[32:64]
         r = data[64:96]

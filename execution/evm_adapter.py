@@ -221,6 +221,21 @@ class EVMAdapter:
             return "0x" + raw.rjust(40, "0")[-40:]
         return word_or_addr
 
+    @staticmethod
+    def _precompile_gas_outcome(pre, gas_limit: int) -> tuple[bool, int, str]:
+        """Geth CALL semantics: encoding/run failure burns remaining forwarded gas.
+
+        Success charges Yellow Paper precompile gas, capped by the CALL stipend.
+        """
+        used = int(getattr(pre, "gas_used", 0) or 0)
+        limit = int(gas_limit or 0)
+        if not getattr(pre, "success", False):
+            burned = limit if limit > 0 else used
+            return False, burned, str(getattr(pre, "error", None) or "precompile_failed")
+        if limit > 0 and used > limit:
+            return False, limit, "precompile_out_of_gas"
+        return True, used, ""
+
     def _precompile_nested_call(
         self, target: str, calldata: bytes, gas: int
     ) -> Optional[Dict[str, Any]]:
@@ -247,23 +262,14 @@ class EVMAdapter:
             ret_b = int(ret).to_bytes(32, "big")
         else:
             ret_b = bytes(ret)
-        used = int(pre.gas_used or 0)
-        limit = int(gas or 0)
-        if limit > 0 and used > limit:
+        ok, used, err = self._precompile_gas_outcome(pre, gas)
+        if not ok:
             return {
                 "success": False,
                 "reverted": True,
-                "return_data": b"",
-                "gas_used": limit,
-                "error": "precompile_out_of_gas",
-            }
-        if not pre.success:
-            return {
-                "success": False,
-                "reverted": True,
-                "return_data": ret_b,
+                "return_data": b"" if err == "precompile_out_of_gas" else ret_b,
                 "gas_used": used,
-                "error": str(pre.error or "precompile_failed"),
+                "error": err,
             }
         return {
             "success": True,
@@ -1120,16 +1126,19 @@ class EVMAdapter:
 
         pre = try_precompile(contract_addr, calldata_hex)
         if pre is not None:
-            if int(pre.gas_used or 0) > int(gas_limit):
+            ok, used, err = self._precompile_gas_outcome(pre, gas_limit)
+            if not ok:
                 return EVMResult(
                     success=False,
-                    error="out_of_gas",
-                    gas_used=int(gas_limit),
+                    error=err,
+                    gas_used=used,
+                    return_value=pre.return_value if err != "precompile_out_of_gas" else None,
                 )
-            if pre.success and float(value or 0) > 0:
-                err = self._transfer_abs_fail_closed(caller, contract_addr, value)
-                if err:
-                    return EVMResult(success=False, error=err, gas_used=int(pre.gas_used or 0))
+            if float(value or 0) > 0:
+                xfer_err = self._transfer_abs_fail_closed(caller, contract_addr, value)
+                if xfer_err:
+                    return EVMResult(success=False, error=xfer_err, gas_used=used)
+            pre.gas_used = used
             return pre
 
         account = self.db.get_account(contract_addr)
@@ -1217,6 +1226,15 @@ class EVMAdapter:
 
         pre = try_precompile(contract_addr, calldata_hex)
         if pre is not None:
+            ok, used, err = self._precompile_gas_outcome(pre, gas_limit)
+            if not ok:
+                return EVMResult(
+                    success=False,
+                    error=err,
+                    gas_used=used,
+                    return_value=pre.return_value if err != "precompile_out_of_gas" else None,
+                )
+            pre.gas_used = used
             return pre
 
         account = self.db.get_account(contract_addr)

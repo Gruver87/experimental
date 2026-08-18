@@ -200,3 +200,23 @@ def test_nested_call_precompile_insufficient_value_does_not_run(evm_db) -> None:
     assert out.get("error") == "insufficient_call_value"
     assert out.get("return_data") == b""
     assert db.get_balance_satoshi(IDENTITY) == 0
+
+
+def test_nested_blake2f_bad_length_burns_forwarded_gas(evm_db) -> None:
+    """geth CALL: precompile Run error consumes remaining forwarded gas."""
+    adapter, _db = evm_db
+    blake = "0x0000000000000000000000000000000000000009"
+    ctx = EVMContext(address="0x" + "55" * 20)
+    out = adapter._contract_call_hook(blake, b"\x00", 0, 77_000, False, False, ctx)
+    assert out.get("success") is False
+    assert int(out.get("gas_used") or 0) == 77_000
+    assert out.get("error") == "blake2f_bad_length"
+
+
+def test_call_contract_blake2f_bad_length_burns_gas_limit(evm_db) -> None:
+    adapter, _db = evm_db
+    blake = "0x0000000000000000000000000000000000000009"
+    r = adapter.call_contract("0x" + "22" * 20, blake, "00", 0, gas_limit=50_000)
+    assert r.success is False
+    assert r.gas_used == 50_000
+    assert r.error == "blake2f_bad_length"

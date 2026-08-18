@@ -808,6 +808,12 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("eth_format must expose block_transactions_root (Absolute merkle)")
         if "def block_receipts_root" not in eth_fmt_py_adr:
             errors.append("eth_format must expose block_receipts_root (Absolute merkle)")
+        if "def block_sha3_uncles" not in eth_fmt_py_adr:
+            errors.append("eth_format must expose block_sha3_uncles (keccak rlp empty list)")
+        if '"sha3Uncles": "0x" + "0" * 64' in eth_fmt_py_adr:
+            errors.append("eth_format must not stub sha3Uncles as zero")
+        if "keccak256_digest(b\"\\xc0\")" not in eth_fmt_py_adr:
+            errors.append("empty sha3Uncles must be keccak256 of RLP empty list (0xc0)")
         if '"transactionsRoot": "0x" + "0" * 64' in eth_fmt_py_adr:
             errors.append("eth_format must not stub transactionsRoot as zero")
         if '"receiptsRoot": "0x" + "0" * 64' in eth_fmt_py_adr:
@@ -4292,6 +4298,15 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("EVM adapter must log native nested pure fallback")
         if "native writeback apply failed" not in evm_py:
             errors.append("EVM adapter must log native writeback apply fallback")
+        if "def _precompile_gas_outcome" not in evm_py:
+            errors.append("EVM adapter must cap/burn precompile gas (geth CALL semantics)")
+        if "precompile_out_of_gas" not in evm_py:
+            errors.append("EVM nested precompile OOG must burn forwarded gas")
+        pre_py = (ROOT / "execution" / "evm_precompiles.py").read_text(encoding="utf-8")
+        if "128 - len(data)" not in pre_py:
+            errors.append("ecrecover must zero-pad calldata to 128 bytes (geth getData)")
+        if "data[:128]" not in pre_py:
+            errors.append("ecrecover must truncate calldata above 128 bytes")
         if "native nested host frame failed" not in evm_py:
             errors.append("EVM adapter must log native nested host fallback")
         if "CREATE _run_evm failed" not in evm_py:

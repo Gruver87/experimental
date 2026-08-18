@@ -110,6 +110,10 @@ def test_format_block_empty_bloom_without_query() -> None:
     assert out["transactionsRoot"] == empty
     assert out["receiptsRoot"] == empty
     assert out["transactionsRoot"] != "0x" + "0" * 64
+    assert out["sha3Uncles"] == (
+        "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+    )
+    assert out["sha3Uncles"] != "0x" + "0" * 64
 
 
 def test_format_block_bloom_from_query_logs() -> None:
@@ -329,3 +333,17 @@ def test_eth_get_block_by_number_roots_are_not_zero_stub() -> None:
     assert result["receiptsRoot"] != "0x" + "0" * 64
     assert result["transactionsRoot"].startswith("0x")
     assert len(result["transactionsRoot"]) == 66
+    assert result["sha3Uncles"] == (
+        "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+    )
+
+
+def test_block_sha3_uncles_nonempty_is_abs_merkle_not_zero() -> None:
+    from api.eth_format import block_sha3_uncles
+    from crypto.merkle import merkle_root
+
+    h = "0x" + "ab" * 32
+    out = block_sha3_uncles({"uncles": [h]})
+    assert out == "0x" + merkle_root([h])
+    assert out != "0x" + "0" * 64
+    assert out != "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
