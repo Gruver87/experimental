@@ -27,6 +27,25 @@ def test_check_blockchain_scripts_exist():
     assert '[py, "-m", "pytest", "-q", "--tb=line", "tests/"]' in src
 
 
+def test_verify_full_blockchain_scripts_exist_and_do_not_start_soak():
+    py = ROOT / "scripts" / "verify_full_blockchain.py"
+    ps1 = ROOT / "scripts" / "verify_full_blockchain.ps1"
+    assert py.is_file()
+    assert ps1.is_file()
+    src = py.read_text(encoding="utf-8")
+    wrap = ps1.read_text(encoding="utf-8")
+    assert "Does NOT start 48h soak" in src
+    assert "Does NOT rebuild Docker" in src
+    assert "start_soak" not in src.lower()
+    assert "start_soak" not in wrap.lower()
+    assert "scan-all" in src
+    assert "_bind_prod_smoke_wallet" in src
+    assert "PROD_SMOKE_WALLET_PATH" in src
+    wrap.encode("ascii")
+    run_all = (ROOT / "scripts" / "run_all_tests.ps1").read_text(encoding="utf-8")
+    assert "verify_full_blockchain.ps1" in run_all
+
+
 def test_run_all_tests_script_exists_and_does_not_start_soak():
     path = ROOT / "scripts" / "run_all_tests.ps1"
     assert path.is_file()

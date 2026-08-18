@@ -10,6 +10,9 @@
 #   .\scripts\run_all_tests.ps1 -FullAudit
 #   .\scripts\run_all_tests.ps1 -Help
 #
+# Deep scan (native + cargo + all gates + live harness/catchup/status SLO):
+#   .\scripts\verify_full_blockchain.ps1
+#
 # Default: native self-test, pytest tests/, industrial_gate, soak honesty.
 # Live mesh :18180-18182 is probed; down mesh is WARN unless -RequireMesh.
 #
@@ -46,6 +49,7 @@ if ($Help) {
     Write-Host "  .\scripts\run_all_tests.ps1 -SkipNative -RequireMesh"
     Write-Host "  .\scripts\run_all_tests.ps1 -RebuildNative"
     Write-Host "  .\scripts\run_all_tests.ps1 -FullAudit"
+    Write-Host "  .\scripts\verify_full_blockchain.ps1   (deep scan, still no soak)"
     Write-Host ""
     Write-Host "  Does NOT start 48h soak. Does NOT rebuild Docker."
     Write-Host "  OK != public mainnet. Last Experimental 48h is FAIL until a new PASS."

@@ -137,8 +137,8 @@ Bridge remains **disabled** on prod mesh until audited L1 contracts ship. Use th
 
 | Log | Meaning |
 |-----|---------|
-| `SKIP: tx propagation (auto_sign disabled in prod)` | **Expected** on default prod mesh smoke — not a failure, but **not** proof of signed tx propagation |
-| `SKIP: multi-node proof (testnet endpoints blocked in prod)` | Prod profile blocks dev testnet RPC helpers — use prod-signed smoke instead |
+| `OK: tx propagation` on prod-mesh3-live (signed via `PROD_SMOKE_WALLET_PATH` / mesh `validator-1.wallet.json`) | Prod `auto_sign` is off; live gate must sign. Missing wallet is FAIL, not `VERIFY_P2P_ALLOW_SKIP` |
+| `SKIP: multi-node proof (testnet endpoints blocked in prod)` | Prod profile blocks `/testnet/*` drills — expected skip (not a failure); signed tx smoke is the prod proof |
 | `OK: soak passed` in &lt;1 second | **Bug / false positive** (fixed v1.2.21) — soak must run for `Hours × 3600` seconds |
 | Heights stuck, mempool not clearing | Mining gate blocked by lagging peer heights — run `mesh_recover.ps1 -HealFork` (not restart-only) |
 | `heights=N / N-1 / N-1`, node1 diverged HINT | Hub solo-fork — `.\scripts\mesh_heal_fork.ps1 -Force` then rebuild evidence |

@@ -1434,8 +1434,22 @@ def _unique_recipient(salt: str = "") -> str:
     return "0x" + native.sha256_hex(seed.encode())[:40]
 
 
+_PROD_SMOKE_WALLET_REL = "data/prod_mesh/wallets/validator-1.wallet.json"
+
+
+def _default_prod_smoke_wallet() -> str:
+    """Ceremony miner wallet used by the local 3-node prod mesh (gitignored)."""
+    return os.path.join(ROOT, *_PROD_SMOKE_WALLET_REL.split("/"))
+
+
 def _prod_smoke_wallet_path() -> str:
-    return os.environ.get("PROD_SMOKE_WALLET_PATH", "").strip()
+    env = os.environ.get("PROD_SMOKE_WALLET_PATH", "").strip()
+    if env:
+        return env
+    default = _default_prod_smoke_wallet()
+    if os.path.isfile(default):
+        return default
+    return ""
 
 
 def _send_propagation_tx_signed(
@@ -1492,7 +1506,10 @@ def _send_propagation_tx(
         wallet_path = _prod_smoke_wallet_path()
         if wallet_path and os.path.isfile(wallet_path):
             return _send_propagation_tx_signed(url1, wallet_path, s1, attempt)
-        raise RuntimeError("prod tx propagation requires PROD_SMOKE_WALLET_PATH")
+        raise RuntimeError(
+            "prod tx propagation requires PROD_SMOKE_WALLET_PATH "
+            f"or {_default_prod_smoke_wallet()}"
+        )
 
     _ensure_signer_funded(url1, peer_urls)
     last_exc: Exception | None = None
@@ -1521,12 +1538,13 @@ def _verify_tx_propagation_multi(url1: str, target_urls: list[str], s1: dict) ->
             return False
         return True
     if str(s1.get("deployment_mode", "")).lower() == "prod":
-        if not _prod_smoke_wallet_path():
-            if _verify_p2p_skip_or_fail(
-                "tx propagation (auto_sign disabled in prod; use signed raw tx)"
-            ) != 0:
-                return False
-            return True
+        wallet_path = _prod_smoke_wallet_path()
+        if not wallet_path or not os.path.isfile(wallet_path):
+            print("FAIL: tx propagation (prod requires signed raw tx; auto_sign disabled)")
+            print("  set PROD_SMOKE_WALLET_PATH or place validator-1.wallet.json at")
+            print(f"  {_default_prod_smoke_wallet()}")
+            return False
+        print(f"OK: prod smoke signer {wallet_path}")
 
     if not _wait_topology_healthy(url1, expected_peers=max(1, len(target_urls)), timeout=90):
         print("WARN: P2P topology not fully healthy before tx propagation")
@@ -1966,11 +1984,14 @@ def verify_state_consistency(urls: list[str], status: dict) -> int:
 def verify_multi_node_proof(urls: list[str], status: dict) -> int:
     """Wave 56: attestations, rotation, reorg drill across cluster."""
     if str(status.get("deployment_mode", "")).lower() == "prod":
-        if _verify_p2p_skip_or_fail(
-            "multi-node proof (testnet endpoints blocked in prod)"
-        ) != 0:
-            return 1
-        return 0
+        # Prod blocks /testnet/* (multi-node-proof, fork-exercise). Soft-skip
+        # always — same policy as verify_adversarial. Signed tx smoke is the
+        # prod-mesh proof; ALLOW_SKIP would false-fail the live release gate.
+        print(
+            "SKIP: multi-node proof "
+            "(testnet endpoints blocked in prod)"
+        )
+        return verify_adversarial(urls[0], status)
     wave = int(status.get("api_wave", 0) or 0)
     if wave < 56:
         rc = _verify_p2p_skip_or_fail(f"multi-node proof (api_wave={wave} < 56)")

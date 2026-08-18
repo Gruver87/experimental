@@ -4412,6 +4412,38 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "docker_prod_3node must set PROD_SMOKE_WALLET_PATH for signed tx live check"
             )
+        p2p_ci = (ROOT / "scripts" / "verify_p2p_ci.py").read_text(encoding="utf-8")
+        if "_default_prod_smoke_wallet" not in p2p_ci:
+            errors.append(
+                "verify_p2p_ci must default prod smoke wallet to mesh validator-1"
+            )
+        if "data/prod_mesh/wallets/validator-1.wallet.json" not in p2p_ci:
+            errors.append(
+                "verify_p2p_ci default wallet path must be data/prod_mesh/wallets/validator-1.wallet.json"
+            )
+        if "prod requires signed raw tx; auto_sign disabled" not in p2p_ci:
+            errors.append(
+                "verify_p2p_ci prod tx propagation must fail-closed without a signer wallet"
+            )
+        if "tx propagation (auto_sign disabled in prod; use signed raw tx)" in p2p_ci:
+            errors.append(
+                "verify_p2p_ci must not soft-skip prod tx propagation via VERIFY_P2P_ALLOW_SKIP"
+            )
+        if '_verify_p2p_skip_or_fail(\n            "multi-node proof (testnet endpoints blocked in prod)"' in p2p_ci:
+            errors.append(
+                "prod multi-node proof must SKIP without VERIFY_P2P_ALLOW_SKIP"
+            )
+        if "SKIP: multi-node proof" not in p2p_ci:
+            errors.append(
+                "verify_p2p_ci must SKIP /testnet multi-node proof in prod (not fail)"
+            )
+        full_py = (ROOT / "scripts" / "verify_full_blockchain.py").read_text(
+            encoding="utf-8"
+        )
+        if "_bind_prod_smoke_wallet" not in full_py:
+            errors.append(
+                "verify_full_blockchain must bind PROD_SMOKE_WALLET_PATH before live p2p_ci"
+            )
         if not (ROOT / "scripts" / "summarize_soak_fail.py").is_file():
             errors.append("scripts/summarize_soak_fail.py missing (honest FAIL pack)")
         sum_py = (ROOT / "scripts" / "summarize_soak_fail.py").read_text(encoding="utf-8")
