@@ -208,12 +208,20 @@ def test_rpc_wallet_compat_methods(rpc_env):
     assert _rpc(url, "eth_protocolVersion") == hex(65)
     assert _rpc(url, "eth_hashrate") == "0x0"
     assert _rpc(url, "eth_getUncleCountByBlockNumber", ["latest"]) == "0x0"
+    assert _rpc(url, "eth_getUncleByBlockNumberAndIndex", ["latest", "0x0"]) is None
     assert _rpc(url, "eth_getLogs", [{}]) == []
     gas = int(_rpc(url, "eth_estimateGas", [{"to": "0x" + "ab" * 20}]), 16)
     assert gas >= 21_000
     fee_hist = _rpc(url, "eth_feeHistory", [hex(2), "latest", []])
     assert "baseFeePerGas" in fee_hist
-    assert len(fee_hist["baseFeePerGas"]) == 2
+    assert "gasUsedRatio" in fee_hist
+    n = len(fee_hist["baseFeePerGas"])
+    assert n == len(fee_hist["gasUsedRatio"]) == len(fee_hist["reward"])
+    assert 1 <= n <= 2
+    assert all(
+        isinstance(x, (int, float)) and 0.0 <= float(x) <= 1.0
+        for x in fee_hist["gasUsedRatio"]
+    )
     blk = _rpc(url, "eth_getBlockByNumber", ["latest", False])
     assert blk is not None
     for field in ("stateRoot", "gasLimit", "transactionsRoot", "miner"):

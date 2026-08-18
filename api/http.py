@@ -1146,7 +1146,7 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
         if method == "eth_getTransactionByHash":
             tx_hash = params[0] if params else ""
             tx = bc.get_transaction(tx_hash)
-            return _format_tx(tx)
+            return _format_tx(tx, bc)
 
         if method == "eth_getTransactionReceipt":
             tx_hash = params[0] if params else ""
@@ -1185,21 +1185,17 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             return hex(int(getattr(cfg, "priority_fee_wei", 0) or 0))
 
         if method == "eth_feeHistory":
-            block_count = int(params[0], 16) if params else 1
-            block_count = max(1, min(block_count, 1024))
-            tip = _resolve_block_by_tag(bc, params[1] if len(params) > 1 else "latest")
-            tip_h = int(tip.get("height", bc.get_height())) if tip else bc.get_height()
-            oldest = max(0, tip_h - block_count + 1)
-            try:
-                base = hex(abs_to_wei(getattr(cfg, "gas_price_wei", 0) or 0))
-            except (TypeError, ValueError):
-                base = "0x0"
-            return {
-                "oldestBlock": hex(oldest),
-                "baseFeePerGas": [base] * block_count,
-                "gasUsedRatio": [0.5] * block_count,
-                "reward": [["0x0"]] * block_count,
-            }
+            from api.eth_format import format_fee_history
+
+            q = self.__class__.query_facade or getattr(bc, "query_facade", None)
+            if q is None:
+                raise ValueError("query_facade required for eth_feeHistory")
+            return format_fee_history(
+                query=q,
+                cfg=cfg,
+                block_count=params[0] if params else 1,
+                newest_tag=params[1] if len(params) > 1 else "latest",
+            )
 
         if method == "eth_accounts":
             if wallet and getattr(wallet, "address", ""):
@@ -1245,16 +1241,14 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
                 blk = q.get_block(BlockQuery(block_hash=str(block_hash)))
             else:
                 blk = None
-            if not blk:
-                return hex(0)
-            txs = blk.get("transactions", [])
-            return hex(len(txs) if isinstance(txs, list) else int(blk.get("tx_count", 0) or 0))
+            from api.eth_format import format_block_tx_count
+            return format_block_tx_count(blk)
 
         if method == "eth_getTransactionByBlockNumberAndIndex":
             tag = params[0] if params else "latest"
             idx = int(params[1], 16) if len(params) > 1 and str(params[1]).startswith("0x") else int(params[1] if len(params) > 1 else 0)
             blk = _resolve_block_by_tag(bc, tag)
-            return _format_tx(_tx_at_block_index(bc, blk, idx))
+            return _format_tx(_tx_at_block_index(bc, blk, idx), bc)
 
         if method == "eth_getTransactionByBlockHashAndIndex":
             block_hash = params[0] if params else ""
@@ -1265,13 +1259,51 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
                 blk = q.get_block(BlockQuery(block_hash=str(block_hash)))
             else:
                 blk = None
-            return _format_tx(_tx_at_block_index(bc, blk, idx))
+            return _format_tx(_tx_at_block_index(bc, blk, idx), bc)
 
         if method == "eth_getUncleCountByBlockNumber":
-            return hex(0)
+            from api.eth_format import format_uncle_count
+            from api.ports import BlockQuery
+
+            tag = params[0] if params else "latest"
+            q = self.__class__.query_facade or getattr(bc, "query_facade", None)
+            if q is not None:
+                blk = q.get_block(BlockQuery(tag=str(tag)))
+            else:
+                blk = _resolve_block_by_tag(bc, tag)
+            return format_uncle_count(blk)
 
         if method == "eth_getUncleCountByBlockHash":
-            return hex(0)
+            from api.eth_format import format_uncle_count
+            from api.ports import BlockQuery
+
+            block_hash = params[0] if params else ""
+            q = self.__class__.query_facade or getattr(bc, "query_facade", None)
+            blk = q.get_block(BlockQuery(block_hash=str(block_hash))) if q is not None else None
+            return format_uncle_count(blk)
+
+        if method == "eth_getUncleByBlockNumberAndIndex":
+            from api.eth_format import format_uncle_by_index
+            from api.ports import BlockQuery
+
+            tag = params[0] if params else "latest"
+            index = params[1] if len(params) > 1 else 0
+            q = self.__class__.query_facade or getattr(bc, "query_facade", None)
+            if q is not None:
+                blk = q.get_block(BlockQuery(tag=str(tag)))
+            else:
+                blk = _resolve_block_by_tag(bc, tag)
+            return format_uncle_by_index(blk, index, query=q, bc=bc)
+
+        if method == "eth_getUncleByBlockHashAndIndex":
+            from api.eth_format import format_uncle_by_index
+            from api.ports import BlockQuery
+
+            block_hash = params[0] if params else ""
+            index = params[1] if len(params) > 1 else 0
+            q = self.__class__.query_facade or getattr(bc, "query_facade", None)
+            blk = q.get_block(BlockQuery(block_hash=str(block_hash))) if q is not None else None
+            return format_uncle_by_index(blk, index, query=q, bc=bc)
 
         if method == "eth_getLogs":
             filt = params[0] if params else {}
@@ -1325,11 +1357,8 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
         if method == "eth_getBlockTransactionCountByNumber":
             tag = params[0] if params else "latest"
             blk = _resolve_block_by_tag(bc, tag)
-            if not blk:
-                return hex(0)
-            txs = blk.get("transactions", [])
-            count = len(txs) if isinstance(txs, list) else int(blk.get("tx_count", 0) or 0)
-            return hex(count)
+            from api.eth_format import format_block_tx_count
+            return format_block_tx_count(blk)
 
         raise ValueError(f"Method not supported: {method}")
 
@@ -7470,7 +7499,7 @@ class RESTHandler(BaseHTTPRequestHandler):
 
 from api.eth_format import (  # noqa: E402
     format_block as _format_block,
-    format_tx as _format_tx,
+    format_tx as _format_tx_impl,
     format_eth_log as _format_eth_log,
     handle_eth_get_logs as _eth_get_logs_impl,
     resolve_block_by_tag as _resolve_block_by_tag,
@@ -7480,6 +7509,11 @@ from api.eth_format import (  # noqa: E402
     tx_at_block_index as _tx_at_block_index_impl,
     format_receipt as _format_receipt_impl,
 )
+
+
+def _format_tx(tx: Optional[Dict], bc=None) -> Optional[Dict]:
+    q = getattr(bc, "query_facade", None) if bc is not None else None
+    return _format_tx_impl(tx, query=q, bc=bc)
 
 
 def _format_receipt(tx: Optional[Dict], bc=None) -> Optional[Dict]:

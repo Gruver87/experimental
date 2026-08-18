@@ -24,6 +24,14 @@ def test_identity_precompile() -> None:
     assert r.success
     assert r.return_value == data
     assert encode_eth_call_return(r.return_value) == "0x" + data.hex()
+    assert r.gas_used == 15 + 3 * 1
+
+
+def test_identity_empty_gas() -> None:
+    r = try_precompile("0x04", "")
+    assert r is not None and r.success
+    assert r.return_value == b""
+    assert r.gas_used == 15
 
 
 def test_sha256_precompile() -> None:
@@ -33,6 +41,7 @@ def test_sha256_precompile() -> None:
     r = try_precompile("0x0000000000000000000000000000000000000002", payload.hex())
     assert r is not None and r.success
     assert r.return_value == hashlib.sha256(payload).digest()
+    assert r.gas_used == 60 + 12 * 1
 
 
 def _modexp_calldata(base: bytes, exp: bytes, mod: bytes) -> str:
@@ -184,4 +193,20 @@ def test_ecrecover_bad_v_empty() -> None:
     data = (b"\x00" * 32 + (99).to_bytes(32, "big") + b"\x11" * 64).hex()
     out = try_precompile("0x01", data)
     assert out is not None and out.success
+    assert out.return_value == b"\x00" * 32
+
+
+def test_ecrecover_short_input_padded_charges_3000() -> None:
+    """geth getData(128): short calldata is zero-padded, still success + 3000 gas."""
+    out = try_precompile("0x01", "00")
+    assert out is not None and out.success
+    assert out.gas_used == 3000
+    assert out.return_value == b"\x00" * 32
+
+
+def test_ecrecover_long_input_truncated() -> None:
+    data = (b"\x00" * 32 + (99).to_bytes(32, "big") + b"\x11" * 64 + b"\xff" * 32).hex()
+    out = try_precompile("0x01", data)
+    assert out is not None and out.success
+    assert out.gas_used == 3000
     assert out.return_value == b"\x00" * 32

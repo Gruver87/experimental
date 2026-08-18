@@ -201,6 +201,7 @@ pub fn classify_abs_wire_codec(data: &[u8]) -> &'static str {
 /// v1/v2 must parse as ADR 0008. Slice B ``type\\0payload`` lab frames stay
 /// valid. Unclassified garbage must not be ACK'd ``OK:`` or counted as
 /// Absolute recv.
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 pub fn admit_abs_wire_inbound(data: &[u8]) -> Result<&'static str, &'static str> {
     match classify_abs_wire_codec(data) {
         "v1" | "v2" => match crate::p2p_wire::parse_p2p_wire_line_inner(
@@ -228,6 +229,7 @@ pub fn admit_abs_wire_inbound(data: &[u8]) -> Result<&'static str, &'static str>
     }
 }
 
+#[cfg_attr(not(feature = "libp2p"), allow(dead_code))]
 fn lab_pack_wire_ok(data: &[u8]) -> bool {
     let Some(pos) = data.iter().position(|b| *b == 0) else {
         return false;

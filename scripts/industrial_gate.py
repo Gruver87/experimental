@@ -558,8 +558,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             eth_fmt_py = (ROOT / "api" / "eth_format.py").read_text(
                 encoding="utf-8", errors="replace"
             )
-            if "Database._normalize_tx_status(tx.get(\"status\"))" not in eth_fmt_py:
-                errors.append("receipt format must normalize omitted status fail-closed to 0")
+            if "def observed_receipt_status" not in eth_fmt_py:
+                errors.append(
+                    "receipt format must emit null for omitted status (not reverted 0x0)"
+                )
         if '"bridge_relayer_live": bool(cfg.bridge_enabled)' in http_py:
             errors.append("bridge_relayer_live must not equal bridge_enabled alone")
         if '"bridge_rust_binary_healthy"' not in http_py:
@@ -808,12 +810,125 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("eth_format must expose block_transactions_root (Absolute merkle)")
         if "def block_receipts_root" not in eth_fmt_py_adr:
             errors.append("eth_format must expose block_receipts_root (Absolute merkle)")
+        if "def block_sha3_uncles" not in eth_fmt_py_adr:
+            errors.append("eth_format must expose block_sha3_uncles (keccak rlp empty list)")
+        if '"sha3Uncles": "0x" + "0" * 64' in eth_fmt_py_adr:
+            errors.append("eth_format must not stub sha3Uncles as zero")
+        if "keccak256_digest(b\"\\xc0\")" not in eth_fmt_py_adr:
+            errors.append("empty sha3Uncles must be keccak256 of RLP empty list (0xc0)")
         if '"transactionsRoot": "0x" + "0" * 64' in eth_fmt_py_adr:
             errors.append("eth_format must not stub transactionsRoot as zero")
         if '"receiptsRoot": "0x" + "0" * 64' in eth_fmt_py_adr:
             errors.append("eth_format must not stub receiptsRoot as zero")
         if "merkle_root" not in eth_fmt_py_adr:
             errors.append("block tx/receipt roots must use crypto.merkle.merkle_root")
+        if "def receipt_cumulative_gas_used" not in eth_fmt_py_adr:
+            errors.append("eth_format must compute cumulativeGasUsed from block tx order")
+        if '"cumulativeGasUsed": hex(gas_used)' in eth_fmt_py_adr:
+            errors.append("receipt cumulativeGasUsed must not copy gasUsed")
+        if "def observed_block_hash" not in eth_fmt_py_adr:
+            errors.append("eth_format must expose observed_block_hash (no zero stub)")
+        if "def observed_state_root" not in eth_fmt_py_adr:
+            errors.append("eth_format must not stub missing stateRoot as the zero digest")
+        if "state_root or ZERO_ROOT" in eth_fmt_py_adr:
+            errors.append("format_block must not fall back stateRoot to ZERO_ROOT")
+        if "def observed_parent_hash" not in eth_fmt_py_adr:
+            errors.append("eth_format must expose observed_parent_hash (genesis zero only)")
+        if '"parentHash": blk.get("parent_hash", "")' in eth_fmt_py_adr:
+            errors.append("format_block must not default parentHash to empty string")
+        if "def burned_satoshi" not in eth_fmt_py_adr:
+            errors.append("eth_format must emit burn as satoshi integers")
+        if '"totalBurned": blk.get("total_burned", 0.0)' in eth_fmt_py_adr:
+            errors.append("format_block totalBurned must not be an IEEE float default")
+        if '"burned": tx.get("burned", 0.0)' in eth_fmt_py_adr:
+            errors.append("tx/receipt burned must not be an IEEE float default")
+        if "def observed_block_nonce" not in eth_fmt_py_adr:
+            errors.append("eth_format must not stub block nonce as 8 zero bytes")
+        if '"nonce": "0x0000000000000000"' in eth_fmt_py_adr:
+            errors.append("format_block must not hardcode ethash-shaped nonce")
+        if "def observed_block_size" not in eth_fmt_py_adr:
+            errors.append("eth_format must not invent block size from tx count")
+        if "256 + len(tx_hashes)" in eth_fmt_py_adr:
+            errors.append("format_block size must not use the 256+32*n heuristic")
+        if '"hash": blk.get("hash", blk.get("block_hash", ""))' in eth_fmt_py_adr:
+            errors.append("format_block hash must not default to empty string")
+        if "def observed_miner" not in eth_fmt_py_adr:
+            errors.append("eth_format must not default miner to empty string")
+        if '"miner": blk.get("miner", blk.get("proposer", ""))' in eth_fmt_py_adr:
+            errors.append("format_block miner must not default to empty string")
+        if "def observed_block_timestamp" not in eth_fmt_py_adr:
+            errors.append("eth_format must not default missing timestamp to epoch 0")
+        if '"timestamp": hex(blk.get("timestamp", 0))' in eth_fmt_py_adr:
+            errors.append("format_block timestamp must not default missing to 0")
+        if "def observed_tx_address" not in eth_fmt_py_adr:
+            errors.append("eth_format must not default tx from/to to empty string")
+        if '"from": tx.get("from_addr", tx.get("from", ""))' in eth_fmt_py_adr:
+            errors.append("tx/receipt from must not default to empty string")
+        if "def observed_uint_hex" not in eth_fmt_py_adr:
+            errors.append("eth_format must not stub missing gas/nonce as 21000 or 0")
+        if '"gas": hex(tx.get("gas", 21000))' in eth_fmt_py_adr:
+            errors.append("format_tx must not default missing gas to 21000")
+        if 'tx.get("gas_used", tx.get("gas", 21000))' in eth_fmt_py_adr:
+            errors.append("tx/receipt gasUsed must not fall back to 21000")
+        if '"nonce": hex(tx.get("nonce", 0))' in eth_fmt_py_adr:
+            errors.append("format_tx must not default missing nonce to 0")
+        if '"transactionIndex": hex(int(tx_index)),' in eth_fmt_py_adr:
+            errors.append("receipt transactionIndex must be null when unobserved")
+        if 'hex(int(row.get("log_index", 0)))' in eth_fmt_py_adr:
+            errors.append("format_eth_log must not default missing logIndex to 0")
+        if 'int(row.get("block_height", 0))' in eth_fmt_py_adr:
+            errors.append("format_eth_log must not default missing blockNumber to height 0")
+        if '"address": row.get("contract_address", "")' in eth_fmt_py_adr:
+            errors.append("format_eth_log must not default address to empty string")
+        if '"gasPrice": hex(gas_price)' in eth_fmt_py_adr:
+            errors.append("format_tx must not default missing gasPrice to 0")
+        if 'tx.get("gas_price", tx.get("gasPrice", 0))' in eth_fmt_py_adr:
+            errors.append("tx/receipt gasPrice must not default missing to 0")
+        if "def observed_tx_hash" not in eth_fmt_py_adr:
+            errors.append("eth_format must not emit empty tx hash strings")
+        if "def observed_value_hex" not in eth_fmt_py_adr:
+            errors.append("eth_format must not default missing tx value to 0 wei")
+        if '"type": hex(int(tx.get("type", 0) or 0))' in eth_fmt_py_adr:
+            errors.append("tx/receipt type must not default missing to 0")
+        if 'int(tx.get("block_height", tx.get("blockNumber", 0)) or 0)' in eth_fmt_py_adr:
+            errors.append("format_tx must not fetch genesis when inclusion height is missing")
+        if 'int(tx.get("block_height", 0) or 0)' in eth_fmt_py_adr:
+            errors.append("format_receipt must not fetch genesis when inclusion height is missing")
+        if "def observed_receipt_status" not in eth_fmt_py_adr:
+            errors.append("receipt status must not treat omitted status as reverted 0x0")
+        if '"status": hex(status_i)' in eth_fmt_py_adr:
+            errors.append("format_receipt must not always emit status from normalize-to-zero")
+        if "if stored is None:\n            return 0" in eth_fmt_py_adr:
+            errors.append("block_gas_used must not invent 0 when header gas is missing")
+        if 'tx.get("blockHash", "0x" + "0" * 64)' in eth_fmt_py_adr:
+            errors.append("receipt blockHash must not fall back to the 32-byte zero digest")
+        if "def observed_block_number" not in eth_fmt_py_adr:
+            errors.append("eth_format must not default missing blockNumber to height 0")
+        if '"blockNumber": hex(tx.get("block_height", 0))' in eth_fmt_py_adr:
+            errors.append("tx/receipt blockNumber must not default missing height to 0")
+        if "def format_block_tx_count" not in eth_fmt_py_adr:
+            errors.append("eth_format must return null tx-count when the block is missing")
+        if "def format_uncle_count" not in eth_fmt_py_adr:
+            errors.append("eth_format must return null uncle-count when the block is missing")
+        if "def format_uncle_by_index" not in eth_fmt_py_adr:
+            errors.append("eth_format must expose format_uncle_by_index (null, not invented header)")
+        if "def block_extra_data" not in eth_fmt_py_adr:
+            errors.append("eth_format must expose block extraData from the stored header")
+        if '"extraData": "0x"' in eth_fmt_py_adr:
+            errors.append("format_block must not hardcode extraData as empty")
+        if "def block_gas_used" not in eth_fmt_py_adr:
+            errors.append("eth_format must reconstruct block gasUsed from observed txs")
+        if "def format_fee_history" not in eth_fmt_py_adr:
+            errors.append("eth_format must expose format_fee_history (no stubbed ratios)")
+        if '"gasUsedRatio": [0.5]' in eth_fmt_py_adr:
+            errors.append("eth_format must not stub feeHistory gasUsedRatio as 0.5")
+        rpc_svc_py = (ROOT / "api" / "rpc_service.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if '"gasUsedRatio": [0.5]' in rpc_svc_py:
+            errors.append("rpc_service must not stub feeHistory gasUsedRatio as 0.5")
+        if "eth_getUncleByBlockNumberAndIndex" not in rpc_svc_py:
+            errors.append("rpc_service must implement eth_getUncleByBlockNumberAndIndex")
         if not (ROOT / "api" / "eth_format.py").is_file():
             errors.append("api/eth_format.py missing (ADR 0011)")
         if not (ROOT / "api" / "fake_rpc.py").is_file():
@@ -822,6 +937,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         if "def attach_query_facade" not in bc_py:
             errors.append("Blockchain must expose attach_query_facade (ADR 0011)")
         http_py_adr = (ROOT / "api" / "http.py").read_text(encoding="utf-8", errors="replace")
+        if '"gasUsedRatio": [0.5]' in http_py_adr:
+            errors.append("http.py must not stub feeHistory gasUsedRatio as 0.5")
+        if "eth_getUncleByBlockNumberAndIndex" not in http_py_adr:
+            errors.append("http.py must implement eth_getUncleByBlockNumberAndIndex")
         if "bc.db.get_block_by_hash" in http_py_adr:
             errors.append("api/http.py must not call bc.db.get_block_by_hash (ADR 0011)")
         if "bc.db.query_evm_logs" in http_py_adr:
@@ -4292,6 +4411,15 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("EVM adapter must log native nested pure fallback")
         if "native writeback apply failed" not in evm_py:
             errors.append("EVM adapter must log native writeback apply fallback")
+        if "def _precompile_gas_outcome" not in evm_py:
+            errors.append("EVM adapter must cap/burn precompile gas (geth CALL semantics)")
+        if "precompile_out_of_gas" not in evm_py:
+            errors.append("EVM nested precompile OOG must burn forwarded gas")
+        pre_py = (ROOT / "execution" / "evm_precompiles.py").read_text(encoding="utf-8")
+        if "128 - len(data)" not in pre_py:
+            errors.append("ecrecover must zero-pad calldata to 128 bytes (geth getData)")
+        if "data[:128]" not in pre_py:
+            errors.append("ecrecover must truncate calldata above 128 bytes")
         if "native nested host frame failed" not in evm_py:
             errors.append("EVM adapter must log native nested host fallback")
         if "CREATE _run_evm failed" not in evm_py:
