@@ -52,7 +52,7 @@ Explorer (solo): http://localhost:8080
 | Profile F Long-Range / EVM depth labs | **Lab only** | ADR 0017 · `EVM_COMPAT_MATRIX` |
 | Hybrid 48h soak / firm audit / public mainnet | **No — other repo** | [Hybrid pin](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) |
 | Prod libp2p cutover | **No** | never flip audit-pin JSON |
-| 48h soak on this tree | **Not run** | do not claim |
+| 48h soak on this tree | **FAIL** | `logs/soak_report_48h_experimental.json` `hard_fails=87` — not Hybrid `375d14f` |
 
 **Jump:** [Tracks](#what-is-active-here) · [Verify](#clone--verify) · [Docs](#docs-map) · [Contribute](CONTRIBUTING.md)
 

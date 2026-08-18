@@ -18,7 +18,7 @@ from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
 
 from storage import keycodec as kc
-from storage.database import Database as SqliteDatabase
+from storage.database import Database as SqliteDatabase, observed_optional_int
 
 logger = logging.getLogger(__name__)
 
@@ -1143,6 +1143,26 @@ class RocksChainStore:
         except (TypeError, ValueError, UnicodeDecodeError):
             return None
 
+    def get_cached_total_burned(self) -> float | None:
+        """O(1) prefix_last only. None if empty — never scan P_BURN on the poll path."""
+        from runtime.amount import money_abs
+
+        engine = self._engine
+        if engine is None or not hasattr(engine, "prefix_last"):
+            return None
+        try:
+            last_kv = engine.prefix_last(kc.P_BURN)
+        except Exception as exc:
+            logger.warning("[RocksStore] prefix_last cached burn failed: %s", exc)
+            return None
+        if not last_kv:
+            return None
+        _key, value = last_kv
+        row = self._loads_json_or_none(bytes(value), context="burn_total_cached")
+        if row is None:
+            return None
+        return money_abs(row.get("total_burned", 0.0), field="total_burned")
+
     def get_total_supply(self) -> float:
         from runtime.amount import account_balance_abs
 
@@ -1217,14 +1237,14 @@ class RocksChainStore:
         if not tx_hash:
             return
         money = tx_money_abs(tx)
+        gas = observed_optional_int(tx, "gas", "gas_limit")
+        gas_used = observed_optional_int(tx, "gas_used")
         row = {
             "hash": tx_hash,
             "block_height": int(tx.get("block_height", 0) or 0),
             "from_addr": SqliteDatabase._normalize_address(tx.get("from_addr", tx.get("from", ""))),
             "to_addr": SqliteDatabase._normalize_address(tx.get("to_addr", tx.get("to", ""))),
             "value": money["value"],
-            "gas": tx.get("gas", 21000),
-            "gas_used": tx.get("gas_used", tx.get("gas", 21000)),
             "fee": money["fee"],
             "burned": money["burned"],
             "nonce": tx.get("nonce", 0),
@@ -1233,6 +1253,10 @@ class RocksChainStore:
             "status": SqliteDatabase._normalize_tx_status(tx.get("status")),
             "timestamp": int(tx.get("timestamp", time.time()) or 0),
         }
+        if gas is not None:
+            row["gas"] = gas
+        if gas_used is not None:
+            row["gas_used"] = gas_used
         # v1.3.148: typed ATXV value when native pack_tx_row is available.
         payload = self._pack_tx_blob(row)
         created = self._raw_get(kc.key_tx(tx_hash)) is None
@@ -1463,11 +1487,12 @@ class RocksChainStore:
             "value": money["value"],
             "fee": money["fee"],
             "burned": money["burned"],
-            "gas_used": tx.get("gas_used", tx.get("gas", 21000)),
-            # Omit / None / unknown → fail-closed 0 (never invent success).
             "status": SqliteDatabase._normalize_tx_status(tx.get("status")),
             "created_at": int(time.time()),
         }
+        gas_used = observed_optional_int(tx, "gas_used")
+        if gas_used is not None:
+            receipt["gas_used"] = gas_used
         # v1.3.151: typed ATXR value when native pack_receipt_row is available.
         rkey = kc.P_TX_RECEIPT + kc.key_tx(tx_hash)[1:]
         created = self._raw_get(rkey) is None
@@ -1552,7 +1577,7 @@ class RocksChainStore:
             "value": money["value"],
             "fee": money["fee"],
             "burned": money["burned"],
-            "gas_used": row.get("gas_used", 0),
+            "gas_used": observed_optional_int(row, "gas_used"),
             "status": SqliteDatabase._normalize_tx_status(row.get("status")),
             "timestamp": row.get("created_at", row.get("timestamp", 0)),
         }
@@ -1602,7 +1627,7 @@ class RocksChainStore:
             "value": money["value"],
             "fee": money["fee"],
             "burned": money["burned"],
-            "gas_used": int(row.get("gas_used", row.get("gas", 21000))),
+            "gas_used": observed_optional_int(row, "gas_used"),
             "status": SqliteDatabase._normalize_tx_status(row.get("status")),
             "timestamp": int(row.get("timestamp", 0)),
             "direction": direction,

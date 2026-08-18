@@ -534,6 +534,11 @@ class HybridDatabase:
             return self._core.get_cached_total_supply()
         return None
 
+    def get_cached_total_burned(self) -> float | None:
+        if hasattr(self._core, "get_cached_total_burned"):
+            return self._core.get_cached_total_burned()
+        return None
+
     def get_total_supply(self) -> float:
         return self._core.get_total_supply()
 

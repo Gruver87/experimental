@@ -8,6 +8,15 @@ use serde_json::{Map, Number, Value};
 
 pub const TX_ROW_MAGIC: &[u8; 4] = b"ATXV";
 pub const TX_ROW_VERSION: u8 = 1;
+/// flags bit 0: gas_used was not observed (do not invent 21000 / copy gas limit).
+const FLAG_GAS_USED_UNOBSERVED: u8 = 0x01;
+
+fn json_present_non_null(obj: &Map<String, Value>, key: &str) -> bool {
+    match obj.get(key) {
+        Some(Value::Null) | None => false,
+        Some(_) => true,
+    }
+}
 
 fn read_u16(buf: &[u8], off: &mut usize) -> Option<u16> {
     let end = off.checked_add(2)?;
@@ -214,7 +223,16 @@ pub fn pack_tx_row_value(tx: &Value) -> Result<Vec<u8>, String> {
         .to_ascii_lowercase();
     let value = json_f64(obj, &["value", "amount"], 0.0)?;
     let gas = json_u64(obj, &["gas"], 21_000);
-    let gas_used = json_u64(obj, &["gas_used", "gas"], gas);
+    let gas_used_observed = json_present_non_null(obj, "gas_used");
+    let gas_used = if gas_used_observed {
+        json_u64(obj, &["gas_used"], 0)
+    } else {
+        0
+    };
+    let mut flags: u8 = 0;
+    if !gas_used_observed {
+        flags |= FLAG_GAS_USED_UNOBSERVED;
+    }
     let fee = json_f64(obj, &["fee"], 0.0)?;
     let burned = json_f64(obj, &["burned"], 0.0)?;
     let nonce = json_u64(obj, &["nonce"], 0);
@@ -226,7 +244,7 @@ pub fn pack_tx_row_value(tx: &Value) -> Result<Vec<u8>, String> {
         Vec::with_capacity(64 + hash.len() + from_addr.len() + to_addr.len() + tx_data.len());
     out.extend_from_slice(TX_ROW_MAGIC);
     out.push(TX_ROW_VERSION);
-    out.push(0); // flags reserved
+    out.push(flags);
     write_len_str(&mut out, &hash, true)?;
     write_u64(&mut out, block_height);
     write_len_str(&mut out, &from_addr, true)?;
@@ -259,6 +277,7 @@ pub fn unpack_tx_row_bytes(blob: &[u8]) -> Result<Value, String> {
     }
     let _flags = *blob.get(off).ok_or("tx_row_truncated")?;
     off += 1;
+    let gas_used_unobserved = (_flags & FLAG_GAS_USED_UNOBSERVED) != 0;
 
     let hash = read_len_str(blob, &mut off, true)?;
     let block_height = read_u64(blob, &mut off).ok_or("tx_row_truncated")?;
@@ -294,7 +313,11 @@ pub fn unpack_tx_row_bytes(blob: &[u8]) -> Result<Value, String> {
             .ok_or_else(|| "tx value is not finite".to_string())?,
     );
     map.insert("gas".into(), Value::Number(Number::from(gas)));
-    map.insert("gas_used".into(), Value::Number(Number::from(gas_used)));
+    if gas_used_unobserved {
+        map.insert("gas_used".into(), Value::Null);
+    } else {
+        map.insert("gas_used".into(), Value::Number(Number::from(gas_used)));
+    }
     map.insert(
         "fee".into(),
         Number::from_f64(fee)
@@ -404,6 +427,27 @@ mod tests {
         assert_eq!(back["from_addr"], "0xaaa");
         assert_eq!(back["block_height"], 12);
         assert_eq!(back["status"], 1);
+    }
+
+    #[test]
+    fn omitted_gas_used_unpacks_null() {
+        let row = json!({
+            "hash": "0xabc",
+            "block_height": 1,
+            "from_addr": "0xaaa",
+            "to_addr": "0xbbb",
+            "value": 1.0,
+            "gas": 21000,
+            "fee": 0.01,
+            "burned": 0.0,
+            "nonce": 0,
+            "tx_data": "",
+            "status": 1,
+            "timestamp": 1
+        });
+        let blob = pack_tx_row_value(&row).unwrap();
+        let back = unpack_tx_row_bytes(&blob).unwrap();
+        assert!(back["gas_used"].is_null());
     }
 
     #[test]

@@ -175,6 +175,20 @@ def _status_rate_limit_snapshot(cfg) -> Dict[str, Any]:
     }
 
 
+def _status_cached_metric(db, method_name: str):
+    """O(1) meta/prefix_last only. Never call get_total_supply / get_all_accounts."""
+    if db is None:
+        return None
+    fn = getattr(db, method_name, None)
+    if not callable(fn):
+        return None
+    try:
+        return fn()
+    except (TypeError, ValueError, OSError, AttributeError) as exc:
+        logger.warning("/status %s failed: %s", method_name, exc)
+        return None
+
+
 def _status_p2p_hardening_snapshot(cfg, p2p) -> Dict[str, Any]:
     """P2P wire hardening truth for GET /status (not heuristic)."""
     sec: Dict[str, Any] = {}
@@ -1093,7 +1107,12 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             full_tx = params[1] if len(params) > 1 else False
             blk = _resolve_block_by_tag(bc, tag)
             q = self.__class__.query_facade or getattr(bc, "query_facade", None)
-            return _format_block(blk, full_tx, query=q)
+            return _format_block(
+                blk,
+                full_tx,
+                query=q,
+                gas_limit=getattr(cfg, "evm_gas_limit", None),
+            )
 
         if method == "eth_getBlockByHash":
             block_hash = params[0] if params else ""
@@ -1104,7 +1123,12 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             else:
                 blk = None
             full_tx = params[1] if len(params) > 1 else False
-            return _format_block(blk, full_tx, query=q)
+            return _format_block(
+                blk,
+                full_tx,
+                query=q,
+                gas_limit=getattr(cfg, "evm_gas_limit", None),
+            )
 
         # ── Аккаунты ──────────────────────────────────────────────────────
         if method == "eth_getBalance":
@@ -1112,8 +1136,8 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             balance = bc.get_balance(address)
             try:
                 return hex(int(to_satoshi(balance or 0)) * WEI_PER_SATOSHI)
-            except (TypeError, ValueError):
-                return "0x0"
+            except (TypeError, ValueError) as exc:
+                raise ValueError("unparseable balance") from exc
 
         if method == "eth_getTransactionCount":
             address = params[0] if params else ""
@@ -1172,14 +1196,16 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             data = tx_obj.get("data", tx_obj.get("input", ""))
             if evm_adapter and (to_addr or data):
                 gas = evm_adapter.estimate_gas(to_addr, data)
-                return hex(max(21_000, int(gas or 0)))
-            return hex(21_000)
+                if gas is None:
+                    return None
+                return hex(int(gas))
+            return None
 
         if method == "eth_gasPrice":
             try:
                 return hex(abs_to_wei(getattr(cfg, "gas_price_wei", 0) or 0))
-            except (TypeError, ValueError):
-                return "0x0"
+            except (TypeError, ValueError) as exc:
+                raise ValueError("unparseable gas_price_wei") from exc
 
         if method == "eth_maxPriorityFeePerGas":
             return hex(int(getattr(cfg, "priority_fee_wei", 0) or 0))
@@ -1204,7 +1230,8 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             return [miner] if miner else []
 
         if method == "eth_coinbase":
-            return getattr(cfg, "miner_address", "") or "0x0"
+            miner = getattr(cfg, "miner_address", "") or ""
+            return miner or None
 
         if method == "eth_hashrate":
             return "0x0"
@@ -2008,8 +2035,8 @@ class RESTHandler(BaseHTTPRequestHandler):
             if path == "/status":
                 _status_t0 = time.perf_counter()
                 validators = db.get_validators() if db else []
-                total_burned = db.get_total_burned() if db else 0
-                total_supply = db.get_total_supply() if db and hasattr(db, "get_total_supply") else 0
+                total_burned = _status_cached_metric(db, "get_cached_total_burned")
+                total_supply = _status_cached_metric(db, "get_cached_total_supply")
                 bridge_on = bool(getattr(cfg, "bridge_enabled", False))
                 bridge_locks = (
                     db.get_bridge_locks(limit=50)

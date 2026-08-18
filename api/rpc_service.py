@@ -196,7 +196,12 @@ class RpcService:
                 tag = params[0] if params else "latest"
                 full_tx = params[1] if len(params) > 1 else False
             blk = q.get_block(BlockQuery(tag=str(tag), full_tx=bool(full_tx)))
-            return format_block(blk, bool(full_tx), query=q)
+            return format_block(
+                blk,
+                bool(full_tx),
+                query=q,
+                gas_limit=getattr(cfg, "evm_gas_limit", None),
+            )
 
         if method == "eth_getBlockByHash":
             if isinstance(dto, GetBlockByHashParams):
@@ -208,7 +213,12 @@ class RpcService:
                 block_hash = params[0]
                 full_tx = params[1] if len(params) > 1 else False
             blk = q.get_block(BlockQuery(block_hash=str(block_hash), full_tx=bool(full_tx)))
-            return format_block(blk, bool(full_tx), query=q)
+            return format_block(
+                blk,
+                bool(full_tx),
+                query=q,
+                gas_limit=getattr(cfg, "evm_gas_limit", None),
+            )
 
         if method == "eth_getBalance":
             if isinstance(dto, GetBalanceParams):
@@ -220,8 +230,8 @@ class RpcService:
             balance = q.get_balance(address)
             try:
                 return hex(int(to_satoshi(balance or 0)) * WEI_PER_SATOSHI)
-            except (TypeError, ValueError):
-                return "0x0"
+            except (TypeError, ValueError) as exc:
+                raise ValueError("unparseable balance") from exc
 
         if method == "eth_getTransactionCount":
             if isinstance(dto, AddressOnlyParams):
@@ -288,14 +298,16 @@ class RpcService:
             # Create txs omit `to`; still estimate via adapter when present.
             if evm_adapter and (to_addr or data):
                 gas = evm_adapter.estimate_gas(to_addr, data)
-                return hex(max(21_000, int(gas or 0)))
-            return hex(21_000)
+                if gas is None:
+                    return None
+                return hex(int(gas))
+            return None
 
         if method == "eth_gasPrice":
             try:
                 return hex(abs_to_wei(getattr(cfg, "gas_price_wei", 0) or 0))
-            except (TypeError, ValueError):
-                return "0x0"
+            except (TypeError, ValueError) as exc:
+                raise ValueError("unparseable gas_price_wei") from exc
 
         if method == "eth_maxPriorityFeePerGas":
             return hex(int(getattr(cfg, "priority_fee_wei", 0) or 0))
@@ -315,7 +327,8 @@ class RpcService:
             return [miner] if miner else []
 
         if method == "eth_coinbase":
-            return getattr(cfg, "miner_address", "") or "0x0"
+            miner = getattr(cfg, "miner_address", "") or ""
+            return miner or None
 
         if method == "eth_hashrate":
             return "0x0"

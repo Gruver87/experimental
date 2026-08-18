@@ -8,6 +8,14 @@ use serde_json::{Map, Number, Value};
 
 pub const RECEIPT_ROW_MAGIC: &[u8; 4] = b"ATXR";
 pub const RECEIPT_ROW_VERSION: u8 = 1;
+const FLAG_GAS_USED_UNOBSERVED: u8 = 0x01;
+
+fn json_present_non_null(obj: &Map<String, Value>, key: &str) -> bool {
+    match obj.get(key) {
+        Some(Value::Null) | None => false,
+        Some(_) => true,
+    }
+}
 
 fn read_u16(buf: &[u8], off: &mut usize) -> Option<u16> {
     let end = off.checked_add(2)?;
@@ -195,7 +203,16 @@ pub fn pack_receipt_row_value(receipt: &Value) -> Result<Vec<u8>, String> {
     let value = json_f64(obj, &["value", "amount"], 0.0)?;
     let fee = json_f64(obj, &["fee"], 0.0)?;
     let burned = json_f64(obj, &["burned"], 0.0)?;
-    let gas_used = json_u64(obj, &["gas_used", "gas"], 21_000);
+    let gas_used_observed = json_present_non_null(obj, "gas_used");
+    let gas_used = if gas_used_observed {
+        json_u64(obj, &["gas_used"], 0)
+    } else {
+        0
+    };
+    let mut flags: u8 = 0;
+    if !gas_used_observed {
+        flags |= FLAG_GAS_USED_UNOBSERVED;
+    }
     let status = normalize_status(obj);
     let created_at = json_u64(obj, &["created_at", "timestamp"], 0);
 
@@ -203,7 +220,7 @@ pub fn pack_receipt_row_value(receipt: &Value) -> Result<Vec<u8>, String> {
         Vec::with_capacity(64 + tx_hash.len() + block_hash.len() + from_addr.len() + to_addr.len());
     out.extend_from_slice(RECEIPT_ROW_MAGIC);
     out.push(RECEIPT_ROW_VERSION);
-    out.push(0); // flags reserved
+    out.push(flags);
     write_len_str(&mut out, &tx_hash)?;
     write_u64(&mut out, block_height);
     write_len_str(&mut out, &block_hash)?;
@@ -234,6 +251,7 @@ pub fn unpack_receipt_row_bytes(blob: &[u8]) -> Result<Value, String> {
     }
     let _flags = *blob.get(off).ok_or("receipt_row_truncated")?;
     off += 1;
+    let gas_used_unobserved = (_flags & FLAG_GAS_USED_UNOBSERVED) != 0;
 
     let tx_hash = read_len_str(blob, &mut off)?;
     let block_height = read_u64(blob, &mut off).ok_or("receipt_row_truncated")?;
@@ -279,7 +297,11 @@ pub fn unpack_receipt_row_bytes(blob: &[u8]) -> Result<Value, String> {
             .map(Value::Number)
             .ok_or_else(|| "receipt burned is not finite".to_string())?,
     );
-    map.insert("gas_used".into(), Value::Number(Number::from(gas_used)));
+    if gas_used_unobserved {
+        map.insert("gas_used".into(), Value::Null);
+    } else {
+        map.insert("gas_used".into(), Value::Number(Number::from(gas_used)));
+    }
     map.insert(
         "status".into(),
         Value::Number(Number::from(u64::from(status.min(1)))),
@@ -376,6 +398,25 @@ mod tests {
         assert_eq!(back["from_addr"], "0xaaa");
         assert_eq!(back["block_height"], 9);
         assert_eq!(back["status"], 1);
+    }
+
+    #[test]
+    fn omitted_gas_used_unpacks_null() {
+        let row = json!({
+            "tx_hash": "0xabc",
+            "block_height": 1,
+            "block_hash": "0xblock",
+            "from_addr": "0xaaa",
+            "to_addr": "0xbbb",
+            "value": 1.0,
+            "fee": 0.01,
+            "burned": 0.0,
+            "status": 1,
+            "created_at": 1
+        });
+        let blob = pack_receipt_row_value(&row).unwrap();
+        let back = unpack_receipt_row_bytes(&blob).unwrap();
+        assert!(back["gas_used"].is_null());
     }
 
     #[test]

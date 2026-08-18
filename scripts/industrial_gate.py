@@ -922,11 +922,40 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("eth_format must expose format_fee_history (no stubbed ratios)")
         if '"gasUsedRatio": [0.5]' in eth_fmt_py_adr:
             errors.append("eth_format must not stub feeHistory gasUsedRatio as 0.5")
+        if "ETH_BLOCK_GAS_LIMIT" in eth_fmt_py_adr:
+            errors.append("eth_format must not hardcode Ethereum 30M gasLimit")
+        if '"gasLimit": hex(ETH_BLOCK_GAS_LIMIT)' in eth_fmt_py_adr:
+            errors.append("format_block must not emit Ethereum 30M as gasLimit")
+        if 'tx.get("data", tx.get("tx_data", "0x"))' in eth_fmt_py_adr:
+            errors.append("format_tx must not default missing input to 0x")
+        if "def observed_tx_input" not in eth_fmt_py_adr:
+            errors.append("eth_format must expose observed_tx_input (null if unobserved)")
+        if "def observed_block_gas_limit" not in eth_fmt_py_adr:
+            errors.append("eth_format must not invent gasLimit as Ethereum 30M")
+        if "if used is None:\n            used = 0" in eth_fmt_py_adr:
+            errors.append("feeHistory must not invent 0.0 gasUsedRatio for unobserved gas")
+        rocks_store_py = (ROOT / "storage" / "rocks_store.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if 'tx.get("gas_used", tx.get("gas", 21000))' in rocks_store_py:
+            errors.append("Rocks tx persist must not invent gas_used=21000")
+        if "get_cached_total_supply" not in (ROOT / "api" / "http.py").read_text(
+            encoding="utf-8", errors="replace"
+        ):
+            errors.append("GET /status must use cached supply, not get_total_supply scan")
+        if 'total_supply = db.get_total_supply()' in (
+            ROOT / "api" / "http.py"
+        ).read_text(encoding="utf-8", errors="replace"):
+            errors.append("GET /status must not call get_total_supply (account scan)")
         rpc_svc_py = (ROOT / "api" / "rpc_service.py").read_text(
             encoding="utf-8", errors="replace"
         )
         if '"gasUsedRatio": [0.5]' in rpc_svc_py:
             errors.append("rpc_service must not stub feeHistory gasUsedRatio as 0.5")
+        if "return hex(21_000)" in rpc_svc_py:
+            errors.append("eth_estimateGas must not invent a 21000 floor")
+        if 'or "0x0"' in rpc_svc_py and "eth_coinbase" in rpc_svc_py:
+            errors.append("eth_coinbase must not invent the zero address")
         if "eth_getUncleByBlockNumberAndIndex" not in rpc_svc_py:
             errors.append("rpc_service must implement eth_getUncleByBlockNumberAndIndex")
         if not (ROOT / "api" / "eth_format.py").is_file():

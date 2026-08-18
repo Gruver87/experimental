@@ -19,6 +19,23 @@ from runtime.amount import money_abs, parse_finite_number
 logger = logging.getLogger("Database")
 
 
+def observed_optional_int(row: Optional[Dict[str, Any]], *keys: str) -> Optional[int]:
+    """First present integer field. Missing is None — never default 21000."""
+    if not isinstance(row, dict):
+        return None
+    for key in keys:
+        if key not in row:
+            continue
+        raw = row.get(key)
+        if raw is None or raw == "":
+            continue
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
 class Database:
     """
     Центральная база данных узла.
@@ -1384,7 +1401,7 @@ class Database:
             "value": money["value"],
             "fee": money["fee"],
             "burned": money["burned"],
-            "gas_used": int(row.get("gas_used", row.get("gas", 21000))),
+            "gas_used": observed_optional_int(row, "gas_used"),
             "status": self._normalize_tx_status(row.get("status")),
             "timestamp": int(row.get("timestamp", 0)),
             "direction": direction,
@@ -2936,6 +2953,22 @@ class Database:
                     )
                     return default
                 return text if text else default
+
+    def get_cached_total_supply(self) -> Optional[float]:
+        """Poll path must not SUM accounts. SQLite has no O(1) supply meta."""
+        return None
+
+    def get_cached_total_burned(self) -> Optional[float]:
+        """Poll path: last burn_stats row only. None if the table is empty."""
+        from runtime.amount import money_abs
+
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT total_burned FROM burn_stats ORDER BY block_height DESC LIMIT 1"
+            ).fetchone()
+            if row is None:
+                return None
+            return money_abs(row["total_burned"] if row else 0, field="total_burned")
 
     def get_total_supply(self) -> float:
         """Sum of account balances (prefer satoshi column when present)."""

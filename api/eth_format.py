@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Sequence
 
 from api.ports import BlockQuery, LogsQuery, QueryLimitError, QueryTimeoutError
-from runtime.amount import WEI_PER_SATOSHI, abs_to_wei, to_satoshi
+from runtime.amount import WEI_PER_SATOSHI, to_satoshi
 
 
 def _keccak(data: bytes) -> bytes:
@@ -38,7 +38,8 @@ def _topic_bytes(topic: str) -> bytes:
 EMPTY_LOGS_BLOOM = "0x" + ("0" * 512)
 ZERO_ROOT = "0x" + ("0" * 64)
 ZERO_HASH = "0x" + ("0" * 64)
-ETH_BLOCK_GAS_LIMIT = 30_000_000
+# Protocol apply cap (runtime.Config.evm_gas_limit). Not Ethereum's 30M block gas.
+DEFAULT_EVM_GAS_LIMIT = 8_000_000
 
 
 def _normalize_block_hash(value: Any) -> Optional[str]:
@@ -239,6 +240,37 @@ def observed_uint_hex(row: Optional[Dict[str, Any]], *keys: str) -> Optional[str
     return hex(n)
 
 
+def observed_block_gas_limit(blk: Optional[Dict[str, Any]], *, protocol_limit=None) -> Optional[int]:
+    """Stored header gas_limit, else protocol apply cap. Never Ethereum 30M."""
+    n = observed_uint(blk, "gas_limit", "gasLimit")
+    if n is not None and n > 0:
+        return n
+    if protocol_limit is None:
+        return None
+    try:
+        p = int(protocol_limit)
+    except (TypeError, ValueError):
+        return None
+    return p if p > 0 else None
+
+
+def observed_tx_input(tx: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Calldata. Missing is null — empty stored calldata is 0x, not an invented transfer."""
+    if not isinstance(tx, dict):
+        return None
+    if "data" not in tx and "tx_data" not in tx and "input" not in tx:
+        return None
+    raw = tx.get("data", tx.get("tx_data", tx.get("input")))
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return "0x"
+    if s.startswith(("0x", "0X")):
+        return s
+    return "0x" + s
+
+
 def observed_tx_address(
     row: Optional[Dict[str, Any]],
     *keys: str,
@@ -372,18 +404,18 @@ def block_uncle_hashes(blk: Optional[Dict[str, Any]]) -> List[str]:
 
 
 def block_transaction_count(blk: Optional[Dict[str, Any]]) -> Optional[int]:
-    """Tx count for an observed block. None if the block was not found."""
+    """Tx count for an observed block. None if the listing was not loaded."""
     if not isinstance(blk, dict) or not blk:
         return None
     txs = blk.get("transactions")
     if isinstance(txs, list):
         return len(txs)
-    if blk.get("tx_count") is not None:
+    if "tx_count" in blk and blk.get("tx_count") is not None:
         try:
-            return int(blk.get("tx_count") or 0)
+            return int(blk.get("tx_count"))
         except (TypeError, ValueError):
-            return 0
-    return 0
+            return None
+    return None
 
 
 def format_block_tx_count(blk: Optional[Dict[str, Any]]) -> Optional[str]:
@@ -648,18 +680,22 @@ def format_block(
     *,
     query=None,
     bc=None,
+    gas_limit=None,
 ) -> Optional[Dict]:
     if not blk:
         return None
     if blk.get("_full_tx_truncated"):
         full_tx = False
-    txs = blk.get("transactions", [])
+    txs = blk.get("transactions")
+    tx_list = txs if isinstance(txs, list) else []
     tx_hashes = [
         tx.get("hash", "") if isinstance(tx, dict) else str(tx)
-        for tx in (txs if isinstance(txs, list) else [])
+        for tx in tx_list
     ]
     number = _as_int_height(blk.get("height", blk.get("block_height", blk.get("number"))))
     used = block_gas_used(blk, query=query, bc=bc)
+    limit = observed_block_gas_limit(blk, protocol_limit=gas_limit)
+    tx_count = block_transaction_count(blk)
     return {
         "number": hex(number) if number is not None else None,
         "hash": observed_block_hash(blk=blk),
@@ -675,13 +711,13 @@ def format_block(
         "totalDifficulty": "0x0",
         "extraData": block_extra_data(blk),
         "size": observed_block_size(blk),
-        "gasLimit": hex(ETH_BLOCK_GAS_LIMIT),
+        "gasLimit": hex(limit) if limit is not None else None,
         "gasUsed": hex(used) if used is not None else None,
         "timestamp": observed_block_timestamp(blk),
         "uncles": block_uncle_hashes(blk),
-        "transactions": txs if full_tx else tx_hashes,
+        "transactions": txs if full_tx and isinstance(txs, list) else tx_hashes,
         "totalBurned": burned_satoshi(blk, "total_burned"),
-        "txCount": blk.get("tx_count", len(tx_hashes)),
+        "txCount": tx_count,
     }
 
 
@@ -719,7 +755,7 @@ def format_tx(tx: Optional[Dict], *, query=None, bc=None) -> Optional[Dict]:
         "gasPrice": observed_uint_hex(tx, "gas_price", "gasPrice"),
         "gasUsed": observed_uint_hex(tx, "gas_used", "gasUsed"),
         "nonce": observed_uint_hex(tx, "nonce"),
-        "input": tx.get("data", tx.get("tx_data", "0x")),
+        "input": observed_tx_input(tx),
         "type": observed_uint_hex(tx, "type"),
         "burned": burned_satoshi(tx, "burned"),
     }
@@ -891,11 +927,11 @@ def format_fee_history(
     block_count: Any = 1,
     newest_tag: Any = "latest",
 ) -> Dict[str, Any]:
-    """EIP-1559 feeHistory from observed heights. No stubbed 0.5 ratios.
+    """Fee history from observed heights. No stubbed 0.5 ratios, no EIP-1559 market.
 
-    Arrays cover existing heights `oldest..tip` only (not padded to the
-    requested count). `gasUsedRatio` is `gasUsed / ETH_BLOCK_GAS_LIMIT`.
-    `reward` stays `[["0x0"]]` — Absolute is not an EIP-1559 tip market.
+    Arrays cover existing heights `oldest..tip` only. Unobserved gasUsed is
+    omitted (not 0.0). `baseFeePerGas` / `reward` are JSON null — Absolute is
+    not EIP-1559. Ratio denominator is stored/protocol gas limit, not 30M.
     """
     if isinstance(block_count, bool):
         n_req = 1
@@ -924,11 +960,12 @@ def format_fee_history(
     else:
         tip_h = int(tip_fn()) if callable(tip_fn) else 0
     oldest = max(0, tip_h - n_req + 1)
-    try:
-        base = hex(abs_to_wei(getattr(cfg, "gas_price_wei", 0) or 0))
-    except (TypeError, ValueError):
-        base = "0x0"
+    protocol = getattr(cfg, "evm_gas_limit", None) if cfg is not None else None
+    if protocol is None:
+        protocol = DEFAULT_EVM_GAS_LIMIT
     ratios: List[float] = []
+    bases: List[Optional[str]] = []
+    rewards: List[Optional[List[str]]] = []
     for height in range(oldest, tip_h + 1):
         blk = None
         if callable(get_block):
@@ -936,16 +973,20 @@ def format_fee_history(
                 blk = get_block(BlockQuery(height=int(height)))
             except Exception:
                 blk = None
-        used = block_gas_used(blk, query=query) if isinstance(blk, dict) else None
-        if used is None:
-            used = 0
-        ratios.append(min(1.0, max(0.0, used / float(ETH_BLOCK_GAS_LIMIT))))
-    n = len(ratios)
+        if not isinstance(blk, dict):
+            continue
+        used = block_gas_used(blk, query=query)
+        limit = observed_block_gas_limit(blk, protocol_limit=protocol)
+        if used is None or limit is None or limit <= 0:
+            continue
+        ratios.append(min(1.0, max(0.0, used / float(limit))))
+        bases.append(None)
+        rewards.append(None)
     return {
         "oldestBlock": hex(oldest),
-        "baseFeePerGas": [base] * n,
+        "baseFeePerGas": bases,
         "gasUsedRatio": ratios,
-        "reward": [["0x0"]] * n,
+        "reward": rewards,
     }
 
 

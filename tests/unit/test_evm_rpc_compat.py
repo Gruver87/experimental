@@ -423,32 +423,33 @@ def test_format_block_uses_stored_gas_used_when_tx_list_empty() -> None:
     )
     assert out is not None
     assert out["gasUsed"] == hex(15_000_000)
-    assert out["gasLimit"] == hex(30_000_000)
+    assert out["gasLimit"] is None
 
 
 def test_fee_history_ratios_from_observed_gas() -> None:
-    from api.eth_format import ETH_BLOCK_GAS_LIMIT, format_fee_history
+    from api.eth_format import DEFAULT_EVM_GAS_LIMIT, format_fee_history
 
     q = FakeQueryFacade(tip=5)
     q.blocks[4] = {
         "height": 4,
         "hash": "0x" + "44" * 32,
-        "gas_used": 15_000_000,
+        "gas_used": DEFAULT_EVM_GAS_LIMIT // 2,
         "transactions": [],
     }
     q.blocks[5] = {
         "height": 5,
         "hash": "0x" + "55" * 32,
-        "gas_used": ETH_BLOCK_GAS_LIMIT,
+        "gas_used": DEFAULT_EVM_GAS_LIMIT,
         "transactions": [],
     }
-    cfg = type("C", (), {"gas_price_wei": 0})()
+    cfg = type("C", (), {"gas_price_wei": 0, "evm_gas_limit": DEFAULT_EVM_GAS_LIMIT})()
     out = format_fee_history(query=q, cfg=cfg, block_count=2, newest_tag="latest")
     assert out["oldestBlock"] == hex(4)
     assert out["gasUsedRatio"] == [0.5, 1.0]
     assert len(out["baseFeePerGas"]) == 2
     assert len(out["reward"]) == 2
-    assert out["reward"] == [["0x0"], ["0x0"]]
+    assert out["baseFeePerGas"] == [None, None]
+    assert out["reward"] == [None, None]
 
 
 def test_fee_history_does_not_pad_missing_heights() -> None:
@@ -465,28 +466,30 @@ def test_fee_history_does_not_pad_missing_heights() -> None:
 
 
 def test_eth_fee_history_rpc_uses_real_ratio() -> None:
-    from api.eth_format import ETH_BLOCK_GAS_LIMIT
+    from api.eth_format import DEFAULT_EVM_GAS_LIMIT
 
     client = FakeRpcClient()
     client.query._tip = 3
     client.query.blocks[2] = {
         "height": 2,
         "hash": "0x" + "22" * 32,
-        "gas_used": 7_500_000,
+        "gas_used": DEFAULT_EVM_GAS_LIMIT // 2,
         "transactions": [],
     }
     client.query.blocks[3] = {
         "height": 3,
         "hash": "0x" + "33" * 32,
-        "gas_used": ETH_BLOCK_GAS_LIMIT // 4,
+        "gas_used": DEFAULT_EVM_GAS_LIMIT // 4,
         "transactions": [],
     }
     out = client.call("eth_feeHistory", [hex(2), "latest", []])
     assert out.get("error") is None
     result = out["result"]
     assert result["oldestBlock"] == hex(2)
-    assert result["gasUsedRatio"] == [7_500_000 / ETH_BLOCK_GAS_LIMIT, 0.25]
-    assert 0.5 not in result["gasUsedRatio"]
+    assert result["gasUsedRatio"] == [0.5, 0.25]
+    assert 0.5 in result["gasUsedRatio"]
+    assert result["baseFeePerGas"] == [None, None]
+    assert result["reward"] == [None, None]
 
 
 def test_receipt_block_hash_from_block_listing() -> None:
@@ -974,6 +977,27 @@ def test_omitted_receipt_status_and_block_gas_are_null() -> None:
     no_txs = format_block({"height": 3, "hash": "0x" + "aa" * 32})
     assert no_txs is not None
     assert no_txs["gasUsed"] is None
+    assert no_txs["gasLimit"] is None
+    assert no_txs["txCount"] is None
     empty = format_block({"height": 3, "hash": "0x" + "aa" * 32, "transactions": []})
     assert empty is not None
     assert empty["gasUsed"] == "0x0"
+    assert empty["txCount"] == 0
+    with_limit = format_block(
+        {"height": 3, "hash": "0x" + "aa" * 32, "transactions": []},
+        gas_limit=8_000_000,
+    )
+    assert with_limit is not None
+    assert with_limit["gasLimit"] == hex(8_000_000)
+
+
+def test_tx_input_and_count_are_null_when_unobserved() -> None:
+    tx = format_tx({"hash": "0xabc"})
+    assert tx is not None
+    assert tx["input"] is None
+    empty = format_tx({"hash": "0xabc", "data": ""})
+    assert empty is not None
+    assert empty["input"] == "0x"
+    stored = format_tx({"hash": "0xabc", "data": "0xdead"})
+    assert stored is not None
+    assert stored["input"] == "0xdead"
