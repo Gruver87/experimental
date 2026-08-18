@@ -525,3 +525,162 @@ def test_eth_get_transaction_receipt_block_hash() -> None:
     assert tx_out.get("error") is None
     assert tx_out["result"]["blockHash"] == h
     assert tx_out["result"]["transactionIndex"] == hex(0)
+    assert tx_out["result"]["blockNumber"] == hex(6)
+
+
+def test_pending_tx_inclusion_fields_are_null() -> None:
+    out = format_tx({"hash": "0xabc", "value": 0})
+    assert out is not None
+    assert out["blockNumber"] is None
+    assert out["blockHash"] is None
+    assert out["transactionIndex"] is None
+    r = format_receipt({"hash": "0xabc", "gas_used": 21000})
+    assert r is not None
+    assert r["blockNumber"] is None
+    assert r["blockHash"] is None
+
+
+def test_format_tx_gas_price_from_stored() -> None:
+    out = format_tx({"hash": "0xabc", "block_height": 1, "gas_price": 42})
+    assert out is not None
+    assert out["gasPrice"] == hex(42)
+    assert out["blockNumber"] == hex(1)
+
+
+def test_format_block_extra_data_from_header() -> None:
+    out = format_block(
+        {
+            "height": 1,
+            "hash": "0x" + "aa" * 32,
+            "extra_data": "abs",
+            "transactions": [],
+        }
+    )
+    assert out is not None
+    assert out["extraData"] == "0x" + b"abs".hex()
+    empty = format_block({"height": 1, "hash": "0x" + "bb" * 32, "transactions": []})
+    assert empty is not None
+    assert empty["extraData"] == "0x"
+    assert empty["uncles"] == []
+
+
+def test_format_block_uncles_match_observed_list() -> None:
+    h = "0x" + "ab" * 32
+    out = format_block(
+        {
+            "height": 1,
+            "hash": "0x" + "aa" * 32,
+            "uncles": [h],
+            "transactions": [],
+        }
+    )
+    assert out is not None
+    assert out["uncles"] == [h]
+
+
+def test_missing_block_tx_count_is_null() -> None:
+    client = FakeRpcClient()
+    out = client.call("eth_getBlockTransactionCountByHash", ["0x" + "11" * 32])
+    assert out.get("error") is None
+    assert out["result"] is None
+
+
+def test_observed_block_tx_count() -> None:
+    client = FakeRpcClient()
+    h = "0x" + "aa" * 32
+    client.query._tip = 1
+    client.query.blocks[1] = {"height": 1, "hash": h, "transactions": ["0x1", "0x2"]}
+    out = client.call("eth_getBlockTransactionCountByHash", [h])
+    assert out.get("error") is None
+    assert out["result"] == hex(2)
+
+
+def test_missing_uncle_count_is_null() -> None:
+    client = FakeRpcClient()
+    out = client.call("eth_getUncleCountByBlockHash", ["0x" + "22" * 32])
+    assert out.get("error") is None
+    assert out["result"] is None
+
+
+def test_latest_uncle_count_is_zero_for_observed_block() -> None:
+    client = FakeRpcClient()
+    out = client.call("eth_getUncleCountByBlockNumber", ["latest"])
+    assert out.get("error") is None
+    assert out["result"] == hex(0)
+
+
+def test_get_uncle_by_index_null_when_none() -> None:
+    client = FakeRpcClient()
+    out = client.call("eth_getUncleByBlockNumberAndIndex", ["latest", "0x0"])
+    assert out.get("error") is None
+    assert out["result"] is None
+    missing = client.call(
+        "eth_getUncleByBlockHashAndIndex", ["0x" + "33" * 32, "0x0"]
+    )
+    assert missing.get("error") is None
+    assert missing["result"] is None
+
+
+def test_get_uncle_by_index_returns_stored_header() -> None:
+    client = FakeRpcClient()
+    parent = "0x" + "aa" * 32
+    uncle_hash = "0x" + "bb" * 32
+    uncle = {
+        "height": 1,
+        "hash": uncle_hash,
+        "parent_hash": "0x" + "00" * 32,
+        "transactions": [],
+        "timestamp": 9,
+    }
+    client.query._tip = 2
+    client.query.blocks[2] = {
+        "height": 2,
+        "hash": parent,
+        "transactions": [],
+        "uncles": [uncle],
+    }
+    out = client.call("eth_getUncleByBlockNumberAndIndex", ["latest", "0x0"])
+    assert out.get("error") is None
+    result = out["result"]
+    assert result is not None
+    assert result["hash"] == uncle_hash
+    assert result["number"] == hex(1)
+    empty = client.call("eth_getUncleByBlockNumberAndIndex", ["latest", "0x1"])
+    assert empty["result"] is None
+
+
+def test_get_uncle_hash_only_without_header_is_null() -> None:
+    q = FakeQueryFacade(tip=4)
+    h = "0x" + "cc" * 32
+    q.blocks[4] = {
+        "height": 4,
+        "hash": "0x" + "dd" * 32,
+        "transactions": [],
+        "uncles": [h],
+    }
+    from api.eth_format import format_uncle_by_index
+
+    assert format_uncle_by_index(q.blocks[4], 0, query=q) is None
+
+
+def test_get_uncle_hash_resolves_stored_block() -> None:
+    q = FakeQueryFacade(tip=5)
+    uncle_hash = "0x" + "ee" * 32
+    q.blocks[3] = {
+        "height": 3,
+        "hash": uncle_hash,
+        "transactions": [],
+        "timestamp": 4,
+    }
+    q.blocks[5] = {
+        "height": 5,
+        "hash": "0x" + "ff" * 32,
+        "transactions": [],
+        "uncles": [uncle_hash],
+    }
+    from api.eth_format import format_uncle_by_index
+
+    out = format_uncle_by_index(q.blocks[5], 0, query=q)
+    assert out is not None
+    assert out["hash"] == uncle_hash
+    assert out["number"] == hex(3)

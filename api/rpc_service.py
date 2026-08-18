@@ -9,9 +9,12 @@ from typing import Any, Dict, List, Optional, Sequence
 from runtime.amount import WEI_PER_SATOSHI, abs_to_wei, to_satoshi
 from api.eth_format import (
     format_block,
+    format_block_tx_count,
     format_fee_history,
     format_receipt,
     format_tx,
+    format_uncle_count,
+    format_uncle_by_index,
     handle_eth_get_logs,
     resolve_block_by_tag,
     tx_at_block_index,
@@ -348,10 +351,7 @@ class RpcService:
             if err:
                 raise ValueError(err)
             blk = q.get_block(BlockQuery(block_hash=str(params[0])))
-            if not blk:
-                return hex(0)
-            txs = blk.get("transactions", [])
-            return hex(len(txs) if isinstance(txs, list) else int(blk.get("tx_count", 0) or 0))
+            return format_block_tx_count(blk)
 
         if method == "eth_getTransactionByBlockNumberAndIndex":
             tag = params[0] if params else "latest"
@@ -376,7 +376,28 @@ class RpcService:
             return format_tx(tx_at_block_index(bc, blk, idx, query=q), query=q, bc=bc)
 
         if method in ("eth_getUncleCountByBlockNumber", "eth_getUncleCountByBlockHash"):
-            return hex(0)
+            if method == "eth_getUncleCountByBlockHash":
+                err = validate_block_hash_param(tuple(params))
+                if err:
+                    raise ValueError(err)
+                blk = q.get_block(BlockQuery(block_hash=str(params[0])))
+            else:
+                tag = params[0] if params else "latest"
+                blk = q.get_block(BlockQuery(tag=str(tag)))
+            return format_uncle_count(blk)
+
+        if method in ("eth_getUncleByBlockNumberAndIndex", "eth_getUncleByBlockHashAndIndex"):
+            if method == "eth_getUncleByBlockHashAndIndex":
+                err = validate_block_hash_param(tuple(params))
+                if err:
+                    raise ValueError(err)
+                blk = q.get_block(BlockQuery(block_hash=str(params[0])))
+                index = params[1] if len(params) > 1 else 0
+            else:
+                tag = params[0] if params else "latest"
+                blk = q.get_block(BlockQuery(tag=str(tag)))
+                index = params[1] if len(params) > 1 else 0
+            return format_uncle_by_index(blk, index, query=q, bc=bc)
 
         if method == "eth_getLogs":
             if isinstance(dto, GetLogsParams):
@@ -446,11 +467,7 @@ class RpcService:
         if method == "eth_getBlockTransactionCountByNumber":
             tag = params[0] if params else "latest"
             blk = q.get_block(BlockQuery(tag=str(tag)))
-            if not blk:
-                return hex(0)
-            txs = blk.get("transactions", [])
-            count = len(txs) if isinstance(txs, list) else int(blk.get("tx_count", 0) or 0)
-            return hex(count)
+            return format_block_tx_count(blk)
 
         raise ValueError(f"Method not supported: {method}")
 

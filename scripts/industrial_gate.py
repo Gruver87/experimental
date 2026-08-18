@@ -828,6 +828,20 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("eth_format must expose observed_block_hash (no zero stub)")
         if 'tx.get("blockHash", "0x" + "0" * 64)' in eth_fmt_py_adr:
             errors.append("receipt blockHash must not fall back to the 32-byte zero digest")
+        if "def observed_block_number" not in eth_fmt_py_adr:
+            errors.append("eth_format must not default missing blockNumber to height 0")
+        if '"blockNumber": hex(tx.get("block_height", 0))' in eth_fmt_py_adr:
+            errors.append("tx/receipt blockNumber must not default missing height to 0")
+        if "def format_block_tx_count" not in eth_fmt_py_adr:
+            errors.append("eth_format must return null tx-count when the block is missing")
+        if "def format_uncle_count" not in eth_fmt_py_adr:
+            errors.append("eth_format must return null uncle-count when the block is missing")
+        if "def format_uncle_by_index" not in eth_fmt_py_adr:
+            errors.append("eth_format must expose format_uncle_by_index (null, not invented header)")
+        if "def block_extra_data" not in eth_fmt_py_adr:
+            errors.append("eth_format must expose block extraData from the stored header")
+        if '"extraData": "0x"' in eth_fmt_py_adr:
+            errors.append("format_block must not hardcode extraData as empty")
         if "def block_gas_used" not in eth_fmt_py_adr:
             errors.append("eth_format must reconstruct block gasUsed from observed txs")
         if "def format_fee_history" not in eth_fmt_py_adr:
@@ -839,6 +853,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         )
         if '"gasUsedRatio": [0.5]' in rpc_svc_py:
             errors.append("rpc_service must not stub feeHistory gasUsedRatio as 0.5")
+        if "eth_getUncleByBlockNumberAndIndex" not in rpc_svc_py:
+            errors.append("rpc_service must implement eth_getUncleByBlockNumberAndIndex")
         if not (ROOT / "api" / "eth_format.py").is_file():
             errors.append("api/eth_format.py missing (ADR 0011)")
         if not (ROOT / "api" / "fake_rpc.py").is_file():
@@ -849,6 +865,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         http_py_adr = (ROOT / "api" / "http.py").read_text(encoding="utf-8", errors="replace")
         if '"gasUsedRatio": [0.5]' in http_py_adr:
             errors.append("http.py must not stub feeHistory gasUsedRatio as 0.5")
+        if "eth_getUncleByBlockNumberAndIndex" not in http_py_adr:
+            errors.append("http.py must implement eth_getUncleByBlockNumberAndIndex")
         if "bc.db.get_block_by_hash" in http_py_adr:
             errors.append("api/http.py must not call bc.db.get_block_by_hash (ADR 0011)")
         if "bc.db.query_evm_logs" in http_py_adr:

@@ -74,6 +74,163 @@ def observed_block_hash(
     return None
 
 
+def _as_int_height(value: Any) -> Optional[int]:
+    if value is None or value == "":
+        return None
+    try:
+        if isinstance(value, str) and str(value).startswith(("0x", "0X")):
+            return int(value, 16)
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def observed_block_number(
+    tx: Optional[Dict[str, Any]] = None,
+    blk: Optional[Dict[str, Any]] = None,
+) -> Optional[int]:
+    """Inclusion height from the block listing or tx row. Missing is None, not 0."""
+    if isinstance(blk, dict):
+        n = _as_int_height(blk.get("height", blk.get("block_height", blk.get("number"))))
+        if n is not None:
+            return n
+    if not isinstance(tx, dict):
+        return None
+    if tx.get("block_height") is None and tx.get("blockNumber") is None:
+        return None
+    return _as_int_height(tx.get("block_height", tx.get("blockNumber")))
+
+
+def block_extra_data(blk: Dict[str, Any]) -> str:
+    """RPC extraData from the stored header. Empty / missing is `0x`, not invented text."""
+    raw = blk.get("extra_data")
+    if raw is None:
+        raw = blk.get("extraData")
+    if raw is None or raw == "":
+        return "0x"
+    s = str(raw)
+    if s.startswith(("0x", "0X")):
+        hexpart = s[2:]
+        if not hexpart:
+            return "0x"
+        if any(c not in "0123456789abcdefABCDEF" for c in hexpart):
+            return "0x" + s.encode("utf-8").hex()
+        return "0x" + hexpart.lower()
+    return "0x" + s.encode("utf-8").hex()
+
+
+def block_uncle_hashes(blk: Optional[Dict[str, Any]]) -> List[str]:
+    """Observed uncle hashes. Absolute has none; never invent a list."""
+    if not isinstance(blk, dict):
+        return []
+    uncles = blk.get("uncles") or []
+    if not isinstance(uncles, list):
+        return []
+    hashes: List[str] = []
+    for uncle in uncles:
+        if isinstance(uncle, dict):
+            h = str(uncle.get("hash") or uncle.get("block_hash") or "")
+        else:
+            h = str(uncle or "")
+        if h:
+            hashes.append(h)
+    return hashes
+
+
+def block_transaction_count(blk: Optional[Dict[str, Any]]) -> Optional[int]:
+    """Tx count for an observed block. None if the block was not found."""
+    if not isinstance(blk, dict) or not blk:
+        return None
+    txs = blk.get("transactions")
+    if isinstance(txs, list):
+        return len(txs)
+    if blk.get("tx_count") is not None:
+        try:
+            return int(blk.get("tx_count") or 0)
+        except (TypeError, ValueError):
+            return 0
+    return 0
+
+
+def format_block_tx_count(blk: Optional[Dict[str, Any]]) -> Optional[str]:
+    n = block_transaction_count(blk)
+    return hex(n) if n is not None else None
+
+
+def format_uncle_count(blk: Optional[Dict[str, Any]]) -> Optional[str]:
+    if not isinstance(blk, dict) or not blk:
+        return None
+    return hex(len(block_uncle_hashes(blk)))
+
+
+def _rpc_index(raw: Any) -> Optional[int]:
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int):
+        return int(raw)
+    s = str(raw if raw is not None else "0").strip() or "0"
+    try:
+        return int(s, 16) if s.startswith(("0x", "0X")) else int(s)
+    except (TypeError, ValueError):
+        return None
+
+
+def format_uncle_by_index(
+    blk: Optional[Dict[str, Any]],
+    index: Any,
+    *,
+    query=None,
+    bc=None,
+) -> Optional[Dict[str, Any]]:
+    """Uncle header at index, or None.
+
+    Missing parent block, out-of-range index, or a hash-only uncle without a
+    stored header → JSON null. Never invent a block object from a hash.
+    """
+    if not isinstance(blk, dict) or not blk:
+        return None
+    idx = _rpc_index(index)
+    if idx is None or idx < 0:
+        return None
+    uncles = blk.get("uncles") or []
+    if not isinstance(uncles, list) or idx >= len(uncles):
+        return None
+    entry = uncles[idx]
+    if isinstance(entry, dict) and (
+        entry.get("height") is not None
+        or entry.get("parent_hash")
+        or entry.get("transactions") is not None
+        or entry.get("state_root")
+        or entry.get("miner")
+        or entry.get("proposer")
+    ):
+        return format_block(entry, False, query=query, bc=bc)
+    if isinstance(entry, dict):
+        uncle_hash = str(entry.get("hash") or entry.get("block_hash") or "")
+    else:
+        uncle_hash = str(entry or "")
+    if not uncle_hash:
+        return None
+    src = query if query is not None else bc
+    if src is None:
+        return None
+    get_block = getattr(src, "get_block", None)
+    if not callable(get_block):
+        return None
+    try:
+        found = get_block(BlockQuery(block_hash=str(uncle_hash)))
+    except TypeError:
+        try:
+            found = get_block(uncle_hash)
+        except Exception:
+            return None
+    except Exception:
+        return None
+    if not isinstance(found, dict) or not found:
+        return None
+    return format_block(found, False, query=query, bc=bc)
+
+
 def _as_eth_root(value: str) -> str:
     """Normalize a 32-byte hex digest to 0x-prefixed RPC form."""
     s = str(value or "").strip().lower()
@@ -242,16 +399,8 @@ def block_sha3_uncles(blk: Dict[str, Any]) -> str:
     Absolute SHA256 merkle (same as tx_root) — not a geth uncle trie.
     Never return the zero digest for an empty list (that is not keccak(0xc0)).
     """
-    uncles = blk.get("uncles") or []
-    if isinstance(uncles, list) and uncles:
-        hashes: List[str] = []
-        for uncle in uncles:
-            if isinstance(uncle, dict):
-                h = str(uncle.get("hash") or uncle.get("block_hash") or "")
-            else:
-                h = str(uncle or "")
-            if h:
-                hashes.append(h)
+    hashes = block_uncle_hashes(blk)
+    if hashes:
         return _abs_tx_merkle_root(hashes)
     from crypto import native
 
@@ -278,8 +427,9 @@ def format_block(
         tx.get("hash", "") if isinstance(tx, dict) else str(tx)
         for tx in (txs if isinstance(txs, list) else [])
     ]
+    number = _as_int_height(blk.get("height", blk.get("block_height", blk.get("number"))))
     return {
-        "number": hex(blk.get("height", 0)),
+        "number": hex(number) if number is not None else None,
         "hash": blk.get("hash", blk.get("block_hash", "")),
         "parentHash": blk.get("parent_hash", ""),
         "nonce": "0x0000000000000000",
@@ -291,12 +441,12 @@ def format_block(
         "miner": blk.get("miner", blk.get("proposer", "")),
         "difficulty": "0x0",
         "totalDifficulty": "0x0",
-        "extraData": "0x",
+        "extraData": block_extra_data(blk),
         "size": hex(256 + len(tx_hashes) * 32),
         "gasLimit": hex(ETH_BLOCK_GAS_LIMIT),
         "gasUsed": hex(block_gas_used(blk, query=query, bc=bc)),
         "timestamp": hex(blk.get("timestamp", 0)),
-        "uncles": [],
+        "uncles": block_uncle_hashes(blk),
         "transactions": txs if full_tx else tx_hashes,
         "totalBurned": blk.get("total_burned", 0.0),
         "txCount": blk.get("tx_count", len(tx_hashes)),
@@ -331,18 +481,25 @@ def format_tx(tx: Optional[Dict], *, query=None, bc=None) -> Optional[Dict]:
         tx_index = stored_index
     else:
         tx_index = None
+    number = observed_block_number(tx, blk)
+    try:
+        gas_price = int(tx.get("gas_price", tx.get("gasPrice", 0)) or 0)
+    except (TypeError, ValueError):
+        gas_price = 0
     return {
         "hash": tx_hash,
-        "blockNumber": hex(tx.get("block_height", 0)),
+        "blockNumber": hex(number) if number is not None else None,
         "blockHash": observed_block_hash(tx, blk),
         "transactionIndex": hex(int(tx_index)) if tx_index is not None else None,
         "from": tx.get("from_addr", tx.get("from", "")),
         "to": tx.get("to_addr", tx.get("to", "")),
         "value": hex(wei),
         "gas": hex(tx.get("gas", 21000)),
+        "gasPrice": hex(gas_price),
         "gasUsed": hex(tx.get("gas_used", tx.get("gas", 21000))),
         "nonce": hex(tx.get("nonce", 0)),
         "input": tx.get("data", tx.get("tx_data", "0x")),
+        "type": hex(int(tx.get("type", 0) or 0)),
         "burned": tx.get("burned", 0.0),
     }
 
@@ -678,10 +835,11 @@ def format_receipt(tx: Optional[Dict], bc=None, query=None) -> Optional[Dict]:
     listing_index = _tx_index_in_listing(tx_hash, blk)
     tx_index = listing_index if listing_index is not None else stored_index
     cumulative = receipt_cumulative_gas_used(tx, query=facade, bc=bc)
+    number = observed_block_number(tx, blk)
     return {
         "transactionHash": tx_hash,
         "transactionIndex": hex(int(tx_index)),
-        "blockNumber": hex(tx.get("block_height", 0)),
+        "blockNumber": hex(number) if number is not None else None,
         "blockHash": observed_block_hash(tx, blk),
         "from": tx.get("from_addr", tx.get("from", "")),
         "to": to_addr,

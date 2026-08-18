@@ -1241,10 +1241,8 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
                 blk = q.get_block(BlockQuery(block_hash=str(block_hash)))
             else:
                 blk = None
-            if not blk:
-                return hex(0)
-            txs = blk.get("transactions", [])
-            return hex(len(txs) if isinstance(txs, list) else int(blk.get("tx_count", 0) or 0))
+            from api.eth_format import format_block_tx_count
+            return format_block_tx_count(blk)
 
         if method == "eth_getTransactionByBlockNumberAndIndex":
             tag = params[0] if params else "latest"
@@ -1264,10 +1262,48 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             return _format_tx(_tx_at_block_index(bc, blk, idx), bc)
 
         if method == "eth_getUncleCountByBlockNumber":
-            return hex(0)
+            from api.eth_format import format_uncle_count
+            from api.ports import BlockQuery
+
+            tag = params[0] if params else "latest"
+            q = self.__class__.query_facade or getattr(bc, "query_facade", None)
+            if q is not None:
+                blk = q.get_block(BlockQuery(tag=str(tag)))
+            else:
+                blk = _resolve_block_by_tag(bc, tag)
+            return format_uncle_count(blk)
 
         if method == "eth_getUncleCountByBlockHash":
-            return hex(0)
+            from api.eth_format import format_uncle_count
+            from api.ports import BlockQuery
+
+            block_hash = params[0] if params else ""
+            q = self.__class__.query_facade or getattr(bc, "query_facade", None)
+            blk = q.get_block(BlockQuery(block_hash=str(block_hash))) if q is not None else None
+            return format_uncle_count(blk)
+
+        if method == "eth_getUncleByBlockNumberAndIndex":
+            from api.eth_format import format_uncle_by_index
+            from api.ports import BlockQuery
+
+            tag = params[0] if params else "latest"
+            index = params[1] if len(params) > 1 else 0
+            q = self.__class__.query_facade or getattr(bc, "query_facade", None)
+            if q is not None:
+                blk = q.get_block(BlockQuery(tag=str(tag)))
+            else:
+                blk = _resolve_block_by_tag(bc, tag)
+            return format_uncle_by_index(blk, index, query=q, bc=bc)
+
+        if method == "eth_getUncleByBlockHashAndIndex":
+            from api.eth_format import format_uncle_by_index
+            from api.ports import BlockQuery
+
+            block_hash = params[0] if params else ""
+            index = params[1] if len(params) > 1 else 0
+            q = self.__class__.query_facade or getattr(bc, "query_facade", None)
+            blk = q.get_block(BlockQuery(block_hash=str(block_hash))) if q is not None else None
+            return format_uncle_by_index(blk, index, query=q, bc=bc)
 
         if method == "eth_getLogs":
             filt = params[0] if params else {}
@@ -1321,11 +1357,8 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
         if method == "eth_getBlockTransactionCountByNumber":
             tag = params[0] if params else "latest"
             blk = _resolve_block_by_tag(bc, tag)
-            if not blk:
-                return hex(0)
-            txs = blk.get("transactions", [])
-            count = len(txs) if isinstance(txs, list) else int(blk.get("tx_count", 0) or 0)
-            return hex(count)
+            from api.eth_format import format_block_tx_count
+            return format_block_tx_count(blk)
 
         raise ValueError(f"Method not supported: {method}")
 
