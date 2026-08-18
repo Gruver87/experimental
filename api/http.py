@@ -1146,7 +1146,7 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
         if method == "eth_getTransactionByHash":
             tx_hash = params[0] if params else ""
             tx = bc.get_transaction(tx_hash)
-            return _format_tx(tx)
+            return _format_tx(tx, bc)
 
         if method == "eth_getTransactionReceipt":
             tx_hash = params[0] if params else ""
@@ -1250,7 +1250,7 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             tag = params[0] if params else "latest"
             idx = int(params[1], 16) if len(params) > 1 and str(params[1]).startswith("0x") else int(params[1] if len(params) > 1 else 0)
             blk = _resolve_block_by_tag(bc, tag)
-            return _format_tx(_tx_at_block_index(bc, blk, idx))
+            return _format_tx(_tx_at_block_index(bc, blk, idx), bc)
 
         if method == "eth_getTransactionByBlockHashAndIndex":
             block_hash = params[0] if params else ""
@@ -1261,7 +1261,7 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
                 blk = q.get_block(BlockQuery(block_hash=str(block_hash)))
             else:
                 blk = None
-            return _format_tx(_tx_at_block_index(bc, blk, idx))
+            return _format_tx(_tx_at_block_index(bc, blk, idx), bc)
 
         if method == "eth_getUncleCountByBlockNumber":
             return hex(0)
@@ -7466,7 +7466,7 @@ class RESTHandler(BaseHTTPRequestHandler):
 
 from api.eth_format import (  # noqa: E402
     format_block as _format_block,
-    format_tx as _format_tx,
+    format_tx as _format_tx_impl,
     format_eth_log as _format_eth_log,
     handle_eth_get_logs as _eth_get_logs_impl,
     resolve_block_by_tag as _resolve_block_by_tag,
@@ -7476,6 +7476,11 @@ from api.eth_format import (  # noqa: E402
     tx_at_block_index as _tx_at_block_index_impl,
     format_receipt as _format_receipt_impl,
 )
+
+
+def _format_tx(tx: Optional[Dict], bc=None) -> Optional[Dict]:
+    q = getattr(bc, "query_facade", None) if bc is not None else None
+    return _format_tx_impl(tx, query=q, bc=bc)
 
 
 def _format_receipt(tx: Optional[Dict], bc=None) -> Optional[Dict]:

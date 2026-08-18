@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from api.eth_format import (
     EMPTY_LOGS_BLOOM,
+    ZERO_HASH,
     block_logs_bloom,
     encode_eth_call_return,
     format_block,
     format_receipt,
+    format_tx,
     logs_bloom,
 )
 from api.fake_rpc import FakeQueryFacade, FakeRpcClient
@@ -53,6 +55,8 @@ def test_format_receipt_eth_fields() -> None:
     assert r["logsBloom"].startswith("0x")
     assert len(r["logsBloom"]) == 2 + 512
     assert r["logsBloom"] == EMPTY_LOGS_BLOOM
+    assert r["blockHash"] is None
+    assert r["blockHash"] != ZERO_HASH
 
 
 def test_receipt_cumulative_gas_sums_prior_txs_in_block() -> None:
@@ -76,6 +80,8 @@ def test_receipt_cumulative_gas_sums_prior_txs_in_block() -> None:
     assert blk is not None
     assert blk["gasUsed"] == last["cumulativeGasUsed"]
     assert blk["gasUsed"] == hex(64000)
+    assert mid["blockHash"] == q.blocks[3]["hash"]
+    assert last["blockHash"] == q.blocks[3]["hash"]
 
 
 def test_receipt_cumulative_gas_from_hash_only_block_list() -> None:
@@ -467,3 +473,55 @@ def test_eth_fee_history_rpc_uses_real_ratio() -> None:
     assert result["oldestBlock"] == hex(2)
     assert result["gasUsedRatio"] == [7_500_000 / ETH_BLOCK_GAS_LIMIT, 0.25]
     assert 0.5 not in result["gasUsedRatio"]
+
+
+def test_receipt_block_hash_from_block_listing() -> None:
+    q = FakeQueryFacade(tip=8)
+    h = "0x" + "ab" * 32
+    tx = {"hash": "0xaaa", "gas_used": 21000, "block_height": 8}
+    q.blocks[8] = {"height": 8, "hash": h, "transactions": [tx]}
+    r = format_receipt(tx, query=q)
+    assert r is not None
+    assert r["blockHash"] == h
+    assert r["blockHash"] != ZERO_HASH
+
+
+def test_receipt_rejects_zero_stored_block_hash() -> None:
+    r = format_receipt(
+        {
+            "hash": "0xabc",
+            "block_height": 1,
+            "gas_used": 21000,
+            "block_hash": ZERO_HASH,
+        }
+    )
+    assert r is not None
+    assert r["blockHash"] is None
+
+
+def test_format_tx_block_hash_and_index_from_query() -> None:
+    q = FakeQueryFacade(tip=2)
+    h = "0x" + "cd" * 32
+    tx = {"hash": "0xbb", "block_height": 2, "value": 0}
+    q.blocks[2] = {"height": 2, "hash": h, "transactions": ["0xaa", "0xbb"]}
+    out = format_tx(tx, query=q)
+    assert out is not None
+    assert out["blockHash"] == h
+    assert out["transactionIndex"] == hex(1)
+    assert out["blockHash"] != ZERO_HASH
+
+
+def test_eth_get_transaction_receipt_block_hash() -> None:
+    client = FakeRpcClient()
+    h = "0x" + "ef" * 32
+    client.query._tip = 6
+    tx = {"hash": "0xdead", "block_height": 6, "gas_used": 21000, "status": 1}
+    client.query.txs["0xdead"] = tx
+    client.query.blocks[6] = {"height": 6, "hash": h, "transactions": [tx]}
+    out = client.call("eth_getTransactionReceipt", ["0xdead"])
+    assert out.get("error") is None
+    assert out["result"]["blockHash"] == h
+    tx_out = client.call("eth_getTransactionByHash", ["0xdead"])
+    assert tx_out.get("error") is None
+    assert tx_out["result"]["blockHash"] == h
+    assert tx_out["result"]["transactionIndex"] == hex(0)

@@ -37,7 +37,41 @@ def _topic_bytes(topic: str) -> bytes:
 
 EMPTY_LOGS_BLOOM = "0x" + ("0" * 512)
 ZERO_ROOT = "0x" + ("0" * 64)
+ZERO_HASH = "0x" + ("0" * 64)
 ETH_BLOCK_GAS_LIMIT = 30_000_000
+
+
+def _normalize_block_hash(value: Any) -> Optional[str]:
+    """Return a non-zero 0x-hash, or None if missing / all-zero stub."""
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    if not s.startswith(("0x", "0X")):
+        s = "0x" + s
+    hexpart = s[2:]
+    if not hexpart or any(c not in "0123456789abcdefABCDEF" for c in hexpart):
+        return None
+    if all(c == "0" for c in hexpart):
+        return None
+    return s
+
+
+def observed_block_hash(
+    tx: Optional[Dict[str, Any]] = None,
+    blk: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    """Block hash from the tx row or block listing. Never the 32-byte zero stub."""
+    if isinstance(tx, dict):
+        h = _normalize_block_hash(tx.get("block_hash") or tx.get("blockHash"))
+        if h:
+            return h
+    if isinstance(blk, dict):
+        h = _normalize_block_hash(blk.get("hash") or blk.get("block_hash") or blk.get("blockHash"))
+        if h:
+            return h
+    return None
 
 
 def _as_eth_root(value: str) -> str:
@@ -269,16 +303,39 @@ def format_block(
     }
 
 
-def format_tx(tx: Optional[Dict]) -> Optional[Dict]:
+def format_tx(tx: Optional[Dict], *, query=None, bc=None) -> Optional[Dict]:
     if not tx:
         return None
     try:
         wei = int(to_satoshi(tx.get("value", tx.get("amount", 0)) or 0)) * WEI_PER_SATOSHI
     except (TypeError, ValueError):
         wei = 0
+    tx_hash = tx.get("hash", tx.get("tx_hash", ""))
+    try:
+        height = int(tx.get("block_height", tx.get("blockNumber", 0)) or 0)
+    except (TypeError, ValueError):
+        height = 0
+    blk = _block_at_height(height, query=query, bc=bc)
+    try:
+        stored_index = int(tx.get("tx_index", tx.get("index", 0)) or 0)
+        have_stored_index = (
+            tx.get("tx_index") is not None or tx.get("index") is not None
+        )
+    except (TypeError, ValueError):
+        stored_index = 0
+        have_stored_index = False
+    listing_index = _tx_index_in_listing(tx_hash, blk)
+    if listing_index is not None:
+        tx_index: Optional[int] = listing_index
+    elif have_stored_index:
+        tx_index = stored_index
+    else:
+        tx_index = None
     return {
-        "hash": tx.get("hash", tx.get("tx_hash", "")),
+        "hash": tx_hash,
         "blockNumber": hex(tx.get("block_height", 0)),
+        "blockHash": observed_block_hash(tx, blk),
+        "transactionIndex": hex(int(tx_index)) if tx_index is not None else None,
         "from": tx.get("from_addr", tx.get("from", "")),
         "to": tx.get("to_addr", tx.get("to", "")),
         "value": hex(wei),
@@ -359,6 +416,24 @@ def _block_at_height(height: int, query=None, bc=None) -> Optional[Dict[str, Any
     except Exception:
         return None
     return blk if isinstance(blk, dict) else None
+
+
+def _tx_index_in_listing(tx_hash: Any, blk: Optional[Dict[str, Any]]) -> Optional[int]:
+    """Index of `tx_hash` in block tx order, or None if the slot is not observed."""
+    if not blk or not tx_hash:
+        return None
+    txs = blk.get("transactions")
+    if not isinstance(txs, list) or not txs:
+        return None
+    want = str(tx_hash).lower()
+    for i, entry in enumerate(txs):
+        if isinstance(entry, dict):
+            h = str(entry.get("hash") or entry.get("tx_hash") or "").lower()
+        else:
+            h = str(entry).lower()
+        if h == want:
+            return i
+    return None
 
 
 def _tx_entry_hash_and_gas(entry: Any, query=None, bc=None) -> Optional[tuple[str, int]]:
@@ -529,32 +604,20 @@ def receipt_cumulative_gas_used(tx: Dict[str, Any], query=None, bc=None) -> int:
 
 def format_eth_log(row: Dict, bc=None) -> Dict:
     block_height = int(row.get("block_height", 0))
-    block_hash = ""
-    if bc is not None:
-        blk = None
-        get_block = getattr(bc, "get_block", None)
-        if callable(get_block):
-            try:
-                blk = bc.get_block(BlockQuery(height=block_height))
-            except TypeError:
-                try:
-                    blk = bc.get_block(block_height)
-                except Exception:
-                    blk = None
-            except Exception:
-                blk = None
-        if blk:
-            block_hash = blk.get("hash", blk.get("block_hash", ""))
+    blk = _block_at_height(block_height, query=bc, bc=bc)
     tx_hash = row.get("tx_hash", "")
     topics = row.get("topics", [])
     if not isinstance(topics, list):
         topics = []
+    listing_index = _tx_index_in_listing(tx_hash, blk)
     return {
         "removed": False,
         "logIndex": hex(int(row.get("log_index", 0))),
-        "transactionIndex": hex(tx_index_in_block(bc, block_height, tx_hash)),
+        "transactionIndex": hex(listing_index) if listing_index is not None else hex(
+            tx_index_in_block(bc, block_height, tx_hash)
+        ),
         "transactionHash": tx_hash,
-        "blockHash": block_hash,
+        "blockHash": observed_block_hash(row, blk),
         "blockNumber": hex(block_height),
         "address": row.get("contract_address", ""),
         "data": normalize_log_data(row.get("data", "")),
@@ -612,23 +675,14 @@ def format_receipt(tx: Optional[Dict], bc=None, query=None) -> Optional[Dict]:
     except (TypeError, ValueError):
         height = 0
     blk = _block_at_height(height, query=facade, bc=bc)
-    txs = blk.get("transactions") if isinstance(blk, dict) else None
-    if isinstance(txs, list) and tx_hash:
-        want = str(tx_hash).lower()
-        for i, entry in enumerate(txs):
-            if isinstance(entry, dict):
-                h = str(entry.get("hash") or entry.get("tx_hash") or "").lower()
-            else:
-                h = str(entry).lower()
-            if h == want:
-                tx_index = i
-                break
+    listing_index = _tx_index_in_listing(tx_hash, blk)
+    tx_index = listing_index if listing_index is not None else stored_index
     cumulative = receipt_cumulative_gas_used(tx, query=facade, bc=bc)
     return {
         "transactionHash": tx_hash,
         "transactionIndex": hex(int(tx_index)),
         "blockNumber": hex(tx.get("block_height", 0)),
-        "blockHash": tx.get("block_hash", tx.get("blockHash", "0x" + "0" * 64)),
+        "blockHash": observed_block_hash(tx, blk),
         "from": tx.get("from_addr", tx.get("from", "")),
         "to": to_addr,
         "cumulativeGasUsed": hex(int(cumulative)),

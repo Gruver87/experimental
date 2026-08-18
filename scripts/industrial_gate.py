@@ -824,6 +824,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("eth_format must compute cumulativeGasUsed from block tx order")
         if '"cumulativeGasUsed": hex(gas_used)' in eth_fmt_py_adr:
             errors.append("receipt cumulativeGasUsed must not copy gasUsed")
+        if "def observed_block_hash" not in eth_fmt_py_adr:
+            errors.append("eth_format must expose observed_block_hash (no zero stub)")
+        if 'tx.get("blockHash", "0x" + "0" * 64)' in eth_fmt_py_adr:
+            errors.append("receipt blockHash must not fall back to the 32-byte zero digest")
         if "def block_gas_used" not in eth_fmt_py_adr:
             errors.append("eth_format must reconstruct block gasUsed from observed txs")
         if "def format_fee_history" not in eth_fmt_py_adr:

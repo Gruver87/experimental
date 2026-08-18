@@ -259,7 +259,7 @@ class RpcService:
 
         if method == "eth_getTransactionByHash":
             tx_hash = dto.tx_hash if isinstance(dto, TxHashParams) else (params[0] if params else "")
-            return format_tx(q.get_transaction(tx_hash))
+            return format_tx(q.get_transaction(tx_hash), query=q, bc=bc)
 
         if method == "eth_getTransactionReceipt":
             tx_hash = dto.tx_hash if isinstance(dto, TxHashParams) else (params[0] if params else "")
@@ -361,7 +361,7 @@ class RpcService:
                 else int(params[1] if len(params) > 1 else 0)
             )
             blk = q.get_block(BlockQuery(tag=str(tag)))
-            return format_tx(tx_at_block_index(bc, blk, idx, query=q))
+            return format_tx(tx_at_block_index(bc, blk, idx, query=q), query=q, bc=bc)
 
         if method == "eth_getTransactionByBlockHashAndIndex":
             err = validate_block_hash_param(tuple(params))
@@ -373,7 +373,7 @@ class RpcService:
                 else int(params[1] if len(params) > 1 else 0)
             )
             blk = q.get_block(BlockQuery(block_hash=str(params[0])))
-            return format_tx(tx_at_block_index(bc, blk, idx, query=q))
+            return format_tx(tx_at_block_index(bc, blk, idx, query=q), query=q, bc=bc)
 
         if method in ("eth_getUncleCountByBlockNumber", "eth_getUncleCountByBlockHash"):
             return hex(0)
