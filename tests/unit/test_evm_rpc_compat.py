@@ -5,6 +5,7 @@ from __future__ import annotations
 from api.eth_format import (
     EMPTY_LOGS_BLOOM,
     ZERO_HASH,
+    ZERO_ROOT,
     block_logs_bloom,
     encode_eth_call_return,
     format_block,
@@ -57,6 +58,8 @@ def test_format_receipt_eth_fields() -> None:
     assert r["logsBloom"] == EMPTY_LOGS_BLOOM
     assert r["blockHash"] is None
     assert r["blockHash"] != ZERO_HASH
+    assert r["burned"] == 0
+    assert isinstance(r["burned"], int)
 
 
 def test_receipt_cumulative_gas_sums_prior_txs_in_block() -> None:
@@ -163,6 +166,12 @@ def test_format_block_empty_bloom_without_query() -> None:
         "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
     )
     assert out["sha3Uncles"] != "0x" + "0" * 64
+    assert out["stateRoot"] is None
+    assert out["parentHash"] is None
+    assert out["totalBurned"] == 0
+    assert isinstance(out["totalBurned"], int)
+    assert out["nonce"] is None
+    assert out["size"] is None
 
 
 def test_format_block_bloom_from_query_logs() -> None:
@@ -684,3 +693,122 @@ def test_get_uncle_hash_resolves_stored_block() -> None:
     assert out is not None
     assert out["hash"] == uncle_hash
     assert out["number"] == hex(3)
+
+
+def test_genesis_parent_hash_may_be_zero() -> None:
+    out = format_block({"height": 0, "hash": "0x" + "aa" * 32, "transactions": []})
+    assert out is not None
+    assert out["parentHash"] == ZERO_HASH
+
+
+def test_non_genesis_missing_parent_hash_is_null() -> None:
+    out = format_block({"height": 4, "hash": "0x" + "aa" * 32, "transactions": []})
+    assert out is not None
+    assert out["parentHash"] is None
+    stored = "bb" * 32
+    with_parent = format_block(
+        {
+            "height": 4,
+            "hash": "0x" + "aa" * 32,
+            "parent_hash": stored,
+            "transactions": [],
+        }
+    )
+    assert with_parent is not None
+    assert with_parent["parentHash"] == "0x" + stored
+
+
+def test_missing_or_zero_state_root_is_null() -> None:
+    missing = format_block({"height": 2, "hash": "0x" + "aa" * 32, "transactions": []})
+    assert missing is not None
+    assert missing["stateRoot"] is None
+    stub = format_block(
+        {
+            "height": 2,
+            "hash": "0x" + "aa" * 32,
+            "state_root": "0" * 64,
+            "transactions": [],
+        }
+    )
+    assert stub is not None
+    assert stub["stateRoot"] is None
+    assert stub["stateRoot"] != ZERO_ROOT
+    real = "cc" * 32
+    stored = format_block(
+        {
+            "height": 2,
+            "hash": "0x" + "aa" * 32,
+            "state_root": real,
+            "transactions": [],
+        }
+    )
+    assert stored is not None
+    assert stored["stateRoot"] == "0x" + real
+
+
+def test_burned_fields_are_satoshi_integers() -> None:
+    blk = format_block(
+        {
+            "height": 8,
+            "hash": "0x" + "aa" * 32,
+            "total_burned": 0.5,
+            "transactions": [],
+        }
+    )
+    assert blk is not None
+    assert blk["totalBurned"] == 500_000
+    assert isinstance(blk["totalBurned"], int)
+    tx_out = format_tx({"hash": "0xabc", "burned": 0.02})
+    assert tx_out is not None
+    assert tx_out["burned"] == 20_000
+    assert isinstance(tx_out["burned"], int)
+    receipt = format_receipt({"hash": "0xabc", "burned": 0.02, "block_height": 1})
+    assert receipt is not None
+    assert receipt["burned"] == 20_000
+    assert isinstance(receipt["burned"], int)
+
+
+def test_block_nonce_and_size_are_not_invented() -> None:
+    txs = ["0x" + "11" * 32, "0x" + "22" * 32]
+    missing = format_block(
+        {"height": 6, "hash": "0x" + "aa" * 32, "transactions": txs}
+    )
+    assert missing is not None
+    assert missing["nonce"] is None
+    assert missing["size"] is None
+    assert missing["size"] != hex(256 + 2 * 32)
+    # Integer nonce on a block row is a tx/account field — not ethash.
+    contaminated = format_block(
+        {
+            "height": 6,
+            "hash": "0x" + "aa" * 32,
+            "nonce": 7,
+            "transactions": txs,
+        }
+    )
+    assert contaminated is not None
+    assert contaminated["nonce"] is None
+    stored = format_block(
+        {
+            "height": 6,
+            "hash": "0x" + "aa" * 32,
+            "nonce": "0x00000000000000ab",
+            "block_size": 320,
+            "transactions": txs,
+        }
+    )
+    assert stored is not None
+    assert stored["nonce"] == "0x00000000000000ab"
+    assert stored["size"] == hex(320)
+    via_key = format_block(
+        {
+            "height": 6,
+            "hash": "0x" + "aa" * 32,
+            "block_nonce": 171,
+            "size": 99,
+            "transactions": [],
+        }
+    )
+    assert via_key is not None
+    assert via_key["nonce"] == "0x00000000000000ab"
+    assert via_key["size"] == hex(99)

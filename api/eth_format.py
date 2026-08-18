@@ -74,6 +74,109 @@ def observed_block_hash(
     return None
 
 
+def observed_parent_hash(blk: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Parent hash from the header. Genesis may be the 32-byte zero digest.
+
+    Missing parent on a non-genesis block is None — not an empty string and not
+    an invented zero hash (that would look like genesis).
+    """
+    if not isinstance(blk, dict):
+        return None
+    raw = blk.get("parent_hash")
+    if raw is None or str(raw).strip() == "":
+        raw = blk.get("parentHash")
+    if raw is not None and str(raw).strip() != "":
+        try:
+            return _as_eth_root(str(raw))
+        except ValueError:
+            return None
+    height = _as_int_height(blk.get("height", blk.get("block_height", blk.get("number"))))
+    if height == 0:
+        return ZERO_HASH
+    return None
+
+
+def observed_state_root(blk: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Stored state root. Never the 32-byte zero stub (not Absolute empty merkle)."""
+    if not isinstance(blk, dict):
+        return None
+    raw = blk.get("state_root") or blk.get("stateRoot")
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        out = _as_eth_root(str(raw))
+    except ValueError:
+        return None
+    if out == ZERO_ROOT:
+        return None
+    return out
+
+
+def burned_satoshi(row: Optional[Dict[str, Any]], key: str = "burned") -> int:
+    """ABS burn as integer satoshi. Missing/unparseable is 0, never a float."""
+    if not isinstance(row, dict):
+        return 0
+    raw = row.get(key)
+    if raw is None and key == "total_burned":
+        raw = row.get("totalBurned")
+    try:
+        return int(to_satoshi(raw or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def observed_block_nonce(blk: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Ethereum header nonce is 8 bytes. Absolute is not ethash.
+
+    Missing is JSON null — never the 8-byte zero stub. A bare integer ``nonce``
+    on the block dict is not used (that field is a tx/account nonce elsewhere).
+    """
+    if not isinstance(blk, dict):
+        return None
+    raw = blk.get("block_nonce")
+    if raw is None or str(raw).strip() == "":
+        raw = blk.get("nonce")
+        # Integer nonce on a block row is ambiguous with tx.nonce — refuse.
+        if isinstance(raw, int) and "block_nonce" not in blk:
+            return None
+    if raw is None or str(raw).strip() == "":
+        return None
+    if isinstance(raw, str):
+        s = raw.strip()
+        if s.startswith(("0x", "0X")):
+            hexpart = s[2:]
+            if len(hexpart) == 16 and all(c in "0123456789abcdefABCDEF" for c in hexpart):
+                return "0x" + hexpart.lower()
+            return None
+        return None
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if n < 0 or n >= 1 << 64:
+        return None
+    return "0x" + format(n, "016x")
+
+
+def observed_block_size(blk: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Stored encoded size only. Never invent 256 + 32 * tx_count (not RLP)."""
+    if not isinstance(blk, dict):
+        return None
+    raw = blk.get("size", blk.get("block_size"))
+    if raw is None or raw == "":
+        return None
+    try:
+        if isinstance(raw, str) and str(raw).startswith(("0x", "0X")):
+            n = int(raw, 16)
+        else:
+            n = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if n < 0:
+        return None
+    return hex(n)
+
+
 def _as_int_height(value: Any) -> Optional[int]:
     if value is None or value == "":
         return None
@@ -419,9 +522,6 @@ def format_block(
         return None
     if blk.get("_full_tx_truncated"):
         full_tx = False
-    state_root = blk.get("state_root", "") or ""
-    if state_root and not str(state_root).startswith("0x"):
-        state_root = "0x" + str(state_root)
     txs = blk.get("transactions", [])
     tx_hashes = [
         tx.get("hash", "") if isinstance(tx, dict) else str(tx)
@@ -431,24 +531,24 @@ def format_block(
     return {
         "number": hex(number) if number is not None else None,
         "hash": blk.get("hash", blk.get("block_hash", "")),
-        "parentHash": blk.get("parent_hash", ""),
-        "nonce": "0x0000000000000000",
+        "parentHash": observed_parent_hash(blk),
+        "nonce": observed_block_nonce(blk),
         "sha3Uncles": block_sha3_uncles(blk),
         "logsBloom": block_logs_bloom(blk, query=query, bc=bc),
         "transactionsRoot": block_transactions_root(blk),
-        "stateRoot": state_root or ZERO_ROOT,
+        "stateRoot": observed_state_root(blk),
         "receiptsRoot": block_receipts_root(blk),
         "miner": blk.get("miner", blk.get("proposer", "")),
         "difficulty": "0x0",
         "totalDifficulty": "0x0",
         "extraData": block_extra_data(blk),
-        "size": hex(256 + len(tx_hashes) * 32),
+        "size": observed_block_size(blk),
         "gasLimit": hex(ETH_BLOCK_GAS_LIMIT),
         "gasUsed": hex(block_gas_used(blk, query=query, bc=bc)),
         "timestamp": hex(blk.get("timestamp", 0)),
         "uncles": block_uncle_hashes(blk),
         "transactions": txs if full_tx else tx_hashes,
-        "totalBurned": blk.get("total_burned", 0.0),
+        "totalBurned": burned_satoshi(blk, "total_burned"),
         "txCount": blk.get("tx_count", len(tx_hashes)),
     }
 
@@ -500,7 +600,7 @@ def format_tx(tx: Optional[Dict], *, query=None, bc=None) -> Optional[Dict]:
         "nonce": hex(tx.get("nonce", 0)),
         "input": tx.get("data", tx.get("tx_data", "0x")),
         "type": hex(int(tx.get("type", 0) or 0)),
-        "burned": tx.get("burned", 0.0),
+        "burned": burned_satoshi(tx, "burned"),
     }
 
 
@@ -851,7 +951,7 @@ def format_receipt(tx: Optional[Dict], bc=None, query=None) -> Optional[Dict]:
         "status": hex(status_i),
         "type": hex(int(tx.get("type", 0) or 0)),
         "effectiveGasPrice": hex(int(tx.get("gas_price", tx.get("gasPrice", 0)) or 0)),
-        "burned": tx.get("burned", 0.0),
+        "burned": burned_satoshi(tx, "burned"),
     }
 
 

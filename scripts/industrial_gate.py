@@ -826,6 +826,28 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("receipt cumulativeGasUsed must not copy gasUsed")
         if "def observed_block_hash" not in eth_fmt_py_adr:
             errors.append("eth_format must expose observed_block_hash (no zero stub)")
+        if "def observed_state_root" not in eth_fmt_py_adr:
+            errors.append("eth_format must not stub missing stateRoot as the zero digest")
+        if "state_root or ZERO_ROOT" in eth_fmt_py_adr:
+            errors.append("format_block must not fall back stateRoot to ZERO_ROOT")
+        if "def observed_parent_hash" not in eth_fmt_py_adr:
+            errors.append("eth_format must expose observed_parent_hash (genesis zero only)")
+        if '"parentHash": blk.get("parent_hash", "")' in eth_fmt_py_adr:
+            errors.append("format_block must not default parentHash to empty string")
+        if "def burned_satoshi" not in eth_fmt_py_adr:
+            errors.append("eth_format must emit burn as satoshi integers")
+        if '"totalBurned": blk.get("total_burned", 0.0)' in eth_fmt_py_adr:
+            errors.append("format_block totalBurned must not be an IEEE float default")
+        if '"burned": tx.get("burned", 0.0)' in eth_fmt_py_adr:
+            errors.append("tx/receipt burned must not be an IEEE float default")
+        if "def observed_block_nonce" not in eth_fmt_py_adr:
+            errors.append("eth_format must not stub block nonce as 8 zero bytes")
+        if '"nonce": "0x0000000000000000"' in eth_fmt_py_adr:
+            errors.append("format_block must not hardcode ethash-shaped nonce")
+        if "def observed_block_size" not in eth_fmt_py_adr:
+            errors.append("eth_format must not invent block size from tx count")
+        if "256 + len(tx_hashes)" in eth_fmt_py_adr:
+            errors.append("format_block size must not use the 256+32*n heuristic")
         if 'tx.get("blockHash", "0x" + "0" * 64)' in eth_fmt_py_adr:
             errors.append("receipt blockHash must not fall back to the 32-byte zero digest")
         if "def observed_block_number" not in eth_fmt_py_adr:
