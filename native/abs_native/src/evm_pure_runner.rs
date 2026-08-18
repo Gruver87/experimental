@@ -93,10 +93,7 @@ fn get_inline_read_only(host_context: Option<&Bound<'_, PyDict>>) -> bool {
     dict_flag(ctx, "_abs_inline_read_only") || dict_flag(ctx, "_abs_read_only")
 }
 
-fn set_inline_read_only(
-    host_context: Option<&Bound<'_, PyDict>>,
-    read_only: bool,
-) -> PyResult<()> {
+fn set_inline_read_only(host_context: Option<&Bound<'_, PyDict>>, read_only: bool) -> PyResult<()> {
     let Some(ctx) = host_context else {
         return Ok(());
     };

@@ -26,4 +26,9 @@ ignore = [
     "RUSTSEC-2026-0098",
     "RUSTSEC-2026-0099",
     "RUSTSEC-2026-0104",
+    # h2 0.3.27 unbounded empty DATA frames (RUSTSEC-2026-0258, issued 2026-08-18).
+    # Comes from hyper 0.14 via igd-next (libp2p UPnP/NAT lab). Patch is h2>=0.4.16
+    # which needs hyper 1.x; libp2p 0.54 has not moved that edge. Prod mesh is
+    # TCP+TLS (feature_libp2p=false). Clear when libp2p drops hyper 0.14 / igd-next.
+    "RUSTSEC-2026-0258",
 ]
