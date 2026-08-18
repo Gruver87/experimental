@@ -820,6 +820,21 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("eth_format must not stub receiptsRoot as zero")
         if "merkle_root" not in eth_fmt_py_adr:
             errors.append("block tx/receipt roots must use crypto.merkle.merkle_root")
+        if "def receipt_cumulative_gas_used" not in eth_fmt_py_adr:
+            errors.append("eth_format must compute cumulativeGasUsed from block tx order")
+        if '"cumulativeGasUsed": hex(gas_used)' in eth_fmt_py_adr:
+            errors.append("receipt cumulativeGasUsed must not copy gasUsed")
+        if "def block_gas_used" not in eth_fmt_py_adr:
+            errors.append("eth_format must reconstruct block gasUsed from observed txs")
+        if "def format_fee_history" not in eth_fmt_py_adr:
+            errors.append("eth_format must expose format_fee_history (no stubbed ratios)")
+        if '"gasUsedRatio": [0.5]' in eth_fmt_py_adr:
+            errors.append("eth_format must not stub feeHistory gasUsedRatio as 0.5")
+        rpc_svc_py = (ROOT / "api" / "rpc_service.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if '"gasUsedRatio": [0.5]' in rpc_svc_py:
+            errors.append("rpc_service must not stub feeHistory gasUsedRatio as 0.5")
         if not (ROOT / "api" / "eth_format.py").is_file():
             errors.append("api/eth_format.py missing (ADR 0011)")
         if not (ROOT / "api" / "fake_rpc.py").is_file():
@@ -828,6 +843,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         if "def attach_query_facade" not in bc_py:
             errors.append("Blockchain must expose attach_query_facade (ADR 0011)")
         http_py_adr = (ROOT / "api" / "http.py").read_text(encoding="utf-8", errors="replace")
+        if '"gasUsedRatio": [0.5]' in http_py_adr:
+            errors.append("http.py must not stub feeHistory gasUsedRatio as 0.5")
         if "bc.db.get_block_by_hash" in http_py_adr:
             errors.append("api/http.py must not call bc.db.get_block_by_hash (ADR 0011)")
         if "bc.db.query_evm_logs" in http_py_adr:

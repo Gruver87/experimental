@@ -55,6 +55,49 @@ def test_format_receipt_eth_fields() -> None:
     assert r["logsBloom"] == EMPTY_LOGS_BLOOM
 
 
+def test_receipt_cumulative_gas_sums_prior_txs_in_block() -> None:
+    q = FakeQueryFacade(tip=3)
+    txs = [
+        {"hash": "0xa", "gas_used": 21000, "block_height": 3},
+        {"hash": "0xb", "gas_used": 42000, "block_height": 3},
+        {"hash": "0xc", "gas_used": 1000, "block_height": 3},
+    ]
+    q.blocks[3] = {"height": 3, "hash": "0x" + "bb" * 32, "transactions": txs}
+    mid = format_receipt(txs[1], query=q)
+    assert mid is not None
+    assert mid["gasUsed"] == hex(42000)
+    assert mid["cumulativeGasUsed"] == hex(63000)
+    assert mid["transactionIndex"] == hex(1)
+    last = format_receipt(txs[2], query=q)
+    assert last is not None
+    assert last["cumulativeGasUsed"] == hex(64000)
+    assert last["transactionIndex"] == hex(2)
+    blk = format_block(q.blocks[3], query=q)
+    assert blk is not None
+    assert blk["gasUsed"] == last["cumulativeGasUsed"]
+    assert blk["gasUsed"] == hex(64000)
+
+
+def test_receipt_cumulative_gas_from_hash_only_block_list() -> None:
+    q = FakeQueryFacade(tip=4)
+    q.blocks[4] = {
+        "height": 4,
+        "hash": "0x" + "cc" * 32,
+        "transactions": ["0xaa", "0xbb"],
+    }
+    q.txs["0xaa"] = {"hash": "0xaa", "gas_used": 21000, "block_height": 4}
+    q.txs["0xbb"] = {"hash": "0xbb", "gas_used": 5000, "block_height": 4}
+    r = format_receipt(q.txs["0xbb"], query=q)
+    assert r is not None
+    assert r["gasUsed"] == hex(5000)
+    assert r["cumulativeGasUsed"] == hex(26000)
+    assert r["transactionIndex"] == hex(1)
+    blk = format_block(q.blocks[4], query=q)
+    assert blk is not None
+    assert blk["gasUsed"] == hex(26000)
+    assert blk["gasUsed"] == r["cumulativeGasUsed"]
+
+
 def test_logs_bloom_sets_bits_for_address() -> None:
     bloom0 = logs_bloom([])
     bloom1 = logs_bloom(
@@ -347,3 +390,80 @@ def test_block_sha3_uncles_nonempty_is_abs_merkle_not_zero() -> None:
     assert out == "0x" + merkle_root([h])
     assert out != "0x" + "0" * 64
     assert out != "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+
+
+def test_format_block_uses_stored_gas_used_when_tx_list_empty() -> None:
+    out = format_block(
+        {
+            "height": 2,
+            "hash": "0x" + "aa" * 32,
+            "gas_used": 15_000_000,
+            "transactions": [],
+        }
+    )
+    assert out is not None
+    assert out["gasUsed"] == hex(15_000_000)
+    assert out["gasLimit"] == hex(30_000_000)
+
+
+def test_fee_history_ratios_from_observed_gas() -> None:
+    from api.eth_format import ETH_BLOCK_GAS_LIMIT, format_fee_history
+
+    q = FakeQueryFacade(tip=5)
+    q.blocks[4] = {
+        "height": 4,
+        "hash": "0x" + "44" * 32,
+        "gas_used": 15_000_000,
+        "transactions": [],
+    }
+    q.blocks[5] = {
+        "height": 5,
+        "hash": "0x" + "55" * 32,
+        "gas_used": ETH_BLOCK_GAS_LIMIT,
+        "transactions": [],
+    }
+    cfg = type("C", (), {"gas_price_wei": 0})()
+    out = format_fee_history(query=q, cfg=cfg, block_count=2, newest_tag="latest")
+    assert out["oldestBlock"] == hex(4)
+    assert out["gasUsedRatio"] == [0.5, 1.0]
+    assert len(out["baseFeePerGas"]) == 2
+    assert len(out["reward"]) == 2
+    assert out["reward"] == [["0x0"], ["0x0"]]
+
+
+def test_fee_history_does_not_pad_missing_heights() -> None:
+    from api.eth_format import format_fee_history
+
+    q = FakeQueryFacade(tip=0)
+    q.blocks[0] = {"height": 0, "hash": "0x" + "00" * 32, "transactions": []}
+    cfg = type("C", (), {"gas_price_wei": 0})()
+    out = format_fee_history(query=q, cfg=cfg, block_count=10, newest_tag="latest")
+    assert out["oldestBlock"] == hex(0)
+    assert len(out["gasUsedRatio"]) == 1
+    assert out["gasUsedRatio"] == [0.0]
+    assert 0.5 not in out["gasUsedRatio"]
+
+
+def test_eth_fee_history_rpc_uses_real_ratio() -> None:
+    from api.eth_format import ETH_BLOCK_GAS_LIMIT
+
+    client = FakeRpcClient()
+    client.query._tip = 3
+    client.query.blocks[2] = {
+        "height": 2,
+        "hash": "0x" + "22" * 32,
+        "gas_used": 7_500_000,
+        "transactions": [],
+    }
+    client.query.blocks[3] = {
+        "height": 3,
+        "hash": "0x" + "33" * 32,
+        "gas_used": ETH_BLOCK_GAS_LIMIT // 4,
+        "transactions": [],
+    }
+    out = client.call("eth_feeHistory", [hex(2), "latest", []])
+    assert out.get("error") is None
+    result = out["result"]
+    assert result["oldestBlock"] == hex(2)
+    assert result["gasUsedRatio"] == [7_500_000 / ETH_BLOCK_GAS_LIMIT, 0.25]
+    assert 0.5 not in result["gasUsedRatio"]

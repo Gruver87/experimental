@@ -1185,21 +1185,17 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             return hex(int(getattr(cfg, "priority_fee_wei", 0) or 0))
 
         if method == "eth_feeHistory":
-            block_count = int(params[0], 16) if params else 1
-            block_count = max(1, min(block_count, 1024))
-            tip = _resolve_block_by_tag(bc, params[1] if len(params) > 1 else "latest")
-            tip_h = int(tip.get("height", bc.get_height())) if tip else bc.get_height()
-            oldest = max(0, tip_h - block_count + 1)
-            try:
-                base = hex(abs_to_wei(getattr(cfg, "gas_price_wei", 0) or 0))
-            except (TypeError, ValueError):
-                base = "0x0"
-            return {
-                "oldestBlock": hex(oldest),
-                "baseFeePerGas": [base] * block_count,
-                "gasUsedRatio": [0.5] * block_count,
-                "reward": [["0x0"]] * block_count,
-            }
+            from api.eth_format import format_fee_history
+
+            q = self.__class__.query_facade or getattr(bc, "query_facade", None)
+            if q is None:
+                raise ValueError("query_facade required for eth_feeHistory")
+            return format_fee_history(
+                query=q,
+                cfg=cfg,
+                block_count=params[0] if params else 1,
+                newest_tag=params[1] if len(params) > 1 else "latest",
+            )
 
         if method == "eth_accounts":
             if wallet and getattr(wallet, "address", ""):

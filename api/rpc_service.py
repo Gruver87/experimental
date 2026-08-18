@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Sequence
 from runtime.amount import WEI_PER_SATOSHI, abs_to_wei, to_satoshi
 from api.eth_format import (
     format_block,
+    format_fee_history,
     format_receipt,
     format_tx,
     handle_eth_get_logs,
@@ -297,21 +298,12 @@ class RpcService:
             return hex(int(getattr(cfg, "priority_fee_wei", 0) or 0))
 
         if method == "eth_feeHistory":
-            block_count = int(params[0], 16) if params else 1
-            block_count = max(1, min(block_count, 1024))
-            tip = q.get_block(BlockQuery(tag=str(params[1] if len(params) > 1 else "latest")))
-            tip_h = int(tip.get("height", q.tip_height())) if tip else q.tip_height()
-            oldest = max(0, tip_h - block_count + 1)
-            try:
-                base = hex(abs_to_wei(getattr(cfg, "gas_price_wei", 0) or 0))
-            except (TypeError, ValueError):
-                base = "0x0"
-            return {
-                "oldestBlock": hex(oldest),
-                "baseFeePerGas": [base] * block_count,
-                "gasUsedRatio": [0.5] * block_count,
-                "reward": [["0x0"]] * block_count,
-            }
+            return format_fee_history(
+                query=q,
+                cfg=cfg,
+                block_count=params[0] if params else 1,
+                newest_tag=params[1] if len(params) > 1 else "latest",
+            )
 
         if method == "eth_accounts":
             if wallet and getattr(wallet, "address", ""):

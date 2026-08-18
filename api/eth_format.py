@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Sequence
 
 from api.ports import BlockQuery, LogsQuery, QueryLimitError, QueryTimeoutError
-from runtime.amount import WEI_PER_SATOSHI, to_satoshi
+from runtime.amount import WEI_PER_SATOSHI, abs_to_wei, to_satoshi
 
 
 def _keccak(data: bytes) -> bytes:
@@ -37,6 +37,7 @@ def _topic_bytes(topic: str) -> bytes:
 
 EMPTY_LOGS_BLOOM = "0x" + ("0" * 512)
 ZERO_ROOT = "0x" + ("0" * 64)
+ETH_BLOCK_GAS_LIMIT = 30_000_000
 
 
 def _as_eth_root(value: str) -> str:
@@ -258,8 +259,8 @@ def format_block(
         "totalDifficulty": "0x0",
         "extraData": "0x",
         "size": hex(256 + len(tx_hashes) * 32),
-        "gasLimit": hex(30_000_000),
-        "gasUsed": hex(blk.get("gas_used", 0)),
+        "gasLimit": hex(ETH_BLOCK_GAS_LIMIT),
+        "gasUsed": hex(block_gas_used(blk, query=query, bc=bc)),
         "timestamp": hex(blk.get("timestamp", 0)),
         "uncles": [],
         "transactions": txs if full_tx else tx_hashes,
@@ -341,6 +342,191 @@ def tx_index_in_block(bc, block_height: int, tx_hash: str) -> int:
     return 0
 
 
+def _block_at_height(height: int, query=None, bc=None) -> Optional[Dict[str, Any]]:
+    src = query if query is not None else bc
+    if src is None:
+        return None
+    get_block = getattr(src, "get_block", None)
+    if not callable(get_block):
+        return None
+    try:
+        blk = get_block(BlockQuery(height=int(height)))
+    except TypeError:
+        try:
+            blk = get_block(int(height))
+        except Exception:
+            return None
+    except Exception:
+        return None
+    return blk if isinstance(blk, dict) else None
+
+
+def _tx_entry_hash_and_gas(entry: Any, query=None, bc=None) -> Optional[tuple[str, int]]:
+    """Hash + gas_used for a block tx slot. None if the slot cannot be observed."""
+    if isinstance(entry, dict):
+        h = str(entry.get("hash") or entry.get("tx_hash") or "").lower()
+        if not h:
+            return None
+        if entry.get("gas_used") is not None or entry.get("gas") is not None:
+            try:
+                used = int(entry.get("gas_used", entry.get("gas", 0)) or 0)
+            except (TypeError, ValueError):
+                used = 0
+            return h, used
+    else:
+        h = str(entry or "").lower()
+        if not h:
+            return None
+    get_tx = None
+    if query is not None and hasattr(query, "get_transaction"):
+        get_tx = query.get_transaction
+    elif bc is not None and hasattr(bc, "get_transaction"):
+        get_tx = bc.get_transaction
+    if not callable(get_tx):
+        return None
+    row = get_tx(h)
+    if not isinstance(row, dict):
+        return None
+    try:
+        used = int(row.get("gas_used", row.get("gas", 0)) or 0)
+    except (TypeError, ValueError):
+        used = 0
+    return h, used
+
+
+def _sum_block_tx_gas(blk: Dict[str, Any], query=None, bc=None) -> Optional[int]:
+    """Sum gas_used of every tx in block list order. None if any slot is unobserved."""
+    txs = blk.get("transactions")
+    if not isinstance(txs, list) or not txs:
+        return None
+    total = 0
+    for entry in txs[:10_000]:
+        parsed = _tx_entry_hash_and_gas(entry, query=query, bc=bc)
+        if parsed is None:
+            return None
+        total += parsed[1]
+    return total
+
+
+def block_gas_used(blk: Optional[Dict[str, Any]], query=None, bc=None) -> int:
+    """Block gasUsed: reconstructed from observed tx gas, else stored header.
+
+    Incomplete or empty tx lists do not invent a total. Prefer the apply-path
+    `gas_used` field when reconstruction is not possible. Last-receipt
+    `cumulativeGasUsed` matches this value when the full list is observed.
+    """
+    if not blk:
+        return 0
+    reconstructed = _sum_block_tx_gas(blk, query=query, bc=bc)
+    if reconstructed is not None:
+        return reconstructed
+    stored = blk.get("gas_used")
+    if stored is None:
+        return 0
+    try:
+        return max(0, int(stored))
+    except (TypeError, ValueError):
+        return 0
+
+
+def format_fee_history(
+    *,
+    query,
+    cfg,
+    block_count: Any = 1,
+    newest_tag: Any = "latest",
+) -> Dict[str, Any]:
+    """EIP-1559 feeHistory from observed heights. No stubbed 0.5 ratios.
+
+    Arrays cover existing heights `oldest..tip` only (not padded to the
+    requested count). `gasUsedRatio` is `gasUsed / ETH_BLOCK_GAS_LIMIT`.
+    `reward` stays `[["0x0"]]` — Absolute is not an EIP-1559 tip market.
+    """
+    if isinstance(block_count, bool):
+        n_req = 1
+    elif isinstance(block_count, int):
+        n_req = block_count
+    else:
+        raw = str(block_count or "1").strip() or "1"
+        try:
+            n_req = int(raw, 16) if raw.startswith(("0x", "0X")) else int(raw)
+        except (TypeError, ValueError):
+            n_req = 1
+    n_req = max(1, min(int(n_req), 1024))
+    get_block = getattr(query, "get_block", None)
+    tip = None
+    if callable(get_block):
+        try:
+            tip = get_block(BlockQuery(tag=str(newest_tag or "latest")))
+        except Exception:
+            tip = None
+    tip_fn = getattr(query, "tip_height", None)
+    if isinstance(tip, dict):
+        try:
+            tip_h = int(tip.get("height", tip_fn() if callable(tip_fn) else 0) or 0)
+        except (TypeError, ValueError):
+            tip_h = int(tip_fn()) if callable(tip_fn) else 0
+    else:
+        tip_h = int(tip_fn()) if callable(tip_fn) else 0
+    oldest = max(0, tip_h - n_req + 1)
+    try:
+        base = hex(abs_to_wei(getattr(cfg, "gas_price_wei", 0) or 0))
+    except (TypeError, ValueError):
+        base = "0x0"
+    ratios: List[float] = []
+    for height in range(oldest, tip_h + 1):
+        blk = None
+        if callable(get_block):
+            try:
+                blk = get_block(BlockQuery(height=int(height)))
+            except Exception:
+                blk = None
+        used = block_gas_used(blk, query=query) if isinstance(blk, dict) else 0
+        ratios.append(min(1.0, max(0.0, used / float(ETH_BLOCK_GAS_LIMIT))))
+    n = len(ratios)
+    return {
+        "oldestBlock": hex(oldest),
+        "baseFeePerGas": [base] * n,
+        "gasUsedRatio": ratios,
+        "reward": [["0x0"]] * n,
+    }
+
+
+def receipt_cumulative_gas_used(tx: Dict[str, Any], query=None, bc=None) -> int:
+    """Sum gas_used of txs in block order up to and including `tx`.
+
+    Without a block listing, returns this receipt's gas only (honest: no siblings
+    observed). Incomplete prior slots do not invent a running total.
+    """
+    try:
+        own = int(tx.get("gas_used", tx.get("gas", 21000)) or 21000)
+    except (TypeError, ValueError):
+        own = 21000
+    tx_hash = str(tx.get("hash") or tx.get("tx_hash") or "").lower()
+    if not tx_hash:
+        return own
+    try:
+        height = int(tx.get("block_height", tx.get("blockNumber", 0)) or 0)
+    except (TypeError, ValueError):
+        return own
+    blk = _block_at_height(height, query=query, bc=bc)
+    if not blk:
+        return own
+    txs = blk.get("transactions")
+    if not isinstance(txs, list) or not txs:
+        return own
+    total = 0
+    for entry in txs[:10_000]:
+        parsed = _tx_entry_hash_and_gas(entry, query=query, bc=bc)
+        if parsed is None:
+            return own
+        h, used = parsed
+        total += used
+        if h == tx_hash:
+            return total
+    return own
+
+
 def format_eth_log(row: Dict, bc=None) -> Dict:
     block_height = int(row.get("block_height", 0))
     block_hash = ""
@@ -416,14 +602,36 @@ def format_receipt(tx: Optional[Dict], bc=None, query=None) -> Optional[Dict]:
     gas_used = int(tx.get("gas_used", tx.get("gas", 21000)) or 21000)
     to_addr = tx.get("to_addr", tx.get("to", "")) or None
     contract = tx.get("contract_address") or None
+    try:
+        stored_index = int(tx.get("tx_index", tx.get("index", 0)) or 0)
+    except (TypeError, ValueError):
+        stored_index = 0
+    tx_index = stored_index
+    try:
+        height = int(tx.get("block_height", 0) or 0)
+    except (TypeError, ValueError):
+        height = 0
+    blk = _block_at_height(height, query=facade, bc=bc)
+    txs = blk.get("transactions") if isinstance(blk, dict) else None
+    if isinstance(txs, list) and tx_hash:
+        want = str(tx_hash).lower()
+        for i, entry in enumerate(txs):
+            if isinstance(entry, dict):
+                h = str(entry.get("hash") or entry.get("tx_hash") or "").lower()
+            else:
+                h = str(entry).lower()
+            if h == want:
+                tx_index = i
+                break
+    cumulative = receipt_cumulative_gas_used(tx, query=facade, bc=bc)
     return {
         "transactionHash": tx_hash,
-        "transactionIndex": hex(int(tx.get("tx_index", tx.get("index", 0)) or 0)),
+        "transactionIndex": hex(int(tx_index)),
         "blockNumber": hex(tx.get("block_height", 0)),
         "blockHash": tx.get("block_hash", tx.get("blockHash", "0x" + "0" * 64)),
         "from": tx.get("from_addr", tx.get("from", "")),
         "to": to_addr,
-        "cumulativeGasUsed": hex(gas_used),
+        "cumulativeGasUsed": hex(int(cumulative)),
         "gasUsed": hex(gas_used),
         "contractAddress": contract,
         "logs": logs,
