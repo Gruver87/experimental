@@ -572,7 +572,7 @@ def test_format_tx_uses_satoshi_not_ieee_float():
     row = format_tx({"hash": "0xab", "value": 1.5, "block_height": 3})
     assert row["value"] == hex(to_satoshi(1.5) * WEI_PER_SATOSHI)
     junk = format_tx({"hash": "0xcd", "value": True})
-    assert junk["value"] == "0x0"
+    assert junk["value"] is None
 
 
 def test_message_handler_import_refuses_truthy_non_bool():

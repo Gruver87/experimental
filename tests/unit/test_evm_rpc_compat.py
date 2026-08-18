@@ -9,6 +9,7 @@ from api.eth_format import (
     block_logs_bloom,
     encode_eth_call_return,
     format_block,
+    format_eth_log,
     format_receipt,
     format_tx,
     logs_bloom,
@@ -52,6 +53,7 @@ def test_format_receipt_eth_fields() -> None:
     assert r["cumulativeGasUsed"] == hex(42000)
     assert r["transactionIndex"] == hex(3)
     assert r["type"] == hex(2)
+    assert r["status"] == hex(1)
     assert r["effectiveGasPrice"] == hex(100)
     assert r["logsBloom"].startswith("0x")
     assert len(r["logsBloom"]) == 2 + 512
@@ -172,6 +174,9 @@ def test_format_block_empty_bloom_without_query() -> None:
     assert isinstance(out["totalBurned"], int)
     assert out["nonce"] is None
     assert out["size"] is None
+    assert out["miner"] is None
+    assert out["timestamp"] is None
+    assert out["gasUsed"] == "0x0"
 
 
 def test_format_block_bloom_from_query_logs() -> None:
@@ -543,10 +548,24 @@ def test_pending_tx_inclusion_fields_are_null() -> None:
     assert out["blockNumber"] is None
     assert out["blockHash"] is None
     assert out["transactionIndex"] is None
+    assert out["from"] is None
+    assert out["to"] is None
+    assert out["gas"] is None
+    assert out["gasUsed"] is None
+    assert out["nonce"] is None
+    assert out["gasPrice"] is None
+    assert out["type"] is None
+    assert out["value"] == "0x0"
     r = format_receipt({"hash": "0xabc", "gas_used": 21000})
     assert r is not None
     assert r["blockNumber"] is None
     assert r["blockHash"] is None
+    assert r["transactionIndex"] is None
+    assert r["from"] is None
+    assert r["to"] is None
+    assert r["gasUsed"] == hex(21000)
+    assert r["effectiveGasPrice"] is None
+    assert r["status"] is None
 
 
 def test_format_tx_gas_price_from_stored() -> None:
@@ -812,3 +831,149 @@ def test_block_nonce_and_size_are_not_invented() -> None:
     assert via_key is not None
     assert via_key["nonce"] == "0x00000000000000ab"
     assert via_key["size"] == hex(99)
+
+
+def test_missing_block_hash_miner_timestamp_are_null() -> None:
+    missing = format_block({"height": 3, "transactions": []})
+    assert missing is not None
+    assert missing["hash"] is None
+    assert missing["miner"] is None
+    assert missing["timestamp"] is None
+    zero_hash = format_block(
+        {
+            "height": 3,
+            "hash": "0" * 64,
+            "miner": "0x" + "00" * 20,
+            "transactions": [],
+        }
+    )
+    assert zero_hash is not None
+    assert zero_hash["hash"] is None
+    assert zero_hash["miner"] is None
+    stored = format_block(
+        {
+            "height": 3,
+            "hash": "aa" * 32,
+            "miner": "0x" + "ab" * 20,
+            "proposer": "ignored",
+            "timestamp": 1_700_000_000,
+            "transactions": [],
+        }
+    )
+    assert stored is not None
+    assert stored["hash"] == "0x" + "aa" * 32
+    assert stored["miner"] == "0x" + "ab" * 20
+    assert stored["timestamp"] == hex(1_700_000_000)
+    genesis_label = format_block(
+        {
+            "height": 0,
+            "hash": "0x" + "aa" * 32,
+            "miner": "genesis",
+            "timestamp": 0,
+            "transactions": [],
+        }
+    )
+    assert genesis_label is not None
+    assert genesis_label["miner"] == "genesis"
+    assert genesis_label["timestamp"] == "0x0"
+
+
+def test_tx_and_receipt_do_not_invent_transfer_defaults() -> None:
+    stored = format_tx(
+        {
+            "hash": "0xabc",
+            "from_addr": "0x" + "11" * 20,
+            "to_addr": "0x" + "22" * 20,
+            "gas": 50000,
+            "gas_used": 21000,
+            "nonce": 0,
+        }
+    )
+    assert stored is not None
+    assert stored["from"] == "0x" + "11" * 20
+    assert stored["to"] == "0x" + "22" * 20
+    assert stored["gas"] == hex(50000)
+    assert stored["gasUsed"] == hex(21000)
+    assert stored["nonce"] == "0x0"
+    assert stored["gasPrice"] is None
+    create = format_tx({"hash": "0xdef", "to_addr": ""})
+    assert create is not None
+    assert create["to"] is None
+    burn = format_tx({"hash": "0xeee", "to_addr": "0x" + "00" * 20})
+    assert burn is not None
+    assert burn["to"] == "0x" + "00" * 20
+    bare = format_receipt({"hash": "0xabc"})
+    assert bare is not None
+    assert bare["gasUsed"] is None
+    assert bare["cumulativeGasUsed"] is None
+    assert bare["transactionIndex"] is None
+    assert bare["from"] is None
+    assert bare["to"] is None
+    assert bare["effectiveGasPrice"] is None
+
+
+def test_eth_log_fields_are_not_invented() -> None:
+    missing = format_eth_log({})
+    assert missing["logIndex"] is None
+    assert missing["blockNumber"] is None
+    assert missing["transactionIndex"] is None
+    assert missing["transactionHash"] is None
+    assert missing["address"] is None
+    stored = format_eth_log(
+        {
+            "block_height": 4,
+            "log_index": 0,
+            "tx_hash": "0xabc",
+            "tx_index": 2,
+            "contract_address": "0x" + "ab" * 20,
+            "data": "0x",
+            "topics": [],
+        }
+    )
+    assert stored["logIndex"] == "0x0"
+    assert stored["blockNumber"] == hex(4)
+    assert stored["transactionIndex"] == hex(2)
+    assert stored["transactionHash"] == "0xabc"
+    assert stored["address"] == "0x" + "ab" * 20
+
+
+def test_pending_tx_does_not_attach_genesis() -> None:
+    q = FakeQueryFacade(tip=0)
+    genesis = q.blocks[0]["hash"]
+    out = format_tx({"hash": "0xabc"}, query=q)
+    assert out is not None
+    assert out["blockHash"] is None
+    assert out["blockHash"] != genesis
+    assert out["blockNumber"] is None
+    assert out["hash"] == "0xabc"
+    assert out["value"] is None
+    assert out["type"] is None
+    r = format_receipt({"hash": "0xabc"}, query=q)
+    assert r is not None
+    assert r["blockHash"] is None
+    assert r["blockNumber"] is None
+    assert r["transactionHash"] == "0xabc"
+    assert r["type"] is None
+    missing_hash = format_tx({"from_addr": "0x" + "11" * 20})
+    assert missing_hash is not None
+    assert missing_hash["hash"] is None
+    zero_hash = format_tx({"hash": "0" * 64, "type": 0, "value": 0})
+    assert zero_hash is not None
+    assert zero_hash["hash"] is None
+    assert zero_hash["type"] == "0x0"
+    assert zero_hash["value"] == "0x0"
+
+
+def test_omitted_receipt_status_and_block_gas_are_null() -> None:
+    r = format_receipt({"hash": "0xabc", "status": 0})
+    assert r is not None
+    assert r["status"] == "0x0"
+    missing = format_receipt({"hash": "0xabc"})
+    assert missing is not None
+    assert missing["status"] is None
+    no_txs = format_block({"height": 3, "hash": "0x" + "aa" * 32})
+    assert no_txs is not None
+    assert no_txs["gasUsed"] is None
+    empty = format_block({"height": 3, "hash": "0x" + "aa" * 32, "transactions": []})
+    assert empty is not None
+    assert empty["gasUsed"] == "0x0"

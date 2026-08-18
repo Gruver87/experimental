@@ -177,6 +177,137 @@ def observed_block_size(blk: Optional[Dict[str, Any]]) -> Optional[str]:
     return hex(n)
 
 
+def observed_miner(blk: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Proposer from the header. Missing is null — never '' or the 20-byte zero address."""
+    if not isinstance(blk, dict):
+        return None
+    raw = blk.get("miner")
+    if raw is None or str(raw).strip() == "":
+        raw = blk.get("proposer")
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    hexpart = s[2:] if s.startswith(("0x", "0X")) else s
+    if hexpart and all(c in "0123456789abcdefABCDEF" for c in hexpart):
+        if all(c == "0" for c in hexpart):
+            return None
+        return "0x" + hexpart.lower()
+    return s
+
+
+def observed_block_timestamp(blk: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Unix timestamp from the header. Missing is null, never epoch 0."""
+    if not isinstance(blk, dict):
+        return None
+    if "timestamp" in blk:
+        raw = blk.get("timestamp")
+    elif "time" in blk:
+        raw = blk.get("time")
+    else:
+        return None
+    if raw is None or raw == "":
+        return None
+    n = _as_int_height(raw)
+    if n is None or n < 0:
+        return None
+    return hex(n)
+
+
+def observed_uint(row: Optional[Dict[str, Any]], *keys: str) -> Optional[int]:
+    """First present non-empty integer field. Missing is None — 0 is valid if stored."""
+    if not isinstance(row, dict):
+        return None
+    for key in keys:
+        if key not in row:
+            continue
+        raw = row.get(key)
+        if raw is None or raw == "":
+            continue
+        n = _as_int_height(raw)
+        if n is None or n < 0:
+            return None
+        return n
+    return None
+
+
+def observed_uint_hex(row: Optional[Dict[str, Any]], *keys: str) -> Optional[str]:
+    n = observed_uint(row, *keys)
+    if n is None:
+        return None
+    return hex(n)
+
+
+def observed_tx_address(
+    row: Optional[Dict[str, Any]],
+    *keys: str,
+    allow_zero: bool = False,
+) -> Optional[str]:
+    """Address from a tx/receipt row. Missing/empty is null, not ''."""
+    if not isinstance(row, dict):
+        return None
+    for key in keys:
+        if key not in row:
+            continue
+        raw = row.get(key)
+        if raw is None or str(raw).strip() == "":
+            continue
+        s = str(raw).strip()
+        hexpart = s[2:] if s.startswith(("0x", "0X")) else s
+        if hexpart and all(c in "0123456789abcdefABCDEF" for c in hexpart):
+            if not allow_zero and all(c == "0" for c in hexpart):
+                return None
+            return "0x" + hexpart.lower()
+        return s
+    return None
+
+
+def observed_tx_hash(row: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Tx hash from the row. Missing/empty/all-zero is null, not ''."""
+    if not isinstance(row, dict):
+        return None
+    raw = row.get("hash") or row.get("tx_hash") or row.get("transactionHash")
+    if raw is None or str(raw).strip() == "":
+        return None
+    s = str(raw).strip()
+    if not s.startswith(("0x", "0X")):
+        s = "0x" + s
+    hexpart = s[2:]
+    if not hexpart or any(c not in "0123456789abcdefABCDEF" for c in hexpart):
+        return None
+    if all(c == "0" for c in hexpart):
+        return None
+    return s
+
+
+def observed_value_hex(row: Optional[Dict[str, Any]]) -> Optional[str]:
+    """ABS value as wei hex. Missing is null; stored 0 is 0x0."""
+    if not isinstance(row, dict):
+        return None
+    if "value" not in row and "amount" not in row:
+        return None
+    raw = row.get("value")
+    if raw is None or raw == "":
+        raw = row.get("amount")
+    if raw is None or raw == "":
+        return None
+    try:
+        wei = int(to_satoshi(raw or 0)) * WEI_PER_SATOSHI
+    except (TypeError, ValueError):
+        return None
+    return hex(wei)
+
+
+def observed_receipt_status(row: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Receipt status 0x0/0x1 from a stored field. Missing is null, not reverted."""
+    if not isinstance(row, dict) or "status" not in row:
+        return None
+    from storage.database import Database
+
+    return hex(int(Database._normalize_tx_status(row.get("status"))))
+
+
 def _as_int_height(value: Any) -> Optional[int]:
     if value is None or value == "":
         return None
@@ -528,9 +659,10 @@ def format_block(
         for tx in (txs if isinstance(txs, list) else [])
     ]
     number = _as_int_height(blk.get("height", blk.get("block_height", blk.get("number"))))
+    used = block_gas_used(blk, query=query, bc=bc)
     return {
         "number": hex(number) if number is not None else None,
-        "hash": blk.get("hash", blk.get("block_hash", "")),
+        "hash": observed_block_hash(blk=blk),
         "parentHash": observed_parent_hash(blk),
         "nonce": observed_block_nonce(blk),
         "sha3Uncles": block_sha3_uncles(blk),
@@ -538,14 +670,14 @@ def format_block(
         "transactionsRoot": block_transactions_root(blk),
         "stateRoot": observed_state_root(blk),
         "receiptsRoot": block_receipts_root(blk),
-        "miner": blk.get("miner", blk.get("proposer", "")),
+        "miner": observed_miner(blk),
         "difficulty": "0x0",
         "totalDifficulty": "0x0",
         "extraData": block_extra_data(blk),
         "size": observed_block_size(blk),
         "gasLimit": hex(ETH_BLOCK_GAS_LIMIT),
-        "gasUsed": hex(block_gas_used(blk, query=query, bc=bc)),
-        "timestamp": hex(blk.get("timestamp", 0)),
+        "gasUsed": hex(used) if used is not None else None,
+        "timestamp": observed_block_timestamp(blk),
         "uncles": block_uncle_hashes(blk),
         "transactions": txs if full_tx else tx_hashes,
         "totalBurned": burned_satoshi(blk, "total_burned"),
@@ -556,16 +688,9 @@ def format_block(
 def format_tx(tx: Optional[Dict], *, query=None, bc=None) -> Optional[Dict]:
     if not tx:
         return None
-    try:
-        wei = int(to_satoshi(tx.get("value", tx.get("amount", 0)) or 0)) * WEI_PER_SATOSHI
-    except (TypeError, ValueError):
-        wei = 0
-    tx_hash = tx.get("hash", tx.get("tx_hash", ""))
-    try:
-        height = int(tx.get("block_height", tx.get("blockNumber", 0)) or 0)
-    except (TypeError, ValueError):
-        height = 0
-    blk = _block_at_height(height, query=query, bc=bc)
+    lookup_hash = str(tx.get("hash") or tx.get("tx_hash") or "")
+    height = observed_uint(tx, "block_height", "blockNumber")
+    blk = _block_at_height(height, query=query, bc=bc) if height is not None else None
     try:
         stored_index = int(tx.get("tx_index", tx.get("index", 0)) or 0)
         have_stored_index = (
@@ -574,7 +699,7 @@ def format_tx(tx: Optional[Dict], *, query=None, bc=None) -> Optional[Dict]:
     except (TypeError, ValueError):
         stored_index = 0
         have_stored_index = False
-    listing_index = _tx_index_in_listing(tx_hash, blk)
+    listing_index = _tx_index_in_listing(lookup_hash, blk)
     if listing_index is not None:
         tx_index: Optional[int] = listing_index
     elif have_stored_index:
@@ -582,24 +707,20 @@ def format_tx(tx: Optional[Dict], *, query=None, bc=None) -> Optional[Dict]:
     else:
         tx_index = None
     number = observed_block_number(tx, blk)
-    try:
-        gas_price = int(tx.get("gas_price", tx.get("gasPrice", 0)) or 0)
-    except (TypeError, ValueError):
-        gas_price = 0
     return {
-        "hash": tx_hash,
+        "hash": observed_tx_hash(tx),
         "blockNumber": hex(number) if number is not None else None,
         "blockHash": observed_block_hash(tx, blk),
         "transactionIndex": hex(int(tx_index)) if tx_index is not None else None,
-        "from": tx.get("from_addr", tx.get("from", "")),
-        "to": tx.get("to_addr", tx.get("to", "")),
-        "value": hex(wei),
-        "gas": hex(tx.get("gas", 21000)),
-        "gasPrice": hex(gas_price),
-        "gasUsed": hex(tx.get("gas_used", tx.get("gas", 21000))),
-        "nonce": hex(tx.get("nonce", 0)),
+        "from": observed_tx_address(tx, "from_addr", "from"),
+        "to": observed_tx_address(tx, "to_addr", "to", allow_zero=True),
+        "value": observed_value_hex(tx),
+        "gas": observed_uint_hex(tx, "gas", "gas_limit"),
+        "gasPrice": observed_uint_hex(tx, "gas_price", "gasPrice"),
+        "gasUsed": observed_uint_hex(tx, "gas_used", "gasUsed"),
+        "nonce": observed_uint_hex(tx, "nonce"),
         "input": tx.get("data", tx.get("tx_data", "0x")),
-        "type": hex(int(tx.get("type", 0) or 0)),
+        "type": observed_uint_hex(tx, "type"),
         "burned": burned_satoshi(tx, "burned"),
     }
 
@@ -628,9 +749,9 @@ def normalize_log_data(data) -> str:
     return raw if raw.startswith("0x") else "0x" + raw
 
 
-def tx_index_in_block(bc, block_height: int, tx_hash: str) -> int:
+def tx_index_in_block(bc, block_height: int, tx_hash: str) -> Optional[int]:
     if not bc or not tx_hash:
-        return 0
+        return None
     blk = None
     get_block = getattr(bc, "get_block", None)
     if callable(get_block):
@@ -641,10 +762,10 @@ def tx_index_in_block(bc, block_height: int, tx_hash: str) -> int:
         except Exception:
             blk = None
     if not blk:
-        return 0
+        return None
     txs = blk.get("transactions", [])
     if not isinstance(txs, list):
-        return 0
+        return None
     target = tx_hash.lower()
     for idx, entry in enumerate(txs):
         if isinstance(entry, dict):
@@ -653,7 +774,7 @@ def tx_index_in_block(bc, block_height: int, tx_hash: str) -> int:
             h = str(entry).lower()
         if h == target:
             return idx
-    return 0
+    return None
 
 
 def _block_at_height(height: int, query=None, bc=None) -> Optional[Dict[str, Any]]:
@@ -740,25 +861,27 @@ def _sum_block_tx_gas(blk: Dict[str, Any], query=None, bc=None) -> Optional[int]
     return total
 
 
-def block_gas_used(blk: Optional[Dict[str, Any]], query=None, bc=None) -> int:
+def block_gas_used(blk: Optional[Dict[str, Any]], query=None, bc=None) -> Optional[int]:
     """Block gasUsed: reconstructed from observed tx gas, else stored header.
 
-    Incomplete or empty tx lists do not invent a total. Prefer the apply-path
-    `gas_used` field when reconstruction is not possible. Last-receipt
-    `cumulativeGasUsed` matches this value when the full list is observed.
+    Incomplete lists do not invent a total. An observed empty tx list with no
+    stored header is 0. Missing both is None — never a fake empty-block 0x0.
     """
     if not blk:
-        return 0
+        return None
     reconstructed = _sum_block_tx_gas(blk, query=query, bc=bc)
     if reconstructed is not None:
         return reconstructed
     stored = blk.get("gas_used")
-    if stored is None:
+    if stored is not None:
+        try:
+            return max(0, int(stored))
+        except (TypeError, ValueError):
+            return None
+    txs = blk.get("transactions")
+    if isinstance(txs, list) and not txs:
         return 0
-    try:
-        return max(0, int(stored))
-    except (TypeError, ValueError):
-        return 0
+    return None
 
 
 def format_fee_history(
@@ -813,7 +936,9 @@ def format_fee_history(
                 blk = get_block(BlockQuery(height=int(height)))
             except Exception:
                 blk = None
-        used = block_gas_used(blk, query=query) if isinstance(blk, dict) else 0
+        used = block_gas_used(blk, query=query) if isinstance(blk, dict) else None
+        if used is None:
+            used = 0
         ratios.append(min(1.0, max(0.0, used / float(ETH_BLOCK_GAS_LIMIT))))
     n = len(ratios)
     return {
@@ -824,22 +949,21 @@ def format_fee_history(
     }
 
 
-def receipt_cumulative_gas_used(tx: Dict[str, Any], query=None, bc=None) -> int:
+def receipt_cumulative_gas_used(tx: Dict[str, Any], query=None, bc=None) -> Optional[int]:
     """Sum gas_used of txs in block order up to and including `tx`.
 
-    Without a block listing, returns this receipt's gas only (honest: no siblings
-    observed). Incomplete prior slots do not invent a running total.
+    Without a block listing, returns this receipt's observed gas_used. Missing
+    gas_used is None — never the 21000 transfer stub. Incomplete prior slots
+    do not invent a running total.
     """
-    try:
-        own = int(tx.get("gas_used", tx.get("gas", 21000)) or 21000)
-    except (TypeError, ValueError):
-        own = 21000
+    own = observed_uint(tx, "gas_used", "gasUsed")
+    if own is None:
+        return None
     tx_hash = str(tx.get("hash") or tx.get("tx_hash") or "").lower()
     if not tx_hash:
         return own
-    try:
-        height = int(tx.get("block_height", tx.get("blockNumber", 0)) or 0)
-    except (TypeError, ValueError):
+    height = observed_uint(tx, "block_height", "blockNumber")
+    if height is None:
         return own
     blk = _block_at_height(height, query=query, bc=bc)
     if not blk:
@@ -859,24 +983,29 @@ def receipt_cumulative_gas_used(tx: Dict[str, Any], query=None, bc=None) -> int:
     return own
 
 
-def format_eth_log(row: Dict, bc=None) -> Dict:
-    block_height = int(row.get("block_height", 0))
-    blk = _block_at_height(block_height, query=bc, bc=bc)
-    tx_hash = row.get("tx_hash", "")
+def format_eth_log(row: Dict, bc=None, query=None) -> Dict:
+    facade = query if query is not None else bc
+    number = observed_block_number(row)
+    blk = _block_at_height(number, query=facade, bc=bc) if number is not None else None
+    raw_hash = row.get("tx_hash") or row.get("transactionHash") or row.get("transaction_hash")
+    tx_hash = str(raw_hash).strip() if raw_hash is not None and str(raw_hash).strip() else None
     topics = row.get("topics", [])
     if not isinstance(topics, list):
         topics = []
-    listing_index = _tx_index_in_listing(tx_hash, blk)
+    listing_index = _tx_index_in_listing(tx_hash, blk) if tx_hash else None
+    tx_index = listing_index
+    if tx_index is None:
+        tx_index = observed_uint(row, "tx_index", "transactionIndex")
+    if tx_index is None and number is not None and tx_hash:
+        tx_index = tx_index_in_block(facade, number, tx_hash)
     return {
         "removed": False,
-        "logIndex": hex(int(row.get("log_index", 0))),
-        "transactionIndex": hex(listing_index) if listing_index is not None else hex(
-            tx_index_in_block(bc, block_height, tx_hash)
-        ),
+        "logIndex": observed_uint_hex(row, "log_index", "logIndex"),
+        "transactionIndex": hex(int(tx_index)) if tx_index is not None else None,
         "transactionHash": tx_hash,
         "blockHash": observed_block_hash(row, blk),
-        "blockNumber": hex(block_height),
-        "address": row.get("contract_address", ""),
+        "blockNumber": hex(number) if number is not None else None,
+        "address": observed_tx_address(row, "contract_address", "address", allow_zero=True),
         "data": normalize_log_data(row.get("data", "")),
         "topics": topics,
     }
@@ -907,9 +1036,7 @@ def encode_eth_call_return(value: Any) -> str:
 def format_receipt(tx: Optional[Dict], bc=None, query=None) -> Optional[Dict]:
     if not tx:
         return None
-    from storage.database import Database
-
-    tx_hash = tx.get("hash", tx.get("tx_hash", ""))
+    tx_hash = str(tx.get("hash") or tx.get("tx_hash") or "")
     logs: List[Dict] = []
     facade = query
     if facade is not None and hasattr(facade, "get_evm_logs_by_tx"):
@@ -918,39 +1045,44 @@ def format_receipt(tx: Optional[Dict], bc=None, query=None) -> Optional[Dict]:
     elif bc is not None and getattr(bc, "query_facade", None) is not None:
         rows = bc.query_facade.get_evm_logs_by_tx(tx_hash)
         logs = [format_eth_log(row, bc.query_facade) for row in rows]
-    status_i = Database._normalize_tx_status(tx.get("status"))
-    gas_used = int(tx.get("gas_used", tx.get("gas", 21000)) or 21000)
-    to_addr = tx.get("to_addr", tx.get("to", "")) or None
+    gas_used = observed_uint(tx, "gas_used", "gasUsed")
+    to_addr = observed_tx_address(tx, "to_addr", "to", allow_zero=True)
     contract = tx.get("contract_address") or None
     try:
         stored_index = int(tx.get("tx_index", tx.get("index", 0)) or 0)
+        have_stored_index = (
+            tx.get("tx_index") is not None or tx.get("index") is not None
+        )
     except (TypeError, ValueError):
         stored_index = 0
-    tx_index = stored_index
-    try:
-        height = int(tx.get("block_height", 0) or 0)
-    except (TypeError, ValueError):
-        height = 0
-    blk = _block_at_height(height, query=facade, bc=bc)
+        have_stored_index = False
+    tx_index: Optional[int] = stored_index if have_stored_index else None
+    height = observed_uint(tx, "block_height", "blockNumber")
+    blk = _block_at_height(height, query=facade, bc=bc) if height is not None else None
     listing_index = _tx_index_in_listing(tx_hash, blk)
-    tx_index = listing_index if listing_index is not None else stored_index
+    if listing_index is not None:
+        tx_index = listing_index
+    elif have_stored_index:
+        tx_index = stored_index
+    else:
+        tx_index = None
     cumulative = receipt_cumulative_gas_used(tx, query=facade, bc=bc)
     number = observed_block_number(tx, blk)
     return {
-        "transactionHash": tx_hash,
-        "transactionIndex": hex(int(tx_index)),
+        "transactionHash": observed_tx_hash(tx),
+        "transactionIndex": hex(int(tx_index)) if tx_index is not None else None,
         "blockNumber": hex(number) if number is not None else None,
         "blockHash": observed_block_hash(tx, blk),
-        "from": tx.get("from_addr", tx.get("from", "")),
+        "from": observed_tx_address(tx, "from_addr", "from"),
         "to": to_addr,
-        "cumulativeGasUsed": hex(int(cumulative)),
-        "gasUsed": hex(gas_used),
+        "cumulativeGasUsed": hex(int(cumulative)) if cumulative is not None else None,
+        "gasUsed": hex(int(gas_used)) if gas_used is not None else None,
         "contractAddress": contract,
         "logs": logs,
         "logsBloom": logs_bloom(logs),
-        "status": hex(status_i),
-        "type": hex(int(tx.get("type", 0) or 0)),
-        "effectiveGasPrice": hex(int(tx.get("gas_price", tx.get("gasPrice", 0)) or 0)),
+        "status": observed_receipt_status(tx),
+        "type": observed_uint_hex(tx, "type"),
+        "effectiveGasPrice": observed_uint_hex(tx, "gas_price", "gasPrice"),
         "burned": burned_satoshi(tx, "burned"),
     }
 

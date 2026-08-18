@@ -558,8 +558,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             eth_fmt_py = (ROOT / "api" / "eth_format.py").read_text(
                 encoding="utf-8", errors="replace"
             )
-            if "Database._normalize_tx_status(tx.get(\"status\"))" not in eth_fmt_py:
-                errors.append("receipt format must normalize omitted status fail-closed to 0")
+            if "def observed_receipt_status" not in eth_fmt_py:
+                errors.append(
+                    "receipt format must emit null for omitted status (not reverted 0x0)"
+                )
         if '"bridge_relayer_live": bool(cfg.bridge_enabled)' in http_py:
             errors.append("bridge_relayer_live must not equal bridge_enabled alone")
         if '"bridge_rust_binary_healthy"' not in http_py:
@@ -848,6 +850,56 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("eth_format must not invent block size from tx count")
         if "256 + len(tx_hashes)" in eth_fmt_py_adr:
             errors.append("format_block size must not use the 256+32*n heuristic")
+        if '"hash": blk.get("hash", blk.get("block_hash", ""))' in eth_fmt_py_adr:
+            errors.append("format_block hash must not default to empty string")
+        if "def observed_miner" not in eth_fmt_py_adr:
+            errors.append("eth_format must not default miner to empty string")
+        if '"miner": blk.get("miner", blk.get("proposer", ""))' in eth_fmt_py_adr:
+            errors.append("format_block miner must not default to empty string")
+        if "def observed_block_timestamp" not in eth_fmt_py_adr:
+            errors.append("eth_format must not default missing timestamp to epoch 0")
+        if '"timestamp": hex(blk.get("timestamp", 0))' in eth_fmt_py_adr:
+            errors.append("format_block timestamp must not default missing to 0")
+        if "def observed_tx_address" not in eth_fmt_py_adr:
+            errors.append("eth_format must not default tx from/to to empty string")
+        if '"from": tx.get("from_addr", tx.get("from", ""))' in eth_fmt_py_adr:
+            errors.append("tx/receipt from must not default to empty string")
+        if "def observed_uint_hex" not in eth_fmt_py_adr:
+            errors.append("eth_format must not stub missing gas/nonce as 21000 or 0")
+        if '"gas": hex(tx.get("gas", 21000))' in eth_fmt_py_adr:
+            errors.append("format_tx must not default missing gas to 21000")
+        if 'tx.get("gas_used", tx.get("gas", 21000))' in eth_fmt_py_adr:
+            errors.append("tx/receipt gasUsed must not fall back to 21000")
+        if '"nonce": hex(tx.get("nonce", 0))' in eth_fmt_py_adr:
+            errors.append("format_tx must not default missing nonce to 0")
+        if '"transactionIndex": hex(int(tx_index)),' in eth_fmt_py_adr:
+            errors.append("receipt transactionIndex must be null when unobserved")
+        if 'hex(int(row.get("log_index", 0)))' in eth_fmt_py_adr:
+            errors.append("format_eth_log must not default missing logIndex to 0")
+        if 'int(row.get("block_height", 0))' in eth_fmt_py_adr:
+            errors.append("format_eth_log must not default missing blockNumber to height 0")
+        if '"address": row.get("contract_address", "")' in eth_fmt_py_adr:
+            errors.append("format_eth_log must not default address to empty string")
+        if '"gasPrice": hex(gas_price)' in eth_fmt_py_adr:
+            errors.append("format_tx must not default missing gasPrice to 0")
+        if 'tx.get("gas_price", tx.get("gasPrice", 0))' in eth_fmt_py_adr:
+            errors.append("tx/receipt gasPrice must not default missing to 0")
+        if "def observed_tx_hash" not in eth_fmt_py_adr:
+            errors.append("eth_format must not emit empty tx hash strings")
+        if "def observed_value_hex" not in eth_fmt_py_adr:
+            errors.append("eth_format must not default missing tx value to 0 wei")
+        if '"type": hex(int(tx.get("type", 0) or 0))' in eth_fmt_py_adr:
+            errors.append("tx/receipt type must not default missing to 0")
+        if 'int(tx.get("block_height", tx.get("blockNumber", 0)) or 0)' in eth_fmt_py_adr:
+            errors.append("format_tx must not fetch genesis when inclusion height is missing")
+        if 'int(tx.get("block_height", 0) or 0)' in eth_fmt_py_adr:
+            errors.append("format_receipt must not fetch genesis when inclusion height is missing")
+        if "def observed_receipt_status" not in eth_fmt_py_adr:
+            errors.append("receipt status must not treat omitted status as reverted 0x0")
+        if '"status": hex(status_i)' in eth_fmt_py_adr:
+            errors.append("format_receipt must not always emit status from normalize-to-zero")
+        if "if stored is None:\n            return 0" in eth_fmt_py_adr:
+            errors.append("block_gas_used must not invent 0 when header gas is missing")
         if 'tx.get("blockHash", "0x" + "0" * 64)' in eth_fmt_py_adr:
             errors.append("receipt blockHash must not fall back to the 32-byte zero digest")
         if "def observed_block_number" not in eth_fmt_py_adr:
