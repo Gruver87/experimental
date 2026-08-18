@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 """Legacy persistent storage wrapper for v47 tests."""
 import json
+import logging
 import os
 import shutil
 from typing import Any, Dict, Optional
 
 from storage.database import BlockchainDB
+
+logger = logging.getLogger("PersistentStorage")
 
 
 class PersistentStorage:
@@ -86,5 +89,5 @@ class PersistentStorage:
     def __del__(self):
         try:
             self.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("PersistentStorage.__del__ close failed: %s", exc)

@@ -89,12 +89,24 @@ class ChainApplyQueue:
         self.wait_seconds_total = 0.0
         self.exec_seconds_total = 0.0
         self._depth_lock = threading.Lock()
+        self._in_flight = 0
         self._worker = threading.Thread(target=self._run, name=name, daemon=True)
         self._worker.start()
 
     @property
     def depth(self) -> int:
         return int(self._q.qsize())
+
+    @property
+    def busy(self) -> bool:
+        """True while a job is executing or queued.
+
+        ``qsize`` is 0 during ``_dispatch`` (item already taken). Wire probes
+        that start in that window race persist and return empty with live peers.
+        """
+        with self._depth_lock:
+            inflight = int(self._in_flight)
+        return inflight > 0 or self.depth > 0
 
     def stats(self) -> Dict[str, Any]:
         return {
@@ -110,6 +122,8 @@ class ChainApplyQueue:
             "maxsize": int(self.maxsize),
             "priority_lanes": True,
             "priority_order": "reorg>forge>add>import",
+            "busy": bool(self.busy),
+            "in_flight": int(self._in_flight),
         }
 
     def stop(self, join_timeout: float = 5.0) -> None:
@@ -144,6 +158,11 @@ class ChainApplyQueue:
             fut.set_result(("rejected", None))
         return fut
 
+    def _fail_outcome(self, out: Any) -> bool:
+        return bool(
+            isinstance(out, tuple) and out and out[0] in ("rejected", "error", "expired")
+        )
+
     def _result_or_timeout(self, fut: Future) -> Any:
         try:
             return fut.result(timeout=self.timeout_sec)
@@ -151,12 +170,33 @@ class ChainApplyQueue:
             self.timeout_total += 1
             return ("error", exc)
 
+    async def _await_job(self, fut: Future) -> Any:
+        """Wait on the apply worker Future without occupying a thread-pool slot.
+
+        Overflow rejects are already done — this returns immediately. A to_thread
+        wait would pin a default-executor worker for timeout_sec (120s) and stall
+        HTTP / harness under import flood.
+        """
+        if fut.done():
+            try:
+                return fut.result()
+            except Exception as exc:
+                return ("error", exc)
+        try:
+            return await asyncio.wait_for(
+                asyncio.wrap_future(fut),
+                timeout=self.timeout_sec,
+            )
+        except asyncio.TimeoutError:
+            self.timeout_total += 1
+            return ("error", TimeoutError("apply wait timeout"))
+
     def submit_import(self, block_data: Dict) -> bool:
         started = time.perf_counter()
         fut = self._enqueue(ApplyOpKind.IMPORT, block_data)
         out = self._result_or_timeout(fut)
         self.wait_seconds_total += time.perf_counter() - started
-        if isinstance(out, tuple) and out and out[0] in ("rejected", "error", "expired"):
+        if self._fail_outcome(out):
             return False
         return bool(out)
 
@@ -165,7 +205,7 @@ class ChainApplyQueue:
         fut = self._enqueue(ApplyOpKind.ADD, block)
         out = self._result_or_timeout(fut)
         self.wait_seconds_total += time.perf_counter() - started
-        if isinstance(out, tuple) and out and out[0] in ("rejected", "error", "expired"):
+        if self._fail_outcome(out):
             return False
         return bool(out)
 
@@ -179,7 +219,7 @@ class ChainApplyQueue:
         fut = self._enqueue(ApplyOpKind.FORGE_AND_APPLY, (txs, proposer, sign_fn))
         out = self._result_or_timeout(fut)
         self.wait_seconds_total += time.perf_counter() - started
-        if isinstance(out, tuple) and out and out[0] in ("rejected", "error", "expired"):
+        if self._fail_outcome(out):
             return False, None
         if not isinstance(out, tuple) or len(out) != 2:
             return False, None
@@ -191,7 +231,7 @@ class ChainApplyQueue:
         fut = self._enqueue(ApplyOpKind.REORG_AND_IMPORT, (int(rollback_to), peer_block))
         out = self._result_or_timeout(fut)
         self.wait_seconds_total += time.perf_counter() - started
-        if isinstance(out, tuple) and out and out[0] in ("rejected", "error", "expired"):
+        if self._fail_outcome(out):
             return False
         return bool(out)
 
@@ -200,12 +240,18 @@ class ChainApplyQueue:
         fut = self._enqueue(ApplyOpKind.REORG, int(rollback_to))
         out = self._result_or_timeout(fut)
         self.wait_seconds_total += time.perf_counter() - started
-        if isinstance(out, tuple) and out and out[0] in ("rejected", "error", "expired"):
+        if self._fail_outcome(out):
             return False
         return bool(out)
 
     async def submit_import_async(self, block_data: Dict) -> bool:
-        return await asyncio.to_thread(self.submit_import, block_data)
+        started = time.perf_counter()
+        fut = self._enqueue(ApplyOpKind.IMPORT, block_data)
+        out = await self._await_job(fut)
+        self.wait_seconds_total += time.perf_counter() - started
+        if self._fail_outcome(out):
+            return False
+        return bool(out)
 
     async def submit_forge_and_apply_async(
         self,
@@ -213,17 +259,36 @@ class ChainApplyQueue:
         proposer: str,
         sign_fn: Optional[Callable[[Any], None]] = None,
     ) -> Tuple[bool, Any]:
-        return await asyncio.to_thread(self.submit_forge_and_apply, txs, proposer, sign_fn)
+        started = time.perf_counter()
+        fut = self._enqueue(ApplyOpKind.FORGE_AND_APPLY, (txs, proposer, sign_fn))
+        out = await self._await_job(fut)
+        self.wait_seconds_total += time.perf_counter() - started
+        if self._fail_outcome(out):
+            return False, None
+        if not isinstance(out, tuple) or len(out) != 2:
+            return False, None
+        ok, block = out
+        return bool(ok), block
 
     async def submit_reorg_and_import_async(
         self, rollback_to: int, peer_block: Dict
     ) -> bool:
-        return await asyncio.to_thread(
-            self.submit_reorg_and_import, int(rollback_to), peer_block
-        )
+        started = time.perf_counter()
+        fut = self._enqueue(ApplyOpKind.REORG_AND_IMPORT, (int(rollback_to), peer_block))
+        out = await self._await_job(fut)
+        self.wait_seconds_total += time.perf_counter() - started
+        if self._fail_outcome(out):
+            return False
+        return bool(out)
 
     async def submit_reorg_async(self, rollback_to: int) -> bool:
-        return await asyncio.to_thread(self.submit_reorg, int(rollback_to))
+        started = time.perf_counter()
+        fut = self._enqueue(ApplyOpKind.REORG, int(rollback_to))
+        out = await self._await_job(fut)
+        self.wait_seconds_total += time.perf_counter() - started
+        if self._fail_outcome(out):
+            return False
+        return bool(out)
 
     def _run(self) -> None:
         while self._running:
@@ -242,16 +307,21 @@ class ChainApplyQueue:
                     job.future.set_result(("expired", None))
                 continue
             try:
+                with self._depth_lock:
+                    self._in_flight += 1
                 t0 = time.perf_counter()
                 result = self._dispatch(job)
                 self.exec_seconds_total += time.perf_counter() - t0
                 if not job.future.done():
                     job.future.set_result(result)
                 self.completed_total += 1
-            except Exception as exc:
+            except Exception as extra:
                 self.error_total += 1
                 if not job.future.done():
-                    job.future.set_exception(exc)
+                    job.future.set_exception(extra)
+            finally:
+                with self._depth_lock:
+                    self._in_flight = max(0, int(self._in_flight) - 1)
 
     def _dispatch(self, job: _Job) -> Any:
         bc = self.blockchain

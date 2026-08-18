@@ -10,6 +10,7 @@ EVM Adapter — подключает evm_interpreter.py к живому сост
 """
 
 import json
+import logging
 import sys
 import os
 import time
@@ -23,6 +24,9 @@ from evm_interpreter import EVM, EVMContext
 from crypto import native
 from storage.database import Database
 from runtime.config import Config
+from runtime.amount import writeback_balance_abs
+
+logger = logging.getLogger("evm_adapter")
 
 
 class EVMResult:
@@ -99,8 +103,10 @@ class EVMAdapter:
     def _selfdestruct_contract(self, contract_addr: str, beneficiary: str) -> None:
         contract_addr = self._normalize_addr(contract_addr)
         beneficiary = self._normalize_addr(beneficiary)
+        from runtime.amount import account_balance_abs
+
         account = self.db.get_account(contract_addr) or {}
-        balance = float(account.get("balance", 0) or 0)
+        balance = account_balance_abs(account)
         if balance > 0:
             self.db.update_balance(beneficiary, balance)
             self.db.update_balance(contract_addr, -balance)
@@ -200,8 +206,12 @@ class EVMAdapter:
                         code_bytes = view.get("code_bytes") or b""
                         view["code_bytes"] = bytes(code_bytes)
                     return view
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "native get_account_view failed addr=%s: %s", addr, exc
+                )
+                if bool(getattr(self.config, "require_native_crypto", False)):
+                    raise
         account = self.db.get_account(addr) if hasattr(self.db, "get_account") else None
         return native.account_view_from_row(account)
 
@@ -537,7 +547,10 @@ class EVMAdapter:
                         "native_nested_pure": True,
                         "native_nested_bridge": True,
                     }
-            except Exception:
+            except Exception as exc:
+                logger.warning("native nested pure frame failed: %s", exc)
+                if bool(getattr(self.config, "require_native_crypto", False)):
+                    raise
                 result = None
 
         # v1.3.56: recursive CALL/CREATE/LOG via Rust runner + runtime host_bridge.
@@ -577,7 +590,10 @@ class EVMAdapter:
                         "logs": list(nested.get("logs") or evm.logs),
                         "native_nested_host": True,
                     }
-            except Exception:
+            except Exception as exc:
+                logger.warning("native nested host frame failed: %s", exc)
+                if bool(getattr(self.config, "require_native_crypto", False)):
+                    raise
                 result = None
 
         if result is None:
@@ -661,16 +677,21 @@ class EVMAdapter:
                 if raw is not None:
                     try:
                         del bs["pending_writeback_ops"]
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning(
+                            "bridge pending_writeback_ops del failed: %s", exc
+                        )
             if not raw:
                 return []
             out: List[Dict[str, Any]] = []
             for item in list(raw):
                 out.append(dict(item))
             return out
-        except Exception:
-            return []
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            logger.warning("bridge pending writeback parse failed: %s", exc)
+            raise RuntimeError("bridge_pending_writeback_failed") from exc
 
     def _writeback_store(self):
         """Rocks/hybrid store exposing commit_writeback_accounts (v1.3.62)."""
@@ -762,7 +783,7 @@ class EVMAdapter:
                                 storage_str = str(storage or "{}")
                             self.db.save_account(
                                 address=self._normalize_addr(str(addr)),
-                                balance=float(row.get("balance") or 0.0),
+                                balance=writeback_balance_abs(row),
                                 nonce=int(row.get("nonce") or 0),
                                 code=str(row.get("code") or "")
                                 if row.get("code") is not None
@@ -778,7 +799,9 @@ class EVMAdapter:
             except Exception as exc:
                 if "insufficient_writeback_value" in str(exc):
                     raise
-                pass
+                logger.warning(
+                    "native writeback apply failed; Python fallback: %s", exc
+                )
         # Fallback: per-op Python DB apply.
         for op in ops:
             kind = str(op.get("op") or "")
@@ -796,7 +819,7 @@ class EVMAdapter:
                     storage_str = str(storage or "{}")
                 self.db.save_account(
                     address=addr,
-                    balance=float(op.get("balance") or 0.0),
+                    balance=writeback_balance_abs(op),
                     nonce=int(op.get("nonce") or 0),
                     code=str(op.get("code") or ""),
                     storage=storage_str,
@@ -807,12 +830,15 @@ class EVMAdapter:
                     continue
                 from_addr = self._normalize_addr(str(op.get("from") or ""))
                 to_addr = self._normalize_addr(str(op.get("to") or ""))
-                sat_need = value_wei // 1_000_000_000_000
-                if sat_need > 0:
-                    have = int(self.db.get_balance_satoshi(from_addr) or 0)
-                    if have < sat_need:
-                        raise RuntimeError("insufficient_writeback_value")
-                wei_to_abs = value_wei / 10**18
+                from runtime.amount import WEI_PER_SATOSHI, from_satoshi_float
+
+                sat_need = value_wei // WEI_PER_SATOSHI
+                if sat_need <= 0:
+                    continue
+                have = int(self.db.get_balance_satoshi(from_addr) or 0)
+                if have < sat_need:
+                    raise RuntimeError("insufficient_writeback_value")
+                wei_to_abs = from_satoshi_float(sat_need)
                 self.db.update_balance(from_addr, -wei_to_abs)
                 self.db.update_balance(to_addr, wei_to_abs)
             elif kind == "append_logs":
@@ -873,11 +899,12 @@ class EVMAdapter:
                 contract_addr=contract_addr,
                 value=value,
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning("CREATE _run_evm failed: %s", exc)
             self._writeback_journal = self._writeback_journal[:journal_snap]
             if endowment_sat > 0:
                 self._refund_sat(contract_addr, deployer, endowment_sat)
-            return {"success": False, "reverted": True, "gas_used": 0}
+            return {"success": False, "reverted": True, "gas_used": 0, "error": "create_evm_failed"}
 
         if result.get("reverted"):
             self._writeback_journal = self._writeback_journal[:journal_snap]

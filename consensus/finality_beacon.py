@@ -9,12 +9,21 @@ Hot path prefers abs_native FFG kernels with Python fallback.
 
 from typing import Dict, Optional, Set
 import json
+import logging
 
 from crypto import native
+
+logger = logging.getLogger("abs.ffg")
 
 
 def _native_required() -> bool:
     return bool(native.native_crypto_status(required=False).get("required"))
+
+
+def _native_fb(op: str, exc: BaseException) -> None:
+    logger.warning("native %s failed; Python path: %s", op, exc)
+    if _native_required():
+        raise exc
 
 
 class BeaconFinality:
@@ -51,18 +60,16 @@ class BeaconFinality:
         if native.native_available() and hasattr(native, "fe_epoch"):
             try:
                 return int(native.fe_epoch(int(block_number), int(self.epoch_size)))
-            except Exception:
-                if _native_required():
-                    raise
+            except Exception as exc:
+                _native_fb("fe_epoch", exc)
         return block_number // self.epoch_size
 
     def _get_threshold(self) -> int:
         if native.native_available() and hasattr(native, "ffg_threshold"):
             try:
                 return int(native.ffg_threshold(int(self.total_stake), 2, 3))
-            except Exception:
-                if _native_required():
-                    raise
+            except Exception as exc:
+                _native_fb("ffg_threshold", exc)
         return int(self.total_stake * self.threshold_ratio)
 
     def _get_best_checkpoint(self, epoch: int) -> Optional[tuple]:
@@ -77,9 +84,8 @@ class BeaconFinality:
                 if best is None:
                     return None
                 return (str(best[0]), int(best[1]))
-            except Exception:
-                if _native_required():
-                    raise
+            except Exception as exc:
+                _native_fb("ffg_best_checkpoint", exc)
         return max(self.votes[epoch].items(), key=lambda x: x[1])
 
     def add_vote(self, validator_id: str, block_hash: str, slot: int, weight: int):
@@ -100,14 +106,14 @@ class BeaconFinality:
                     int(weight),
                 )
                 self.votes[epoch] = {str(k): int(v) for k, v in json.loads(updated).items()}
-            except Exception:
-                if _native_required():
-                    raise
+            except Exception as exc:
+                _native_fb("ffg_accumulate_vote", exc)
                 self.votes[epoch][block_hash] = self.votes[epoch].get(block_hash, 0) + weight
         else:
             self.votes[epoch][block_hash] = self.votes[epoch].get(block_hash, 0) + weight
 
         self._evaluate(epoch)
+        return True
 
     def _evaluate(self, epoch: int):
         """Evaluate justification and finalization for checkpoint"""
@@ -139,9 +145,8 @@ class BeaconFinality:
                         self.finalized_checkpoint = prev_epoch
                         self.finalized_block = self.justified_blocks.get(prev_epoch)
                 return
-            except Exception:
-                if _native_required():
-                    raise
+            except Exception as exc:
+                _native_fb("ffg_evaluate_epoch", exc)
 
         best = self._get_best_checkpoint(epoch)
         if not best:

@@ -133,10 +133,12 @@ class Transaction:
 
     @classmethod
     def from_dict(cls, d: Dict) -> "Transaction":
+        from runtime.amount import parse_rpc_value_abs
+
         tx = cls(
             from_addr=d.get("from_addr", d.get("from", "")),
             to_addr=d.get("to_addr", d.get("to", "")),
-            value=float(d.get("value", d.get("amount", 0))),
+            value=parse_rpc_value_abs(d.get("value", d.get("amount", 0)), field="value"),
             nonce=int(d.get("nonce", 0)),
             gas=int(d.get("gas", 21_000)),
             data=d.get("data", d.get("tx_data", "")),
@@ -145,8 +147,8 @@ class Transaction:
             public_key=d.get("public_key", ""),
             timestamp=int(d.get("timestamp", 0)),
         )
-        tx.fee = float(d.get("fee", 0.0))
-        tx.burned = float(d.get("burned", 0.0))
+        tx.fee = parse_rpc_value_abs(d.get("fee", 0.0), field="fee")
+        tx.burned = parse_rpc_value_abs(d.get("burned", 0.0), field="burned")
         tx.block_height = int(d.get("block_height", 0))
         if "status" in d and d.get("status") is not None:
             tx.status = int(d.get("status"))
@@ -279,8 +281,14 @@ class Blockchain:
             from runtime.state_root_encoding import bind_tip_encoding_config
 
             bind_tip_encoding_config(config)
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.error("bind_tip_encoding_config failed: %s", exc)
+            mode = str(getattr(config, "deployment_mode", "") or "").lower()
+            if bool(getattr(config, "is_production", False)) or mode in (
+                "prod",
+                "production",
+            ):
+                raise
         self.bus = bus
         if storage is None:
             if db is None:
@@ -416,10 +424,11 @@ class Blockchain:
             founder = self._resolve_genesis_founder()
             alloc = genesis_balances(founder or None)
             initials = getattr(self.config, "founder_initials", "D.U.P.")
-            total_minted = 0.0
+            total_minted = 0
             for addr, amount in alloc.items():
-                self.storage.set_balance(addr, float(amount))
-                total_minted += amount
+                amount_abs = int(amount)
+                self.storage.set_balance(addr, amount_abs)
+                total_minted += amount_abs
             state_root = self._compute_state_root_from_db()
             genesis = Block(
                 height=0,
@@ -456,8 +465,8 @@ class Blockchain:
                 last = self.storage.get_block(0) or self.storage.get_last_block()
                 if last and int(last.get("height", last.get("number", -1)) or -1) == 0:
                     self._export_genesis_artifact(last)
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f"[Blockchain] genesis artifact re-export skipped: {exc}")
 
     def _export_genesis_artifact(self, block_dict: Dict) -> None:
         """Publish minted genesis #0 to shared ceremony artifact path (followers)."""
@@ -477,7 +486,8 @@ class Blockchain:
             founder = ""
             try:
                 founder = str(self.storage.get_meta("genesis_founder") or "").strip()
-            except Exception:
+            except Exception as exc:
+                print(f"[Blockchain] genesis_founder meta read failed: {exc}")
                 founder = ""
             if not founder:
                 founder = self._resolve_genesis_founder()
@@ -510,17 +520,20 @@ class Blockchain:
 
                     manifest = getattr(self.config, "validators_manifest_path", "") or ""
                     founder = manifest_founder_address(manifest)
-                except Exception:
+                except Exception as exc:
+                    print(f"[Blockchain] manifest founder resolve failed: {exc}")
                     founder = ""
             if founder:
                 try:
                     self.config.founder_address = founder
-                except Exception:
-                    pass
+                except Exception as exc:
+                    print(f"[Blockchain] founder_address bind failed: {exc}")
                 try:
                     self.storage.set_meta("genesis_founder", founder)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    print(f"[Blockchain] genesis_founder meta write failed: {exc}")
+                    if getattr(self.config, "is_production", False):
+                        raise
             print(f"[Blockchain] importing genesis from artifact {path}")
             return bool(self.import_block(art["block"]))
         except Exception as exc:
@@ -731,14 +744,15 @@ class Blockchain:
         except StorageError:
             try:
                 uow.abort()
-            except Exception:
-                pass
+            except Exception as abort_exc:
+                print(f"[Blockchain] UoW abort failed after StorageError: {abort_exc}")
             raise
-        except Exception:
+        except Exception as persist_exc:
+            print(f"[Blockchain] canonical persist failed: {persist_exc}")
             try:
                 uow.abort()
-            except Exception:
-                pass
+            except Exception as abort_exc:
+                print(f"[Blockchain] UoW abort failed after persist error: {abort_exc}")
             raise
 
     # ── Добавление блока ─────────────────────────────────────────────────────
@@ -755,7 +769,9 @@ class Blockchain:
                 print(f"[Blockchain] Reject block #{block.height}: {validation.get('error')}")
                 return False
 
-            proposer_check = self._verify_block_proposer(block)
+            proposer_check = self._verify_block_proposer(
+                block, allow_slashed=bool(preserve_peer_hash)
+            )
             if not proposer_check["valid"]:
                 print(f"[Blockchain] Reject block #{block.height}: {proposer_check.get('error')}")
                 return False
@@ -890,7 +906,8 @@ class Blockchain:
         # Prefer founder embedded by leader export / pin / ceremony manifest.
         try:
             founder = str(self.storage.get_meta("genesis_founder") or "").strip()
-        except Exception:
+        except Exception as exc:
+            print(f"[Blockchain] genesis_founder meta read failed: {exc}")
             founder = ""
         if not founder:
             try:
@@ -898,7 +915,8 @@ class Blockchain:
 
                 manifest = getattr(self.config, "validators_manifest_path", "") or ""
                 founder = manifest_founder_address(manifest)
-            except Exception:
+            except Exception as exc:
+                print(f"[Blockchain] manifest founder resolve failed: {exc}")
                 founder = ""
         if not founder and not getattr(self.config, "follower_genesis_sync", False):
             founder = str(getattr(self.config, "founder_address", "") or "").strip()
@@ -906,7 +924,7 @@ class Blockchain:
                 founder = self._resolve_genesis_founder()
         alloc = genesis_balances(founder or None)
         for addr, amount in alloc.items():
-            self.storage.set_balance(addr, float(amount))
+            self.storage.set_balance(addr, int(amount))
         try:
             self.storage.set_meta("genesis_founder", founder or "")
             self.storage.set_meta("tokenomics", get_tokenomics_summary(founder or None))
@@ -1060,15 +1078,22 @@ class Blockchain:
     def _verify_block_tx_signatures(self, block: Block) -> Dict:
         return self.tx_pipeline.verify_signatures(block).as_dict()
 
-    def _verify_block_proposer(self, block: Block) -> Dict:
-        """Slashing + authorized proposer checks before block execution."""
+    def _verify_block_proposer(
+        self, block: Block, *, allow_slashed: bool = False
+    ) -> Dict:
+        """Slashing + authorized proposer checks before block execution.
+
+        ``allow_slashed`` is set for P2P catch-up (``preserve_peer_hash``):
+        a local slash penalty must not partition the node off the canonical
+        chain of the (only) miner.
+        """
         proposer = block.miner or ""
         if not proposer or proposer == "genesis":
             return {"valid": True}
 
         slashing = self._resolve_slashing_core()
         if slashing:
-            if proposer in slashing.slashed:
+            if proposer in slashing.slashed and not allow_slashed:
                 return {"valid": False, "error": "proposer_slashed"}
 
         if not getattr(self.config, "enforce_proposer", True):
@@ -1277,8 +1302,30 @@ class Blockchain:
         return self.storage.get_transaction(tx_hash)
 
     def get_state_root(self) -> str:
-        """Canonical L1 state root from SQLite balances (consensus/P2P path)."""
-        return self._compute_state_root_from_db()
+        """Last committed canonical root (header/meta). Does not rescan accounts.
+
+        Apply/verify still call ``_compute_state_root_from_db``. HTTP /status, P2P
+        solicit, and harness must not rehash full state on every poll.
+        """
+        store = self.storage
+        if store is not None and hasattr(store, "get_live_state_root_meta"):
+            try:
+                root, _height = store.get_live_state_root_meta()
+                root_s = str(root or "").strip()
+                if root_s:
+                    return root_s
+            except (OSError, TypeError, ValueError, AttributeError):
+                pass
+        if store is not None and hasattr(store, "get_last_block"):
+            try:
+                last = store.get_last_block() or {}
+                root_s = str((last or {}).get("state_root") or "").strip()
+                if root_s:
+                    return root_s
+            except (OSError, TypeError, ValueError, AttributeError):
+                pass
+        # Empty committed root: return "" (fail-closed for HTTP/P2P). Never scan accounts.
+        return ""
 
     def get_stats(self) -> Dict:
         db_stats = self.storage.get_stats()

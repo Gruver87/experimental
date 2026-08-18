@@ -10,13 +10,22 @@ with a Python reference fallback for byte-aligned behavior.
 from __future__ import annotations
 
 import json
+import logging
 from typing import Dict, List, Optional
 
 from crypto import native
 
+logger = logging.getLogger("abs.ghost")
+
 
 def _native_required() -> bool:
     return bool(native.native_crypto_status(required=False).get("required"))
+
+
+def _native_fb(op: str, exc: BaseException) -> None:
+    logger.warning("native %s failed; Python path: %s", op, exc)
+    if _native_required():
+        raise exc
 
 
 def _tree_json(tree: Dict) -> str:
@@ -60,9 +69,8 @@ def get_cumulative_weight(block_hash: str, tree: Dict, weights: Dict[str, int]) 
                     str(block_hash), _tree_json(tree), _weights_json(weights)
                 )
             )
-        except Exception:
-            if _native_required():
-                raise
+        except Exception as exc:
+            _native_fb("ghost_cumulative_weight", exc)
 
     return _cumulative_weight_py(block_hash, tree, weights)
 
@@ -150,9 +158,8 @@ def select_head(tree: Dict, weights: Dict[str, int]) -> Optional[str]:
         try:
             head = native.ghost_select_head(_tree_json(tree), _weights_json(weights))
             return str(head) if head else None
-        except Exception:
-            if _native_required():
-                raise
+        except Exception as exc:
+            _native_fb("ghost_select_head", exc)
 
     return _select_head_python(tree, weights)
 
@@ -163,9 +170,8 @@ def get_chain_from_head(tree: Dict, weights: Dict[str, int]) -> List[str]:
         try:
             chain = native.ghost_chain_from_head(_tree_json(tree), _weights_json(weights))
             return [str(h) for h in chain]
-        except Exception:
-            if _native_required():
-                raise
+        except Exception as exc:
+            _native_fb("ghost_chain_from_head", exc)
 
     head = select_head(tree, weights)
     if not head:

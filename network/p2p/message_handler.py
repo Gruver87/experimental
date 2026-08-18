@@ -6,8 +6,11 @@ older ``network.p2p`` package functional for tests and small embedded nodes.
 """
 
 from typing import Any, Dict, Optional
+import logging
 
 from .messages import Message, MessageType, create_block_request, create_block_response, create_sync_response
+
+logger = logging.getLogger("P2P.MessageHandler")
 
 
 class MessageHandler:
@@ -162,7 +165,13 @@ class MessageHandler:
             for method in methods:
                 if hasattr(owner, method):
                     result = getattr(owner, method)(block)
-                    return True if result is None else bool(result)
+                    if result is None:
+                        return True
+                    if result is True or result is False:
+                        return result
+                    if isinstance(result, dict):
+                        return result.get("success") is True
+                    return False
         return False
 
     def _headers_from(self, from_height: int) -> list:
@@ -195,8 +204,14 @@ class MessageHandler:
                 try:
                     getattr(self.p2p_server, method)(peer_id, payload)
                     return True
-                except Exception:
+                except Exception as exc:
                     self._send_failures += 1
+                    logger.warning(
+                        "[MessageHandler] %s failed peer=%s: %s",
+                        method,
+                        peer_id,
+                        exc,
+                    )
                     return False
         self._send_failures += 1
         return False

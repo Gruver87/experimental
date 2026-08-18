@@ -11,7 +11,7 @@ x-abs-prod-env: &abs-prod-env
   ROCKSDB_SYNC: FULL
   ROCKSDB_BLOCK_CACHE_MB: "256"
   ROCKSDB_WRITE_BUFFER_MB: "64"
-  ROCKSDB_COLUMN_FAMILIES: "false"
+  ROCKSDB_COLUMN_FAMILIES: "true"
   CHAIN_ID: "778888"
   HTTP_HOST: "0.0.0.0"
   RPC_HOST: "0.0.0.0"
@@ -19,6 +19,7 @@ x-abs-prod-env: &abs-prod-env
   P2P_HOST: "0.0.0.0"
   P2P_MAX_MESSAGE_BYTES: "2097152"
   P2P_MAX_MESSAGES_PER_SEC: "500"
+  TESTNET_EXPECTED_PEERS: "2"
   P2P_BAN_SECONDS: "300"
   P2P_RATE_LIMIT_STRIKES: "5"
   P2P_EVICT_MIN_SCORE: "0"
@@ -210,7 +211,7 @@ services:
     environment:
       <<: *abs-prod-env
       NODE_ID: docker-prod-mesh-2
-      BOOTSTRAP_PEERS: node1:5000
+      BOOTSTRAP_PEERS: node1:5000,node3:5000
     volumes:
       - abs-prod-mesh2-data:/app/data
       - ./data/prod_mesh/shared:/app/data/shared

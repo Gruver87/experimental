@@ -451,6 +451,8 @@ def test_prometheus_alerts_include_rust_bridge_readiness():
     assert "mid_session_handshake" in dash
     assert "abs_p2p_attestation_local_fail_total" in dash
     assert "abs_rocksdb_column_families" in dash
+    assert "abs_rocksdb_running_compactions" in dash
+    assert "abs_rocksdb_estimate_num_keys" in dash
     env_ex = (root / ".env.example").read_text(encoding="utf-8")
     assert "P2P_MAX_MESSAGES_PER_SEC" in env_ex
     assert "P2P_BAN_SECONDS" in env_ex

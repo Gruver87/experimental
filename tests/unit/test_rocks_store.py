@@ -76,6 +76,43 @@ def test_persist_block_atomic(rocks):
     assert len(by_addr) == 1
 
 
+def test_get_total_burned_uses_latest_prefix_key(rocks):
+    rocks.record_burn(1, 0.1)
+    rocks.record_burn(2, 0.2)
+    rocks.record_burn(10, 0.3)
+    assert rocks.get_total_burned() == pytest.approx(0.6)
+    with pytest.raises(TypeError, match="bool is not an amount"):
+        rocks.record_burn(11, True)
+
+
+def test_rocks_block_total_burned_refuses_bool(rocks):
+    with pytest.raises(TypeError, match="bool is not an amount"):
+        rocks._insert_block(
+            {
+                "height": 1,
+                "hash": "a" * 64,
+                "parent_hash": "0" * 64,
+                "timestamp": 1,
+                "miner": "0x" + "1" * 40,
+                "total_burned": True,
+                "transactions": [],
+            }
+        )
+
+
+def test_get_stats_uses_cached_counts(rocks):
+    from runtime.tokenomics import genesis_balances
+
+    for addr, amount in genesis_balances("0x" + "1" * 40).items():
+        rocks.set_balance(addr, float(amount))
+    first = rocks.get_stats()
+    second = rocks.get_stats()
+    assert first["total_accounts"] == second["total_accounts"]
+    assert first["total_accounts"] >= 1
+    assert first["total_supply"] == pytest.approx(second["total_supply"])
+    assert first["total_transactions"] == second["total_transactions"]
+
+
 def test_get_last_block_returns_genesis_at_height_zero(rocks):
     block = {
         "height": 0,
@@ -396,6 +433,39 @@ def test_bridge_lock_and_credit(rocks):
     assert rocks.get_balance("0xother") == 5.0
 
 
+def test_bridge_lock_amount_is_satoshi_quantized_bool_refused(rocks):
+    alice = "0x" + "a" * 40
+    rocks.set_balance(alice, 10)
+    rocks.debit_and_create_bridge_lock(
+        from_addr=alice,
+        amount=1.0000003,
+        burn_address="",
+        burn_amount=0,
+        to_chain="ethereum",
+        to_addr="0x" + "b" * 40,
+        net_amount=1.0000003,
+        tx_hash="0x" + "44" * 32,
+    )
+    assert rocks.get_balance(alice) == 9.0
+    lock = rocks.get_bridge_locks()[0]
+    assert lock["amount"] == 1.0
+    refund = rocks.refund_pending_bridge_lock(lock["tx_hash"])
+    assert refund["refunded"] is True
+    assert refund["amount"] == 1.0
+    assert rocks.get_balance(alice) == 10.0
+    with pytest.raises(TypeError, match="bool is not an amount"):
+        rocks.debit_and_create_bridge_lock(
+            from_addr=alice,
+            amount=True,
+            burn_address="",
+            burn_amount=0,
+            to_chain="ethereum",
+            to_addr="0x" + "b" * 40,
+            net_amount=1.0,
+            tx_hash="0x" + "55" * 32,
+        )
+
+
 def test_sqlite_to_rocks_migration(tmp_path):
     from storage.database import Database
 
@@ -474,6 +544,7 @@ def test_rocksdb_column_families_roundtrip_and_legacy_dual_read(tmp_path):
     store_v1.initialize()
     store_v1.set_balance("0x" + "a" * 40, 42.0)
     store_v1._raw_put(kc.key_block_height(1), b'{"height":1,"hash":"ab"}')
+    store_v1._raw_put(kc.key_block_height(2), b'{"height":2,"hash":"cd"}')
     store_v1.close()
 
     # Enable CF on existing DB: dual-read must see legacy default keys.
@@ -491,4 +562,49 @@ def test_rocksdb_column_families_roundtrip_and_legacy_dual_read(tmp_path):
     assert store_cf.get_meta("schema_version") == "rocksdb-chain-v2-cf"
     stats = store_cf.get_stats()
     assert stats["rocksdb_tuning"].get("column_families") in (True, 1, "1")
+
+    scanned = dict(store_cf._scan_prefix(kc.prefix_accounts()))
+    assert kc.key_account("0x" + "a" * 40) in scanned
+    assert kc.key_account("0x" + "b" * 40) in scanned
+
+    # Historical rewrite of a lower height lands in the target CF. prefix_last
+    # must still return height 2 from legacy default (not primary-first).
+    store_cf._raw_put(kc.key_block_height(1), b'{"height":1,"hash":"ab"}')
+    last = store_cf._engine.prefix_last(kc.prefix_block_heights())
+    assert last is not None
+    last_key, _ = last
+    assert kc.unpack_u64(bytes(last_key)[1:9]) == 2
+    runtime = store_cf.get_rocks_runtime_stats()
+    assert "total_transactions" not in runtime
+    assert "total_accounts" not in runtime
+    assert runtime.get("engine") == "rocksdb"
+    assert runtime.get("rocksdb_tuning", {}).get("column_families") in (True, 1, "1")
+    props = runtime.get("rocksdb_properties") or {}
+    assert "rocksdb.estimate-num-keys-all-cf" in props
     store_cf.close()
+
+
+def test_live_state_root_height_corrupt_logs_and_returns_unknown(rocks, caplog):
+    import logging
+
+    from storage import keycodec as kc
+
+    rocks._raw_put(kc.key_meta("live_state_root"), b"ab" * 32)
+    rocks._raw_put(kc.key_meta("live_state_root_height"), b"not-an-int")
+    with caplog.at_level(logging.WARNING):
+        root, height = rocks.get_live_state_root_meta()
+    assert root == "ab" * 32
+    assert height == -1
+    assert "corrupt live_state_root_height" in caplog.text
+
+
+def test_save_validator_and_bridge_lock_refuse_bool(rocks):
+    import pytest
+
+    with pytest.raises(TypeError, match="bool is not an amount"):
+        rocks.save_validator("0x" + "c" * 40, True)
+    with pytest.raises(TypeError, match="bool is not an amount"):
+        rocks.save_bridge_lock("0xfrom", "ethereum", "0xto", True, "0x" + "11" * 32)
+    rocks.save_validator("0x" + "c" * 40, 32.0)
+    vals = rocks.get_validators(active_only=False)
+    assert any(abs(float(v.get("stake", 0)) - 32.0) < 1e-9 for v in vals)

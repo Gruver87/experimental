@@ -7,7 +7,10 @@ Sync Engine — fast catch-up for late-joining nodes
 """
 
 from typing import List, Dict, Optional, Any
+import logging
 import time
+
+logger = logging.getLogger("Sync.Engine")
 
 from crypto import native
 from sync.consistency import (
@@ -30,6 +33,10 @@ class SyncEngine:
         self.sync_progress = 0
         self._solo_log_last_ts = 0.0
         self._solo_log_interval_sec = 300.0  # intentional solo: avoid per-block spam
+        self._wire_probe_fail_ts = 0.0
+        self._wire_probe_backoff_sec = 8.0
+        self._wire_sticky_empty_streak = 0
+        self._wire_sticky_empty_max = 3
         self._last_wire_probe_ok = None
         self._sync_fail = 0
         self._last_sync_error = ""
@@ -196,8 +203,12 @@ class SyncEngine:
         try:
             if hasattr(bc, "get_last_block"):
                 return bc.get_last_block() is None
-        except Exception:
-            return False
+        except Exception as exc:
+            logger.warning("get_last_block failed in _local_needs_genesis: %s", exc)
+            try:
+                return int(self._local_height() or 0) <= 0
+            except Exception:
+                return True
         return False
 
     def download_chain(self, head: str, stop_at_height: Optional[int] = None) -> List[Dict]:
@@ -339,9 +350,8 @@ class SyncEngine:
                 tip_head_bind=True,
                 height_continuity_bind=True,
                 contiguous_parent_bind=True,
-                # SyncEngine historically had no tip/peer-head wire probes.
-                tip_probe_enabled=False,
-                peer_head_probe_enabled=False,
+                tip_probe_enabled=True,
+                peer_head_probe_enabled=True,
                 fetch_timeout=45.0,
             )
             outcome = svc.run_ahead(peer_view, cfg)
@@ -543,6 +553,17 @@ class SyncEngine:
 
         # Re-probe without wiping last-known green: request_probing keeps
         # consistent=True sticky while the wire solicit runs (see machine).
+        now = time.time()
+        fail_ts = float(getattr(self, "_wire_probe_fail_ts", 0.0) or 0.0)
+        backoff = float(getattr(self, "_wire_probe_backoff_sec", 8.0))
+        if backoff < 0.0:
+            backoff = 0.0
+        if fail_ts > 0.0 and (now - fail_ts) < backoff:
+            print("   [Sync] wire probe backoff after timeout/empty")
+            # Do not apply a synthetic failed probe — that overwrote a late
+            # successful coalesced flight and kept topology_healthy false.
+            return bool(self.consistency.snapshot().consistent)
+
         self.consistency.request_probing()
         wire_roots: List[Any] = []
         try:
@@ -550,18 +571,41 @@ class SyncEngine:
             raw = self.node.request_peer_state_roots_sync(timeout=70)
             if raw is None:
                 print("   [Sync] peer state_root wire probe failed: timeout/empty")
+                self._wire_probe_fail_ts = time.time()
+                if self.consistency.snapshot().consistent:
+                    self._wire_sticky_empty_streak = int(
+                        getattr(self, "_wire_sticky_empty_streak", 0) or 0
+                    ) + 1
+                    max_sticky = int(getattr(self, "_wire_sticky_empty_max", 3) or 3)
+                    if self._wire_sticky_empty_streak < max_sticky:
+                        print("   [Sync] wire probe backoff after timeout/empty")
+                        return True
+                    print("   [Sync] sticky green expired after empty/timeout wire")
                 probe = WireProbeResult.failed("probe_timeout_empty")
             elif len(raw) == 0:
                 print(
                     "   [Sync] peer state_root wire probe empty "
                     f"with {len(peers)} peer(s)"
                 )
+                self._wire_probe_fail_ts = time.time()
+                if self.consistency.snapshot().consistent:
+                    self._wire_sticky_empty_streak = int(
+                        getattr(self, "_wire_sticky_empty_streak", 0) or 0
+                    ) + 1
+                    max_sticky = int(getattr(self, "_wire_sticky_empty_max", 3) or 3)
+                    if self._wire_sticky_empty_streak < max_sticky:
+                        print("   [Sync] wire probe backoff after timeout/empty")
+                        return True
+                    print("   [Sync] sticky green expired after empty/timeout wire")
                 probe = WireProbeResult.failed("probe_empty")
             else:
                 wire_roots = list(raw)
+                self._wire_probe_fail_ts = 0.0
+                self._wire_sticky_empty_streak = 0
                 probe = WireProbeResult.succeeded(wire_roots=tuple(wire_roots))
         except Exception as exc:
             print(f"   [Sync] peer state_root wire probe failed: {exc}")
+            self._wire_probe_fail_ts = time.time()
             probe = WireProbeResult.failed(str(exc))
 
         decision = self.consistency.apply_probe_evaluation(

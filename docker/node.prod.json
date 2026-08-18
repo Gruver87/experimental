@@ -13,6 +13,9 @@
     "ws_port": 8766,
     "p2p_max_message_bytes": 2097152,
     "p2p_max_messages_per_sec": 500,
+    "p2p_attest_messages_per_sec": 80,
+    "p2p_tx_messages_per_sec": 120,
+    "p2p_block_announce_messages_per_sec": 40,
     "p2p_ban_seconds": 300,
     "p2p_rate_limit_strikes": 5,
     "p2p_evict_min_score": 0,
@@ -64,7 +67,7 @@
     "rocksdb_sync": "FULL",
     "rocksdb_block_cache_mb": 256,
     "rocksdb_write_buffer_mb": 64,
-    "rocksdb_column_families": false,
+    "rocksdb_column_families": true,
     "log_json": true,
     "enable_cors_rpc_proxy": false,
     "cors_origins": [

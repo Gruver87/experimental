@@ -58,6 +58,37 @@ def test_receipts_by_block():
     assert rows[0]["tx_hash"] == "0xtx1"
 
 
+def test_sqlite_tx_money_display_follows_satoshi_not_ieee():
+    import pytest
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "txm.db"))
+    db.initialize()
+    db._persist_block_locked(
+        {"height": 1, "hash": "0xabc", "parent_hash": "0", "timestamp": 100, "miner": "0xm",
+         "tx_count": 1, "gas_used": 0, "total_burned": 0, "extra_data": ""},
+        [{
+            "hash": "0xtx1", "block_height": 1, "from_addr": "0xa", "to_addr": "0xb",
+            "value": 1.0, "fee": 0.1, "burned": 0.02, "gas_used": 21000, "status": 1,
+            "timestamp": 100,
+        }],
+    )
+    db.conn.commit()
+    db.conn.execute("UPDATE transactions SET value=? WHERE hash=?", (1.0000003, "0xtx1"))
+    db.conn.execute("UPDATE tx_receipts SET value=? WHERE tx_hash=?", (1.0000003, "0xtx1"))
+    db.conn.commit()
+
+    listed = db.get_transactions_by_address("0xa", direction="sent")
+    assert listed[0]["value"] == 1.0
+    rcpt = db.get_tx_receipt("0xtx1")
+    assert rcpt is not None
+    assert rcpt["value"] == 1.0
+    assert rcpt["fee"] == 0.1
+    with pytest.raises(TypeError):
+        db._serialize_tx_row({"hash": "0xbad", "value": True, "fee": 0, "burned": 0})
+
+
 def test_chain_metrics():
     from storage.database import Database
 

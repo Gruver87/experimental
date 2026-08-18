@@ -231,7 +231,20 @@ async def handle_state_root_request(host: DispatchHost, peer: Any, data: Any) ->
     payload = host.state_root_response_for_height(int(req_h))
     if payload is None:
         host.bump_counter("state_root_outbound_refuse_total")
-        return
+        # Ahead of our tip only: answer with local tip (honest lag). Missing
+        # historical headers stay silent — never send a higher tip as that
+        # height (hub treats got>expect as inflation).
+        tip_payload = host.state_root_response_for_height(0)
+        if not isinstance(tip_payload, dict):
+            return
+        try:
+            tip_h = int(tip_payload.get("height") or 0)
+        except (TypeError, ValueError):
+            return
+        if not (0 < tip_h < int(req_h)):
+            return
+        host.bump_counter("state_root_outbound_lag_total")
+        payload = tip_payload
     await peer.send(MSG_STATE_ROOT_RESPONSE, payload)
 
 

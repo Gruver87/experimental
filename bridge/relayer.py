@@ -17,6 +17,7 @@ from bridge.l1_rpc import (
     min_confirmations,
     save_l1_queue,
 )
+from runtime.amount import money_abs
 from bridge.oracle_auth import sign_payload
 
 
@@ -232,7 +233,11 @@ def process_l1_queue(
     for item in incoming:
         l1_tx = item.get("l1_tx_hash", item.get("tx_hash", ""))
         recipient = item.get("recipient", item.get("to_address", ""))
-        amount = float(item.get("amount", 0))
+        try:
+            amount = money_abs(item.get("amount", 0), field="amount")
+        except (TypeError, ValueError):
+            remaining_in.append(item)
+            continue
         from_chain = item.get("from_chain", item.get("source_chain", "ethereum"))
         tx_id = item.get("tx_id", item.get("abs_tx_hash", l1_tx))
         rpc = item.get("rpc_url") or chain_rpc_url(from_chain)

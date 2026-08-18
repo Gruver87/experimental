@@ -7,7 +7,9 @@ param(
     [int]$FullHarnessEvery = 6,
     [switch]$AlwaysFullHarness,
     [string]$LogFile = "logs/health_watch.log",
-    [string]$WebhookUrl = $env:HEALTH_WEBHOOK_URL
+    [string]$WebhookUrl = $env:HEALTH_WEBHOOK_URL,
+    # Strict: 1-height skew / head mismatch / ready flap / harness fail = FAIL (no soft WARN).
+    [switch]$Strict
 )
 
 $ErrorActionPreference = "Continue"
@@ -32,7 +34,15 @@ Set-Content -Path $LogFile -Value "" -Encoding UTF8
 
 function Write-Log([string]$Msg, [string]$Color = "Gray") {
     $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') $Msg"
-    Add-Content -Path $LogFile -Value $line -Encoding UTF8
+    # Get-Content -Wait can briefly lock the log; do not kill the soak on that.
+    for ($i = 0; $i -lt 5; $i++) {
+        try {
+            Add-Content -Path $LogFile -Value $line -Encoding UTF8 -ErrorAction Stop
+            break
+        } catch {
+            Start-Sleep -Milliseconds 200
+        }
+    }
     Write-Host $line -ForegroundColor $Color
 }
 
@@ -68,6 +78,9 @@ function Test-NodeHealth([int]$Port, [bool]$FullHarness) {
             }
         }
         if ($null -ne $stProbe) {
+            if ($Strict) {
+                return @{ Ok = $false; Port = $Port; Error = "ready_flap (strict): $readyErr" }
+            }
             # Soft: node is up; ready flap is monitored as WARN via Failed=ready_flap.
             return @{
                 Ok = $true
@@ -88,6 +101,9 @@ function Test-NodeHealth([int]$Port, [bool]$FullHarness) {
         Start-Sleep -Seconds $(if ($ProdMesh) { 5 } else { 2 })
         try {
             $stProbe = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status" -TimeoutSec ($statusSec + 5)
+            if ($Strict) {
+                return @{ Ok = $false; Port = $Port; Error = "ready_flap (strict): $readyErr" }
+            }
             return @{
                 Ok = $true
                 Port = $Port
@@ -107,10 +123,20 @@ function Test-NodeHealth([int]$Port, [bool]$FullHarness) {
         }
         return @{ Ok = $false; Port = $Port; Error = "$readyErr; status: $statusErr" }
     }
-    try {
-        $st = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status" -TimeoutSec $statusSec
-    } catch {
-        return @{ Ok = $false; Port = $Port; Error = "status: $($_.Exception.Message)" }
+    $st = $null
+    $statusErr = ""
+    # After /health/ready: retry /status (transient apply-queue). Not a substitute for cheap /status.
+    for ($sAttempt = 1; $sAttempt -le 5; $sAttempt++) {
+        try {
+            $st = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status" -TimeoutSec $statusSec
+            break
+        } catch {
+            $statusErr = $_.Exception.Message
+            if ($sAttempt -lt 5) { Start-Sleep -Seconds 2 }
+        }
+    }
+    if ($null -eq $st) {
+        return @{ Ok = $false; Port = $Port; Error = "status: $statusErr" }
     }
     $harnessUri = if ($FullHarness) {
         "http://127.0.0.1:$Port/chain/consistency/harness?peer_timeout=8"
@@ -144,26 +170,43 @@ function Test-NodeHealth([int]$Port, [bool]$FullHarness) {
     }
 }
 
-function Test-MeshAlignment([int[]]$PortList) {
+function Test-MeshAlignment {
+    param(
+        [int[]]$PortList,
+        [object[]]$Rows = $null
+    )
     $rows = @()
-    foreach ($p in $PortList) {
-        try {
-            $st = Invoke-RestMethod -Uri "http://127.0.0.1:$p/status" -TimeoutSec $(if ($ProdMesh) { 12 } else { 5 })
-            $rows += [PSCustomObject]@{
-                Port = $p
-                Height = [int]$st.height
-                Head = [string]$st.head_hash
-                Peers = [int]$st.peers
+    if ($null -ne $Rows -and @($Rows).Count -gt 0) {
+        $rows = @($Rows)
+    } else {
+        foreach ($p in $PortList) {
+            try {
+                $st = Invoke-RestMethod -Uri "http://127.0.0.1:$p/status" -TimeoutSec $(if ($ProdMesh) { 12 } else { 5 })
+                $rows += [PSCustomObject]@{
+                    Port = $p
+                    Height = [int]$st.height
+                    Head = [string]$st.head_hash
+                    Peers = [int]$st.peers
+                }
+            } catch {
+                return @{ Ok = $false; Error = "port $p status: $($_.Exception.Message)" }
             }
-        } catch {
-            return @{ Ok = $false; Error = "port $p status: $($_.Exception.Message)" }
         }
     }
     $heights = @($rows | ForEach-Object { $_.Height })
-    # Allow ±1 height skew: status is polled sequentially while blocks mine.
-    # Tip-hash races at equal height are expected and ignored (heads differ briefly).
     $maxH = ($heights | Measure-Object -Maximum).Maximum
     $minH = ($heights | Measure-Object -Minimum).Minimum
+    if ($Strict) {
+        $heads = @($rows | ForEach-Object { ([string]$_.Head).ToLowerInvariant() } | Where-Object { $_ } | Select-Object -Unique)
+        $heightOk = ($maxH - $minH) -eq 0
+        $headOk = ($heads.Count -le 1)
+        return @{
+            Ok = ($heightOk -and $headOk)
+            Rows = $rows
+        }
+    }
+    # Allow ±1 height skew: status is polled sequentially while blocks mine.
+    # Tip-hash races at equal height are expected and ignored (heads differ briefly).
     $heightOk = ($maxH - $minH) -le 1
     return @{
         Ok = $heightOk
@@ -186,13 +229,15 @@ function Send-Webhook([string]$Text) {
 $end = if ($DurationMin -gt 0) { (Get-Date).AddMinutes($DurationMin) } else { $null }
 $cycle = 0
 $totalHardFails = 0
-Write-Log "health_watch start ports=$($Ports -join ',') interval=${IntervalSec}s full_every=$FullHarnessEvery log=$LogFile" "Cyan"
+$fullEveryLabel = if ($AlwaysFullHarness) { "always" } else { [string]$FullHarnessEvery }
+Write-Log "health_watch start ports=$($Ports -join ',') interval=${IntervalSec}s full_every=$fullEveryLabel log=$LogFile" "Cyan"
 
 while ($true) {
     $cycle++
     $fullHarness = $AlwaysFullHarness -or ($FullHarnessEvery -le 1) -or ($cycle % $FullHarnessEvery -eq 0)
     $modeLabel = if ($fullHarness) { "full" } else { "quick" }
     $failures = @()
+    $cycleRows = @()
 
     foreach ($p in $Ports) {
         $r = Test-NodeHealth $p $fullHarness
@@ -202,13 +247,23 @@ while ($true) {
             Write-Log "FAIL port $p $($r.Error)" "Red"
             continue
         }
+        $cycleRows += [PSCustomObject]@{
+            Port = $r.Port
+            Height = [int]$r.Height
+            Head = [string]$r.Head
+            Peers = [int]$r.Peers
+        }
         $failedTxt = if ($r.Failed.Count -gt 0) { $r.Failed -join "," } else { "" }
         $line = "OK port $($r.Port) [$modeLabel] height=$($r.Height) peers=$($r.Peers) p2p=$($r.P2P) aligned=$($r.Aligned) failed=$failedTxt"
         $p2pWarn = ($r.P2P -in @("solo", "under_mesh", "stale"))
         $harnessBad = ($r.Aligned -eq $false) -or ($r.Failed.Count -gt 0) -or ($r.HarnessHealthy -eq $false)
         if ($harnessBad) {
             $failures += $line
-            Write-Log "WARN $line" "Yellow"
+            if ($Strict) {
+                Write-Log "FAIL harness port $($r.Port) [$modeLabel] height=$($r.Height) peers=$($r.Peers) p2p=$($r.P2P) aligned=$($r.Aligned) failed=$failedTxt" "Red"
+            } else {
+                Write-Log "WARN $line" "Yellow"
+            }
         } elseif ($p2pWarn) {
             Write-Log "$line (p2p not full mesh; chain OK)" "Yellow"
         } else {
@@ -217,16 +272,28 @@ while ($true) {
     }
 
     if ($Ports.Count -gt 1) {
-        $mesh = Test-MeshAlignment $Ports
+        if ($cycleRows.Count -eq $Ports.Count) {
+            $mesh = Test-MeshAlignment $Ports -Rows $cycleRows
+        } else {
+            $mesh = Test-MeshAlignment $Ports
+        }
         if (-not $mesh.Ok) {
             if ($mesh.Error) {
-                Write-Log "WARN mesh probe: $($mesh.Error)" "Yellow"
                 $failures += "mesh probe: $($mesh.Error)"
+                if ($Strict) {
+                    Write-Log "FAIL mesh probe: $($mesh.Error)" "Red"
+                } else {
+                    Write-Log "WARN mesh probe: $($mesh.Error)" "Yellow"
+                }
             } else {
                 $detail = @($mesh.Rows | ForEach-Object { "h$($_.Port)=$($_.Height)" }) -join " "
                 if (-not $detail) { $detail = "unknown" }
                 $failures += "mesh misaligned: $detail"
-                Write-Log "WARN mesh misaligned $detail" "Yellow"
+                if ($Strict) {
+                    Write-Log "FAIL mesh misaligned $detail" "Red"
+                } else {
+                    Write-Log "WARN mesh misaligned $detail" "Yellow"
+                }
             }
         } else {
             $detail = ($mesh.Rows | ForEach-Object { "$($_.Port):h$($_.Height)/p$($_.Peers)" }) -join " "

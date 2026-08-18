@@ -37,12 +37,19 @@ def test_bridge_enabled_profile_requires_bridge_binary(tmp_path, monkeypatch):
                 "require_native_crypto": True,
                 "evm_create2_eip1014": True,
                 "evm_require_deploy_salt": True,
+                "tip_safety_enforce": True,
+                "p2p_native_transport": True,
                 "validators_manifest_path": "validators.manifest.example.json",
                 "cors_origins": ["https://explorer.example.com"],
             }
         ),
         encoding="utf-8",
     )
+    # Host/mesh env must not hide the missing binary (BRIDGE_ENABLED=false, real RUST_BRIDGE_PATH).
+    monkeypatch.setenv("BRIDGE_ENABLED", "true")
+    monkeypatch.setenv("BRIDGE_MODE", "rust")
+    monkeypatch.setenv("TIP_SAFETY_ENFORCE", "true")
+    monkeypatch.delenv("RUST_BRIDGE_PATH", raising=False)
     monkeypatch.setattr(verify_prod_stack, "ROOT", tmp_path)
     errors = verify_prod_stack.check_config_validate("node.prod.example.json")
     assert any("binary missing" in e.lower() or "rust binary" in e.lower() for e in errors), errors

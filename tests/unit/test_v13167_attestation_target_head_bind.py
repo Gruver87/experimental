@@ -96,6 +96,28 @@ def test_ok_tip_hash():
     )
 
 
+def test_refuse_when_head_unreadable():
+    node = _node(local_h=10)
+    node.head = MagicMock(side_effect=RuntimeError("head boom"))  # type: ignore[method-assign]
+    assert (
+        node._attestation_target_head_refuse_reason(
+            {"target_hash": TIP, "target_height": 10}
+        )
+        == "local_tip_unreadable"
+    )
+
+
+def test_empty_head_soft_skips_attestation_bind():
+    node = _node(local_h=10)
+    node.head = MagicMock(return_value=None)  # type: ignore[method-assign]
+    assert (
+        node._attestation_target_head_refuse_reason(
+            {"target_hash": TIP, "target_height": 10}
+        )
+        == ""
+    )
+
+
 def test_non_tip_height_skips():
     node = _node(local_h=10)
     assert (
@@ -124,6 +146,10 @@ async def test_handle_attestation_strikes_mismatch(monkeypatch):
         @staticmethod
         def verify_attestation(_data):
             return True
+
+        @staticmethod
+        def get_address():
+            return "0x" + "aa" * 20
 
     monkeypatch.setattr("network.p2p_node.native", _Native)
     node.validator_keys = _Keys()

@@ -24,6 +24,7 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from bridge.dev_bridge_adapter import CrossChainBridge, BridgeTransaction, Chain
+from runtime.amount import money_abs
 from storage.database import Database
 from runtime.config import Config
 from kernel.event_bus import EventBus
@@ -306,7 +307,7 @@ class RustBridge:
             "tx_hash": l1_tx_hash,
             "tx_id": tx_id or l1_tx_hash,
             "recipient": recipient,
-            "amount": float(amount),
+            "amount": money_abs(amount, field="amount"),
             "from_chain": self._normalize_chain(from_chain),
             "queued_at": int(time.time()),
         }

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
+from runtime.amount import money_abs
+
 
 @runtime_checkable
 class NftMarketplacePort(Protocol):
@@ -108,7 +110,7 @@ class NftMarketplaceAdapter:
         fn = getattr(self._m, "list_for_sale", None) or getattr(self._m, "sell", None)
         if not callable(fn):
             return {"ok": False, "error": "list_unsupported"}
-        result = fn(token_id, owner, float(price))
+        result = fn(token_id, owner, money_abs(price, field="price"))
         return result if isinstance(result, dict) else {"ok": True, "result": result}
 
     def buy(self, token_id: str, buyer: str) -> Dict[str, Any]:

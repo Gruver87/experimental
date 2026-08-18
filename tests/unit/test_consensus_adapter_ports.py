@@ -101,3 +101,13 @@ def test_legacy_attest_still_works_with_explicit_dev_mode():
     )
     ok = adapter.attest(addr, hh, slot=1)
     assert ok is True
+
+
+def test_add_validator_refuses_bool_stake():
+    adapter, _ = _adapter(mode="unified", deployment="dev")
+    raised = False
+    try:
+        adapter.add_validator("0x" + "33" * 20, True)
+    except TypeError:
+        raised = True
+    assert raised

@@ -2,9 +2,12 @@
 """Canonical balance reads — prefer satoshi dual-write when present."""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from runtime.amount import from_satoshi_float, to_satoshi
+
+logger = logging.getLogger("state_truth")
 
 
 def canonical_balance_satoshi(store: Any, address: str) -> int:
@@ -22,7 +25,8 @@ def canonical_balance_satoshi(store: Any, address: str) -> int:
     if hasattr(store, "get_balance"):
         try:
             return max(0, to_satoshi(store.get_balance(address)))
-        except Exception:
+        except Exception as exc:
+            logger.warning("get_balance failed for %s: %s", address, exc)
             return 0
     return 0
 

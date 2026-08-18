@@ -9,13 +9,22 @@ Hot path prefers abs_native FFG kernels with Python fallback.
 from __future__ import annotations
 
 import json
+import logging
 from typing import Dict, Set, Optional
 
 from crypto import native
 
+logger = logging.getLogger("abs.ffg")
+
 
 def _native_required() -> bool:
     return bool(native.native_crypto_status(required=False).get("required"))
+
+
+def _native_fb(op: str, exc: BaseException) -> None:
+    logger.warning("native %s failed; Python path: %s", op, exc)
+    if _native_required():
+        raise exc
 
 
 class CasperFinality:
@@ -56,9 +65,8 @@ class CasperFinality:
                 self.epoch_votes[epoch] = {
                     str(k): int(v) for k, v in json.loads(updated).items()
                 }
-            except Exception:
-                if _native_required():
-                    raise
+            except Exception as exc:
+                _native_fb("ffg_accumulate_vote", exc)
                 self.epoch_votes[epoch][block_hash] = (
                     self.epoch_votes[epoch].get(block_hash, 0) + weight
                 )
@@ -68,14 +76,14 @@ class CasperFinality:
             )
 
         self._evaluate(epoch)
+        return True
 
     def _get_threshold(self) -> int:
         if native.native_available() and hasattr(native, "ffg_threshold"):
             try:
                 return int(native.ffg_threshold(int(self.total_stake), 2, 3))
-            except Exception:
-                if _native_required():
-                    raise
+            except Exception as exc:
+                _native_fb("ffg_threshold", exc)
         return int(self.total_stake * self.threshold_ratio)
 
     def _get_best_block(self, epoch: int) -> Optional[tuple]:
@@ -93,9 +101,8 @@ class CasperFinality:
                 if best is None:
                     return None
                 return (str(best[0]), int(best[1]))
-            except Exception:
-                if _native_required():
-                    raise
+            except Exception as exc:
+                _native_fb("ffg_best_checkpoint", exc)
         return max(self.epoch_votes[epoch].items(), key=lambda x: x[1])
 
     def _justify_epoch(self, epoch: int, block_hash: str):
@@ -134,9 +141,8 @@ class CasperFinality:
                 if result.get("finalize_prev"):
                     self._try_finalize(epoch)
                 return
-            except Exception:
-                if _native_required():
-                    raise
+            except Exception as exc:
+                _native_fb("ffg_evaluate_epoch", exc)
 
         best = self._get_best_block(epoch)
         if not best:

@@ -56,3 +56,67 @@ def test_aligned_mesh_ok_with_mocks():
         errors, _warnings, meta = mod.verify_prod_mesh_probe(wait_sec=0)
     assert errors == []
     assert meta["reachable"] == 3
+
+
+def test_head_mismatch_retries_then_ok():
+    mod = _load()
+    calls = {"n": 0}
+
+    def fake_api(url, timeout=10.0):
+        if "/health/ready" in url:
+            return {"status": "ready"}
+        if "/status" in url:
+            calls["n"] += 1
+            if calls["n"] <= 3:
+                # First pass: one node still on previous tip (mining window).
+                if "18181" in url:
+                    return {
+                        "chain_id": 778888,
+                        "height": 10,
+                        "peers": 2,
+                        "deployment_mode": "prod",
+                        "head_hash": "0xold",
+                    }
+            return {
+                "chain_id": 778888,
+                "height": 11,
+                "peers": 2,
+                "deployment_mode": "prod",
+                "head_hash": "0xnew",
+            }
+        return {}
+
+    with (
+        patch.object(mod, "_api", side_effect=fake_api),
+        patch.object(mod, "_probe_ready", return_value=True),
+        patch.object(mod, "ALIGN_STATUS_SLEEP_SEC", 0),
+    ):
+        errors, _warnings, meta = mod.verify_prod_mesh_probe(wait_sec=0, deep=False)
+    assert errors == []
+    assert meta["reachable"] == 3
+
+
+def test_persistent_head_mismatch_still_fails():
+    mod = _load()
+
+    def fake_api(url, timeout=10.0):
+        if "/health/ready" in url:
+            return {"status": "ready"}
+        if "/status" in url:
+            h = "0xa" if "18180" in url else "0xb"
+            return {
+                "chain_id": 778888,
+                "height": 10,
+                "peers": 2,
+                "deployment_mode": "prod",
+                "head_hash": h,
+            }
+        return {}
+
+    with (
+        patch.object(mod, "_api", side_effect=fake_api),
+        patch.object(mod, "_probe_ready", return_value=True),
+        patch.object(mod, "ALIGN_STATUS_SLEEP_SEC", 0),
+    ):
+        errors, _warnings, _meta = mod.verify_prod_mesh_probe(wait_sec=0, deep=False)
+    assert any("head hash mismatch" in e for e in errors)

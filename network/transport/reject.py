@@ -21,6 +21,7 @@ _EXACT: dict[str, TransportRejectClass] = {
     "rate_limited": TransportRejectClass.RATE,
     "rate_limit": TransportRejectClass.RATE,
     "rate_limit_exceeded": TransportRejectClass.RATE,
+    "rate_limit_class_exceeded": TransportRejectClass.RATE,
     "exempt_rate_exceeded": TransportRejectClass.RATE,
     "bandwidth_exceeded": TransportRejectClass.RATE,
     "egress_bandwidth_exceeded": TransportRejectClass.EGRESS,

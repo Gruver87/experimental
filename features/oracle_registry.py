@@ -8,6 +8,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from bridge.oracle_auth import sign_payload, verify_signature
+from runtime.amount import parse_finite_number
 
 
 class OracleFeedRegistry:
@@ -38,9 +39,13 @@ class OracleFeedRegistry:
         symbol = (symbol or "").strip().lower()
         if not symbol:
             return {"ok": False, "error": "symbol required"}
+        try:
+            value = parse_finite_number(value, field="value")
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
         body = payload or {
             "symbol": symbol,
-            "value": float(value),
+            "value": value,
             "source": source,
             "reporter": reporter,
             "ts": int(time.time()),
@@ -57,7 +62,7 @@ class OracleFeedRegistry:
         self.db.save_oracle_feed(
             feed_id=feed_id,
             symbol=symbol,
-            value=float(value),
+            value=value,
             source=source,
             reporter=reporter,
             signature=signature or "",
@@ -65,10 +70,11 @@ class OracleFeedRegistry:
             block_height=height,
             submitted_at=ts,
         )
-        return {"ok": True, "feed_id": feed_id, "symbol": symbol, "value": float(value)}
+        return {"ok": True, "feed_id": feed_id, "symbol": symbol, "value": value}
 
     def ingest_internal(self, symbol: str, value: float, source: str, meta: Optional[Dict] = None) -> str:
         """Persist feed from live oracle manager (no HMAC — tier offchain)."""
+        value = parse_finite_number(value, field="value")
         ts = int(time.time())
         feed_id = self._feed_id(symbol, source, ts)
         body = {"symbol": symbol, "value": value, "source": source, "ts": ts}
@@ -78,7 +84,7 @@ class OracleFeedRegistry:
         self.db.save_oracle_feed(
             feed_id=feed_id,
             symbol=symbol.lower(),
-            value=float(value),
+            value=value,
             source=source,
             reporter="internal",
             signature="",
@@ -131,10 +137,14 @@ class OracleFeedRegistry:
         symbol = (symbol or "").strip().lower()
         if not symbol or not reporter:
             return {"ok": False, "error": "symbol and reporter required"}
+        try:
+            value = parse_finite_number(value, field="value")
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
         now = int(time.time())
         body = payload or {
             "symbol": symbol,
-            "value": float(value),
+            "value": value,
             "reporter": reporter,
             "ts": now,
         }
@@ -157,12 +167,12 @@ class OracleFeedRegistry:
                 "report_id": report_id,
                 "symbol": symbol,
                 "reporter": reporter,
-                "value": float(value),
+                "value": value,
                 "signature": signature or "",
                 "payload": json.dumps(body),
                 "submitted_at": ts,
             })
-        return {"ok": True, "report_id": report_id, "symbol": symbol, "value": float(value)}
+        return {"ok": True, "report_id": report_id, "symbol": symbol, "value": value}
 
     def aggregate_symbol(
         self,

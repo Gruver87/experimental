@@ -57,7 +57,7 @@ class Config:
     rocksdb_sync: str = "FULL"          # normal | full — durable WAL/fsync
     rocksdb_block_cache_mb: int = 256   # 0 = RocksDB default
     rocksdb_write_buffer_mb: int = 64   # 0 = RocksDB default
-    rocksdb_column_families: bool = False  # opt-in CF split (blocks/state/index)
+    rocksdb_column_families: bool = False  # prod JSON true; dual-read legacy default
     db_wal_mode: bool = True            # WAL для производительности SQLite
 
     # ── Майнинг / Консенсус ─────────────────────────────────────────────────
@@ -100,6 +100,9 @@ class Config:
     p2p_max_message_bytes: int = 2 * 1024 * 1024  # max JSON line on P2P wire
     p2p_max_messages_per_sec: int = 500           # per-peer wire rate limit (0=off)
     p2p_exempt_messages_per_sec: int = 2000       # secondary budget for sync/tx exempt types (0=off)
+    p2p_attest_messages_per_sec: int = 80         # class cap: attestation flood (0=off)
+    p2p_tx_messages_per_sec: int = 120            # class cap: new_tx gossip flood (0=off)
+    p2p_block_announce_messages_per_sec: int = 40 # class cap: new_block announce flood (0=off)
     p2p_max_sync_inflight: int = 2                # global concurrent peer sync tasks
     p2p_send_queue_max: int = 256                 # per-peer outbound message queue
     p2p_drain_timeout_sec: float = 5.0            # writer.drain timeout per send
@@ -414,6 +417,16 @@ class Config:
         )
         self.p2p_exempt_messages_per_sec = env_int(
             "P2P_EXEMPT_MESSAGES_PER_SEC", self.p2p_exempt_messages_per_sec
+        )
+        self.p2p_attest_messages_per_sec = env_int(
+            "P2P_ATTEST_MESSAGES_PER_SEC", self.p2p_attest_messages_per_sec
+        )
+        self.p2p_tx_messages_per_sec = env_int(
+            "P2P_TX_MESSAGES_PER_SEC", self.p2p_tx_messages_per_sec
+        )
+        self.p2p_block_announce_messages_per_sec = env_int(
+            "P2P_BLOCK_ANNOUNCE_MESSAGES_PER_SEC",
+            self.p2p_block_announce_messages_per_sec,
         )
         self.p2p_max_sync_inflight = env_int(
             "P2P_MAX_SYNC_INFLIGHT", self.p2p_max_sync_inflight

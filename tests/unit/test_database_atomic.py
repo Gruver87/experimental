@@ -56,6 +56,28 @@ def test_persist_block_atomic_all_or_nothing(db):
     assert db.get_balance(burn_addr) == pytest.approx(0.5)
 
 
+def test_sqlite_total_burned_display_follows_satoshi(db):
+    db.record_burn(1, 0.1)
+    db.conn.execute(
+        "UPDATE burn_stats SET total_burned=? WHERE block_height=?",
+        (0.1000003, 1),
+    )
+    db.conn.commit()
+    assert db.get_total_burned() == 0.1
+    with pytest.raises(TypeError, match="bool is not an amount"):
+        db._insert_block(
+            {
+                "height": 2,
+                "hash": "x" * 64,
+                "parent_hash": "0" * 64,
+                "timestamp": 1,
+                "miner": "0xm",
+                "tx_count": 0,
+                "total_burned": True,
+            }
+        )
+
+
 def test_backup_to_creates_file(db, tmp_path):
     dest = str(tmp_path / "backups" / "copy.db")
     assert db.backup_to(dest)

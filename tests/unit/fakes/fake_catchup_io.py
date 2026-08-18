@@ -79,7 +79,8 @@ class FakeCatchUpIO:
 
     def import_block(self, data: Mapping[str, Any]) -> bool:
         try:
-            h = int(data.get("height", data.get("number", -1)) or -1)
+            raw = data.get("height", data.get("number", None))
+            h = int(raw) if raw is not None else -1
         except (TypeError, ValueError):
             h = -1
         if h in self._fail_import:
@@ -102,7 +103,8 @@ class FakeCatchUpIO:
         blk = self._by_hash.get(key)
         if isinstance(blk, dict):
             try:
-                return int(blk.get("height", blk.get("number", -1)) or -1)
+                raw = blk.get("height", blk.get("number", None))
+                return int(raw) if raw is not None else None
             except (TypeError, ValueError):
                 return None
         return None

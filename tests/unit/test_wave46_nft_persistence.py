@@ -3,6 +3,8 @@ import os
 import sys
 import tempfile
 
+import pytest
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, ROOT)
 
@@ -119,3 +121,49 @@ def test_db_nft_token_roundtrip():
     rows = db.get_nft_tokens()
     assert len(rows) == 1
     assert rows[0]["metadata"]["rarity"] == "rare"
+
+
+def test_nft_price_is_satoshi_quantized_bool_refused():
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "nft-money.db"))
+    db.initialize()
+    db.save_nft_token(
+        {
+            "token_id": "dust",
+            "name": "Dust",
+            "price": 10.0000003,
+            "created_at": 1,
+        }
+    )
+    assert db.get_nft_tokens()[0]["price"] == 10.0
+    db.save_nft_offer(
+        {
+            "offer_id": "o1",
+            "token_id": "dust",
+            "bidder": "0x1",
+            "price": 3.0000003,
+            "created_at": 1,
+        }
+    )
+    assert db.get_nft_offers()[0]["price"] == 3.0
+    db.save_nft_sale({"token_id": "dust", "from": "0xa", "to": "0xb", "price": 4.0000003, "created_at": 1})
+    assert db.get_nft_sales()[0]["price"] == 4.0
+    db.save_nft_auction(
+        {
+            "auction_id": "a1",
+            "token_id": "dust",
+            "seller": "0xa",
+            "start_price": 1.0000003,
+            "reserve_price": 2.0000003,
+            "current_bid": 1.0000003,
+            "created_at": 1,
+        }
+    )
+    auction = db.get_nft_auctions()[0]
+    assert auction["start_price"] == 1.0
+    assert auction["reserve_price"] == 2.0
+    assert auction["current_bid"] == 1.0
+    with pytest.raises(TypeError, match="bool is not an amount"):
+        db.save_nft_token({"token_id": "bad", "name": "Bad", "price": True, "created_at": 1})

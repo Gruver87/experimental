@@ -140,3 +140,8 @@ def test_blockchain_wires_native_helpers():
     ghost = Path("consensus/ghost.py").read_text(encoding="utf-8")
     assert "ghost_select_head" in ghost
     assert "ghost_cumulative_weight" in ghost
+    assert '_native_fb("ghost_select_head"' in ghost
+    casper = Path("consensus/finality_casper.py").read_text(encoding="utf-8")
+    assert '_native_fb("ffg_accumulate_vote"' in casper
+    lmd = Path("consensus/lmd.py").read_text(encoding="utf-8")
+    assert '_native_fb("lmd_compute_weights"' in lmd

@@ -184,3 +184,67 @@ def test_engine_io_includes_genesis_in_ahead_index():
     assert batch is not None
     assert len(batch) == 1
     assert int(batch[0]["height"]) == 0
+
+
+def test_engine_io_store_error_at_empty_tip_needs_genesis():
+    class _BoomChain:
+        def get_height(self):
+            return 0
+
+        def get_last_block(self):
+            raise RuntimeError("store down")
+
+        def get_block(self, _h):
+            return None
+
+        def get_block_by_hash(self, _h):
+            return None
+
+    class _Eng:
+        def __init__(self):
+            self.node = SimpleNamespace(blockchain=_BoomChain())
+
+        def _local_height(self):
+            return 0
+
+    io = SyncEngineCatchUpIO(
+        _Eng(),
+        peer_id="leader",
+        peer_head="aa" * 32,
+        target_height=0,
+        batch_size=8,
+        running=True,
+    )
+    assert io.needs_genesis() is True
+
+
+def test_engine_io_store_error_at_nonempty_does_not_force_genesis():
+    class _BoomChain:
+        def get_height(self):
+            return 42
+
+        def get_last_block(self):
+            raise RuntimeError("store down")
+
+        def get_block(self, _h):
+            return None
+
+        def get_block_by_hash(self, _h):
+            return None
+
+    class _Eng:
+        def __init__(self):
+            self.node = SimpleNamespace(blockchain=_BoomChain())
+
+        def _local_height(self):
+            return 42
+
+    io = SyncEngineCatchUpIO(
+        _Eng(),
+        peer_id="leader",
+        peer_head="aa" * 32,
+        target_height=50,
+        batch_size=8,
+        running=True,
+    )
+    assert io.needs_genesis() is False

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, List, Optional, Sequence
 
 from consensus.bft.types import (
@@ -9,6 +10,8 @@ from consensus.bft.types import (
     ValidatorInfo,
     ValidatorSetSnapshot,
 )
+
+logger = logging.getLogger("abs.consensus")
 
 
 class AdapterValidatorRegistry:
@@ -47,14 +50,15 @@ class AdapterValidatorRegistry:
             return
         try:
             self._adapter.slash_validator(vid)
-        except Exception:
+        except Exception as exc:
+            logger.warning("slash_validator via adapter failed: %s", exc)
             # Best-effort; Round SM already emitted Evidence.
             reg = getattr(self._adapter, "validator_registry", None)
             if reg is not None and hasattr(reg, "slash_validator"):
                 try:
                     reg.slash_validator(vid)
-                except Exception:
-                    pass
+                except Exception as exc2:
+                    logger.warning("slash_validator via registry failed: %s", exc2)
 
     def snapshot(self) -> ValidatorSetSnapshot:
         return ValidatorSetSnapshot(validators=tuple(self._iter_infos()))
@@ -70,8 +74,8 @@ class AdapterValidatorRegistry:
                     if info and info.validator_id not in seen:
                         seen.add(info.validator_id)
                         out.append(info)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("get_all_validators failed; engine fallback: %s", exc)
         engine = getattr(self._adapter, "engine", None)
         validators = getattr(engine, "validators", None) or {}
         if isinstance(validators, dict):
@@ -131,14 +135,14 @@ class AdapterConsensusEvidence:
         self.last = evidence
         try:
             self._adapter._last_consensus_security_evidence = evidence.to_bus_payload()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("consensus evidence adapter field write failed: %s", exc)
         bus = getattr(self._adapter, "bus", None)
         if bus is not None and hasattr(bus, "emit"):
             try:
                 bus.emit("security.consensus_refuse", evidence.to_bus_payload())
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("security.consensus_refuse emit failed: %s", exc)
 
     def note_malicious_attempt(self, validator_id: str, reason: str) -> int:
         key = f"{validator_id}:{reason}"
@@ -159,20 +163,20 @@ class AdapterConsensusLockdown:
         r = str(reason or "consensus_double_sign")
         try:
             self._adapter._consensus_lockdown_reason = r
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("consensus lockdown reason write failed: %s", exc)
         bus = getattr(self._adapter, "bus", None)
         if bus is not None and hasattr(bus, "emit"):
             try:
                 bus.emit("security.consensus_lockdown", {"reason": r})
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("security.consensus_lockdown emit failed: %s", exc)
         hook = getattr(self._adapter, "_lockdown_hook", None)
         if callable(hook):
             try:
                 hook(r)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("consensus lockdown hook failed: %s", exc)
 
 
 class AdapterConsensusSideEffect:
@@ -199,8 +203,8 @@ class AdapterConsensusSideEffect:
                     ),
                 },
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("consensus.attestation emit failed: %s", exc)
 
     def on_finalized(self, block_hash: str, height: int) -> None:
         bus = getattr(self._adapter, "bus", None)
@@ -211,5 +215,5 @@ class AdapterConsensusSideEffect:
                 "consensus.finalized",
                 {"block": int(height), "block_hash": str(block_hash or "")},
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("consensus.finalized emit failed: %s", exc)

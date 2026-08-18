@@ -142,3 +142,18 @@ def test_sync_from_manager_ingests_prices():
     n = reg.sync_from_manager(_FakeOracle())
     assert n >= 3
     assert reg.latest_by_symbol("bitcoin") is not None
+
+
+def test_oracle_feed_refuses_bool_and_nan():
+    from features.oracle_registry import OracleFeedRegistry
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "bool.db"))
+    db.initialize()
+    reg = OracleFeedRegistry(db, secret="")
+    out = reg.submit_feed("btc", True, require_signature=False)
+    assert out.get("ok") is False
+    assert "bool" in str(out.get("error") or "").lower()
+    out2 = reg.submit_report("btc", float("nan"), "rep1")
+    assert out2.get("ok") is False

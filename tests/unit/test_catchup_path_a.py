@@ -104,10 +104,10 @@ def test_height_continuity_refuse_aborts_batch() -> None:
     assert io.imported == []
 
 
-def test_import_fail_reorg_resume() -> None:
+def test_import_fail_extend_does_not_reorg() -> None:
+    """Parent==tip is a failed extend, not a fork. Do not roll back."""
     tip2 = "aa" * 32
     h4 = "h4" * 32
-    # Contiguous parent cites tip; ancestors map forces deeper reorg target.
     b5 = _blk(5, h4, "b5" * 32)
     io = FakeCatchUpIO(
         height=4,
@@ -123,9 +123,64 @@ def test_import_fail_reorg_resume() -> None:
     )
     peer = CatchUpPeerView(peer_id="p1", height=5, head_hash="b5" * 32)
     out = _svc(io).run_ahead(peer)
-    assert "Fork resolved" in " ".join(io.progress)
-    assert io.height() == 2
+    assert "Fork resolved" not in " ".join(io.progress)
+    assert io.height() == 4
     assert out.status in (CatchUpStatus.STALLED, CatchUpStatus.INCOMPLETE)
+
+
+def test_duplicate_canonical_import_fail_does_not_reorg() -> None:
+    """Concurrent PathA of an already-canonical #340 must not reorg to #339."""
+    h339 = "a9" * 32
+    h340 = "b0" * 32
+    io = FakeCatchUpIO(
+        height=340,
+        head=h340,
+        blocks_by_height={
+            339: _blk(339, "a8" * 32, h339),
+            340: _blk(340, h339, h340),
+        },
+        fail_import_heights=[340],
+    )
+    peer = CatchUpPeerView(peer_id="p1", height=342, head_hash="zz" * 32)
+    cfg = CatchUpConfig(contiguous_parent_bind=False, tip_head_bind=False)
+    out = _svc(io)._import_one(
+        peer=peer,
+        cfg=cfg,
+        block_data=_blk(340, h339, h340),
+        expected_height=340,
+    )
+    assert out == "fail"
+    assert io.height() == 340
+    assert "skip reorg" in " ".join(io.progress).lower() or "Duplicate" in " ".join(
+        io.progress
+    )
+
+
+def test_competing_child_import_fail_does_reorg() -> None:
+    """Different hash at the same height whose parent is below tip is a real fork."""
+    h339 = "a9" * 32
+    local340 = "b0" * 32
+    peer340 = "c0" * 32
+    io = FakeCatchUpIO(
+        height=340,
+        head=local340,
+        blocks_by_height={
+            339: _blk(339, "a8" * 32, h339),
+            340: _blk(340, h339, local340),
+        },
+        fail_import_heights=[340],
+    )
+    peer = CatchUpPeerView(peer_id="p1", height=342, head_hash="zz" * 32)
+    cfg = CatchUpConfig(contiguous_parent_bind=False, tip_head_bind=False)
+    out = _svc(io)._import_one(
+        peer=peer,
+        cfg=cfg,
+        block_data=_blk(340, h339, peer340),
+        expected_height=340,
+    )
+    assert out == "reorg"
+    assert io.height() == 339
+    assert "Fork resolved" in " ".join(io.progress)
 
 
 def test_stall_on_none_fetch() -> None:
@@ -164,6 +219,36 @@ def test_skipped_when_not_ahead() -> None:
     peer = CatchUpPeerView(peer_id="p1", height=5, head_hash="aa" * 32)
     out = _svc(io).run_ahead(peer)
     assert out.status is CatchUpStatus.SKIPPED
+
+
+def test_ahead_refuse_preserves_genesis_height_zero() -> None:
+    from sync.catchup.policy import CatchUpPolicy
+
+    p = CatchUpPolicy()
+    reason = p.ahead_refuse_reason(
+        local_height=-1,
+        peer_height=5,
+        peer_head="g0" * 32,
+        local_block_for_head={"height": 0, "hash": "g0" * 32},
+        require_head=True,
+    )
+    assert reason == "catch_up_head_height_mismatch"
+
+
+def test_needs_genesis_store_error_at_empty_tip_still_imports() -> None:
+    """Store error at height 0 must not skip genesis as not_ahead."""
+    genesis = _blk(0, "0" * 64, "g0" * 32)
+
+    class _BoomIO(FakeCatchUpIO):
+        def needs_genesis(self):
+            raise RuntimeError("store down")
+
+    io = _BoomIO(height=0, head="", fetch_plan=[[genesis]])
+    peer = CatchUpPeerView(peer_id="leader", height=0, head_hash="g0" * 32)
+    out = _svc(io).run_ahead(peer, CatchUpConfig(batch_size=8, require_head=True))
+    assert int(out.imported or 0) >= 1
+    assert io.imported and int(io.imported[0]["height"]) == 0
+    assert out.status is not CatchUpStatus.SKIPPED
 
 
 def test_no_network_imports_in_path_a_domain() -> None:

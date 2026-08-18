@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -20,12 +21,12 @@ PROD_MESH_URLS = (
 )
 
 
-def _git_tag() -> str:
+def _git_cmd(*args: str) -> str:
     import subprocess
 
     try:
         proc = subprocess.run(
-            ["git", "describe", "--tags", "--abbrev=0"],
+            ["git", *args],
             cwd=str(ROOT),
             capture_output=True,
             text=True,
@@ -36,10 +37,28 @@ def _git_tag() -> str:
             return proc.stdout.strip()
     except (OSError, subprocess.SubprocessError):
         pass
-    return "unknown"
+    return ""
 
 
-def run_soak_preflight(*, hours: int = 48, interval_sec: int = 300, require_p2p_tls: bool = False) -> tuple[list[str], list[str], dict]:
+def _git_tag() -> str:
+    return _git_cmd("describe", "--tags", "--abbrev=0") or "unknown"
+
+
+def _git_sha() -> str:
+    return _git_cmd("rev-parse", "HEAD") or "unknown"
+
+
+def _git_dirty() -> bool:
+    return bool(_git_cmd("status", "--porcelain"))
+
+
+def run_soak_preflight(
+    *,
+    hours: int = 48,
+    interval_sec: int = 300,
+    require_p2p_tls: bool = False,
+    require_wire_probe: bool = False,
+) -> tuple[list[str], list[str], dict]:
     import importlib.util
 
     vp_path = ROOT / "scripts" / "verify_p2p_ci.py"
@@ -77,13 +96,38 @@ def run_soak_preflight(*, hours: int = 48, interval_sec: int = 300, require_p2p_
             continue
         row["reachable"] = True
         try:
+            t0 = time.perf_counter()
             st = _api(f"{url}/status", timeout=12)
+            status_ms = (time.perf_counter() - t0) * 1000.0
+            row["status_ms"] = round(status_ms, 1)
+            if status_ms > 2000:
+                msg = (
+                    f"node{i} /status {status_ms:.0f}ms "
+                    "(need <2000ms for 48h health_watch)"
+                )
+                if require_wire_probe:
+                    errors.append(msg)
+                else:
+                    warnings.append(msg)
             row["height"] = int(st.get("height", 0) or 0)
             row["peers"] = int(st.get("peers", st.get("peer_count", 0)) or 0)
             row["deployment_mode"] = st.get("deployment_mode")
             row["p2p_sync_status"] = st.get("p2p_sync_status")
             if str(st.get("deployment_mode", "")).lower() != "prod":
                 warnings.append(f"node{i} deployment_mode={st.get('deployment_mode')!r}")
+            if int(row.get("peers") or 0) < 2:
+                msg = f"node{i} peers={row.get('peers')} (need >=2 for 48h mesh)"
+                if require_wire_probe:
+                    errors.append(msg)
+                else:
+                    warnings.append(msg)
+            consist = st.get("state_consistent")
+            if consist is False:
+                msg = f"node{i} state_consistent=false"
+                if require_wire_probe:
+                    errors.append(msg)
+                else:
+                    warnings.append(msg)
         except OSError as exc:
             errors.append(f"node{i} /status: {exc}")
         try:
@@ -107,17 +151,31 @@ def run_soak_preflight(*, hours: int = 48, interval_sec: int = 300, require_p2p_
 
     reachable = [u for u in urls if _probe_health(u, timeout=3)]
     if len(reachable) >= 2:
-        heights = [n.get("height", 0) for n in nodes if n.get("reachable")]
-        if heights and max(heights) - min(heights) > 1:
-            errors.append(f"height spread across mesh: {heights}")
-        heads = []
-        for url in reachable:
-            try:
-                heads.append(str(_api(f"{url}/status", timeout=8).get("head_hash") or "").lower())
-            except OSError:
-                pass
-        if heads and len(set(h for h in heads if h)) > 1:
-            errors.append("head hash mismatch across reachable nodes")
+        align_errors: list[str] = ["start"]
+        for attempt in range(4):
+            if attempt:
+                time.sleep(3.0)
+            align_errors = []
+            heights = [n.get("height", 0) for n in nodes if n.get("reachable")]
+            if heights and max(heights) - min(heights) > 1:
+                align_errors.append(f"height spread across mesh: {heights}")
+            heads = []
+            for url in reachable:
+                try:
+                    st = _api(f"{url}/status", timeout=8)
+                    heads.append(str(st.get("head_hash") or "").lower())
+                    # Keep node rows honest after a retry (mining-window race).
+                    for row in nodes:
+                        if row.get("url") == url:
+                            row["height"] = int(st.get("height", 0) or 0)
+                            row["head_hash"] = st.get("head_hash")
+                except OSError:
+                    pass
+            if heads and len(set(h for h in heads if h)) > 1:
+                align_errors.append("head hash mismatch across reachable nodes")
+            if not align_errors:
+                break
+        errors.extend(align_errors)
 
     if len(reachable) == len(urls):
         sec_rc = verify_p2p_security_mesh(urls)
@@ -130,33 +188,71 @@ def run_soak_preflight(*, hours: int = 48, interval_sec: int = 300, require_p2p_
         {"tip_state_aligned", "peer_probe_ok", "p2p_state_consistent"}
     )
 
-    if reachable:
-        try:
-            harness = _consistency_harness(reachable[0])
-            if not harness.get("harness_healthy"):
-                failed = list(harness.get("failed_checks") or [])
-                hard = [f for f in failed if f not in _SOFT_HARNESS]
-                if hard:
-                    errors.append(f"harness unhealthy: {failed}")
-                else:
-                    warnings.append(
-                        f"harness soft fails (tolerated): {failed} "
-                        "(tip/wire/state lag under tip-v2 forge load)"
+    harness_urls = list(reachable) if require_wire_probe else reachable[:1]
+    for url in harness_urls:
+        attempts = 3 if require_wire_probe else 1
+        last_exc: OSError | None = None
+        harness: dict = {}
+        for attempt in range(attempts):
+            try:
+                if require_wire_probe:
+                    # Full wire probe (not prod-mesh quick/3s). Quick timeout was
+                    # painting peer_probe_error=timeout on an otherwise healthy harness.
+                    harness = _consistency_harness(
+                        url, quick=False, peer_timeout=8.0
                     )
-        except OSError as exc:
-            errors.append(f"harness: {exc}")
+                else:
+                    harness = _consistency_harness(url)
+                last_exc = None
+            except OSError as exc:
+                last_exc = exc
+                harness = {}
+            failed = list(harness.get("failed_checks") or [])
+            healthy = bool(harness.get("harness_healthy"))
+            probe_err = harness.get("peer_probe_error")
+            retryable = (not healthy) or bool(probe_err) or last_exc is not None
+            if not retryable or attempt + 1 >= attempts:
+                break
+            time.sleep(1.0)
+        if last_exc is not None and not harness:
+            errors.append(f"harness {url}: {last_exc}")
+            continue
+        failed = list(harness.get("failed_checks") or [])
+        if not harness.get("harness_healthy"):
+            hard = failed if require_wire_probe else [f for f in failed if f not in _SOFT_HARNESS]
+            if hard:
+                errors.append(f"harness {url}: {failed}")
+            else:
+                warnings.append(
+                    f"harness soft fails (tolerated): {failed} "
+                    "(tip/wire/state lag under tip-v2 forge load)"
+                )
+        elif require_wire_probe and harness.get("peer_probe_error"):
+            # Full harness + still-healthy: leftover timeout field is a WARN, not
+            # a prepare hard fail (48h scores harness flake as WARN).
+            warnings.append(
+                f"harness {url} peer_probe_error={harness.get('peer_probe_error')} "
+                "(harness_healthy; not a soak hard fail)"
+            )
+
+    if reachable:
         try:
             topo = _api(f"{reachable[0]}/p2p/topology", timeout=12)
             if int(topo.get("peer_count", 0) or 0) < 2:
-                warnings.append(
-                    f"leader peer_count={topo.get('peer_count')} (prefer >=2 before 48h soak)"
+                msg = (
+                    f"leader peer_count={topo.get('peer_count')} "
+                    "(need >=2 before 48h soak)"
                 )
+                if require_wire_probe:
+                    errors.append(msg)
+                else:
+                    warnings.append(msg)
         except OSError as exc:
             warnings.append(f"topology: {exc}")
 
     tag = _git_tag()
     start_cmd = (
-        f".\\scripts\\restart_soak_prod_mesh.ps1 -Hours {hours} "
+        f".\\scripts\\start_soak_prod_mesh_48h.ps1 -Hours {hours} "
         f"-IntervalSec {interval_sec}"
     )
     meta = {
@@ -165,13 +261,19 @@ def run_soak_preflight(*, hours: int = 48, interval_sec: int = 300, require_p2p_
         "hours_planned": hours,
         "interval_sec": interval_sec,
         "git_tag": tag,
+        "git_sha": _git_sha(),
+        "git_dirty": _git_dirty(),
         "nodes": nodes,
         "start_command": start_cmd,
         "after_complete": (
             f"python scripts/industrial_gate.py --min-soak-hours {hours}"
         ),
-        "note": "Run preflight again immediately before starting soak.",
+        "note": (
+            "Experimental 48h default scoring. Not Hybrid historical PASS. "
+            "Not 5h STRICT. Run preflight again immediately before starting soak."
+        ),
         "require_p2p_tls": require_p2p_tls,
+        "require_wire_probe": require_wire_probe,
     }
     return errors, warnings, meta
 
@@ -198,6 +300,11 @@ def main() -> int:
         action="store_true",
         help="Fail if prod mesh P2P wire TLS is not enabled and ready on all nodes",
     )
+    parser.add_argument(
+        "--require-wire-probe",
+        action="store_true",
+        help="Fail if any node harness is unhealthy or peers<2 (48h prep)",
+    )
     parser.add_argument("--json", action="store_true", help="Print JSON summary")
     args = parser.parse_args()
 
@@ -205,6 +312,7 @@ def main() -> int:
         hours=args.hours,
         interval_sec=args.interval_sec,
         require_p2p_tls=args.require_p2p_tls,
+        require_wire_probe=args.require_wire_probe,
     )
     report_path = write_report(errors, warnings, meta)
 

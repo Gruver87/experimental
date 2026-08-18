@@ -198,3 +198,47 @@ def test_no_network_import_in_engine_io():
     # Literal import path must not appear as an import statement.
     assert "from network.p2p_node" not in src
     assert "import network.p2p_node" not in src
+
+
+def test_engine_io_peer_head_probe_refuses_hash_mismatch():
+    from sync.catchup.types import CatchUpPeerView
+
+    blocks = _chain_blocks()
+    head = _head_hash(blocks, 8)
+    bc = _BlockChain(height=5, blocks_by_hash=blocks)
+    peer = _Peer(head, height=8, peer_id="p1")
+    node = _Node([peer], bc)
+    engine = SyncEngine(node=node)
+    io = SyncEngineCatchUpIO(
+        engine, peer_id="p1", peer_head=head, target_height=8
+    )
+    io._chain_ready = True
+    io._chain_ok = True
+    io._by_height = {
+        8: {"height": 8, "hash": "ff" * 32, "parent_hash": "00" * 32},
+    }
+    view = CatchUpPeerView(peer_id="p1", height=8, head_hash=head)
+    assert io.peer_head_probe_refuse(view) == "catch_up_peer_head_hash_mismatch"
+
+
+def test_engine_io_tip_probe_refuses_parent_mismatch():
+    from sync.catchup.types import CatchUpPeerView
+
+    blocks = _chain_blocks()
+    head = _head_hash(blocks, 8)
+    tip = [b for b in blocks.values() if int(b["height"]) == 5][0]
+    bc = _BlockChain(height=5, blocks_by_hash=blocks)
+    peer = _Peer(head, height=8, peer_id="p1")
+    node = _Node([peer], bc)
+    engine = SyncEngine(node=node)
+    io = SyncEngineCatchUpIO(
+        engine, peer_id="p1", peer_head=head, target_height=8
+    )
+    io._chain_ready = True
+    io._chain_ok = True
+    io._by_height = {
+        6: {"height": 6, "hash": "b6" * 32, "parent_hash": "ee" * 32},
+    }
+    view = CatchUpPeerView(peer_id="p1", height=8, head_hash=head)
+    assert io.head() == tip["hash"]
+    assert io.local_tip_probe_refuse(view) == "catch_up_tip_head_mismatch"

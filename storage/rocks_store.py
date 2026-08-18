@@ -149,8 +149,10 @@ class RocksChainStore:
                 return bytes(
                     _abs.pack_account_row(json.dumps(row, ensure_ascii=False))
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "[RocksStore] native pack_account_row failed, JSON fallback: %s", exc
+            )
         return json.dumps(row, ensure_ascii=False).encode("utf-8")
 
     def _loads_tx_blob_or_none(self, raw: bytes | None, *, context: str) -> Optional[Dict]:
@@ -188,8 +190,10 @@ class RocksChainStore:
 
             if hasattr(_abs, "pack_tx_row"):
                 return bytes(_abs.pack_tx_row(json.dumps(row, ensure_ascii=False)))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "[RocksStore] native pack_tx_row failed, JSON fallback: %s", exc
+            )
         return json.dumps(row, ensure_ascii=False).encode("utf-8")
 
     def _loads_block_blob_or_none(self, raw: bytes | None, *, context: str) -> Optional[Dict]:
@@ -229,8 +233,10 @@ class RocksChainStore:
                 return bytes(
                     _abs.pack_block_row(json.dumps(block, ensure_ascii=False))
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "[RocksStore] native pack_block_row failed, JSON fallback: %s", exc
+            )
         return json.dumps(block, ensure_ascii=False).encode("utf-8")
 
     def _loads_receipt_blob_or_none(self, raw: bytes | None, *, context: str) -> Optional[Dict]:
@@ -270,8 +276,10 @@ class RocksChainStore:
                 return bytes(
                     _abs.pack_receipt_row(json.dumps(receipt, ensure_ascii=False))
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "[RocksStore] native pack_receipt_row failed, JSON fallback: %s", exc
+            )
         return json.dumps(receipt, ensure_ascii=False).encode("utf-8")
 
     def _ensure_schema(self) -> None:
@@ -426,8 +434,8 @@ class RocksChainStore:
                 logger.warning("[RocksDB] flush on close failed: %s", exc)
             try:
                 del eng
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("[RocksDB] native engine drop failed: %s", exc)
             msg = f"[RocksDB] clean close ({self.db_path})"
             logger.info(msg)
             print(msg)
@@ -474,13 +482,60 @@ class RocksChainStore:
                 return default
             return text if text else default
 
+    def _invalidate_obs_meta(self) -> None:
+        for meta_key in ("stats_tx_count", "stats_account_count", "total_supply_abs"):
+            self._raw_delete(kc.key_meta(meta_key))
+
+    def _read_plain_meta_int(self, name: str) -> int | None:
+        raw = self._raw_get(kc.key_meta(name))
+        if raw is None:
+            return None
+        try:
+            return int(raw.decode("utf-8"))
+        except (TypeError, ValueError, UnicodeDecodeError):
+            return None
+
+    def _bump_plain_meta_int(self, name: str, delta: int) -> None:
+        cur = self._read_plain_meta_int(name)
+        if cur is None:
+            return
+        self._raw_put(kc.key_meta(name), str(cur + int(delta)).encode("utf-8"))
+
+    def _cached_prefix_len(self, meta_key: str, prefix: bytes) -> int:
+        cached = self._read_plain_meta_int(meta_key)
+        if cached is not None:
+            return cached
+        n = len(self._scan_prefix(prefix))
+        self._raw_put(kc.key_meta(meta_key), str(n).encode("utf-8"))
+        return n
+
+    def _adjust_total_supply_abs(self, delta_abs: float) -> None:
+        raw = self._raw_get(kc.key_meta("total_supply_abs"))
+        if raw is None:
+            return
+        try:
+            cur = float(raw.decode("utf-8"))
+        except (TypeError, ValueError, UnicodeDecodeError):
+            self._raw_delete(kc.key_meta("total_supply_abs"))
+            return
+        self._raw_put(
+            kc.key_meta("total_supply_abs"),
+            format(float(cur) + float(delta_abs), ".12g").encode("utf-8"),
+        )
+
     # ── blocks ────────────────────────────────────────────────────────────
 
     def _insert_block(self, block: Dict) -> None:
+        from runtime.amount import money_abs
+
         height = int(block.get("height", block.get("number", 0)) or 0)
         block_hash = block.get("hash", block.get("block_hash", "")) or ""
+        stored = dict(block)
+        stored["total_burned"] = money_abs(
+            block.get("total_burned", 0.0), field="total_burned"
+        )
         # v1.3.149: typed ABLK value when native pack_block_row is available.
-        payload = self._pack_block_blob(block)
+        payload = self._pack_block_blob(stored)
         self._raw_put(kc.key_block_height(height), payload)
         if block_hash:
             self._raw_put(kc.key_block_hash_to_height(block_hash), kc.pack_u64(height))
@@ -488,7 +543,7 @@ class RocksChainStore:
         self._raw_put(kc.key_meta("chain_tip"), str(height).encode("utf-8"))
         if block_hash:
             self._raw_put(kc.key_meta("chain_tip_hash"), block_hash.encode("utf-8"))
-        self._insert_proposer_audit(block)
+        self._insert_proposer_audit(stored)
 
     def get_chain_tip(self) -> int:
         meta = self.get_meta("chain_tip")
@@ -504,8 +559,8 @@ class RocksChainStore:
                 if last:
                     key, _val = last
                     return int(kc.unpack_u64(key[1:9]))
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("[RocksStore] prefix_last chain tip failed: %s", exc)
         rows = self._scan_prefix(kc.prefix_block_heights())
         if not rows:
             return 0
@@ -522,6 +577,8 @@ class RocksChainStore:
         return None
 
     def _insert_proposer_audit(self, block: Dict) -> None:
+        from runtime.amount import money_abs
+
         height = int(block.get("height", block.get("number", 0)) or 0)
         audit = {
             "height": height,
@@ -530,7 +587,7 @@ class RocksChainStore:
                 block.get("miner", block.get("proposer", "genesis")) or "genesis"
             ),
             "tx_count": int(block.get("tx_count", len(block.get("transactions", []))) or 0),
-            "total_burned": float(block.get("total_burned", 0.0) or 0.0),
+            "total_burned": money_abs(block.get("total_burned", 0.0), field="total_burned"),
             "block_ts": int(block.get("timestamp", int(time.time())) or 0),
             "recorded_at": int(time.time()),
         }
@@ -586,7 +643,7 @@ class RocksChainStore:
     # ── accounts / state ──────────────────────────────────────────────────
 
     def _load_account(self, address: str) -> Dict[str, Any]:
-        from runtime.amount import account_satoshi, dual_write_balance
+        from runtime.amount import account_satoshi, dual_write_balance, from_satoshi_float
 
         raw = self._raw_get(kc.key_account(address))
         if not raw:
@@ -608,8 +665,9 @@ class RocksChainStore:
         if row.get("balance_satoshi") is None:
             dual_write_balance(row, row.get("balance", 0) or 0)
         else:
-            row["balance_satoshi"] = account_satoshi(row)
-            row["balance"] = float(row.get("balance", 0) or 0)
+            sat = account_satoshi(row)
+            row["balance_satoshi"] = sat
+            row["balance"] = from_satoshi_float(sat)
         return row
 
     def _save_account_row(self, row: Dict[str, Any]) -> None:
@@ -617,6 +675,7 @@ class RocksChainStore:
 
         addr = SqliteDatabase._normalize_address(row.get("address", ""))
         row["address"] = addr
+        created = self._raw_get(kc.key_account(addr)) is None
         if row.get("balance_satoshi") is not None:
             sat = max(0, int(row["balance_satoshi"]))
             row["balance_satoshi"] = sat
@@ -625,6 +684,8 @@ class RocksChainStore:
             dual_write_balance(row, row.get("balance", 0) or 0)
         # v1.3.147: typed ABAR value when native pack_account_row is available.
         self._raw_put(kc.key_account(addr), self._pack_account_blob(row))
+        if created:
+            self._bump_plain_meta_int("stats_account_count", 1)
 
     def get_balance(self, address: str) -> float:
         from runtime.amount import account_balance_abs
@@ -659,6 +720,7 @@ class RocksChainStore:
         # dual_write from float of new_sat is exact for representable amounts
         row["balance_satoshi"] = new_sat
         row["balance"] = from_satoshi_float(new_sat)
+        self._adjust_total_supply_abs(from_satoshi_float(new_sat) - from_satoshi_float(cur_sat))
         self._save_account_row(row)
 
     def balance_delta(self, address: str, delta: float) -> None:
@@ -673,6 +735,7 @@ class RocksChainStore:
         new_sat = apply_satoshi_delta(cur_sat, int(delta_sat))
         row["balance_satoshi"] = new_sat
         row["balance"] = from_satoshi_float(new_sat)
+        self._adjust_total_supply_abs(from_satoshi_float(new_sat) - from_satoshi_float(cur_sat))
         self._save_account_row(row)
 
     def update_balance(self, address: str, delta: float) -> float:
@@ -680,12 +743,19 @@ class RocksChainStore:
             self._apply_balance_delta(address, delta)
             return self.get_balance(address)
 
-    def set_balance(self, address: str, balance: float) -> None:
-        from runtime.amount import dual_write_balance
+    def set_balance(self, address: str, balance: int) -> None:
+        from runtime.amount import dual_write_balance, from_satoshi_float, to_satoshi
 
+        if isinstance(balance, bool):
+            raise TypeError("bool is not an amount")
+        new_sat = to_satoshi(balance)
         with self._write_lock:
             row = self._load_account(address)
+            old_sat = int(row.get("balance_satoshi", 0) or 0)
             dual_write_balance(row, balance)
+            self._adjust_total_supply_abs(
+                from_satoshi_float(new_sat) - from_satoshi_float(old_sat)
+            )
             self._save_account_row(row)
 
     def increment_nonce(self, address: str) -> int:
@@ -713,10 +783,14 @@ class RocksChainStore:
 
         with self._write_lock:
             row = self._load_account(address)
+            from runtime.amount import account_balance_abs
+
+            old_abs = account_balance_abs(row)
             dual_write_balance(row, balance)
             row["nonce"] = int(nonce)
             row["code"] = code
             row["storage"] = storage
+            self._adjust_total_supply_abs(float(balance) - float(old_abs))
             self._save_account_row(row)
 
     def update_account_storage(self, address: str, storage: Dict) -> None:
@@ -736,7 +810,7 @@ class RocksChainStore:
         Prefers ``RocksEngine.get_account_rows``; falls back to ``_load_account``.
         Applies satoshi dual-write backfill like ``_load_account``.
         """
-        from runtime.amount import account_satoshi, dual_write_balance
+        from runtime.amount import account_satoshi, dual_write_balance, from_satoshi_float
         from storage.database import Database as SqliteDatabase
 
         addrs: List[str] = []
@@ -757,7 +831,11 @@ class RocksChainStore:
                 loaded = json.loads(engine.get_account_rows(json.dumps(addrs)))
                 if isinstance(loaded, dict):
                     rows = {str(k): dict(v) for k, v in loaded.items() if isinstance(v, dict)}
-            except Exception:
+            except Exception as exc:
+                logger.warning(
+                    "[RocksStore] get_account_rows failed, per-account load: %s",
+                    exc,
+                )
                 rows = {}
 
         out: Dict[str, Any] = {}
@@ -767,8 +845,9 @@ class RocksChainStore:
             if row.get("balance_satoshi") is None:
                 dual_write_balance(row, row.get("balance", 0) or 0)
             else:
-                row["balance_satoshi"] = account_satoshi(row)
-                row["balance"] = float(row.get("balance", 0) or 0)
+                sat = account_satoshi(row)
+                row["balance_satoshi"] = sat
+                row["balance"] = from_satoshi_float(sat)
             if row.get("code") is None:
                 row["code"] = ""
             if row.get("storage") is None:
@@ -790,7 +869,7 @@ class RocksChainStore:
         Prefers ``RocksEngine.commit_writeback_bundle`` (single WriteBatch) when
         outside ``atomic()``; falls back to ``_save_account_row`` / dual log puts.
         """
-        from runtime.amount import dual_write_balance, from_satoshi_float
+        from runtime.amount import dual_write_balance, writeback_balance_abs
         from storage.database import Database as SqliteDatabase
 
         accounts = dict(accounts or {})
@@ -809,10 +888,8 @@ class RocksChainStore:
                 addr = SqliteDatabase._normalize_address(str(addr_raw))
                 merged = self._load_account(addr)
                 row = dict(row_in or {})
-                if row.get("balance_satoshi") is not None:
-                    dual_write_balance(merged, from_satoshi_float(int(row["balance_satoshi"])))
-                elif row.get("balance") is not None:
-                    dual_write_balance(merged, float(row.get("balance") or 0))
+                if row.get("balance_satoshi") is not None or row.get("balance") is not None:
+                    dual_write_balance(merged, writeback_balance_abs(row))
                 if "nonce" in row:
                     merged["nonce"] = int(row.get("nonce") or 0)
                 if "code" in row:
@@ -897,7 +974,10 @@ class RocksChainStore:
         root = raw_root.decode("utf-8") if raw_root else ""
         try:
             height = int(raw_h.decode("utf-8")) if raw_h else -1
-        except Exception:
+        except (UnicodeDecodeError, ValueError, TypeError) as exc:
+            logger.warning(
+                "[RocksStore] corrupt live_state_root_height meta: %s", exc
+            )
             height = -1
         return root, height
 
@@ -947,31 +1027,63 @@ class RocksChainStore:
 
     def _reset_accounts_locked(self, alloc: Dict[str, float]) -> None:
         self._drop_root_acc()
+        self._invalidate_obs_meta()
         for key, _value in self._scan_prefix(kc.prefix_accounts()):
             self._raw_delete(key)
+        from runtime.amount import dual_write_balance
+
         for addr, amount in alloc.items():
+            if isinstance(amount, bool):
+                raise TypeError("bool is not an amount")
             row = {
                 "address": SqliteDatabase._normalize_address(addr),
-                "balance": float(amount),
                 "nonce": 0,
                 "code": None,
                 "storage": None,
             }
+            dual_write_balance(row, amount)
             self._save_account_row(row)
+
+    def get_cached_account_count(self) -> int | None:
+        """O(1) meta only. None if never counted — callers must not prefix-scan."""
+        return self._read_plain_meta_int("stats_account_count")
+
+    def get_cached_total_supply(self) -> float | None:
+        """O(1) meta only. None if missing — callers must not get_all_accounts()."""
+        raw = self._raw_get(kc.key_meta("total_supply_abs"))
+        if raw is None:
+            return None
+        try:
+            return float(raw.decode("utf-8"))
+        except (TypeError, ValueError, UnicodeDecodeError):
+            return None
 
     def get_total_supply(self) -> float:
         from runtime.amount import account_balance_abs
 
-        return sum(account_balance_abs(a) for a in self.get_all_accounts())
+        raw = self._raw_get(kc.key_meta("total_supply_abs"))
+        if raw is not None:
+            try:
+                return float(raw.decode("utf-8"))
+            except (TypeError, ValueError, UnicodeDecodeError):
+                pass
+        total = sum(account_balance_abs(a) for a in self.get_all_accounts())
+        self._raw_put(
+            kc.key_meta("total_supply_abs"),
+            format(float(total), ".12g").encode("utf-8"),
+        )
+        return float(total)
 
     # ── validators ────────────────────────────────────────────────────────
 
     def save_validator(self, address: str, stake: float) -> None:
+        from runtime.amount import money_abs
+
         with self._write_lock:
             addr = SqliteDatabase._normalize_address(address)
             row = {
                 "address": addr,
-                "stake": float(stake),
+                "stake": money_abs(stake, field="stake"),
                 "active": 1,
                 "slashed": 0,
                 "joined_at": int(time.time()),
@@ -1014,19 +1126,22 @@ class RocksChainStore:
     # ── transactions ──────────────────────────────────────────────────────
 
     def _insert_transaction(self, tx: Dict) -> None:
+        from runtime.amount import tx_money_abs
+
         tx_hash = tx.get("hash", tx.get("tx_hash", "")) or ""
         if not tx_hash:
             return
+        money = tx_money_abs(tx)
         row = {
             "hash": tx_hash,
             "block_height": int(tx.get("block_height", 0) or 0),
             "from_addr": SqliteDatabase._normalize_address(tx.get("from_addr", tx.get("from", ""))),
             "to_addr": SqliteDatabase._normalize_address(tx.get("to_addr", tx.get("to", ""))),
-            "value": tx.get("value", tx.get("amount", 0.0)),
+            "value": money["value"],
             "gas": tx.get("gas", 21000),
             "gas_used": tx.get("gas_used", tx.get("gas", 21000)),
-            "fee": tx.get("fee", 0.0),
-            "burned": tx.get("burned", 0.0),
+            "fee": money["fee"],
+            "burned": money["burned"],
             "nonce": tx.get("nonce", 0),
             "tx_data": tx.get("data", tx.get("tx_data", "")),
             # Omit / None / unknown → fail-closed 0 (never invent success).
@@ -1035,7 +1150,10 @@ class RocksChainStore:
         }
         # v1.3.148: typed ATXV value when native pack_tx_row is available.
         payload = self._pack_tx_blob(row)
+        created = self._raw_get(kc.key_tx(tx_hash)) is None
         self._raw_put(kc.key_tx(tx_hash), payload)
+        if created:
+            self._bump_plain_meta_int("stats_tx_count", 1)
         if row["block_height"]:
             self._raw_put(kc.key_block_tx(row["block_height"], tx_hash), b"\x01")
         self._insert_tx_indexes(row)
@@ -1117,18 +1235,21 @@ class RocksChainStore:
         return rows
 
     def _insert_tx_receipt(self, tx: Dict, block_hash: str, block_height: int) -> None:
+        from runtime.amount import tx_money_abs
+
         tx_hash = tx.get("hash", tx.get("tx_hash", "")) or ""
         if not tx_hash:
             return
+        money = tx_money_abs(tx)
         receipt = {
             "tx_hash": tx_hash,
             "block_height": int(block_height),
             "block_hash": block_hash,
             "from_addr": SqliteDatabase._normalize_address(tx.get("from_addr", tx.get("from", ""))),
             "to_addr": SqliteDatabase._normalize_address(tx.get("to_addr", tx.get("to", ""))),
-            "value": tx.get("value", tx.get("amount", 0.0)),
-            "fee": tx.get("fee", 0.0),
-            "burned": tx.get("burned", 0.0),
+            "value": money["value"],
+            "fee": money["fee"],
+            "burned": money["burned"],
             "gas_used": tx.get("gas_used", tx.get("gas", 21000)),
             # Omit / None / unknown → fail-closed 0 (never invent success).
             "status": SqliteDatabase._normalize_tx_status(tx.get("status")),
@@ -1202,15 +1323,18 @@ class RocksChainStore:
         return self._loads_receipt_blob_or_none(raw, context=f"receipt {tx_hash[:16]}")
 
     def _format_receipt_row(self, row: Dict) -> Dict:
+        from runtime.amount import tx_money_abs
+
+        money = tx_money_abs(row)
         return {
             "tx_hash": row.get("tx_hash", ""),
             "block_height": row.get("block_height", 0),
             "block_hash": row.get("block_hash", ""),
             "from": row.get("from_addr", row.get("from", "")),
             "to": row.get("to_addr", row.get("to", "")),
-            "value": row.get("value", 0.0),
-            "fee": row.get("fee", 0.0),
-            "burned": row.get("burned", 0.0),
+            "value": money["value"],
+            "fee": money["fee"],
+            "burned": money["burned"],
             "gas_used": row.get("gas_used", 0),
             "status": SqliteDatabase._normalize_tx_status(row.get("status")),
             "timestamp": row.get("created_at", row.get("timestamp", 0)),
@@ -1239,6 +1363,8 @@ class RocksChainStore:
         return out
 
     def _serialize_tx_row(self, row: Dict, viewer_addr: str = "") -> Dict:
+        from runtime.amount import tx_money_abs
+
         viewer = SqliteDatabase._normalize_address(viewer_addr)
         from_addr = SqliteDatabase._normalize_address(row.get("from_addr", ""))
         to_addr = SqliteDatabase._normalize_address(row.get("to_addr", ""))
@@ -1250,14 +1376,15 @@ class RocksChainStore:
                 direction = "sent"
             elif to_addr == viewer:
                 direction = "received"
+        money = tx_money_abs(row)
         return {
             "hash": row.get("hash", ""),
             "block_height": row.get("block_height", 0),
             "from": from_addr,
             "to": to_addr,
-            "value": float(row.get("value", 0.0)),
-            "fee": float(row.get("fee", 0.0)),
-            "burned": float(row.get("burned", 0.0)),
+            "value": money["value"],
+            "fee": money["fee"],
+            "burned": money["burned"],
             "gas_used": int(row.get("gas_used", row.get("gas", 21000))),
             "status": SqliteDatabase._normalize_tx_status(row.get("status")),
             "timestamp": int(row.get("timestamp", 0)),
@@ -1351,6 +1478,8 @@ class RocksChainStore:
         offset: int = 0,
         proposer: str = "",
     ) -> List[Dict]:
+        from runtime.amount import money_abs
+
         limit = max(1, min(int(limit), 200))
         offset = max(0, int(offset))
         rows: List[Dict] = []
@@ -1379,7 +1508,7 @@ class RocksChainStore:
                 "block_hash": r.get("block_hash", ""),
                 "proposer": r.get("proposer", ""),
                 "tx_count": r.get("tx_count", 0),
-                "total_burned": r.get("total_burned", 0.0),
+                "total_burned": money_abs(r.get("total_burned", 0.0), field="total_burned"),
                 "timestamp": r.get("block_ts", r.get("timestamp", 0)),
                 "recorded_at": r.get("recorded_at", 0),
             }
@@ -1408,12 +1537,14 @@ class RocksChainStore:
         amount: float,
         tx_hash: str,
     ) -> None:
+        from runtime.amount import money_abs
+
         row = {
             "tx_hash": tx_hash,
             "from_addr": from_addr,
             "to_chain": to_chain,
             "to_addr": to_addr,
-            "amount": float(amount),
+            "amount": money_abs(amount),
             "status": "pending",
             "created_at": int(time.time()),
         }
@@ -1447,7 +1578,13 @@ class RocksChainStore:
                 )
                 continue
         rows.sort(key=lambda r: int(r.get("created_at", 0) or 0), reverse=True)
-        return rows[:limit]
+        from runtime.amount import money_abs
+
+        out = []
+        for row in rows[:limit]:
+            row["amount"] = money_abs(row.get("amount", 0), field="amount")
+            out.append(row)
+        return out
 
     def has_bridge_credit(self, credit_key: str) -> bool:
         return self._raw_get(kc.key_bridge_credit(credit_key)) is not None
@@ -1463,11 +1600,13 @@ class RocksChainStore:
         key = self.bridge_credit_key(from_chain, event_tx_hash, log_index)
         if self.has_bridge_credit(key):
             return key
+        from runtime.amount import money_abs
+
         row = {
             "credit_key": key,
             "l1_tx_hash": event_tx_hash,
             "recipient": recipient,
-            "amount": float(amount),
+            "amount": money_abs(amount),
             "from_chain": from_chain,
             "log_index": int(log_index),
             "credited_at": int(time.time()),
@@ -1490,17 +1629,20 @@ class RocksChainStore:
         with self.atomic():
             if self.has_bridge_credit(key):
                 return {"credited": False, "duplicate": True, "credit_key": key}
+            from runtime.amount import money_abs
+
+            amt = money_abs(amount)
             row = {
                 "credit_key": key,
                 "l1_tx_hash": event_tx_hash,
                 "recipient": recipient,
-                "amount": float(amount),
+                "amount": amt,
                 "from_chain": from_chain,
                 "log_index": int(log_index),
                 "credited_at": int(time.time()),
             }
             self._raw_put(kc.key_bridge_credit(key), json.dumps(row).encode("utf-8"))
-            self.balance_delta(recipient, float(amount))
+            self.balance_delta(recipient, amt)
             lock_hash = (abs_tx_hash or event_tx_hash or "").strip()
             if lock_hash:
                 raw = self._raw_get(kc.key_bridge_lock(lock_hash))
@@ -1528,23 +1670,23 @@ class RocksChainStore:
         tx_hash: str,
     ) -> None:
         """Debit sender (fail on underflow), burn fee share, persist lock — one Rocks batch."""
-        from runtime.amount import dual_write_balance, from_satoshi_float, try_debit_satoshi
+        from runtime.amount import dual_write_balance, from_satoshi_float, money_abs, try_debit_satoshi
 
         with self.atomic():
             row = self._load_account(from_addr)
             cur = int(row.get("balance_satoshi", 0) or 0)
-            new_sat = try_debit_satoshi(cur, float(amount))
+            new_sat = try_debit_satoshi(cur, money_abs(amount))
             dual_write_balance(row, from_satoshi_float(new_sat))
             row["balance_satoshi"] = new_sat
             self._save_account_row(row)
             if burn_amount and burn_address:
-                self.balance_delta(burn_address, float(burn_amount))
+                self.balance_delta(burn_address, money_abs(burn_amount, field="burn_amount"))
             lock_row = {
                 "tx_hash": tx_hash,
                 "from_addr": from_addr,
                 "to_chain": to_chain,
                 "to_addr": to_addr,
-                "amount": float(net_amount),
+                "amount": money_abs(net_amount, field="net_amount"),
                 "status": "pending",
                 "created_at": int(time.time()),
             }
@@ -1552,6 +1694,8 @@ class RocksChainStore:
 
     def refund_pending_bridge_lock(self, tx_hash: str) -> Dict:
         """Credit back pending lock amount and mark refunded atomically."""
+        from runtime.amount import money_abs
+
         with self.atomic():
             raw = self._raw_get(kc.key_bridge_lock(tx_hash))
             if not raw:
@@ -1559,20 +1703,29 @@ class RocksChainStore:
             lock = self._loads_json_or_none(raw, context=f"bridge_lock {tx_hash[:16]}")
             if lock is None or lock.get("status") != "pending":
                 return {"refunded": False, "error": "Lock not found or already processed"}
-            self.balance_delta(lock["from_addr"], float(lock["amount"]))
+            self.balance_delta(lock["from_addr"], money_abs(lock["amount"]))
             lock["status"] = "refunded"
             self._raw_put(kc.key_bridge_lock(tx_hash), json.dumps(lock).encode("utf-8"))
         return {
             "refunded": True,
             "tx_hash": tx_hash,
-            "amount": float(lock["amount"]),
+            "amount": money_abs(lock["amount"]),
         }
 
     # ── burn ──────────────────────────────────────────────────────────────
 
     def _insert_burn_record(self, block_height: int, burned_amount: float) -> None:
-        total = self.get_total_burned() + float(burned_amount)
-        row = {"block_height": int(block_height), "burned_amount": float(burned_amount), "total_burned": total}
+        from runtime.amount import from_satoshi_float, money_abs, to_satoshi
+
+        burned = money_abs(burned_amount, field="burned")
+        total = from_satoshi_float(
+            to_satoshi(self.get_total_burned()) + to_satoshi(burned)
+        )
+        row = {
+            "block_height": int(block_height),
+            "burned_amount": burned,
+            "total_burned": total,
+        }
         self._raw_put(kc.key_burn(int(block_height)), json.dumps(row).encode("utf-8"))
 
     def record_burn(self, block_height: int, burned_amount: float) -> None:
@@ -1580,6 +1733,24 @@ class RocksChainStore:
             self._insert_burn_record(block_height, burned_amount)
 
     def get_total_burned(self) -> float:
+        # prefix_last is O(1); a full P_BURN scan grows with height and poisoned
+        # both persist (_insert_burn_record) and GET /status after ~30h soak.
+        from runtime.amount import money_abs
+
+        engine = self._engine
+        last_kv = None
+        if engine is not None and hasattr(engine, "prefix_last"):
+            try:
+                last_kv = engine.prefix_last(kc.P_BURN)
+            except Exception as exc:
+                logger.warning("[RocksStore] prefix_last burn total failed: %s", exc)
+                last_kv = None
+        if last_kv:
+            _key, value = last_kv
+            row = self._loads_json_or_none(bytes(value), context="burn_total")
+            if row is None:
+                return 0.0
+            return money_abs(row.get("total_burned", 0.0), field="total_burned")
         rows = self._scan_prefix(kc.P_BURN)
         if not rows:
             return 0.0
@@ -1587,7 +1758,7 @@ class RocksChainStore:
         row = self._loads_json_or_none(last[1], context="burn_total")
         if row is None:
             return 0.0
-        return float(row.get("total_burned", 0.0) or 0.0)
+        return money_abs(row.get("total_burned", 0.0), field="total_burned")
 
     def get_burn_stats(self) -> Dict:
         total = self.get_total_burned()
@@ -1690,6 +1861,7 @@ class RocksChainStore:
             if len(key) >= 9 and kc.unpack_u64(key[1:9]) > cut:
                 self._raw_delete(key)
         self._purge_height_scoped_indexes(cut)
+        self._invalidate_obs_meta()
         tip = self.get_block(cut)
         if tip:
             self._touch_live_state_root_meta(tip)
@@ -1913,13 +2085,9 @@ class RocksChainStore:
         ordered = sorted(last_ts.items(), key=lambda item: item[1], reverse=True)[:limit]
         return [self.get_tx_propagation_trace(tx_hash) for tx_hash, _ in ordered]
 
-    def get_stats(self) -> Dict:
-        stats = {
-            "height": self.get_chain_tip(),
-            "total_transactions": len(self._scan_prefix(kc.P_TX)),
-            "total_accounts": len(self._scan_prefix(kc.prefix_accounts())),
-            "total_burned": self.get_total_burned(),
-            "total_supply": self.get_total_supply(),
+    def _rocks_runtime_core(self) -> Dict:
+        """Cheap Rocks snapshot for /metrics — no prefix scans."""
+        stats: Dict = {
             "engine": self.engine,
             "json_decode_failures": int(self._json_decode_failures),
             "rocksdb_tuning": {
@@ -1927,7 +2095,6 @@ class RocksChainStore:
                 "write_buffer_mb": self.write_buffer_mb,
                 "sync": self.synchronous,
                 "column_families": self.column_families,
-                # Must live under rocksdb_tuning so /metrics emits abs_rocksdb_json_decode_failures.
                 "json_decode_failures": int(self._json_decode_failures),
             },
         }
@@ -1935,14 +2102,29 @@ class RocksChainStore:
             try:
                 stats["rocksdb_properties"] = dict(self._engine.storage_properties())
             except Exception as exc:
-                logger.warning("rocks get_stats storage_properties failed: %s", exc)
+                logger.warning("rocks storage_properties failed: %s", exc)
                 stats["rocksdb_properties_error"] = str(exc)
         if hasattr(self._engine, "tuning_config"):
             try:
                 stats["rocksdb_tuning"].update(dict(self._engine.tuning_config()))
             except Exception as exc:
-                logger.warning("rocks get_stats tuning_config failed: %s", exc)
+                logger.warning("rocks tuning_config failed: %s", exc)
                 stats["rocksdb_tuning_error"] = str(exc)
+        return stats
+
+    def get_rocks_runtime_stats(self) -> Dict:
+        """Prometheus path: tuning + LSM properties only (no tx/account prefix scan)."""
+        return self._rocks_runtime_core()
+
+    def get_stats(self) -> Dict:
+        stats = self._rocks_runtime_core()
+        stats["height"] = self.get_chain_tip()
+        stats["total_transactions"] = self._cached_prefix_len("stats_tx_count", kc.P_TX)
+        stats["total_accounts"] = self._cached_prefix_len(
+            "stats_account_count", kc.prefix_accounts()
+        )
+        stats["total_burned"] = self.get_total_burned()
+        stats["total_supply"] = self.get_total_supply()
         return stats
 
     def save_slash_event(self, validator: str, reason: str, epoch: int, penalty: int) -> None:
@@ -2084,9 +2266,13 @@ class RocksChainStore:
                 meta = {}
         row["metadata"] = meta if isinstance(meta, dict) else {}
         row["for_sale"] = bool(row.get("for_sale"))
+        from runtime.amount import money_abs
+        row["price"] = money_abs(row.get("price", 0), field="price")
         return row
 
     def save_nft_token(self, token: Dict) -> None:
+        from runtime.amount import money_abs
+
         tid = str(token.get("token_id", "") or "")
         if not tid:
             return
@@ -2097,7 +2283,7 @@ class RocksChainStore:
             "image_url": token.get("image_url", ""),
             "owner": token.get("owner", ""),
             "creator": token.get("creator", ""),
-            "price": float(token.get("price", 0) or 0),
+            "price": money_abs(token.get("price", 0), field="price"),
             "for_sale": bool(token.get("for_sale")),
             "created_at": int(token.get("created_at", 0) or 0),
             "metadata": token.get("metadata") or {},
@@ -2118,15 +2304,23 @@ class RocksChainStore:
         return out
 
     def _decode_nft_offer(self, raw: bytes) -> Optional[Dict]:
-        return self._loads_json_or_none(raw, context="nft_offer")
+        from runtime.amount import money_abs
+
+        row = self._loads_json_or_none(raw, context="nft_offer")
+        if row is None:
+            return None
+        row["price"] = money_abs(row.get("price", 0), field="price")
+        return row
 
     def save_nft_offer(self, offer: Dict) -> None:
+        from runtime.amount import money_abs
+
         oid = str(offer.get("offer_id", "") or "")
         if not oid:
             return
         row = dict(offer)
         row["offer_id"] = oid
-        row["price"] = float(row.get("price", 0) or 0)
+        row["price"] = money_abs(row.get("price", 0), field="price")
         row["expires_at"] = int(row.get("expires_at", 0) or 0)
         row["created_at"] = int(row.get("created_at", 0) or 0)
         self._raw_put(
@@ -2145,9 +2339,19 @@ class RocksChainStore:
         return out
 
     def _decode_nft_auction(self, raw: bytes) -> Optional[Dict]:
-        return self._loads_json_or_none(raw, context="nft_auction")
+        from runtime.amount import money_abs
+
+        row = self._loads_json_or_none(raw, context="nft_auction")
+        if row is None:
+            return None
+        for field in ("start_price", "reserve_price", "current_bid"):
+            if field in row and row[field] is not None:
+                row[field] = money_abs(row[field], field=field)
+        return row
 
     def save_nft_auction(self, auction: Dict) -> None:
+        from runtime.amount import money_abs
+
         aid = str(auction.get("auction_id", "") or "")
         if not aid:
             return
@@ -2155,6 +2359,9 @@ class RocksChainStore:
         row["auction_id"] = aid
         row["ends_at"] = int(row.get("ends_at", 0) or 0)
         row["created_at"] = int(row.get("created_at", 0) or 0)
+        for field in ("start_price", "reserve_price", "current_bid"):
+            if field in row and row[field] is not None:
+                row[field] = money_abs(row[field], field=field)
         self._raw_put(
             kc.key_nft_auction(aid),
             json.dumps(row, ensure_ascii=False).encode("utf-8"),
@@ -2171,6 +2378,8 @@ class RocksChainStore:
         return out
 
     def _decode_nft_sale(self, raw: bytes) -> Optional[Dict]:
+        from runtime.amount import money_abs
+
         row = self._loads_json_or_none(raw, context="nft_sale")
         if row is None:
             return None
@@ -2178,12 +2387,14 @@ class RocksChainStore:
             "token_id": row.get("token_id", ""),
             "from": row.get("from", row.get("from_addr", "")),
             "to": row.get("to", row.get("to_addr", "")),
-            "price": float(row.get("price", 0) or 0),
+            "price": money_abs(row.get("price", 0), field="price"),
             "type": row.get("type", row.get("sale_type", "buy")),
             "timestamp": int(row.get("timestamp", row.get("created_at", 0)) or 0),
         }
 
     def save_nft_sale(self, sale: Dict) -> None:
+        from runtime.amount import money_abs
+
         created_at = int(sale.get("timestamp", sale.get("created_at", 0)) or time.time())
         seq = int(sale.get("id", 0) or 0)
         if seq <= 0:
@@ -2194,7 +2405,7 @@ class RocksChainStore:
             "token_id": sale.get("token_id", ""),
             "from": sale.get("from", sale.get("from_addr", "")),
             "to": sale.get("to", sale.get("to_addr", "")),
-            "price": float(sale.get("price", 0) or 0),
+            "price": money_abs(sale.get("price", 0), field="price"),
             "type": sale.get("type", sale.get("sale_type", "buy")),
             "timestamp": created_at,
             "created_at": created_at,
@@ -2215,6 +2426,8 @@ class RocksChainStore:
         return out[: max(1, int(limit))]
 
     def get_chain_metrics(self, window: int = 32) -> Dict:
+        from runtime.amount import from_satoshi_float, to_satoshi
+
         tip = self.get_chain_tip()
         tx_rows = self._iter_transaction_rows()
         receipt_rows = self._scan_prefix(kc.P_TX_RECEIPT)
@@ -2259,7 +2472,10 @@ class RocksChainStore:
             "window_elapsed_sec": round(window_elapsed, 2),
             "tps": round(tps, 6),
             "burn_last_window": round(
-                sum(float(b.get("total_burned", 0) or 0) for b in blocks), 6
+                from_satoshi_float(
+                    sum(to_satoshi(b.get("total_burned", 0) or 0) for b in blocks)
+                ),
+                6,
             ),
             "engine": self.engine,
         }

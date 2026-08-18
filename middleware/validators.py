@@ -27,8 +27,12 @@ def validate_address(address: str) -> Tuple[bool, str]:
 
 def validate_amount(amount: Any, min_amount: float = 0.0001, max_amount: float = 1_000_000_000) -> Tuple[bool, str]:
     """Проверка суммы"""
+    if isinstance(amount, bool):
+        return False, "Amount must be a number, not bool"
     try:
-        amount_float = float(amount)
+        from runtime.amount import parse_rpc_value_abs
+
+        amount_float = parse_rpc_value_abs(amount, field="amount")
     except (TypeError, ValueError):
         return False, "Amount must be a number"
     

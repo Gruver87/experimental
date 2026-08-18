@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Sequence
 
 from api.ports import BlockQuery, LogsQuery, QueryLimitError, QueryTimeoutError
+from runtime.amount import WEI_PER_SATOSHI, to_satoshi
 
 
 def _keccak(data: bytes) -> bytes:
@@ -165,12 +166,16 @@ def format_block(
 def format_tx(tx: Optional[Dict]) -> Optional[Dict]:
     if not tx:
         return None
+    try:
+        wei = int(to_satoshi(tx.get("value", tx.get("amount", 0)) or 0)) * WEI_PER_SATOSHI
+    except (TypeError, ValueError):
+        wei = 0
     return {
         "hash": tx.get("hash", tx.get("tx_hash", "")),
         "blockNumber": hex(tx.get("block_height", 0)),
         "from": tx.get("from_addr", tx.get("from", "")),
         "to": tx.get("to_addr", tx.get("to", "")),
-        "value": hex(int(float(tx.get("value", tx.get("amount", 0))) * 10**18)),
+        "value": hex(wei),
         "gas": hex(tx.get("gas", 21000)),
         "gasUsed": hex(tx.get("gas_used", tx.get("gas", 21000))),
         "nonce": hex(tx.get("nonce", 0)),

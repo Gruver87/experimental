@@ -277,4 +277,15 @@ def normalize_bridge_http_result(result: Any) -> Dict[str, Any]:
         return result.as_legacy_dict()
     if isinstance(result, dict):
         return result
-    return {"success": bool(result)}
+    if result is True:
+        return {"success": True}
+    if result is False or result is None:
+        return {"success": False}
+    flagged = getattr(result, "success", None)
+    if flagged is True or flagged is False:
+        out = {"success": flagged}
+        err = getattr(result, "error", None)
+        if err:
+            out["error"] = str(err)
+        return out
+    return {"success": False, "error": "bridge_result_not_boolean"}

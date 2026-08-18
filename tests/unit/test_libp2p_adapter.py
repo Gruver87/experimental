@@ -48,3 +48,19 @@ def test_prod_forces_libp2p_off(monkeypatch) -> None:
     cfg.apply_env()
     assert cfg.feature_libp2p is False
     assert cfg.feature_long_range is False
+
+
+def test_libp2p_close_logs_failure(caplog) -> None:
+    import logging
+
+    ad = Libp2pTransportAdapter(enabled=True)
+
+    class _Boom:
+        def close(self):
+            raise RuntimeError("close boom")
+
+    ad._node = _Boom()
+    with caplog.at_level(logging.DEBUG, logger="LibP2P"):
+        ad.close()
+    assert "node close failed" in caplog.text
+    assert ad._node is None

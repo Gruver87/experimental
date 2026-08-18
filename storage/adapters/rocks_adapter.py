@@ -102,11 +102,13 @@ def _normalize_accounts(
 
 
 def _block_burn_fields(blk: BlockRecord) -> tuple[float, str]:
+    from runtime.amount import money_abs
+
     payload = blk.payload or {}
-    try:
-        burned = float(payload.get("total_burned") or payload.get("burned_amount") or 0.0)
-    except (TypeError, ValueError):
-        burned = 0.0
+    raw = payload.get("total_burned")
+    if raw is None:
+        raw = payload.get("burned_amount") or 0.0
+    burned = money_abs(raw, field="burned")
     burn_addr = str(payload.get("burn_address") or "")
     return burned, burn_addr
 
@@ -319,8 +321,12 @@ class RocksDBStorageAdapter:
             try:
                 if bool(getattr(conn, "in_transaction", False)):
                     return True
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "in_transaction probe failed; assume open batch (no nested atomic): %s",
+                    exc,
+                )
+                return True
         return False
 
     def _persist_locked_into_batch(
@@ -333,6 +339,8 @@ class RocksDBStorageAdapter:
         burn_address: str,
         tip: Optional[TipMeta],
     ) -> None:
+        from runtime.amount import money_abs
+
         store = self._store
         if not hasattr(store, "_persist_block_locked"):
             raise StorageUnavailableError(
@@ -343,7 +351,7 @@ class RocksDBStorageAdapter:
         store._persist_block_locked(
             dict(block),
             list(transactions),
-            float(burned_amount or 0.0),
+            money_abs(burned_amount, field="burned"),
             str(burn_address or ""),
         )
         if accounts:
@@ -365,6 +373,8 @@ class RocksDBStorageAdapter:
         tip: Optional[TipMeta],
     ) -> None:
         """Persist block (+ optional accounts) with best-effort single-batch atomicity."""
+        from runtime.amount import money_abs
+
         store = self._store
 
         # Join outer Blockchain.db.atomic() / Hybrid→Rocks batch — no nested WriteBatch.
@@ -402,7 +412,7 @@ class RocksDBStorageAdapter:
                 store.persist_block_atomic(
                     dict(block),
                     list(transactions),
-                    burned_amount=float(burned_amount or 0.0),
+                    burned_amount=money_abs(burned_amount or 0.0, field="burned"),
                     burn_address=str(burn_address or ""),
                 )
             )
@@ -653,9 +663,11 @@ class RocksDBStorageAdapter:
         except Exception as exc:
             raise map_engine_error(exc) from exc
 
-    def balance_delta(self, address: str, delta: float) -> None:
+    def balance_delta(self, address: str, delta: int) -> None:
+        if isinstance(delta, bool):
+            raise TypeError("bool is not an amount")
         try:
-            self._store.balance_delta(str(address or ""), float(delta))
+            self._store.balance_delta(str(address or ""), delta)
         except Exception as exc:
             raise map_engine_error(exc) from exc
 
@@ -665,15 +677,19 @@ class RocksDBStorageAdapter:
         except Exception as exc:
             raise map_engine_error(exc) from exc
 
-    def update_balance(self, address: str, delta: float) -> float:
+    def update_balance(self, address: str, delta: int) -> float:
+        if isinstance(delta, bool):
+            raise TypeError("bool is not an amount")
         try:
-            return float(self._store.update_balance(str(address or ""), float(delta)))
+            return float(self._store.update_balance(str(address or ""), delta))
         except Exception as exc:
             raise map_engine_error(exc) from exc
 
-    def set_balance(self, address: str, balance: float) -> None:
+    def set_balance(self, address: str, balance: int) -> None:
+        if isinstance(balance, bool):
+            raise TypeError("bool is not an amount")
         try:
-            self._store.set_balance(str(address or ""), float(balance))
+            self._store.set_balance(str(address or ""), balance)
         except Exception as exc:
             raise map_engine_error(exc) from exc
 
@@ -696,15 +712,17 @@ class RocksDBStorageAdapter:
     def save_account(
         self,
         address: str,
-        balance: float = 0.0,
+        balance: int = 0,
         nonce: int = 0,
         code: Any = None,
         storage: Any = None,
     ) -> None:
+        if isinstance(balance, bool):
+            raise TypeError("bool is not an amount")
         try:
             self._store.save_account(
                 str(address or ""),
-                balance=float(balance),
+                balance=balance,
                 nonce=int(nonce),
                 code=code,
                 storage=storage,
@@ -891,7 +909,8 @@ class RocksDBStorageAdapter:
         try:
             _ = self.tip_height()
             return True
-        except Exception:
+        except Exception as exc:
+            logger.warning("storage ping failed: %s", exc)
             return False
 
     def approximate_size(self) -> int:
@@ -899,7 +918,8 @@ class RocksDBStorageAdapter:
         if hasattr(store, "approximate_size"):
             try:
                 return int(store.approximate_size() or 0)
-            except Exception:
+            except Exception as exc:
+                logger.warning("approximate_size failed: %s", exc)
                 return 0
         return 0
 

@@ -239,3 +239,51 @@ def test_plasma_exit_requires_unspent_l2_balance():
     assert pl.submit_transaction(user, recipient, 6.0)
 
     assert pl.request_exit(did, user) is None
+
+
+def test_sqlite_feature_money_quantizes_and_refuses_bool():
+    import pytest
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "feat-money.db"))
+    db.initialize()
+    db.save_lightning_channel(
+        {
+            "channel_id": "c1",
+            "node1": "0xa",
+            "node2": "0xb",
+            "capacity": 7.5000003,
+            "balance1": 7.5000003,
+            "balance2": 0,
+            "status": "open",
+            "fee_rate": 0.00001,
+            "created_at": 1,
+        }
+    )
+    ch = db.get_lightning_channels()[0]
+    assert ch["capacity"] == 7.5
+    assert ch["balance1"] == 7.5
+    db.save_plasma_deposit(
+        {
+            "id": "d1",
+            "from": "0xa",
+            "amount": 1.0000003,
+            "main_tx_hash": "0x1",
+            "created_at": 1,
+            "status": "confirmed",
+        }
+    )
+    assert db.get_plasma_deposits()[0]["amount"] == 1.0
+    with pytest.raises(TypeError, match="bool is not an amount"):
+        db.save_lightning_channel(
+            {
+                "channel_id": "c2",
+                "node1": "0xa",
+                "node2": "0xb",
+                "capacity": True,
+                "balance1": 0,
+                "balance2": 0,
+                "created_at": 1,
+            }
+        )

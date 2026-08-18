@@ -98,3 +98,19 @@ def test_invalid_block_response_penalizes_peer():
 
     assert response["error"] == "invalid_block"
     assert peers.get_peer("peer-1").score < 100
+
+
+def test_send_failure_is_logged_and_counted(caplog):
+    import logging
+
+    class _BoomServer:
+        def send_message(self, peer_id, payload):
+            raise RuntimeError("send boom")
+
+    handler, _, _, _ = _handler()
+    handler.p2p_server = _BoomServer()
+    with caplog.at_level(logging.WARNING, logger="P2P.MessageHandler"):
+        ok = handler._send("peer-1", {"type": "pong"})
+    assert ok is False
+    assert handler._send_failures == 1
+    assert "send_message failed" in caplog.text

@@ -158,10 +158,29 @@ def test_metrics_prometheus_format():
     assert 'abs_rocksdb_block_cache_mb{node_id="n1"} 256' in text
     assert 'abs_rocksdb_write_buffer_mb{node_id="n1"} 64' in text
     assert 'abs_rocksdb_json_decode_failures{node_id="n1"} 3' in text
+    assert 'abs_rocksdb_running_compactions{node_id="n1"} 0' in text
     assert 'abs_state_consistent{node_id="n1"} 0' in text
     assert 'abs_sync_wire_probe_ok{node_id="n1"} 0' in text
     assert 'abs_sync_wire_probe_probed{node_id="n1"} 1' in text
     assert 'source="live"' in text
+
+
+def test_metrics_status_duration_histogram():
+    mc = MetricsCollector()
+    text0 = mc.render_prometheus(node_id="n1")
+    assert "abs_http_status_duration_ms" in text0
+    assert 'abs_http_status_duration_ms_count{node_id="n1"} 0' in text0
+    mc.observe_status_ms(12.0)
+    mc.observe_status_ms(2500.0)
+    mc.observe_status_ms(float("nan"))
+    text = mc.render_prometheus(node_id="n1")
+    assert 'abs_http_status_duration_ms_count{node_id="n1"} 2' in text
+    assert 'abs_http_status_duration_ms_bucket{node_id="n1",le="50"} 1' in text
+    assert 'abs_http_status_duration_ms_bucket{node_id="n1",le="2000"} 1' in text
+    assert 'abs_http_status_duration_ms_bucket{node_id="n1",le="5000"} 2' in text
+    assert 'abs_http_status_duration_ms_bucket{node_id="n1",le="+Inf"} 2' in text
+    assert 'abs_http_status_last_ms{node_id="n1"} 2500.000' in text
+    assert 'abs_http_status_max_ms{node_id="n1"} 2500.000' in text
 
 
 def test_metrics_prometheus_never_probed_gauge():
@@ -247,6 +266,9 @@ def test_status_has_health_links(api_server):
     assert "bridge_pending" in data
     assert "bridge_locks_total" in data
     assert data["bridge_pending"] == 0
+    assert "status_handler_ms" in data
+    assert isinstance(data["status_handler_ms"], (int, float))
+    assert data["status_handler_ms"] >= 0
     assert "native_crypto" in data
     assert "secp256k1_verify" in data["native_crypto"]["kernels"]
     assert "rust_bridge" in data
@@ -263,6 +285,7 @@ def test_openapi_lists_native_crypto(api_server):
 
 def test_status_bridge_pending_counts(api_server, industrial_config):
     base, cfg = api_server
+    cfg.bridge_enabled = True
     db = Database(cfg.db_path, synchronous="NORMAL")
     db.save_bridge_lock("0xfrom", "ethereum", "0xto", 5.0, "pending99")
     status, body = _get(f"{base}/status")

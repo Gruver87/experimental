@@ -141,3 +141,37 @@ def test_p2p_node_native_transport_flag():
     cfg2.p2p_tls_enabled = True
     node2 = P2PNode(cfg2, MagicMock(), MagicMock())
     assert node2._use_native_transport is False
+
+
+@pytest.mark.skipif(
+    not getattr(native, "native_available", lambda: False)(),
+    reason="abs_native required",
+)
+def test_native_capability_probe_chains_cause(monkeypatch, caplog):
+    import logging
+    import sys
+    import types
+
+    import abs_native
+
+    class _Wrap(types.ModuleType):
+        def __init__(self, real):
+            super().__init__(real.__name__)
+            self._real = real
+
+        def __getattr__(self, name):
+            if name == "P2PNativeConn":
+                raise OSError("cap boom")
+            return getattr(self._real, name)
+
+    monkeypatch.setitem(sys.modules, "abs_native", _Wrap(abs_native))
+    cfg = Config()
+    cfg.require_native_crypto = True
+    cfg.deployment_mode = "dev"
+    cfg.p2p_native_transport = True
+    cfg.p2p_tls_enabled = False
+    with caplog.at_level(logging.WARNING, logger="P2P"):
+        with pytest.raises(RuntimeError, match="native capability probe failed") as ei:
+            P2PNode(cfg, MagicMock(), MagicMock())
+    assert "cap boom" in caplog.text
+    assert isinstance(ei.value.__cause__, OSError)

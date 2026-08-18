@@ -66,6 +66,20 @@ def test_store_commit_writeback_accounts(tmp_path):
         b = store.get_account("0xbbb")
         assert b is not None
         assert float(b["balance"]) == pytest.approx(0.5)
+        store.commit_writeback_accounts(
+            {
+                "0xaaa": {
+                    "balance": 99.9,
+                    "balance_satoshi": 1_000_000,
+                    "nonce": 2,
+                    "code": "6000",
+                    "storage": {"7": 9},
+                }
+            }
+        )
+        assert store.get_balance("0xaaa") == 1.0
+        with pytest.raises(TypeError, match="bool is not an amount"):
+            store.commit_writeback_accounts({"0xddd": {"balance": True}})
     finally:
         store.close()
 

@@ -20,6 +20,7 @@ from network.p2p_node import (
     PeerConnection,
     WireReject,
     _max_p2p_line_bytes,
+    should_defer_tip_safety_skip_ahead,
 )
 from runtime.config import Config
 
@@ -98,6 +99,22 @@ class _FakeWriter:
         pass
 
 
+def test_peer_hook_failure_is_logged_not_raised(caplog):
+    import logging
+
+    peer = PeerConnection(_FakeReader(b""), _FakeWriter())
+    peer.peer_id = "hook-peer"
+
+    def boom():
+        raise RuntimeError("hook boom")
+
+    peer._on_send_fail = boom
+    with caplog.at_level(logging.WARNING, logger="P2P"):
+        peer._invoke_peer_hook(peer._on_send_fail, name="send_fail")
+    assert "send_fail hook failed" in caplog.text
+    assert "hook boom" in caplog.text
+
+
 @pytest.mark.asyncio
 async def test_recv_rejects_oversized_line():
     peer = PeerConnection(_FakeReader(b"x" * 5000), _FakeWriter())
@@ -145,6 +162,25 @@ async def test_recv_accepts_valid_json_line():
     payload = json.dumps({"type": "ping", "data": {}}).encode() + b"\n"
     peer = PeerConnection(_FakeReader(payload), _FakeWriter())
     msg = await peer.recv(Config())
+    assert msg is not None
+    assert not isinstance(msg, WireReject)
+    assert msg["type"] == "ping"
+
+
+@pytest.mark.asyncio
+async def test_line_framer_construct_failure_logs_and_falls_back(monkeypatch, caplog):
+    import logging
+
+    def _boom(*_a, **_k):
+        raise RuntimeError("framer boom")
+
+    monkeypatch.setattr("network.p2p_node.native.P2PLineFramer", _boom)
+    payload = json.dumps({"type": "ping", "data": {}}).encode() + b"\n"
+    peer = PeerConnection(_FakeReader(payload), _FakeWriter())
+    with caplog.at_level(logging.WARNING, logger="P2P"):
+        msg = await peer.recv(Config())
+    assert "P2PLineFramer construct failed" in caplog.text
+    assert "framer boom" in caplog.text
     assert msg is not None
     assert not isinstance(msg, WireReject)
     assert msg["type"] == "ping"
@@ -453,14 +489,16 @@ async def test_catch_up_status_send_fail_increments_counter():
     peer.height = 0
     p2p.peers[peer.peer_id] = peer
 
-    # Run one iteration of catch-up body
+    # Enqueue succeeds; broken pipe is reported by the send worker via _on_send_fail.
     our_status = {"height": 1, "head_hash": "aa" * 32}
     ok_send = await peer.send("status", our_status)
-    assert ok_send is False
-    if not ok_send:
-        p2p._peer_status_send_fail = int(p2p._peer_status_send_fail or 0) + 1
+    assert ok_send is True
+    deadline = time.monotonic() + 1.5
+    while time.monotonic() < deadline:
+        if p2p.get_p2p_security_status()["ops_errors"]["peer_send_fail"] >= 1:
+            break
+        await asyncio.sleep(0.05)
     sec = p2p.get_p2p_security_status()
-    assert sec["ops_errors"]["peer_status_send_fail"] >= 1
     assert sec["ops_errors"]["peer_send_fail"] >= 1
     assert "maintenance_loop_fail" in sec["ops_errors"]
     assert "catch_up_loop_fail" in sec["ops_errors"]
@@ -516,7 +554,12 @@ async def test_peer_send_fail_increments_ops_counter():
     p2p._attach_peer_hooks(peer)
     peer.peer_id = "send-fail"
     ok = await peer.send("ping", {"ts": 1.0})
-    assert ok is False
+    assert ok is True
+    deadline = time.monotonic() + 1.5
+    while time.monotonic() < deadline:
+        if p2p.get_p2p_security_status()["ops_errors"]["peer_send_fail"] >= 1:
+            break
+        await asyncio.sleep(0.05)
     assert p2p.get_p2p_security_status()["ops_errors"]["peer_send_fail"] >= 1
 
 
@@ -723,4 +766,67 @@ def test_verify_p2p_security_mesh_detects_mismatch(monkeypatch):
 
     monkeypatch.setattr(mod, "_api", fake_api)
     assert mod.verify_p2p_security_mesh(["http://127.0.0.1:8080"]) == 15
+
+
+def test_defer_tip_safety_skip_ahead_only_busy_tip_plus_two():
+    assert should_defer_tip_safety_skip_ahead(
+        apply_busy=True, candidate_height=9548, tip_height=9546
+    )
+    assert not should_defer_tip_safety_skip_ahead(
+        apply_busy=False, candidate_height=9548, tip_height=9546
+    )
+    assert not should_defer_tip_safety_skip_ahead(
+        apply_busy=True, candidate_height=9547, tip_height=9546
+    )
+    assert not should_defer_tip_safety_skip_ahead(
+        apply_busy=True, candidate_height=9550, tip_height=9546
+    )
+
+
+def test_note_local_forge_records_height_monotonic():
+    from network.p2p_node import P2PNode
+
+    node = P2PNode.__new__(P2PNode)
+    node._wire_probe_hold_until = 0.0
+    node._last_local_forge_height = 0
+    node.note_local_forge(0.5, height=9566)
+    assert node._last_local_forge_height == 9566
+    node.note_local_forge(0.5, height=9567)
+    assert node._last_local_forge_height == 9567
+    node.note_local_forge(0.5, height=9560)
+    assert node._last_local_forge_height == 9567
+
+
+def test_tip_safety_precheck_defers_own_forge_echo_not_history():
+    from network.p2p_node import P2PNode
+
+    class _Chain:
+        def get_height(self):
+            return 9565
+
+    node = P2PNode.__new__(P2PNode)
+    node.blockchain = _Chain()
+    node.apply_queue = None
+    node.tip_safety_shadow = object()
+    node._last_local_forge_height = 9567
+    assert node._tip_safety_precheck({"height": 9567}) is True
+    assert node._tip_safety_precheck({"height": 9568}) is True
+    # Deep history must still go through observe/enforce (shadow is a dummy
+    # so observe will fail closed via exception → precheck True only after
+    # observe path). Use a refusing shadow.
+    class _Refuse:
+        enforce = True
+
+        def observe_before_import(self, *_a, **_k):
+            return MagicMock(accepted=False, reason_code="tip_unknown_parent")
+
+        def allows_import(self, _d):
+            return False
+
+        def record_enforce_refuse(self, _d):
+            return "tip_unknown_parent"
+
+    node.tip_safety_shadow = _Refuse()
+    node._import_block_fail = 0
+    assert node._tip_safety_precheck({"height": 9000}) is False
 

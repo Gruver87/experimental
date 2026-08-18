@@ -2,8 +2,12 @@
 # -*- coding: utf-8 -*-
 """Prometheus-совместимые метрики узла."""
 
+import threading
 import time
 from typing import Any, Optional
+
+# Cumulative histogram buckets for GET /status (ms). 2000ms is soak_preflight fail-closed.
+_STATUS_MS_BUCKETS = (50, 100, 200, 500, 1000, 2000, 5000, 15000)
 
 
 class MetricsCollector:
@@ -14,6 +18,33 @@ class MetricsCollector:
         self.rpc_requests = 0
         self.http_requests = 0
         self.errors = 0
+        self._status_lock = threading.Lock()
+        self._status_bucket_counts = [0] * (len(_STATUS_MS_BUCKETS) + 1)
+        self._status_sum_ms = 0.0
+        self._status_count = 0
+        self._status_last_ms = 0.0
+        self._status_max_ms = 0.0
+
+    def observe_status_ms(self, duration_ms: float) -> None:
+        """Record GET /status handler wall time. Cumulative Prometheus histogram."""
+        try:
+            ms = float(duration_ms)
+        except (TypeError, ValueError):
+            return
+        if ms != ms or ms in (float("inf"), float("-inf")):
+            return
+        if ms < 0.0:
+            ms = 0.0
+        with self._status_lock:
+            self._status_count += 1
+            self._status_sum_ms += ms
+            self._status_last_ms = ms
+            if ms > self._status_max_ms:
+                self._status_max_ms = ms
+            for i, le in enumerate(_STATUS_MS_BUCKETS):
+                if ms <= le:
+                    self._status_bucket_counts[i] += 1
+            self._status_bucket_counts[-1] += 1
 
     def uptime_seconds(self) -> float:
         return time.time() - self.start_time
@@ -26,6 +57,40 @@ class MetricsCollector:
 
     def inc_error(self) -> None:
         self.errors += 1
+
+    def _render_status_histogram(self, node_id: str) -> list[str]:
+        with self._status_lock:
+            buckets = list(self._status_bucket_counts)
+            total = int(self._status_count)
+            sum_ms = float(self._status_sum_ms)
+            last_ms = float(self._status_last_ms)
+            max_ms = float(self._status_max_ms)
+        lines = [
+            "# HELP abs_http_status_duration_ms GET /status handler duration",
+            "# TYPE abs_http_status_duration_ms histogram",
+        ]
+        for i, le in enumerate(_STATUS_MS_BUCKETS):
+            lines.append(
+                f'abs_http_status_duration_ms_bucket{{node_id="{node_id}",le="{le}"}} '
+                f"{buckets[i]}"
+            )
+        lines.append(
+            f'abs_http_status_duration_ms_bucket{{node_id="{node_id}",le="+Inf"}} '
+            f"{buckets[-1]}"
+        )
+        lines.extend(
+            [
+                f'abs_http_status_duration_ms_sum{{node_id="{node_id}"}} {sum_ms:.3f}',
+                f'abs_http_status_duration_ms_count{{node_id="{node_id}"}} {total}',
+                "# HELP abs_http_status_last_ms Last GET /status handler duration",
+                "# TYPE abs_http_status_last_ms gauge",
+                f'abs_http_status_last_ms{{node_id="{node_id}"}} {last_ms:.3f}',
+                "# HELP abs_http_status_max_ms Max GET /status handler duration since boot",
+                "# TYPE abs_http_status_max_ms gauge",
+                f'abs_http_status_max_ms{{node_id="{node_id}"}} {max_ms:.3f}',
+            ]
+        )
+        return lines
 
     def render_prometheus(
         self,
@@ -98,6 +163,7 @@ class MetricsCollector:
             "# HELP abs_http_requests_total HTTP requests served",
             "# TYPE abs_http_requests_total counter",
             f"abs_http_requests_total{{node_id=\"{node_id}\"}} {self.http_requests}",
+            *self._render_status_histogram(node_id),
             "# HELP abs_errors_total API errors",
             "# TYPE abs_errors_total counter",
             f"abs_errors_total{{node_id=\"{node_id}\"}} {self.errors}",
@@ -275,6 +341,24 @@ class MetricsCollector:
                     (
                         f"abs_rocksdb_json_decode_failures{{node_id=\"{node_id}\"}} "
                         f"{int(rocksdb_tuning.get('json_decode_failures', 0) or 0)}"
+                    ),
+                    "# HELP abs_rocksdb_running_compactions RocksDB running compactions",
+                    "# TYPE abs_rocksdb_running_compactions gauge",
+                    (
+                        f"abs_rocksdb_running_compactions{{node_id=\"{node_id}\"}} "
+                        f"{int(rocksdb_tuning.get('running_compactions', 0) or 0)}"
+                    ),
+                    "# HELP abs_rocksdb_running_flushes RocksDB running flushes",
+                    "# TYPE abs_rocksdb_running_flushes gauge",
+                    (
+                        f"abs_rocksdb_running_flushes{{node_id=\"{node_id}\"}} "
+                        f"{int(rocksdb_tuning.get('running_flushes', 0) or 0)}"
+                    ),
+                    "# HELP abs_rocksdb_estimate_num_keys RocksDB estimated key count",
+                    "# TYPE abs_rocksdb_estimate_num_keys gauge",
+                    (
+                        f"abs_rocksdb_estimate_num_keys{{node_id=\"{node_id}\"}} "
+                        f"{int(rocksdb_tuning.get('estimate_num_keys', 0) or 0)}"
                     ),
                 ]
             )

@@ -77,7 +77,7 @@ Automated gates (`mainnet_readiness`, `prod_gate`, `industrial_gate`, `post_soak
 - [x] **Failover under load** — `prod_mesh_failover.ps1` PASS (`logs/evidence_failover.log`; see [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md))
 - [x] **Signed tx on prod mesh** — `prod_signed_tx_smoke.py` PASS (n2/n3 propagation; `logs/evidence_signed_tx.log`)
 - [x] **EVM deploy/call on prod RPC ports** — `prod_evm_smoke.py` mempool path PASS (Jul 12 evening; storage on all 3 RPC)
-- [x] **Soak 24–48h+** completed — Jul float tip **PASS** (`soak_report_48h.json`, 2026-07-19→21); tip-v2 **PASS** (`soak_report_tipv2_48h_rerun.json`, 2026-08-05→07, `docs/evidence/runs/375d14f/`)
+- [x] **Soak 24–48h+** completed — Jul float tip **PASS** (`soak_report_48h.json`, 2026-07-19→21); Hybrid tip-v2 **PASS** (`soak_report_tipv2_48h_rerun.json`, 2026-08-05→07, `docs/evidence/runs/375d14f/`). **Experimental this tree 48h FAIL** 2026-08-16→18 (`logs/soak_report_48h_experimental.json`, `passed=false`, `hard_fails=87`). Do not treat Hybrid `375d14f` as Experimental soak evidence.
 - [ ] **External security audit** — third-party firm; auto-checkmarks no longer satisfy strict gate (v1.2.43)
 
 **API hardening (v1.2.28):** direct `POST /contract/deploy` without `via_mempool` is rejected in production — mempool signed deploy only.
@@ -164,7 +164,7 @@ python scripts/prod_gate.py
 
 The codebase is a **serious industrial devnet / private testnet** implementation with **rising live evidence** (prod mesh runs, harness, monitoring) — not merely documentation claims.
 
-**48h soak** is **PASS** for Jul float tip (2026-07-19→21) and **tip-v2 `b_satoshi`** (2026-08-05→07) — tip-v2 packaged in-repo at [docs/evidence/runs/375d14f/](evidence/runs/375d14f/). Float-era logs remain operator-local unless separately packaged.
+**48h soak** is **PASS** for Jul float tip (2026-07-19→21) and **tip-v2 `b_satoshi`** (2026-08-05→07) — tip-v2 packaged in-repo at [docs/evidence/runs/375d14f/](evidence/runs/375d14f/) (**Hybrid / different tree**). **Experimental 48h (2026-08-16→18)** is **FAIL**: `logs/soak_report_48h_experimental.json` `passed=false`, `hard_fails=87` (`GET /status` >15s after ~30h; root cause: `get_state_root()` rescanned accounts). Not a 48h PASS for this tree. Re-run pending.
 
 **Public mainnet launch** still requires organizational gates (external audit, validator ops, genesis ceremony in production) plus live finality quorum evidence. Failover, signed-tx propagation, and cross-node EVM (mempool) are demonstrated on local prod mesh (Jul 2026).
 

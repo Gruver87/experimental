@@ -32,7 +32,8 @@ class CatchUpPolicy:
         blk = local_block_for_head
         if isinstance(blk, Mapping):
             try:
-                local_h = int(blk.get("height", blk.get("number", -1)) or -1)
+                raw = blk.get("height", blk.get("number", None))
+                local_h = int(raw) if raw is not None else -1
             except (TypeError, ValueError):
                 local_h = -1
             if local_h >= 0 and local_h != peer_h:

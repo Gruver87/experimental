@@ -4,8 +4,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from collections import defaultdict
 import json
+import logging
 
 from crypto import native
+
+logger = logging.getLogger("abs.slashing")
 
 @dataclass
 class SlashEvent:
@@ -28,7 +31,8 @@ class SlashingEngine:
     
     def __init__(self):
         self.votes: Dict[str, Dict[int, str]] = {}
-        self.proposals: Dict[int, Set[str]] = defaultdict(set)
+        # height → validator → block_hash (hash-idempotent; conflict slashes)
+        self.proposals: Dict[int, Dict[str, str]] = defaultdict(dict)
         self.slashed: Set[str] = set()
         self.events: List[SlashEvent] = []
         self.missed_attestations: Dict[str, int] = defaultdict(int)
@@ -87,8 +91,8 @@ class SlashingEngine:
                 if prior is None:
                     self.votes[validator][slot] = block_hash
                 return True
-            except Exception:
-                pass
+            except (json.JSONDecodeError, TypeError, ValueError, OSError, RuntimeError) as exc:
+                logger.warning("native slash_check_double_vote failed; Python path: %s", exc)
 
         if slot in self.votes[validator]:
             if self.votes[validator][slot] != block_hash:
@@ -100,14 +104,47 @@ class SlashingEngine:
         return True
     
     def record_proposal(self, validator: str, height: int, block_hash: str) -> bool:
-        """Record block proposal, check for double proposal"""
-        if validator in self.slashed:
+        """Record a proposal. Same hash at the same height is not double-proposal.
+
+        Catch-up retries and concurrent PathA of the canonical block must not
+        slash the only miner. Conflicting hashes at one height still slash.
+        An already-slashed validator may still land canonical catch-up blocks
+        (slash is a penalty, not an import firewall).
+        """
+        digest = str(block_hash or "")
+        slot = self.proposals[height]
+        prior = slot.get(validator)
+
+        # Same-hash proposal retry is not double_proposal.
+        if prior is not None and prior == digest:
+            return True
+
+        if prior is not None and prior != digest:
+            if validator not in self.slashed:
+                if native.native_available() and hasattr(
+                    native, "slash_check_double_proposal"
+                ):
+                    try:
+                        raw = native.slash_check_double_proposal(True)
+                        result = json.loads(raw)
+                        if not result.get("accept", False):
+                            self._slash(
+                                validator,
+                                str(result.get("slash") or "double_proposal"),
+                                height // 32,
+                            )
+                            return False
+                    except (json.JSONDecodeError, TypeError, ValueError, OSError, RuntimeError) as exc:
+                        logger.warning(
+                            "native slash_check_double_proposal failed; Python path: %s",
+                            exc,
+                        )
+                self._slash(validator, "double_proposal", height // 32)
             return False
 
-        already = height in self.proposals and validator in self.proposals[height]
         if native.native_available() and hasattr(native, "slash_check_double_proposal"):
             try:
-                raw = native.slash_check_double_proposal(bool(already))
+                raw = native.slash_check_double_proposal(False)
                 result = json.loads(raw)
                 if not result.get("accept", False):
                     self._slash(
@@ -116,16 +153,12 @@ class SlashingEngine:
                         height // 32,
                     )
                     return False
-                self.proposals[height].add(validator)
-                return True
-            except Exception:
-                pass
-
-        if already:
-            self._slash(validator, "double_proposal", height // 32)
-            return False
-
-        self.proposals[height].add(validator)
+            except (json.JSONDecodeError, TypeError, ValueError, OSError, RuntimeError) as exc:
+                logger.warning(
+                    "native slash_check_double_proposal failed; Python path: %s",
+                    exc,
+                )
+        slot[validator] = digest
         return True
     
     def record_missed_attestation(self, validator: str):

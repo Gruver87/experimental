@@ -22,6 +22,54 @@ from typing import Optional, Any, Dict, List
 import threading
 
 from crypto import native
+from runtime.amount import WEI_PER_SATOSHI, abs_to_wei, parse_abs_int, parse_rpc_value_abs, to_satoshi
+
+
+def _http_abs(raw: Any, default: Any = 0, *, field: str = "amount") -> float:
+    """Satoshi-quantized ABS float for REST bodies (fractional ABS / fees allowed)."""
+    if raw is None:
+        raw = default
+    return parse_rpc_value_abs(raw, field=field)
+
+
+def _http_engine_result(result: Any, extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """JSON for engine ops. Never bool(arbitrary object).
+
+    Only True/False/None, dict, or an object with a bool ``success`` flag are
+    accepted. A truthy slash-evidence object must not paint ``success: true``.
+    """
+    extra = dict(extra or {})
+    if isinstance(result, dict):
+        out = dict(result)
+        for key, value in extra.items():
+            out.setdefault(key, value)
+        return out
+    if result is True:
+        out = {"success": True}
+        out.update(extra)
+        return out
+    if result is False:
+        out = {"success": False}
+        out.update(extra)
+        return out
+    if result is None:
+        out = {"success": False, "error": "engine_returned_none"}
+        out.update(extra)
+        return out
+    flagged = getattr(result, "success", None)
+    if flagged is True or flagged is False:
+        out = {"success": flagged}
+        err = getattr(result, "error", None)
+        if err:
+            out["error"] = str(err)
+        out.update(extra)
+        return out
+    logger.warning(
+        "HTTP engine result is not boolean/dict: %s", type(result).__name__
+    )
+    out = {"success": False, "error": "engine_result_not_boolean"}
+    out.update(extra)
+    return out
 
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
@@ -321,8 +369,10 @@ def _bridge_for_request(handler_cls, cfg):
             try:
                 if stats().get("enabled") is False:
                     rust_bridge = None
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("bridge get_stats failed: %s", exc)
+                if _is_production_cfg(cfg):
+                    rust_bridge = None
     if _is_production_cfg(cfg):
         if rust_bridge and getattr(rust_bridge, "_mode", "") == "rust":
             return rust_bridge
@@ -336,10 +386,20 @@ def _bridge_http_result(result):
         from bridge.adapter import normalize_bridge_http_result
 
         return normalize_bridge_http_result(result)
-    except Exception:
+    except Exception as exc:
+        logger.warning("normalize_bridge_http_result failed: %s", exc)
         if isinstance(result, dict):
             return result
-        return {"success": bool(result)}
+        success = getattr(result, "success", None)
+        if success is None:
+            return {
+                "success": False,
+                "error": "bridge_result_normalize_failed",
+            }
+        return {
+            "success": bool(success),
+            "error": str(getattr(result, "error", "") or "bridge_result_normalize_failed"),
+        }
 
 
 def _inbound_envelope_from_body(body: dict):
@@ -347,7 +407,7 @@ def _inbound_envelope_from_body(body: dict):
 
     tx_id = body.get("tx_id", body.get("tx_hash", ""))
     recipient = body.get("recipient", body.get("to_address", ""))
-    amount = float(body.get("amount", 0) or 0)
+    amount = _http_abs(body.get("amount", 0) or 0, field="amount")
     from_chain = body.get("from_chain", body.get("source_chain", "ethereum"))
     l1_tx = (body.get("l1_tx_hash") or "").strip()
     log_index = int(body.get("log_index", 0) or 0)
@@ -386,7 +446,9 @@ def _call_confirm_incoming(br, body: dict):
             envelope.abs_tx_hash or envelope.event_tx_hash
         )
         recipient = payload.get("recipient", payload.get("to_address", "")) or envelope.to_addr
-        amount = float(payload.get("amount", envelope.amount) or 0)
+        amount = _http_abs(
+            payload.get("amount", envelope.amount) or 0, field="amount"
+        )
         from_chain = (
             payload.get("from_chain", payload.get("source_chain", "")) or envelope.from_chain
         )
@@ -456,6 +518,42 @@ def _rust_bridge_health(cfg) -> Dict:
     return out
 
 
+_CEREMONY_STATUS_CACHE: dict = {}
+
+
+def _genesis_ceremony_status(cfg) -> Dict:
+    """Cached live-manifest check for GET /status (manifest is static at runtime)."""
+    manifest_path = str(getattr(cfg, "validators_manifest_path", "") or "")
+    if not manifest_path or not os.path.isfile(manifest_path):
+        return {"ready": False, "mainnet_addresses_ready": False}
+    try:
+        st = os.stat(manifest_path)
+        cache_key = (manifest_path, int(st.st_mtime_ns), int(st.st_size))
+    except OSError as exc:
+        return {"ready": False, "error": str(exc), "manifest_path": manifest_path}
+    hit = _CEREMONY_STATUS_CACHE.get(cache_key)
+    if isinstance(hit, dict):
+        return dict(hit)
+    try:
+        from runtime.genesis_ceremony import verify_live_manifest
+
+        cerr, artifact = verify_live_manifest(cfg, strict_addresses=False)
+        info = {
+            "ready": len(cerr) == 0,
+            "mainnet_addresses_ready": bool(artifact.get("mainnet_addresses_ready", False)),
+            "ceremony_hash": artifact.get("ceremony_hash"),
+            "validator_set_hash": artifact.get("validator_set_hash"),
+            "validators_count": artifact.get("validators_count", 0),
+            "manifest_path": manifest_path,
+            "errors": list(cerr)[:5],
+        }
+    except Exception as exc:
+        info = {"ready": False, "error": str(exc), "manifest_path": manifest_path}
+    _CEREMONY_STATUS_CACHE.clear()
+    _CEREMONY_STATUS_CACHE[cache_key] = info
+    return dict(info)
+
+
 def _derive_p2p_sync_status(
     *,
     peer_count: int,
@@ -493,12 +591,12 @@ def set_accepting_requests(accepting: bool) -> None:
     _ACCEPTING_REQUESTS = bool(accepting)
     try:
         JSONRPCHandler.accepting_requests = _ACCEPTING_REQUESTS
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("JSONRPCHandler accepting_requests not set: %s", exc)
     try:
         RESTHandler.accepting_requests = _ACCEPTING_REQUESTS
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("RESTHandler accepting_requests not set: %s", exc)
 
 
 def is_accepting_requests() -> bool:
@@ -552,14 +650,14 @@ def _peer_heights_from_p2p(p2p) -> list[int]:
                 else:
                     heights.append(int(getattr(row, "height", 0) or 0))
             return heights
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("peer heights from get_peers_info failed: %s", exc)
     try:
         peers = getattr(p2p, "peers", None) or {}
         for peer in peers.values():
             heights.append(int(getattr(peer, "height", 0) or 0))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("peer heights from p2p.peers failed: %s", exc)
     return heights
 
 
@@ -901,6 +999,9 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
         try:
             result = self._call(method, params)
             return {"jsonrpc": "2.0", "id": rid, "result": result}
+        except ValueError as e:
+            return {"jsonrpc": "2.0", "id": rid,
+                    "error": {"code": -32602, "message": str(e)}}
         except Exception as e:
             return {"jsonrpc": "2.0", "id": rid,
                     "error": {"code": -32603, "message": str(e)}}
@@ -1009,8 +1110,10 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
         if method == "eth_getBalance":
             address = params[0] if params else ""
             balance = bc.get_balance(address)
-            # Возвращаем в wei (1 ABS = 1e18 wei для совместимости)
-            return hex(int(balance * 10**18))
+            try:
+                return hex(int(to_satoshi(balance or 0)) * WEI_PER_SATOSHI)
+            except (TypeError, ValueError):
+                return "0x0"
 
         if method == "eth_getTransactionCount":
             address = params[0] if params else ""
@@ -1073,7 +1176,10 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             return hex(21_000)
 
         if method == "eth_gasPrice":
-            return hex(int(cfg.gas_price_wei * 10**18))
+            try:
+                return hex(abs_to_wei(getattr(cfg, "gas_price_wei", 0) or 0))
+            except (TypeError, ValueError):
+                return "0x0"
 
         if method == "eth_maxPriorityFeePerGas":
             return hex(int(getattr(cfg, "priority_fee_wei", 0) or 0))
@@ -1084,7 +1190,10 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             tip = _resolve_block_by_tag(bc, params[1] if len(params) > 1 else "latest")
             tip_h = int(tip.get("height", bc.get_height())) if tip else bc.get_height()
             oldest = max(0, tip_h - block_count + 1)
-            base = hex(int(cfg.gas_price_wei * 10**18))
+            try:
+                base = hex(abs_to_wei(getattr(cfg, "gas_price_wei", 0) or 0))
+            except (TypeError, ValueError):
+                base = "0x0"
             return {
                 "oldestBlock": hex(oldest),
                 "baseFeePerGas": [base] * block_count,
@@ -1431,12 +1540,18 @@ class RESTHandler(BaseHTTPRequestHandler):
                 db_probe_error = None
                 if db is not None:
                     try:
-                        if hasattr(db, "get_stats"):
-                            db.get_stats()
+                        # Cheap probe only. get_stats() prefix-scans all txs/accounts
+                        # and must not sit on /health/ready (K8s + soak liveness).
+                        if hasattr(db, "get_chain_tip"):
+                            db.get_chain_tip()
                         elif hasattr(db, "get_height"):
                             db.get_height()
                         elif bc is not None and hasattr(bc, "get_height"):
                             bc.get_height()
+                        else:
+                            raise RuntimeError(
+                                "no cheap db probe (get_chain_tip/get_height)"
+                            )
                     except Exception as exc:
                         db_ok = False
                         db_probe_error = str(exc)
@@ -1639,7 +1754,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                 db_stats: dict = {}
                 if db is not None:
                     try:
-                        db_stats = dict(db.get_stats() if hasattr(db, "get_stats") else {})
+                        if hasattr(db, "get_rocks_runtime_stats"):
+                            db_stats = dict(db.get_rocks_runtime_stats())
+                        else:
+                            db_stats = dict(
+                                db.get_stats() if hasattr(db, "get_stats") else {}
+                            )
                         db_engine = str(
                             db_stats.get("engine")
                             or getattr(db, "engine", "")
@@ -1683,6 +1803,33 @@ class RESTHandler(BaseHTTPRequestHandler):
                         or rocksdb_tuning.get("aux_json_decode_failures", 0)
                         or 0
                     )
+                    props = db_stats.get("rocksdb_properties") or {}
+                    if isinstance(props, dict):
+                        for src, dst in (
+                            (
+                                "rocksdb.num-running-compactions",
+                                "running_compactions",
+                            ),
+                            (
+                                "rocksdb.num-running-flushes",
+                                "running_flushes",
+                            ),
+                            (
+                                "rocksdb.estimate-num-keys",
+                                "estimate_num_keys",
+                            ),
+                            (
+                                "rocksdb.estimate-num-keys-all-cf",
+                                "estimate_num_keys",
+                            ),
+                        ):
+                            raw = props.get(src)
+                            if raw is None:
+                                continue
+                            try:
+                                rocksdb_tuning[dst] = int(str(raw).split()[0])
+                            except (TypeError, ValueError):
+                                pass
                 ws_stats = {}
                 ws = self.__class__.ws_server
                 if ws is not None and hasattr(ws, "get_stats"):
@@ -1830,12 +1977,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                 return
 
             if path == "/status":
+                _status_t0 = time.perf_counter()
                 validators = db.get_validators() if db else []
                 total_burned = db.get_total_burned() if db else 0
                 total_supply = db.get_total_supply() if db and hasattr(db, "get_total_supply") else 0
+                bridge_on = bool(getattr(cfg, "bridge_enabled", False))
                 bridge_locks = (
-                    db.get_bridge_locks(limit=1000)
-                    if db and hasattr(db, "get_bridge_locks")
+                    db.get_bridge_locks(limit=50)
+                    if bridge_on and db and hasattr(db, "get_bridge_locks")
                     else []
                 )
                 bridge_pending = sum(1 for l in bridge_locks if l.get("status") == "pending")
@@ -1878,30 +2027,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "canonical_head": None,
                     "attestation_count": 0,
                 }
-                genesis_ceremony_info = {"ready": False, "mainnet_addresses_ready": False}
-                manifest_path = getattr(cfg, "validators_manifest_path", "") or ""
-                if manifest_path and os.path.isfile(manifest_path):
-                    try:
-                        from runtime.genesis_ceremony import verify_live_manifest
-
-                        _cerr, artifact = verify_live_manifest(cfg, strict_addresses=False)
-                        genesis_ceremony_info = {
-                            "ready": len(_cerr) == 0,
-                            "mainnet_addresses_ready": bool(
-                                artifact.get("mainnet_addresses_ready", False)
-                            ),
-                            "ceremony_hash": artifact.get("ceremony_hash"),
-                            "validator_set_hash": artifact.get("validator_set_hash"),
-                            "validators_count": artifact.get("validators_count", 0),
-                            "manifest_path": manifest_path,
-                            "errors": _cerr[:5],
-                        }
-                    except Exception as exc:
-                        genesis_ceremony_info = {
-                            "ready": False,
-                            "error": str(exc),
-                            "manifest_path": manifest_path,
-                        }
+                genesis_ceremony_info = _genesis_ceremony_status(cfg)
                 ca = self.__class__.consensus_adapter
                 if ca and hasattr(ca, "get_stats"):
                     try:
@@ -2014,7 +2140,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 sync_engine_bound = se_status is not None
                 feat_errs = dict(getattr(self.__class__, "feature_init_errors", None) or {})
                 feature_degraded = bool(feat_errs)
-                self._json({
+                payload = {
                     # Do not hard-code "running" while mesh is inconsistent, unprobed, or P2P is down.
                     "status": (
                         "degraded"
@@ -2213,7 +2339,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "jwt_auth": _JWT_AVAILABLE,
                     },
                     "p2p_hardening": p2p_hard,
-                })
+                }
+                status_ms = (time.perf_counter() - _status_t0) * 1000.0
+                payload["status_handler_ms"] = round(status_ms, 1)
+                mc_status = self.__class__.metrics_collector
+                if mc_status is not None and hasattr(mc_status, "observe_status_ms"):
+                    mc_status.observe_status_ms(status_ms)
+                self._json(payload)
 
             elif path == "/tokenomics":
                 try:
@@ -4373,7 +4505,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(400, f"invalid proof: {e}")
                     return
                 ok = zk.verify_range(proof, min_v, max_v)
-                self._json({"valid": bool(ok), "value_checked": value})
+                self._json({"valid": ok is True, "value_checked": value})
 
             # ── Slashing engine ───────────────────────────────────────────────
             elif path == "/slashing/status":
@@ -4551,7 +4683,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     block = bc.get_block(block_num) if hasattr(bc,"get_block") else None
                     if block:
                         result = bv.validate_block(block)
-                        self._json({"valid": bool(result), "block_height": block_num})
+                        self._json({"valid": result is True, "block_height": block_num})
                     else:
                         self._json({"valid": None, "error": "Block not found"})
                 else:
@@ -4945,7 +5077,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 result = evm_adapter.deploy_contract(
                     deployer=body.get("from", body.get("from_address", "")),
                     bytecode_hex=body.get("bytecode", body.get("data", "")),
-                    value=float(body.get("value", 0)),
+                    value=parse_abs_int(body.get("value", 0), field="value"),
                     salt=body.get("salt"),
                 )
                 self._json(result.to_dict())
@@ -4973,20 +5105,20 @@ class RESTHandler(BaseHTTPRequestHandler):
                     caller=body.get("from", ""),
                     contract_addr=body.get("to", ""),
                     calldata_hex=body.get("data", ""),
-                    value=float(body.get("value", 0)),
+                    value=parse_abs_int(body.get("value", 0), field="value"),
                 )
                 self._json(result.to_dict())
 
             elif path == "/validators/register":
                 address = body.get("address", "")
-                stake = float(body.get("stake", 0))
+                stake = _http_abs(body.get("stake", 0), field="stake")
                 if stake < cfg.min_stake:
                     self._error(400, f"Stake must be >= {cfg.min_stake}")
                     return
                 ca = self.__class__.consensus_adapter
                 if ca and hasattr(ca, "add_validator"):
                     ok = ca.add_validator(address, stake)
-                    self._json({"registered": bool(ok), "address": address, "stake": stake})
+                    self._json({"registered": ok is True, "address": address, "stake": stake})
                 else:
                     bc.db.save_validator(address, stake)
                     self._json({"registered": True, "address": address, "stake": stake})
@@ -5002,7 +5134,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     description=body.get("description", ""),
                     image_url=body.get("image_url", ""),
                     creator=body.get("creator", ""),
-                    price=float(body.get("price", 0)),
+                    price=_http_abs(body.get("price", 0), field="price"),
                 )
                 self._json(result)
 
@@ -5023,7 +5155,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 result = nft.list_for_sale(
                     token_id=body.get("token_id", ""),
                     owner=body.get("owner", ""),
-                    price=float(body.get("price", 0)),
+                    price=_http_abs(body.get("price", 0), field="price"),
                 )
                 self._json(result)
 
@@ -5121,7 +5253,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 owners = body.get("owners", [])
                 required = int(body.get("required", 2))
                 to = body.get("to", "")
-                value = float(body.get("value", 0))
+                value = _http_abs(body.get("value", 0), field="value")
                 try:
                     from features.multisig import MultiSigWallet
                     ms = MultiSigWallet(owners, required)
@@ -5142,7 +5274,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "NFT module not enabled"); return
                 name  = body.get("name", "Unnamed NFT")
                 owner = body.get("owner", "")
-                price = float(body.get("price", 1.0))
+                price = _http_abs(body.get("price", 1.0), field="price")
                 desc  = body.get("description", "")
                 if not owner:
                     self._error(400, "owner is required"); return
@@ -5279,7 +5411,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 try:
                     if hasattr(pqm, "verify_text"):
                         ok = pqm.verify_text(message, signature, algorithm=algo, public_key_hex=public_key)
-                        self._json({"algorithm": algo, "valid": bool(ok)})
+                        self._json({"algorithm": algo, "valid": ok is True})
                     else:
                         self._error(501, "verify not implemented in PQ manager")
                 except Exception as e:
@@ -5367,7 +5499,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not ai:
                     self._error(503, "AI validator not enabled"); return
                 address = body.get("address", "")
-                stake   = float(body.get("stake", 100))
+                stake   = _http_abs(body.get("stake", 100), field="stake")
                 if not address:
                     self._error(400, "address required"); return
                 ai.add_validator(address, stake)
@@ -5410,8 +5542,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "NFT not enabled"); return
                 token_id    = body.get("token_id", "")
                 seller      = body.get("seller", "")
-                start_price = float(body.get("start_price", 1.0))
-                reserve     = float(body.get("reserve_price", start_price))
+                start_price = _http_abs(body.get("start_price", 1.0), field="start_price")
+                reserve     = _http_abs(body.get("reserve_price", start_price), field="reserve_price")
                 hours       = int(body.get("hours", 24))
                 if not token_id or not seller:
                     self._error(400, "token_id and seller required"); return
@@ -5433,7 +5565,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "NFT not enabled"); return
                 auction_id = body.get("auction_id", "")
                 bidder     = body.get("bidder", "")
-                amount     = float(body.get("amount", 0))
+                amount     = _http_abs(body.get("amount", 0))
                 if not auction_id or not bidder:
                     self._error(400, "auction_id and bidder required"); return
                 try:
@@ -5455,7 +5587,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "NFT not enabled"); return
                 token_id = body.get("token_id", "")
                 seller   = body.get("seller", "")
-                price    = float(body.get("price", 1.0))
+                price    = _http_abs(body.get("price", 1.0), field="price")
                 if not token_id or not seller:
                     self._error(400, "token_id and seller required"); return
                 try:
@@ -5560,7 +5692,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "NFT not enabled"); return
                 token_id = body.get("token_id", "")
                 bidder = body.get("bidder", "")
-                price = float(body.get("price", 0))
+                price = _http_abs(body.get("price", 0), field="price")
                 hours = int(body.get("hours", 24))
                 if not token_id or not bidder or price <= 0:
                     self._error(400, "token_id, bidder, price required"); return
@@ -5612,7 +5744,7 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/tx/sign":
                 from_addr = body.get("from", "")
                 to_addr = body.get("to", "")
-                amount = float(body.get("amount", 0))
+                amount = _http_abs(body.get("amount", 0))
                 nonce = int(body.get("nonce", 0))
                 private_key = body.get("private_key", "")
                 if not private_key:
@@ -5622,7 +5754,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     from crypto.keys import KeyGenerator
                     tx_data = {"from": from_addr, "to": to_addr,
                                "amount": amount, "nonce": nonce,
-                               "fee": float(body.get("fee", 0.001))}
+                               "fee": _http_abs(body.get("fee", 0.001), field="fee")}
                     keypair = KeyGenerator.from_private_key(private_key)
                     tx_data["public_key"] = keypair.public_key.hex()
                     tx_hash = TransactionSigner.hash_transaction(tx_data)
@@ -5693,7 +5825,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not ln:
                     self._error(503, "Lightning not enabled"); return
                 peer = body.get("peer_address", "")
-                capacity = float(body.get("capacity", 0))
+                capacity = _http_abs(body.get("capacity", 0), field="capacity")
                 if not peer or capacity <= 0:
                     self._error(400, "peer_address and capacity required"); return
                 cid = ln.open_channel(peer, capacity)
@@ -5719,7 +5851,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "Lightning not enabled"); return
                 cid = body.get("channel_id", "")
                 to_node = body.get("to", "")
-                amount = float(body.get("amount", 0))
+                amount = _http_abs(body.get("amount", 0))
                 if not cid or not to_node or amount <= 0:
                     self._error(400, "channel_id, to, amount required"); return
                 pid = ln.send_payment(cid, to_node, amount)
@@ -5734,7 +5866,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "Lightning not enabled"); return
                 cid = body.get("channel_id", "")
                 receiver = body.get("receiver", body.get("to", ""))
-                amount = float(body.get("amount", 0))
+                amount = _http_abs(body.get("amount", 0))
                 preimage_hash = body.get("payment_hash", body.get("preimage_hash", ""))
                 expiry = body.get("expiry")
                 if not cid or not receiver or amount <= 0 or not preimage_hash:
@@ -5771,7 +5903,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not ln:
                     self._error(503, "Lightning not enabled"); return
                 destination = body.get("destination", body.get("to", ""))
-                amount = float(body.get("amount", 0))
+                amount = _http_abs(body.get("amount", 0))
                 preimage = body.get("preimage", "")
                 if not destination or amount <= 0 or not preimage:
                     self._error(400, "destination, amount, preimage required"); return
@@ -5802,7 +5934,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "CryptoWill not enabled"); return
                 owner = body.get("owner", "")
                 heir = body.get("heir", "")
-                amount = float(body.get("amount", 0))
+                amount = _http_abs(body.get("amount", 0))
                 assets = body.get("assets", {})
                 delay = int(body.get("execution_delay", 86400))
                 witnesses = body.get("witnesses", [])
@@ -5848,7 +5980,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not pl:
                     self._error(503, "Plasma not enabled"); return
                 from_addr = body.get("from", "")
-                amount = float(body.get("amount", 0))
+                amount = _http_abs(body.get("amount", 0))
                 if not from_addr or amount <= 0:
                     self._error(400, "from and amount required"); return
                 did = pl.deposit(from_addr, amount)
@@ -5863,7 +5995,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "Plasma not enabled"); return
                 from_addr = body.get("from", "")
                 to_addr = body.get("to", "")
-                amount = float(body.get("amount", 0))
+                amount = _http_abs(body.get("amount", 0))
                 if not from_addr or not to_addr or amount <= 0:
                     self._error(400, "from, to, amount required"); return
                 txh = pl.submit_transaction(from_addr, to_addr, amount)
@@ -5939,7 +6071,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 fn = body.get("function", "")
                 params = body.get("params", {})
                 caller = body.get("caller", "")
-                value = float(body.get("value", 0))
+                value = _http_abs(body.get("value", 0), field="value")
                 if not contract_addr or not fn:
                     self._error(400, "contract and function required"); return
                 result = vm.call(contract_addr, fn, params, caller, value)
@@ -5992,8 +6124,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "AI Manager not enabled"); return
                 agent_id = body.get("agent_id", "")
                 trade_type = body.get("type", "buy")
-                amount = float(body.get("amount", 0))
-                price = float(body.get("price", 0))
+                amount = _http_abs(body.get("amount", 0))
+                price = _http_abs(body.get("price", 0), field="price")
                 if not agent_id or amount <= 0:
                     self._error(400, "agent_id, amount, price required"); return
                 result = am.trade(agent_id, trade_type, amount, price)
@@ -6014,7 +6146,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 to_chain = body.get("to_chain", "absolute")
                 from_addr = body.get("from_address", "")
                 to_addr = body.get("to_address", "")
-                amount = float(body.get("amount", 0))
+                amount = _http_abs(body.get("amount", 0))
                 l1_tx = (body.get("l1_tx_hash") or "").strip()
                 if not from_addr or not to_addr or amount <= 0:
                     self._error(400, "from_address, to_address, amount required"); return
@@ -6112,7 +6244,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 validator = body.get("validator", "")
                 if hasattr(fe, "add_attestation"):
                     ok = fe.add_attestation(source, target, validator)
-                    self._json({"success": bool(ok)})
+                    self._json({"success": ok is True})
                 else:
                     self._json({"success": False, "error": "not supported"})
 
@@ -6142,7 +6274,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not db:
                     self._error(503, "database unavailable"); return
                 address = (body.get("address", "") or "").strip()
-                amount = float(body.get("amount", 100))
+                amount = _http_abs(body.get("amount", 100))
                 if not address:
                     self._error(400, "address required"); return
                 if amount <= 0 or amount > 1000:
@@ -6187,7 +6319,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not registry:
                     self._error(503, "Oracle registry not enabled"); return
                 symbol = body.get("symbol", "")
-                value = float(body.get("value", 0))
+                value = _http_abs(body.get("value", 0), field="value")
                 source = body.get("source", "reporter")
                 reporter = body.get("reporter", body.get("from", ""))
                 sig = self.headers.get("X-Bridge-Oracle-Signature", body.get("signature", ""))
@@ -6209,7 +6341,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not registry:
                     self._error(503, "Oracle registry not enabled"); return
                 symbol = body.get("symbol", "")
-                value = float(body.get("value", 0))
+                value = _http_abs(body.get("value", 0), field="value")
                 reporter = body.get("reporter", body.get("from", ""))
                 sig = self.headers.get("X-Bridge-Oracle-Signature", body.get("signature", ""))
                 result = registry.submit_report(
@@ -6283,7 +6415,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                 db.set_meta("bridge_l1_proofs", proofs[-500:])
                 br = getattr(self.__class__, "bridge", None)
                 recipient = (body.get("recipient") or body.get("to_address") or "").strip()
-                amount = float(body.get("amount", 0) or 0)
+                try:
+                    amount = _http_abs(body.get("amount", 0) or 0, field="amount")
+                except ValueError as exc:
+                    self._error(400, str(exc))
+                    return
                 if br and hasattr(br, "enqueue_l1_incoming") and recipient and amount > 0:
                     br.enqueue_l1_incoming(
                         l1_tx,
@@ -6327,11 +6463,15 @@ class RESTHandler(BaseHTTPRequestHandler):
                 br = _bridge_for_request(self.__class__, cfg)
                 if not br:
                     self._error(503, "Bridge not enabled"); return
-                amount = float(body.get("amount", 0))
                 from_addr = body.get("from_address", body.get("from", ""))
                 to_addr = body.get("to_address", body.get("to", ""))
                 target_chain = body.get("target_chain", body.get("to_chain", "ethereum"))
                 l1_tx = (body.get("l1_tx_hash") or "").strip()
+                try:
+                    amount = _http_abs(body.get("amount", 0), field="amount")
+                except ValueError as exc:
+                    self._error(400, str(exc))
+                    return
                 if hasattr(br, "lock_and_bridge"):
                     result = br.lock_and_bridge(
                         from_addr, target_chain, to_addr, amount, l1_tx_hash=l1_tx
@@ -6339,7 +6479,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json(_bridge_http_result(result))
                 elif hasattr(br, "transfer"):
                     result = br.transfer(from_addr, body.get("to_address",""), amount, target_chain)
-                    self._json(result if isinstance(result, dict) else {"success": bool(result)})
+                    self._json(_bridge_http_result(result))
                 else:
                     self._json({"success": False, "error": "lock not available"})
 
@@ -6400,7 +6540,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(400, "agent_id required"); return
                 if hasattr(am, "deactivate"):
                     ok = am.deactivate(agent_id)
-                    self._json({"success": bool(ok), "agent_id": agent_id})
+                    self._json({"success": ok is True, "agent_id": agent_id})
                 elif hasattr(am, "agents") and agent_id in am.agents:
                     am.agents[agent_id].active = False
                     self._json({"success": True, "agent_id": agent_id})
@@ -6429,7 +6569,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 guardian = body.get("guardian_address", "")
                 if hasattr(sa, "add_guardian"):
                     result = sa.add_guardian(account_address, guardian)
-                    self._json({"success": bool(result)})
+                    self._json(_http_engine_result(result))
                 else:
                     self._json({"success": False, "error": "not supported"})
 
@@ -6441,7 +6581,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 key = body.get("session_key", "")
                 if hasattr(sa, "revoke_session_key"):
                     result = sa.revoke_session_key(account_address, key)
-                    self._json({"success": bool(result)})
+                    self._json(_http_engine_result(result))
                 else:
                     self._json({"success": False, "error": "not supported"})
 
@@ -6455,7 +6595,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                 epoch = int(body.get("epoch", 0))
                 if hasattr(se, "record_vote"):
                     result = se.record_vote(validator, epoch, block_hash)
-                    self._json({"success": True, "slashed": bool(result) if result else False})
+                    if result is True:
+                        self._json({"success": True, "slashed": False})
+                    elif result is False:
+                        self._json({"success": False, "slashed": True})
+                    else:
+                        self._json(
+                            _http_engine_result(result, extra={"slashed": False})
+                        )
                 else:
                     self._json({"success": False, "error": "record_vote not available"})
 
@@ -6464,7 +6611,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not se:
                     self._error(503, "SlashingEngine not enabled"); return
                 validator = body.get("validator_address", body.get("validator", ""))
-                stake = float(body.get("stake", 32.0))
+                stake = _http_abs(body.get("stake", 32.0), field="stake")
                 if not validator:
                     self._error(400, "validator_address required"); return
                 if hasattr(se, "register_validator"):
@@ -6482,7 +6629,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not vr:
                     self._error(503, "ValidatorRegistry not enabled"); return
                 address = body.get("address", body.get("validator_address", ""))
-                stake = float(body.get("stake", 32.0))
+                stake = _http_abs(body.get("stake", 32.0), field="stake")
                 if not address:
                     self._error(400, "address required"); return
                 if hasattr(vr, "register"):
@@ -6504,7 +6651,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 target = body.get("target", 0)
                 if hasattr(bf, "add_vote"):
                     result = bf.add_vote(validator, source, target)
-                    self._json({"success": bool(result), "validator": validator})
+                    self._json(_http_engine_result(result, extra={"validator": validator}))
                 else:
                     self._json({"success": False, "error": "add_vote not available"})
 
@@ -6559,7 +6706,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                         self._error(400, "signature and public_key must be hex"); return
                     ok = sph.verify(message.encode() if isinstance(message,str) else message,
                                     sig_bytes, pub_bytes)
-                    self._json({"valid": bool(ok), "algorithm": "SPHINCS+"})
+                    self._json({"valid": ok is True, "algorithm": "SPHINCS+"})
                 else:
                     self._error(501, "verify not available")
 
@@ -6571,7 +6718,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                 checkpoint_id = body.get("checkpoint_id", "")
                 if hasattr(fe, "finalize_checkpoint"):
                     result = fe.finalize_checkpoint(checkpoint_id)
-                    self._json({"success": bool(result), "checkpoint_id": checkpoint_id})
+                    self._json(
+                        _http_engine_result(
+                            result, extra={"checkpoint_id": checkpoint_id}
+                        )
+                    )
                 else:
                     self._json({"success": False, "error": "finalize_checkpoint not available"})
 
@@ -6584,7 +6735,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 detail = p2p.reconnect_known_peers_sync(timeout=timeout)
                 topology = p2p.get_topology() if hasattr(p2p, "get_topology") else {}
                 self._json({
-                    "success": bool(detail.get("ok")),
+                    "success": detail.get("ok") is True,
                     "message": "P2P reconnect finished",
                     "detail": detail,
                     "topology": topology,
@@ -6778,7 +6929,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 tx = body.get("transaction", body)
                 if hasattr(sh, "add_transaction"):
                     result = sh.add_transaction(tx)
-                    self._json(result if isinstance(result, dict) else {"success": bool(result)})
+                    self._json(_http_engine_result(result))
                 else:
                     self._json({"success": False, "error": "add_transaction not available"})
 
@@ -6870,7 +7021,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 new_owner = body.get("new_owner", "")
                 if hasattr(sa, "request_recovery"):
                     result = sa.request_recovery(account_address, new_owner)
-                    self._json({"success": bool(result)})
+                    self._json(_http_engine_result(result))
                 else:
                     self._json({"success": False, "error": "request_recovery not available"})
 
@@ -6882,7 +7033,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 guardian = body.get("guardian_address", "")
                 if hasattr(sa, "approve_recovery"):
                     result = sa.approve_recovery(account_address, guardian)
-                    self._json({"success": bool(result)})
+                    self._json(_http_engine_result(result))
                 else:
                     self._json({"success": False, "error": "approve_recovery not available"})
 
@@ -6893,7 +7044,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 account_address = body.get("account_address", "")
                 if hasattr(sa, "execute_recovery"):
                     result = sa.execute_recovery(account_address)
-                    self._json({"success": bool(result)})
+                    self._json(_http_engine_result(result))
                 else:
                     self._json({"success": False, "error": "execute_recovery not available"})
 
@@ -6906,7 +7057,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 guardian_address = body.get("guardian_address", "")
                 if hasattr(sa, "remove_guardian"):
                     result = sa.remove_guardian(account_address, guardian_address)
-                    self._json({"success": bool(result)})
+                    self._json(_http_engine_result(result))
                 else:
                     self._json({"success": False, "error": "remove_guardian not available"})
 
@@ -6918,7 +7069,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 guardian_address = body.get("guardian_address", "")
                 if hasattr(sa, "approve_guardian"):
                     result = sa.approve_guardian(account_address, guardian_address)
-                    self._json({"success": bool(result)})
+                    self._json(_http_engine_result(result))
                 else:
                     self._json({"success": False, "error": "approve_guardian not available"})
 
@@ -6930,7 +7081,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 provider = body.get("provider", "")
                 if hasattr(sa, "unlink_social_account"):
                     result = sa.unlink_social_account(account_address, provider)
-                    self._json({"success": bool(result)})
+                    self._json(_http_engine_result(result))
                 else:
                     self._json({"success": False, "error": "unlink_social_account not available"})
 
@@ -6943,7 +7094,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(400, "account_address required"); return
                 if hasattr(sa, "delete_account"):
                     result = sa.delete_account(account_address)
-                    self._json({"success": bool(result)})
+                    self._json(_http_engine_result(result))
                 elif hasattr(sa, "accounts") and account_address in sa.accounts:
                     del sa.accounts[account_address]
                     self._json({"success": True, "deleted": account_address})
@@ -6973,7 +7124,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 shard_id = int(body.get("shard_id", 0))
                 if hasattr(sh, "register_node"):
                     ok = sh.register_node(node_id, shard_id)
-                    self._json({"success": bool(ok), "node_id": node_id, "shard_id": shard_id})
+                    self._json({"success": ok is True, "node_id": node_id, "shard_id": shard_id})
                 else:
                     self._json({"success": False, "error": "register_node not available"})
 
@@ -6985,7 +7136,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 miner = body.get("miner", "")
                 if hasattr(sh, "mine_shard_block"):
                     result = sh.mine_shard_block(shard_id, miner)
-                    self._json(result if isinstance(result, dict) else {"success": bool(result)})
+                    self._json(_http_engine_result(result))
                 else:
                     self._json({"success": False, "error": "mine_shard_block not available"})
 
@@ -7044,10 +7195,18 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(400, "owner_address required"); return
                 if hasattr(sa, "register_account"):
                     result = sa.register_account(owner)
-                    self._json(result if isinstance(result, dict) else {"success": bool(result), "owner": owner})
+                    if isinstance(result, str) and result.strip():
+                        self._json(
+                            {"success": True, "owner": owner, "address": result}
+                        )
+                    else:
+                        self._json(_http_engine_result(result, extra={"owner": owner}))
                 elif hasattr(sa, "create_account"):
                     result = sa.create_account(owner, body.get("auth_method","basic"))
-                    self._json(result if isinstance(result, dict) else {"success": bool(result)})
+                    if isinstance(result, str) and result.strip():
+                        self._json({"success": True, "address": result})
+                    else:
+                        self._json(_http_engine_result(result))
                 else:
                     self._json({"success": False, "error": "register not available"})
 
@@ -7060,7 +7219,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 credential = body.get("credential", "")
                 if hasattr(sa, "add_auth_method"):
                     result = sa.add_auth_method(account_address, auth_method, credential)
-                    self._json({"success": bool(result)})
+                    self._json(_http_engine_result(result))
                 else:
                     self._json({"success": False, "error": "add_auth_method not available"})
 
@@ -7072,7 +7231,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 auth_method = body.get("auth_method", "")
                 if hasattr(sa, "remove_auth_method"):
                     result = sa.remove_auth_method(account_address, auth_method)
-                    self._json({"success": bool(result)})
+                    self._json(_http_engine_result(result))
                 else:
                     self._json({"success": False, "error": "remove_auth_method not available"})
 
@@ -7084,7 +7243,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 settings = body.get("settings", {})
                 if hasattr(sa, "update_settings"):
                     result = sa.update_settings(account_address, settings)
-                    self._json({"success": bool(result)})
+                    self._json(_http_engine_result(result))
                 else:
                     self._json({"success": False, "error": "update_settings not available"})
 
@@ -7108,7 +7267,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 auth_method = body.get("auth_method", "basic")
                 if sa and hasattr(sa, "authenticate"):
                     ok = sa.authenticate(account_address, credential, auth_method)
-                    self._json({"authenticated": bool(ok)})
+                    self._json({"authenticated": ok is True})
                 else:
                     self._json({"authenticated": False, "error": "not supported"})
 
@@ -7119,7 +7278,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 credential = body.get("credential", "")
                 if sa and hasattr(sa, "is_valid"):
                     ok = sa.is_valid(account_address)
-                    self._json({"valid": bool(ok)})
+                    self._json({"valid": ok is True})
                 elif sa and hasattr(sa, "get_account"):
                     acc = sa.get_account(account_address)
                     self._json({"valid": acc is not None, "account": acc})
@@ -7211,6 +7370,9 @@ class RESTHandler(BaseHTTPRequestHandler):
             else:
                 self._error(404, "Endpoint not found")
 
+        except ValueError as e:
+            logger.warning("REST POST rejected: %s", e)
+            self._error(400, str(e))
         except Exception as e:
             logger.exception(f"REST POST error: {e}")
             self._error(500, str(e))
@@ -7327,13 +7489,8 @@ def _tx_at_block_index(bc, blk: Optional[Dict], index: int) -> Optional[Dict]:
 
 
 def _parse_tx_value(value_raw) -> float:
-    """ABS amount: plain float, or 0x wei when value looks like Ethereum wei."""
-    if isinstance(value_raw, str):
-        if value_raw.startswith("0x"):
-            wei = int(value_raw, 16)
-            return wei / 10**18 if wei >= 10**15 else float(wei)
-        return float(value_raw)
-    return float(value_raw)
+    """ABS amount: decimal ABS, or 0x wei when value looks like Ethereum wei."""
+    return parse_rpc_value_abs(value_raw, field="value")
 
 
 def _build_testnet_mesh(p2p, bc, cfg) -> Dict:
@@ -7521,7 +7678,11 @@ def _build_state_consistency_harness(
     tip_root = str((tip_blk or {}).get("state_root") or "")
     live_norm = (live_root or "").strip().lower()
     tip_norm = tip_root.strip().lower()
-    tip_aligned = (live_norm == tip_norm) if tip_norm and live_norm else True
+    if int(height or 0) > 0 and (not live_norm or not tip_norm):
+        tip_aligned = False
+    else:
+        tip_aligned = (live_norm == tip_norm) if tip_norm and live_norm else True
+    tip_metadata_drift = bool(live_norm and tip_norm and live_norm != tip_norm)
 
     peers = []
     peer_roots_aligned = True
@@ -7534,15 +7695,47 @@ def _build_state_consistency_harness(
                 logger.warning("state consistency harness peer probe failed: timeout")
                 peer_roots_aligned = False
                 wire = []
+            elif not wire:
+                connected = 0
+                if hasattr(p2p, "peer_count"):
+                    try:
+                        connected = int(p2p.peer_count() or 0)
+                    except Exception:
+                        connected = 0
+                if connected <= 0 and hasattr(p2p, "peers"):
+                    try:
+                        connected = len(getattr(p2p, "peers", None) or {})
+                    except Exception:
+                        connected = 0
+                if connected > 0:
+                    peer_probe_error = "empty"
+                    logger.warning(
+                        "state consistency harness peer probe empty with %s peer(s)",
+                        connected,
+                    )
+                    peer_roots_aligned = False
             for entry in wire:
                 pr = str(entry.get("state_root") or "")
                 pr_norm = pr.strip().lower()
-                match = (pr_norm == live_norm) if pr_norm and live_norm else None
+                ph = int(entry.get("height", 0) or 0)
+                local_at = live_norm
+                if (
+                    ph
+                    and ph != int(height or 0)
+                    and bc is not None
+                    and hasattr(bc, "get_block")
+                ):
+                    blk = bc.get_block(ph)
+                    if isinstance(blk, dict):
+                        hist = str(blk.get("state_root") or "").strip().lower()
+                        if hist:
+                            local_at = hist
+                match = (pr_norm == local_at) if pr_norm and local_at else None
                 if match is False:
                     peer_roots_aligned = False
                 peers.append({
                     "peer_id": entry.get("peer_id", ""),
-                    "height": int(entry.get("height", 0) or 0),
+                    "height": ph,
                     "state_root": pr,
                     "match": match,
                 })
@@ -7551,17 +7744,6 @@ def _build_state_consistency_harness(
             logger.warning("state consistency harness peer probe failed: %s", exc)
             peer_roots_aligned = False
 
-    # Long Docker chains: tip block metadata may lag while mesh agrees on live root
-    tip_metadata_drift = not tip_aligned
-    if (
-        tip_metadata_drift
-        and peer_roots_aligned
-        and peers
-        and live_norm
-        and all(p.get("match") is True for p in peers)
-    ):
-        tip_aligned = True
-
     mismatches = (
         db.get_state_root_mismatches(limit=20)
         if db and hasattr(db, "get_state_root_mismatches")
@@ -7569,20 +7751,35 @@ def _build_state_consistency_harness(
     )
     account_count = 0
     total_supply = 0.0
-    if db and hasattr(db, "get_all_accounts"):
-        if quick and height > 0:
-            account_count = 1
-            if hasattr(db, "get_total_supply"):
-                total_supply = float(db.get_total_supply())
-        else:
-            account_count = len(db.get_all_accounts())
-            total_supply = (
-                float(db.get_total_supply())
-                if hasattr(db, "get_total_supply")
-                else 0.0
-            )
+    account_count_known = False
+    supply_known = False
+    if db is not None:
+        # HTTP harness must not prefix-scan (get_stats / get_all_accounts /
+        # get_total_supply fallback). Those stall the GIL and poison /status soak.
+        if hasattr(db, "get_cached_account_count"):
+            try:
+                cached_ac = db.get_cached_account_count()
+                if cached_ac is not None:
+                    account_count = int(cached_ac)
+                    account_count_known = True
+            except (TypeError, ValueError, OSError) as exc:
+                logger.warning("harness cached account count failed: %s", exc)
+        if hasattr(db, "get_cached_total_supply"):
+            try:
+                cached_sup = db.get_cached_total_supply()
+                if cached_sup is not None:
+                    total_supply = float(cached_sup)
+                    supply_known = True
+            except (TypeError, ValueError, OSError) as exc:
+                logger.warning("harness cached total supply failed: %s", exc)
     max_supply = float(getattr(cfg, "max_supply", 221_000_000) or 221_000_000)
     state_consistent = getattr(p2p, "_state_consistent", False) if p2p else False
+    wire_consistent = (
+        peer_probe_error is None
+        and bool(peers)
+        and peer_roots_aligned
+        and all(p.get("match") is True for p in peers)
+    )
 
     checks = [
         {
@@ -7618,8 +7815,16 @@ def _build_state_consistency_harness(
         },
         {
             "id": "p2p_state_consistent",
-            "ok": bool(state_consistent),
-            "detail": "P2P wire state consistency flag",
+            "ok": bool(state_consistent) or wire_consistent,
+            "detail": (
+                "P2P wire state consistency flag"
+                if state_consistent
+                else (
+                    "live wire roots match (sticky flag lag)"
+                    if wire_consistent
+                    else "P2P wire state consistency flag"
+                )
+            ),
         },
         {
             "id": "no_recent_mismatches",
@@ -7628,13 +7833,29 @@ def _build_state_consistency_harness(
         },
         {
             "id": "accounts_present",
-            "ok": account_count > 0 or height <= 0,
-            "detail": "chain accounts populated",
+            "ok": (
+                (account_count > 0)
+                if account_count_known
+                else int(height or 0) > 0
+            ),
+            "detail": (
+                "chain accounts populated"
+                if account_count_known
+                else "account count meta missing (harness does not prefix-scan)"
+            ),
         },
         {
             "id": "supply_within_cap",
-            "ok": total_supply <= max_supply * 1.001,
-            "detail": f"total_supply {total_supply:,.0f} <= max {max_supply:,.0f}",
+            "ok": (
+                total_supply <= max_supply * 1.001
+                if supply_known
+                else True
+            ),
+            "detail": (
+                f"total_supply {total_supply:,.0f} <= max {max_supply:,.0f}"
+                if supply_known
+                else "supply meta missing (harness does not prefix-scan)"
+            ),
         },
     ]
     policy = bc.get_state_root_policy() if bc and hasattr(bc, "get_state_root_policy") else {}
@@ -7669,7 +7890,7 @@ def _build_state_consistency_harness(
         "live_state_root": live_root,
         "tip_block_state_root": tip_root,
         "tip_state_aligned": tip_aligned,
-        "tip_metadata_drift": tip_metadata_drift and tip_aligned,
+        "tip_metadata_drift": tip_metadata_drift,
         "account_count": account_count,
         "total_supply_abs": total_supply,
         "max_supply_abs": max_supply,
@@ -8393,7 +8614,7 @@ def _handle_devnet_pool_spend(body: Dict, bc, db, cfg, pool_locks) -> Dict:
 
     pool_id = (body.get("pool_id", body.get("pool", "ecosystem")) or "").strip().lower()
     to_addr = (body.get("to", body.get("recipient", "")) or "").strip()
-    amount = float(body.get("amount", 0))
+    amount = _http_abs(body.get("amount", 0))
     if pool_id not in ("ecosystem", "treasury", "staking"):
         raise ValueError("pool_id must be ecosystem, treasury, or staking")
     if not to_addr:
@@ -8867,8 +9088,8 @@ def shutdown_http_server(
         t.join(timeout=max(1.0, float(timeout)))
         try:
             server.server_close()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("%s server_close failed: %s", name, exc)
         print(f"[{name}] Server shutdown complete")
     except Exception as e:
         print(f"[{name}] Shutdown warning: {e}")

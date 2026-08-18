@@ -377,7 +377,7 @@ class HybridDatabase:
     def update_balance(self, address: str, delta: float) -> float:
         return self._core.update_balance(address, delta)
 
-    def set_balance(self, address: str, balance: float) -> None:
+    def set_balance(self, address: str, balance: int) -> None:
         self._core.set_balance(address, balance)
 
     def balance_delta(self, address: str, delta: float) -> None:
@@ -512,8 +512,31 @@ class HybridDatabase:
     def reset_accounts_from_alloc(self, alloc: Dict[str, float], *, _in_atomic: bool = False) -> None:
         self._core.reset_accounts_from_alloc(alloc, _in_atomic=_in_atomic)
 
+    def get_cached_account_count(self) -> int | None:
+        if hasattr(self._core, "get_cached_account_count"):
+            return self._core.get_cached_account_count()
+        return None
+
+    def get_cached_total_supply(self) -> float | None:
+        if hasattr(self._core, "get_cached_total_supply"):
+            return self._core.get_cached_total_supply()
+        return None
+
     def get_total_supply(self) -> float:
         return self._core.get_total_supply()
+
+    def get_rocks_runtime_stats(self) -> Dict:
+        if hasattr(self._core, "get_rocks_runtime_stats"):
+            stats = dict(self._core.get_rocks_runtime_stats())
+        else:
+            stats = dict(self.get_stats())
+        aux_fails = int(getattr(self._aux, "_json_decode_failures", 0) or 0)
+        stats["aux_json_decode_failures"] = aux_fails
+        tuning = dict(stats.get("rocksdb_tuning") or {})
+        tuning["aux_json_decode_failures"] = aux_fails
+        tuning["sqlite_json_decode_failures"] = aux_fails
+        stats["rocksdb_tuning"] = tuning
+        return stats
 
     def get_stats(self) -> Dict:
         stats = self._core.get_stats()

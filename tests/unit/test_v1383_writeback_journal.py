@@ -222,3 +222,17 @@ def test_needles_v1383():
     assert "native_inline_writeback" in adapter
     notes = (ROOT / "RELEASE_NOTES_v1.3.83.md").read_text(encoding="utf-8")
     assert "1.3.83-industrial" in notes
+
+
+def test_take_bridge_pending_writeback_does_not_silent_drop():
+    class MemDB:
+        def get_account(self, addr):
+            return None
+
+        def get_chain_tip(self):
+            return 0
+
+    ad = EVMAdapter(MemDB(), Config())
+    host_ctx = {"bridge_state": {"pending_writeback_ops": [object()]}}
+    with pytest.raises(RuntimeError, match="bridge_pending_writeback_failed"):
+        ad._take_bridge_pending_writeback(host_ctx)

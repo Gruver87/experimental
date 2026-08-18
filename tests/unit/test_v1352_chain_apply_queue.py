@@ -102,7 +102,72 @@ def test_wiring():
     main = Path("main.py").read_text(encoding="utf-8")
     assert "ChainApplyQueue" in main
     assert "submit_forge_and_apply_async" in main
+    assert "await self.p2p._broadcast_block" in main
     p2p = Path("network/p2p_node.py").read_text(encoding="utf-8")
     assert "apply_queue" in p2p
+    assert "note_local_forge" in p2p
+    note_i = main.find("note(1.0, height=")
+    bcast_i = main.find("await self.p2p._broadcast_block")
+    assert 0 <= note_i < bcast_i
     assert "submit_import_async" in p2p or "submit_import" in p2p
     assert Path("core/chain_apply_queue.py").is_file()
+
+
+def test_busy_true_during_dispatch():
+    started = threading.Event()
+    release = threading.Event()
+
+    class SlowBC:
+        def import_block(self, data):
+            started.set()
+            assert release.wait(timeout=2.0)
+            return True
+
+    q = ChainApplyQueue(SlowBC(), maxsize=4, timeout_sec=5.0, name="tbusy")
+    try:
+        worker = threading.Thread(target=lambda: q.submit_import({"h": 1}), daemon=True)
+        worker.start()
+        assert started.wait(timeout=2.0)
+        assert q.busy is True
+        release.set()
+        worker.join(timeout=3.0)
+        assert q.busy is False
+    finally:
+        q.stop()
+
+
+def test_async_overflow_returns_immediately():
+    import asyncio
+
+    class SlowBC:
+        def import_block(self, data):
+            time.sleep(0.4)
+            return True
+
+    async def _run() -> None:
+        q = ChainApplyQueue(SlowBC(), maxsize=1, timeout_sec=30.0, name="tasync")
+        try:
+            t0 = time.perf_counter()
+            first = asyncio.create_task(q.submit_import_async({"i": 1}))
+            await asyncio.sleep(0.05)
+            second = asyncio.create_task(q.submit_import_async({"i": 2}))
+            await asyncio.sleep(0.05)
+            third = await q.submit_import_async({"i": 3})
+            elapsed = time.perf_counter() - t0
+            assert third is False
+            assert elapsed < 1.0
+            assert q.reject_total >= 1
+            await first
+            await second
+        finally:
+            q.stop()
+
+    asyncio.run(_run())
+
+
+def test_async_submit_uses_wrap_future_not_to_thread():
+    src = Path("core/chain_apply_queue.py").read_text(encoding="utf-8")
+    assert "asyncio.wrap_future" in src
+    assert "asyncio.to_thread(self.submit_import" not in src
+    p2p = Path("network/p2p_node.py").read_text(encoding="utf-8")
+    assert "Saturated apply queue" in p2p

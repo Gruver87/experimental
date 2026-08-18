@@ -93,15 +93,23 @@ class SyncEngineCatchUpIO:
         if callable(checker):
             try:
                 return bool(checker())
-            except Exception:
-                return False
+            except Exception as exc:
+                logger.warning("[EngineIO] needs_genesis checker failed: %s", exc)
+                try:
+                    return int(self._engine._local_height() or 0) <= 0
+                except Exception:
+                    return True
         bc = getattr(self._engine.node, "blockchain", None)
         if bc is None or not hasattr(bc, "get_last_block"):
             return False
         try:
             return bc.get_last_block() is None
-        except Exception:
-            return False
+        except Exception as exc:
+            logger.warning("[EngineIO] get_last_block failed: %s", exc)
+            try:
+                return int(self.height() or 0) <= 0
+            except Exception:
+                return True
 
     def head(self) -> str:
         tip_h = self.height()
@@ -140,7 +148,8 @@ class SyncEngineCatchUpIO:
             if bc is not None and hasattr(bc, "get_block"):
                 try:
                     return bc.get_block(h)
-                except Exception:
+                except Exception as exc:
+                    logger.warning("[EngineIO] get_block(%s) failed: %s", h, exc)
                     return None
             return None
         key = str(height_or_hash or "").strip()
@@ -154,7 +163,8 @@ class SyncEngineCatchUpIO:
         if bc is not None and hasattr(bc, "get_block_by_hash"):
             try:
                 return bc.get_block_by_hash(key)
-            except Exception:
+            except Exception as exc:
+                logger.warning("[EngineIO] get_block_by_hash failed: %s", exc)
                 return None
         return None
 
@@ -189,7 +199,8 @@ class SyncEngineCatchUpIO:
         if bc is not None and hasattr(bc, "find_ancestor_height"):
             try:
                 return bc.find_ancestor_height(key)
-            except Exception:
+            except Exception as exc:
+                logger.warning("[EngineIO] find_ancestor_height failed: %s", exc)
                 return None
         blk = self.get_block(key)
         if isinstance(blk, Mapping):
@@ -307,10 +318,37 @@ class SyncEngineCatchUpIO:
     # ── CatchUpProbePort ─────────────────────────────────────────────────────
 
     def local_tip_probe_refuse(self, peer: Any) -> str:
-        # SyncEngine fast_sync never ran tip probes; keep disabled via config.
+        """Refuse ahead catch-up when first imported block does not extend local tip."""
+        local_h = int(self.height() or 0)
+        peer_h = int(getattr(peer, "height", 0) or self._target_height or 0)
+        if peer_h <= local_h or local_h <= 0:
+            return ""
+        self._ensure_ahead_index()
+        first = self._by_height.get(local_h + 1)
+        if not isinstance(first, Mapping):
+            return ""
+        parent = str(first.get("parent_hash") or "").strip()
+        local_tip = self.head()
+        if parent and local_tip and parent.lower() != local_tip.lower():
+            return "catch_up_tip_head_mismatch"
         return ""
 
     def peer_head_probe_refuse(self, peer: Any) -> str:
+        """Refuse when downloaded head hash/height does not match the peer claim."""
+        local_h = int(self.height() or 0)
+        peer_h = int(getattr(peer, "height", 0) or self._target_height or 0)
+        if peer_h <= local_h:
+            return ""
+        self._ensure_ahead_index()
+        if not self._chain_ok:
+            return str(self._chain_error or "catch_up_peer_head_probe_failed")
+        head = str(getattr(peer, "head_hash", "") or self._peer_head or "").strip()
+        blk = self._by_height.get(peer_h)
+        if not isinstance(blk, Mapping):
+            return "catch_up_peer_head_probe_failed"
+        got = _block_hash(blk)
+        if head and got and got.lower() != head.lower():
+            return "catch_up_peer_head_hash_mismatch"
         return ""
 
     # ── CatchUpSideEffectPort ────────────────────────────────────────────────

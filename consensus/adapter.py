@@ -10,10 +10,13 @@ Evidence / Lockdown ports. Legacy method names remain as thin shims for API/P2P.
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 import time
 from typing import Any, Dict, List, Optional, Sequence, Union
+
+from runtime.amount import money_abs
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
@@ -69,6 +72,8 @@ try:
     _BEACON_AVAILABLE = True
 except ImportError:
     _BEACON_AVAILABLE = False
+
+logger = logging.getLogger("abs.consensus")
 
 
 class ConsensusAdapter:
@@ -220,17 +225,19 @@ class ConsensusAdapter:
             ) from persist_err
 
     def _register_validator_all(self, address: str, stake: float) -> None:
-        self.engine.add_validator(address, stake)
+        stake_abs = money_abs(stake, field="stake")
+        self.engine.add_validator(address, stake_abs)
         if self.slashing_engine:
-            self.slashing_engine.add_validator(address, int(stake))
+            self.slashing_engine.add_validator(address, int(stake_abs))
         if self.validator_registry:
-            self.validator_registry.register_validator(address, int(stake))
+            self.validator_registry.register_validator(address, int(stake_abs))
 
     def _sync_finality_validator_count(self) -> None:
         count = 0
         try:
             count = len(self._registry_port.list_active())
-        except Exception:
+        except Exception as exc:
+            logger.warning("list_active for finality validator count failed: %s", exc)
             count = 0
         if count <= 0 and self.db and hasattr(self.db, "get_validators"):
             count = len(self.db.get_validators(active_only=True) or [])
@@ -249,15 +256,16 @@ class ConsensusAdapter:
     # ── ValidatorRegistryPort-backed management ────────────────────────────
 
     def add_validator(self, address: str, stake: float) -> bool:
-        ok = self.engine.add_validator(address, stake)
+        stake_abs = money_abs(stake, field="stake")
+        ok = self.engine.add_validator(address, stake_abs)
         if ok:
-            self.db.save_validator(address, stake)
+            self.db.save_validator(address, stake_abs)
             if self.slashing_engine:
-                self.slashing_engine.add_validator(address, int(stake))
+                self.slashing_engine.add_validator(address, int(stake_abs))
             if self.validator_registry:
-                self.validator_registry.register_validator(address, int(stake))
+                self.validator_registry.register_validator(address, int(stake_abs))
             self._sync_finality_validator_count()
-            print(f"[Consensus] New validator: {address[:12]}... stake={stake}")
+            print(f"[Consensus] New validator: {address[:12]}... stake={stake_abs}")
         return ok
 
     def slash_validator(self, address: str) -> None:
@@ -291,11 +299,11 @@ class ConsensusAdapter:
 
     def get_total_stake(self) -> float:
         try:
-            stake = float(self._registry_port.total_active_stake())
+            stake = money_abs(self._registry_port.total_active_stake(), field="stake")
             if stake > 0:
                 return stake
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("total_active_stake failed; engine fallback: %s", exc)
         return self.engine.get_total_stake()
 
     def select_proposer(self) -> Optional[str]:
@@ -350,8 +358,8 @@ class ConsensusAdapter:
             try:
                 self._round_state.arm_quorum_live(allow_live)
                 view = self._round_state.finality_status()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("arm_quorum_live failed: %s", exc)
         # Honesty: never claim live mesh quorum unless config arms it AND QC reached.
         live = bool(allow_live and getattr(view, "quorum_live", False))
         detail = str(getattr(view, "detail", "") or "local_path_only")
@@ -413,8 +421,8 @@ class ConsensusAdapter:
             )
             if ref.block_hash:
                 self._round_state.add_block(ref, parent_hash=ref.parent_hash)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("round_state add_block failed: %s", exc)
 
     # ── Legacy attestation shim → ConsensusPort.submit_vote ────────────────
 
@@ -550,8 +558,8 @@ class ConsensusAdapter:
                     parent_hash="",
                 )
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("process_block_finality add_block failed: %s", exc)
 
         if finalized:
             # Domain side-effect port only (no direct P2P)
@@ -576,12 +584,14 @@ class ConsensusAdapter:
             if hh and self.casper_engine:
                 try:
                     return bool(self.casper_engine.is_finalized(hh))
-                except Exception:
+                except Exception as exc:
+                    logger.warning("casper is_finalized failed: %s", exc)
                     return False
             if hh and self.beacon_engine:
                 try:
                     return bool(self.beacon_engine.is_finalized(hh))
-                except Exception:
+                except Exception as exc:
+                    logger.warning("beacon is_finalized failed: %s", exc)
                     return False
             return False
 

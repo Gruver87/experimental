@@ -61,19 +61,22 @@ class CatchUpP2PChainAdapter:
     def head(self) -> str:
         try:
             return str(self._p2p.head() or "")
-        except Exception:
+        except Exception as exc:
+            logger.warning("[CatchUpChain] head failed: %s", exc)
             return ""
 
     def expected_parent(self, height: int) -> str:
         try:
             return str(self._p2p._expected_parent_for_height(int(height)) or "")
-        except Exception:
+        except Exception as exc:
+            logger.warning("[CatchUpChain] expected_parent failed: %s", exc)
             return "0" * 64
 
     def get_block(self, height_or_hash: Any) -> Any:
         try:
             return self._p2p.get_block(height_or_hash)
-        except Exception:
+        except Exception as exc:
+            logger.warning("[CatchUpChain] get_block failed: %s", exc)
             return None
 
     def import_block(self, data: Mapping[str, Any]) -> bool:
@@ -89,15 +92,16 @@ class CatchUpP2PChainAdapter:
         if hasattr(bc, "find_ancestor_height"):
             try:
                 return bc.find_ancestor_height(str(parent_hash or ""))
-            except Exception:
+            except Exception as exc:
+                logger.warning("[CatchUpChain] find_ancestor_height failed: %s", exc)
                 return None
         key = str(parent_hash or "").strip()
         blk = None
         if hasattr(bc, "get_block_by_hash"):
             try:
                 blk = bc.get_block_by_hash(key)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("[CatchUpChain] get_block_by_hash failed: %s", exc)
         if isinstance(blk, dict):
             try:
                 return int(blk.get("height", blk.get("number", -1)) or -1)
@@ -118,7 +122,8 @@ class CatchUpP2PChainAdapter:
                 except RuntimeError:
                     try:
                         loop = asyncio.get_event_loop()
-                    except Exception:
+                    except Exception as exc:
+                        logger.debug("[CatchUpChain] get_event_loop failed: %s", exc)
                         loop = None
             if loop is None or not loop.is_running():
                 logger.warning("[CatchUpChain] reorg via queue: no running loop")
@@ -192,7 +197,8 @@ class CatchUpP2PFetchAdapter:
         fut = asyncio.run_coroutine_threadsafe(_coro(), self._loop)
         try:
             msg = fut.result(timeout=float(timeout) + 5)
-        except Exception:
+        except Exception as exc:
+            logger.debug("[CatchUpFetch] wait failed: %s", exc)
             return None
         if msg is None or not isinstance(msg, dict):
             return None
@@ -249,22 +255,22 @@ class CatchUpP2PSideEffectAdapter:
     def bump_refuse(self, reason: str) -> None:
         try:
             self._p2p._bump_catch_up_refuse(str(reason or ""))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("[CatchUpSide] bump_refuse failed: %s", exc)
 
     def note_import_fail(self, peer_id: str) -> None:
         try:
             self._p2p._note_peer_import_fail(self._peer)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("[CatchUpSide] note_import_fail failed: %s", exc)
 
     def set_peer_height(self, peer_id: str, height: int) -> None:
         try:
             self._peer.height = max(
                 int(getattr(self._peer, "height", 0) or 0), int(height)
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("[CatchUpSide] set_peer_height failed: %s", exc)
 
     def is_running(self) -> bool:
         return bool(getattr(self._p2p, "_running", True))
@@ -272,7 +278,8 @@ class CatchUpP2PSideEffectAdapter:
     def batch_size(self) -> int:
         try:
             return max(1, int(self._p2p.config.sync_batch_size or 32))
-        except Exception:
+        except Exception as exc:
+            logger.debug("[CatchUpSide] batch_size failed; default 32: %s", exc)
             return 32
 
     def on_progress(self, message: str) -> None:

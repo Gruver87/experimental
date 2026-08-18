@@ -123,6 +123,28 @@ def test_ok_numeric_value_reaches_validate():
     assert node._mempool_value_unparseable_refuse_total == 0
 
 
+def test_refuse_bool_value_before_validate():
+    node = _node()
+    out = _build(node, _wire(value=True, tx_hash="b0" * 32))
+    assert out is None
+    assert node._last_tx_wire_reject == "value_unparseable"
+    node.blockchain.validate_transaction.assert_not_called()
+
+
+def test_refuse_hex_value_before_validate():
+    node = _node()
+    out = _build(node, _wire(value="0xde0b6b3a7640000", tx_hash="b1" * 32))
+    assert out is None
+    assert node._last_tx_wire_reject == "value_unparseable"
+
+
+def test_refuse_bool_fee_before_validate():
+    node = _node()
+    out = _build(node, _wire(value=1.0, fee=True, tx_hash="b2" * 32))
+    assert out is None
+    assert node._last_tx_wire_reject == "fee_unparseable"
+
+
 def test_security_status_gauge():
     node = _node()
     st = node.get_p2p_security_status()

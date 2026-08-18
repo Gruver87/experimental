@@ -7,11 +7,14 @@ dials use the real rust-libp2p swarm. Otherwise Phase-1 stub handles remain
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any, Mapping, Optional
 
 from network.transport.errors import TransportCapabilityError, TransportValidationError
 from network.transport.types import PeerEndpoint
+
+logger = logging.getLogger("LibP2P")
 
 
 def native_libp2p_available() -> bool:
@@ -127,8 +130,8 @@ class Libp2pTransportAdapter:
             if self._peer_policy is not None and hasattr(self._peer_policy, "attach_native"):
                 try:
                     self._peer_policy.attach_native(self._node)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("[LibP2P] attach_native failed: %s", exc)
         except Exception as exc:
             raise TransportCapabilityError(f"libp2p node start failed: {exc}") from exc
         return self._node
@@ -154,8 +157,8 @@ class Libp2pTransportAdapter:
                             if str(k).startswith("libp2p_")
                         }
                     )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("[LibP2P] metrics merge failed: %s", exc)
                 return st
             except Exception as exc:
                 return {
@@ -550,7 +553,8 @@ class Libp2pTransportAdapter:
             return []
         try:
             return [str(p) for p in self._node.blocked_peers()]
-        except Exception:
+        except Exception as exc:
+            logger.warning("[LibP2P] blocked_peers failed: %s", exc)
             return []
 
     def allow_peer(self, peer_id: str) -> None:
@@ -573,7 +577,8 @@ class Libp2pTransportAdapter:
             return []
         try:
             return [str(p) for p in self._node.allowed_peers()]
-        except Exception:
+        except Exception as exc:
+            logger.warning("[LibP2P] allowed_peers failed: %s", exc)
             return []
 
     def external_addrs(self) -> list[str]:
@@ -582,7 +587,8 @@ class Libp2pTransportAdapter:
             return []
         try:
             return [str(a) for a in self._node.external_addrs()]
-        except Exception:
+        except Exception as exc:
+            logger.warning("[LibP2P] external_addrs failed: %s", exc)
             return []
 
     def add_external_address(self, multiaddr: str) -> bool:
@@ -631,7 +637,8 @@ class Libp2pTransportAdapter:
         if self._peer_policy is not None and hasattr(self._peer_policy, "status"):
             try:
                 policy_attached = bool(dict(self._peer_policy.status()).get("attached"))
-            except Exception:
+            except Exception as exc:
+                logger.debug("[LibP2P] peer_policy status failed: %s", exc)
                 policy_attached = False
         out: dict[str, Any] = {
             "feature_libp2p": self._enabled,
@@ -661,8 +668,8 @@ class Libp2pTransportAdapter:
         if self._node is not None:
             try:
                 self._node.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("[LibP2P] node close failed: %s", exc)
             self._node = None
 
     @staticmethod

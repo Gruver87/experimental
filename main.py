@@ -449,7 +449,8 @@ class NodeOrchestrator:
                 try:
                     if sm.has_secret(logical):
                         return (sm.get_secret(logical) or "").strip()
-                except Exception:
+                except Exception as exc:
+                    _node_log.warning("secret lookup failed for %s: %s", logical, exc)
                     continue
             return ""
 
@@ -1665,9 +1666,11 @@ class NodeOrchestrator:
             if not self.db.get_meta("genesis_alloc_applied"):
                 alloc = genesis_balances(founder or None)
                 for addr, amount in alloc.items():
+                    if isinstance(amount, bool):
+                        raise TypeError("bool is not an amount")
                     cur = self.db.get_balance(addr)
                     if cur < amount * 0.99:
-                        self.db.set_balance(addr, float(amount))
+                        self.db.set_balance(addr, int(amount))
                 self.db.set_meta("genesis_alloc_applied", True)
                 self.db.set_meta("tokenomics", get_tokenomics_summary(founder or None))
                 print(
@@ -1678,9 +1681,12 @@ class NodeOrchestrator:
             expected = int(genesis_balances(founder or None).get(founder, FOUNDER_AMOUNT_ABS))
             cur = self.db.get_balance(founder)
             if cur < expected * 0.99:
-                self.db.set_balance(founder, float(expected))
+                self.db.set_balance(founder, int(expected))
                 print(f"[Node] Founder wallet synced: {expected:,.0f} ABS -> {founder}")
         except Exception as exc:
+            _node_log.warning("Genesis allocation failed: %s", exc)
+            if str(getattr(self.config, "deployment_mode", "")).lower() == "prod":
+                raise
             print(f"[Node] Genesis allocation note: {exc}")
 
     def _pin_chain_founder_address(self) -> None:
@@ -2207,9 +2213,14 @@ class NodeOrchestrator:
 
             if self.p2p and self.p2p._loop and self.p2p._running:
                 try:
-                    asyncio.create_task(self.p2p._broadcast_block(block.to_dict()))
+                    # Record forge height before gossip so inbound echo cannot
+                    # hit dispatcher tip-evidence with a stale AncestryWindow.
+                    note = getattr(self.p2p, "note_local_forge", None)
+                    if callable(note):
+                        note(1.0, height=int(getattr(block, "height", 0) or 0))
+                    await self.p2p._broadcast_block(block.to_dict())
                 except Exception as exc:
-                    print(f"[Mining] broadcast_block schedule failed: {exc}")
+                    print(f"[Mining] broadcast_block failed: {exc}")
 
             if self.sync_engine and self.p2p:
                 try:
@@ -2519,8 +2530,8 @@ async def _run_node(config: Config):
     # Ensure fresh accept flag after prior test / reload.
     try:
         set_accepting_requests(True)
-    except Exception:
-        pass
+    except Exception as exc:
+        _node_log.warning("set_accepting_requests failed at boot: %s", exc)
     node = NodeOrchestrator(config)
 
     # Graceful shutdown: Unix (asyncio) + Windows (signal) — ADR 0014

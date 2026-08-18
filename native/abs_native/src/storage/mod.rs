@@ -482,6 +482,21 @@ impl RocksEngine {
                 dict.set_item(*key, value)?;
             }
         }
+        if self.column_families {
+            let mut keys: u64 = 0;
+            for name in CF_NAMES {
+                let Ok(cf) = self.cf_handle(name) else {
+                    continue;
+                };
+                if let Ok(Some(value)) = self.db.property_value_cf(cf, "rocksdb.estimate-num-keys")
+                {
+                    if let Ok(n) = value.trim().parse::<u64>() {
+                        keys = keys.saturating_add(n);
+                    }
+                }
+            }
+            dict.set_item("rocksdb.estimate-num-keys-all-cf", keys.to_string())?;
+        }
         Ok(dict.unbind())
     }
 
@@ -578,6 +593,25 @@ impl RocksEngine {
         Ok(out)
     }
 
+    fn prefix_last_in_cf(
+        &self,
+        cf_name: &str,
+        prefix: &[u8],
+        seek: &[u8],
+    ) -> PyResult<Option<(Vec<u8>, Vec<u8>)>> {
+        let cf = self.cf_handle(cf_name)?;
+        let mut iter = self
+            .db
+            .iterator_cf(cf, IteratorMode::From(seek, Direction::Reverse));
+        if let Some(item) = iter.next() {
+            let (key, value) = item.map_err(map_db_err)?;
+            if key.starts_with(prefix) {
+                return Ok(Some((key.to_vec(), value.to_vec())));
+            }
+        }
+        Ok(None)
+    }
+
     fn prefix_last_bytes(&self, prefix: &[u8]) -> PyResult<Option<(Vec<u8>, Vec<u8>)>> {
         let mut seek = prefix.to_vec();
         seek.extend(std::iter::repeat_n(0xffu8, 32));
@@ -593,20 +627,18 @@ impl RocksEngine {
             }
             return Ok(None);
         }
-        // Prefer primary CF, then legacy default.
+        // Dual-CF prefix_last: pick the lexicographically last key across
+        // target CF and legacy default (primary-first would hide a later default key).
+        let mut best: Option<(Vec<u8>, Vec<u8>)> = None;
         for cf_name in [cf_name_for_key(prefix), CF_DEFAULT] {
-            let cf = self.cf_handle(cf_name)?;
-            let mut iter = self
-                .db
-                .iterator_cf(cf, IteratorMode::From(&seek, Direction::Reverse));
-            if let Some(item) = iter.next() {
-                let (key, value) = item.map_err(map_db_err)?;
-                if key.starts_with(prefix) {
-                    return Ok(Some((key.to_vec(), value.to_vec())));
+            if let Some((key, value)) = self.prefix_last_in_cf(cf_name, prefix, &seek)? {
+                match &best {
+                    Some((best_key, _)) if key.as_slice() <= best_key.as_slice() => {}
+                    _ => best = Some((key, value)),
                 }
             }
         }
-        Ok(None)
+        Ok(best)
     }
 
     fn prefix_scan_single<'py>(

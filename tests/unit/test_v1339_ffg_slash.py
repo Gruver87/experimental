@@ -55,8 +55,11 @@ def test_slash_double_vote_and_proposal():
     eng2 = SlashingEngine()
     eng2.register_validator("v2", 100)
     assert eng2.record_proposal("v2", 10, "0xa") is True
+    assert eng2.record_proposal("v2", 10, "0xa") is True  # same-hash retry OK
     assert eng2.record_proposal("v2", 10, "0xb") is False
     assert eng2.is_slashed("v2")
+    # Already-slashed validator may still land a new canonical height (catch-up).
+    assert eng2.record_proposal("v2", 11, "0xc") is True
 
 
 def test_finality_engine_quorum_native():
@@ -77,4 +80,13 @@ def test_wiring_surfaces():
     assert "ffg_evaluate_epoch" in Path("consensus/finality_casper.py").read_text(encoding="utf-8")
     assert "slash_check_double_vote" in Path("consensus/slashing.py").read_text(encoding="utf-8")
     assert "fe_quorum_reached" in Path("finality_engine.py").read_text(encoding="utf-8")
+    assert "native fe_quorum_reached failed" in Path("finality_engine.py").read_text(
+        encoding="utf-8"
+    )
+    assert '_native_fb("ffg_accumulate_vote"' in Path(
+        "consensus/finality_casper.py"
+    ).read_text(encoding="utf-8")
+    assert '_native_fb("ghost_select_head"' in Path("consensus/ghost.py").read_text(
+        encoding="utf-8"
+    )
     assert "ffg_evaluate_epoch" in Path("consensus/finality_beacon.py").read_text(encoding="utf-8")

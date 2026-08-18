@@ -1,95 +1,26 @@
-# Restart 48h prod mesh soak with tip-v2 industrial evidence paths (background).
+# Compatibility wrapper: Experimental 48h soak lives in start_soak_prod_mesh_48h.ps1.
+# Does not reuse historical tip-v2 evidence log names.
 param(
     [int]$Hours = 48,
     [int]$IntervalSec = 300,
-    [string]$LogFile = "logs/industrial_tipv2_soak_48h_rerun.log",
-    [string]$ReportFile = "logs/soak_report_tipv2_48h_rerun.json",
+    [string]$LogFile = "logs/soak_48h_experimental.log",
+    [string]$ReportFile = "logs/soak_report_48h_experimental.json",
     [switch]$Foreground,
-    [switch]$NoStopExisting
+    [switch]$NoStopExisting,
+    [switch]$SkipPreflight
 )
 
-$ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Root = Split-Path -Parent $ScriptDir
-Set-Location $Root
-
-$logDir = Split-Path -Parent $LogFile
-if ($logDir -and -not (Test-Path $logDir)) {
-    New-Item -ItemType Directory -Force -Path $logDir | Out-Null
-}
-
-Write-Host "Prod mesh soak restart: ${Hours}h interval=${IntervalSec}s" -ForegroundColor Cyan
-Write-Host "  log=$LogFile report=$ReportFile" -ForegroundColor DarkGray
-Write-Host "  health_watch ProdMesh timeouts: ready=15s status=12s harness=15-30s" -ForegroundColor DarkGray
-Write-Host "  preflight (safe, no soak start): .\scripts\prepare_48h_soak.ps1" -ForegroundColor DarkGray
-
-$gitTag = "unknown"
-try {
-    $desc = git describe --tags --abbrev=0 2>$null
-    if ($desc) { $gitTag = $desc.Trim() }
-} catch {
-    $gitTag = "unknown"
-}
-
-if (-not $NoStopExisting) {
-    & (Join-Path $ScriptDir "stop_soak_monitors.ps1") -Force
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-}
-
-$activeMeta = @{
-    log_file = $LogFile
-    report_file = $ReportFile
-    hours = $Hours
-    interval_sec = $IntervalSec
-    started_at = (Get-Date -Format "o")
-    git_tag = $gitTag
-}
-$activePath = Join-Path $Root "logs/soak_active.json"
-$activeMeta | ConvertTo-Json | Set-Content -Path $activePath -Encoding UTF8
-
-$soakScript = Join-Path $ScriptDir "soak_monitor.ps1"
-$soakArgs = @(
+$argsList = @(
     "-Hours", $Hours,
     "-IntervalSec", $IntervalSec,
-    "-ProdMesh",
     "-LogFile", $LogFile,
     "-ReportFile", $ReportFile
 )
-
-python scripts/record_evidence_run.py `
-    --name soak_monitor_48h `
-    --result IN_PROGRESS `
-    --command ".\scripts\restart_soak_prod_mesh.ps1 -Hours $Hours" `
-    --artifact $LogFile `
-    --git-tag $gitTag `
-    2>$null | Out-Null
-
-if ($Foreground) {
-    & $soakScript @soakArgs
-    exit $LASTEXITCODE
+if ($Foreground) { $argsList += "-Foreground" }
+if ($SkipPreflight) { $argsList += "-SkipPreflight" }
+if ($NoStopExisting) {
+    Write-Host "WARN: -NoStopExisting ignored; start_soak_prod_mesh_48h always stops leftover monitors" -ForegroundColor Yellow
 }
-
-$outLog = Join-Path $Root "logs/soak_background.out.log"
-$errLog = Join-Path $Root "logs/soak_background.err.log"
-
-Start-Process -FilePath "powershell.exe" `
-    -ArgumentList @(
-        "-NoProfile", "-ExecutionPolicy", "Bypass",
-        "-File", $soakScript,
-        "-Hours", $Hours,
-        "-IntervalSec", $IntervalSec,
-        "-ProdMesh",
-        "-LogFile", $LogFile,
-        "-ReportFile", $ReportFile
-    ) `
-    -WorkingDirectory $Root `
-    -WindowStyle Hidden `
-    -RedirectStandardOutput $outLog `
-    -RedirectStandardError $errLog
-
-Write-Host "OK: soak started in background" -ForegroundColor Green
-Write-Host "  stdout: $outLog" -ForegroundColor DarkGray
-Write-Host "  tail:   Get-Content $LogFile -Tail 20 -Wait" -ForegroundColor DarkGray
-Write-Host "  report: $ReportFile (on completion)" -ForegroundColor DarkGray
-Write-Host "  after PASS: python scripts/stamp_release_evidence.py --require-soak-hours $Hours --soak-report $ReportFile" -ForegroundColor DarkGray
-exit 0
+& (Join-Path $ScriptDir "start_soak_prod_mesh_48h.ps1") @argsList
+exit $LASTEXITCODE

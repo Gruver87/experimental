@@ -176,10 +176,7 @@ class PeerManager:
     def clear(self, *, close: bool = True) -> None:
         if close:
             for peer in list(self._peers.values()):
-                try:
-                    peer.close()
-                except Exception:
-                    pass
+                self._safe_close(peer, context="clear")
         self._peers.clear()
 
     # ── identity / bans ──────────────────────────────────────────────────────
@@ -196,8 +193,14 @@ class PeerManager:
         if self._on_shape_reject is not None:
             try:
                 self._on_shape_reject(key)
-            except Exception:
-                pass
+            except Exception as exc:
+                _logger.warning("[PeerManager] shape reject hook failed: %s", exc)
+
+    def _safe_close(self, peer: Any, *, context: str) -> None:
+        try:
+            peer.close()
+        except Exception as exc:
+            _logger.debug("[PeerManager] close failed (%s): %s", context, exc)
 
     def note_shape_reject(self, reason: str) -> None:
         """Count a shape/rate reject without strike/ban escalation (soft-refuse path)."""
@@ -311,8 +314,8 @@ class PeerManager:
                     return int(self._rl_table.strike_count(str(key)))
 
                 strikes = max(strikes, int(self._rl_call(_count)))
-            except Exception:
-                pass
+            except Exception as exc:
+                _logger.debug("[PeerManager] strike_count native failed: %s", exc)
         return strikes
 
     def note_import_fail(self, peer: Optional[Any]) -> None:
@@ -412,10 +415,7 @@ class PeerManager:
                 if cand_ok and not old_ok:
                     # Install challenger first so old message_loop unregister is a no-op.
                     self._peers[peer_id] = peer
-                    try:
-                        old.close()
-                    except Exception:
-                        pass
+                    self._safe_close(old, context="replace_canonical")
                     replaced = True
                 elif old_ok and not cand_ok:
                     return AdmitDecision(False, "duplicate_noncanonical")
@@ -438,10 +438,7 @@ class PeerManager:
                     return AdmitDecision(False, "duplicate_peer")
                 if replace_stale:
                     self._peers[peer_id] = peer
-                    try:
-                        old.close()
-                    except Exception:
-                        pass
+                    self._safe_close(old, context="replace_stale")
                     replaced = True
                 else:
                     return AdmitDecision(False, "duplicate_peer")
@@ -450,8 +447,8 @@ class PeerManager:
             self._peers[peer_id] = peer
         try:
             peer._inbound = bool(inbound)  # type: ignore[attr-defined]
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.debug("[PeerManager] set _inbound failed: %s", exc)
         if inbound:
             if self._conn_governor is not None:
                 try:
@@ -478,10 +475,7 @@ class PeerManager:
             except Exception as exc:
                 _logger.debug("[PeerManager] governor on_disconnected failed: %s", exc)
         if close:
-            try:
-                peer.close()
-            except Exception:
-                pass
+            self._safe_close(peer, context="unregister")
         return peer
 
     # ── discovery bookkeeping ────────────────────────────────────────────────
@@ -605,7 +599,8 @@ class PeerManager:
                     continue
                 if native.p2p_subnet_key(host) != densest:
                     continue
-            except Exception:
+            except Exception as exc:
+                _logger.debug("[PeerManager] eclipse subnet probe failed: %s", exc)
                 continue
             score = self.score(
                 peer, local_height=local_height, health_timeout=timeout, now=now

@@ -3,12 +3,15 @@
 """FINALITY ENGINE - Casper FFG финализация блоков"""
 
 import json
+import logging
 import time
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from collections import defaultdict
 
 from crypto import native
+
+logger = logging.getLogger("abs.finality")
 
 @dataclass
 class Checkpoint:
@@ -41,8 +44,8 @@ class FinalityEngine:
         if native.native_available() and hasattr(native, "fe_epoch"):
             try:
                 return int(native.fe_epoch(int(block_number), int(self.EPOCH_LENGTH)))
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("native fe_epoch failed; Python path: %s", exc)
         return block_number // self.EPOCH_LENGTH
     
     def create_checkpoint(self, block_number: int, block_hash: str) -> Checkpoint:
@@ -73,7 +76,8 @@ class FinalityEngine:
                 quorum = bool(
                     native.fe_quorum_reached(int(checkpoint.votes), int(total_validators))
                 )
-            except Exception:
+            except Exception as exc:
+                logger.warning("native fe_quorum_reached failed; Python path: %s", exc)
                 quorum = checkpoint.votes >= total_validators * 2 / 3
         else:
             quorum = checkpoint.votes >= total_validators * 2 / 3
@@ -96,7 +100,8 @@ class FinalityEngine:
                         json.dumps(list(self.justified_checkpoints)),
                     )
                 )
-            except Exception:
+            except Exception as exc:
+                logger.warning("native fe_can_finalize failed; Python path: %s", exc)
                 can = (
                     epoch in self.justified_checkpoints
                     and (epoch - 1) in self.justified_checkpoints

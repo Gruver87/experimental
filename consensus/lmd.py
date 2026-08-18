@@ -10,13 +10,22 @@ Weight aggregation prefers abs_native.lmd_compute_weights when available.
 from __future__ import annotations
 
 import json
+import logging
 from typing import Dict, Optional, Tuple
 
 from crypto import native
 
+logger = logging.getLogger("abs.lmd")
+
 
 def _native_required() -> bool:
     return bool(native.native_crypto_status(required=False).get("required"))
+
+
+def _native_fb(op: str, exc: BaseException) -> None:
+    logger.warning("native %s failed; Python path: %s", op, exc)
+    if _native_required():
+        raise exc
 
 
 class LMDTable:
@@ -64,9 +73,8 @@ class LMDTable:
                 )
                 parsed = json.loads(raw)
                 return {str(k): int(v) for k, v in parsed.items()}
-            except Exception:
-                if _native_required():
-                    raise
+            except Exception as exc:
+                _native_fb("lmd_compute_weights", exc)
 
         weights = {}
         for validator, (block_hash, _) in self.latest_vote.items():

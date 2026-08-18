@@ -3,6 +3,8 @@ import os
 import sys
 import tempfile
 
+import pytest
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, ROOT)
 
@@ -128,3 +130,44 @@ def test_ai_agent_trade_requires_active_agent_and_final_execution():
         "success": False,
         "error": "Agent is not active",
     }
+
+
+def test_ai_agent_profit_is_satoshi_quantized_bool_refused():
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "ai-money.db"))
+    db.initialize()
+    db.save_ai_agent(
+        {
+            "agent_id": "a1",
+            "name": "Bot",
+            "owner": "0x" + "a" * 40,
+            "performance_score": 0.333,
+            "total_profit": 1.0000003,
+            "created_at": 1,
+        }
+    )
+    row = db.get_ai_agents()[0]
+    assert row["total_profit"] == 1.0
+    assert row["performance_score"] == 0.333
+    with pytest.raises(TypeError, match="bool is not an amount"):
+        db.save_ai_agent(
+            {
+                "agent_id": "a2",
+                "name": "Bot",
+                "owner": "0x" + "b" * 40,
+                "total_profit": True,
+                "created_at": 1,
+            }
+        )
+    with pytest.raises(ValueError, match="must be a number, not bool"):
+        db.save_ai_agent(
+            {
+                "agent_id": "a3",
+                "name": "Bot",
+                "owner": "0x" + "c" * 40,
+                "performance_score": True,
+                "created_at": 1,
+            }
+        )

@@ -474,9 +474,11 @@ class FakeStorage:
         self.balance_delta(address, delta)
         return self.get_balance(address)
 
-    def set_balance(self, address: str, balance: float) -> None:
+    def set_balance(self, address: str, balance: int) -> None:
         from runtime.amount import to_satoshi
 
+        if isinstance(balance, bool):
+            raise TypeError("bool is not an amount")
         key = str(address or "").strip().lower()
         cur = self._accounts.get(key)
         self._accounts[key] = AccountRecord(

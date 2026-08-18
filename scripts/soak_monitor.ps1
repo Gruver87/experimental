@@ -7,7 +7,11 @@ param(
     [string]$ReportFile = "logs/soak_report.json",
     # Rebuild report from an existing soak log (no health_watch run).
     [switch]$RescoreOnly,
-    [int]$HealthWatchExit = -1
+    [int]$HealthWatchExit = -1,
+    # Strict: no mesh_warn / ready-flap / 1-height skew tolerance. 48h default scoring unchanged.
+    [switch]$Strict,
+    # Full harness every cycle without Strict FAIL-on-harness (48h: WARN, not soak FAIL).
+    [switch]$FullHarness
 )
 
 $ErrorActionPreference = "Stop"
@@ -36,6 +40,11 @@ if ($RescoreOnly) {
     Write-Host "Soak rescore-only: log=$LogFile report=$ReportFile" -ForegroundColor Cyan
 } else {
     Write-Host "Soak monitor: ${Hours}h interval=${IntervalSec}s log=$LogFile" -ForegroundColor Cyan
+    if ($Strict) {
+        Write-Host "  STRICT: mesh_warn=0, no ready-flap, no 1-height skew, full harness every cycle" -ForegroundColor Yellow
+    } elseif ($FullHarness) {
+        Write-Host "  full harness every cycle (WARN on probe flake; 48h default scoring)" -ForegroundColor DarkGray
+    }
     Write-Host "  Press Ctrl+C to stop early; partial report will be written." -ForegroundColor DarkGray
 }
 
@@ -47,6 +56,12 @@ if (-not $RescoreOnly) {
         LogFile     = $LogFile
     }
     if ($ProdMesh) { $hwArgs.ProdMesh = $true }
+    if ($Strict) {
+        $hwArgs.Strict = $true
+        $hwArgs.AlwaysFullHarness = $true
+    } elseif ($FullHarness) {
+        $hwArgs.AlwaysFullHarness = $true
+    }
 
     try {
         & (Join-Path $ScriptDir "health_watch.ps1") @hwArgs
@@ -116,7 +131,27 @@ try {
     $hoursElapsed = 0.0
 }
 # Allow 5% clock skew when rescoring completed soaks.
-$hoursFloor = [Math]::Max(0.0, $Hours * 0.95)
+$hoursFloor = if ($Strict) { [Math]::Max(0.0, $Hours * 0.99) } else { [Math]::Max(0.0, $Hours * 0.95) }
+
+$strictPass = (
+    $exitCode -eq 0 -and
+    $startedWatch -and
+    $finishedWatch -and
+    $ok -gt 0 -and
+    $fail -eq 0 -and
+    $meshWarn -eq 0 -and
+    $hoursElapsed -ge $hoursFloor
+)
+$defaultPass = (
+    $exitCode -eq 0 -and
+    $startedWatch -and
+    $finishedWatch -and
+    $ok -gt 0 -and
+    $hardFail -eq 0 -and
+    ($fail -eq 0 -or $readyFlapsTolerated) -and
+    ($meshWarn -eq 0 -or $meshAcceptable) -and
+    $hoursElapsed -ge $hoursFloor
+)
 
 $report = @{
     started_at = $started
@@ -139,19 +174,16 @@ $report = @{
     mesh_acceptable = $meshAcceptable
     ready_flaps_tolerated = $readyFlapsTolerated
     cycles_observed = [double](($lines | Select-String -Pattern "$ts OK port").Count) / [Math]::Max(1, $(if ($ProdMesh) { 3 } else { 1 }))
-    passed = (
-        $exitCode -eq 0 -and
-        $startedWatch -and
-        $finishedWatch -and
-        $ok -gt 0 -and
-        $hardFail -eq 0 -and
-        ($fail -eq 0 -or $readyFlapsTolerated) -and
-        ($meshWarn -eq 0 -or $meshAcceptable) -and
-        $hoursElapsed -ge $hoursFloor
-    )
+    strict = [bool]$Strict
+    passed = $(if ($Strict) { $strictPass } else { $defaultPass })
     pass_notes = $(
         $notes = @()
-        if ($meshWarn -eq 0) {
+        if ($Strict) {
+            $notes += "STRICT: fail=0 mesh_warn=0 no ready-flap no 1-height skew"
+            if ($fail -gt 0) { $notes += "fail_lines=$fail" }
+            if ($meshWarn -gt 0) { $notes += "mesh_warn=$meshWarn (not tolerated)" }
+            if ($readyOnlyFail -gt 0) { $notes += "ready_only_fail=$readyOnlyFail (not tolerated)" }
+        } elseif ($meshWarn -eq 0) {
             $notes += "strict mesh_warn=0"
         } elseif ($meshWarnsTransient) {
             $notes += "mesh_warn=$meshWarn accepted: height deltas <=2 (sequential poll skew)"
@@ -160,7 +192,7 @@ $report = @{
         } else {
             $notes += "mesh_warn=$meshWarn not acceptable"
         }
-        if ($readyOnlyFail -gt 0) {
+        if (-not $Strict -and $readyOnlyFail -gt 0) {
             if ($readyFlapsTolerated) {
                 $notes += "ready_only_fail=$readyOnlyFail tolerated (mesh aligned, no hard fails)"
             } else {
@@ -183,6 +215,11 @@ if ($reportDir -and -not (Test-Path $reportDir)) {
 $json = $report | ConvertTo-Json -Depth 4
 $reportFull = if ([System.IO.Path]::IsPathRooted($ReportFile)) { $ReportFile } else { Join-Path $Root $ReportFile }
 [System.IO.File]::WriteAllText($reportFull, $json + "`n", [System.Text.UTF8Encoding]::new($false))
+
+$activePath = Join-Path $Root "logs/soak_active.json"
+if (Test-Path $activePath) {
+    Remove-Item $activePath -Force -ErrorAction SilentlyContinue
+}
 
 if ($report.passed) {
     Write-Host "OK: soak passed (report: $ReportFile) $($report.pass_notes)" -ForegroundColor Green

@@ -22,6 +22,54 @@ def test_sqlite_reset_accounts_writes_satoshi():
     assert int(row["balance_satoshi"]) == to_satoshi(7.5)
 
 
+def test_sqlite_account_display_follows_satoshi_not_stale_float():
+    tmp = tempfile.mkdtemp()
+    path = os.path.join(tmp, "stale.db")
+    db = Database(path)
+    db.initialize()
+    db.set_balance("alice", 1.0)
+    db.conn.execute(
+        "UPDATE accounts SET balance=? WHERE address=?",
+        (1.0000003, "alice"),
+    )
+    db.conn.commit()
+    assert db.get_balance_satoshi("alice") == to_satoshi(1.0)
+    assert db.get_balance("alice") == 1.0
+    row = db.get_account("alice")
+    assert row is not None
+    assert row["balance"] == 1.0
+    assert int(row["balance_satoshi"]) == to_satoshi(1.0)
+
+
+def test_sqlite_legacy_float_only_row_quantizes_via_satoshi():
+    tmp = tempfile.mkdtemp()
+    path = os.path.join(tmp, "legacy.db")
+    db = Database(path)
+    db.initialize()
+    db.set_balance("bob", 7.5)
+    db.conn.execute(
+        "UPDATE accounts SET balance_satoshi=NULL, balance=? WHERE address=?",
+        (7.5, "bob"),
+    )
+    db.conn.commit()
+    assert db.get_balance_satoshi("bob") == to_satoshi(7.5)
+    assert db.get_balance("bob") == 7.5
+
+
+def test_sqlite_set_balance_fractional_and_refuses_bool():
+    import pytest
+
+    tmp = tempfile.mkdtemp()
+    path = os.path.join(tmp, "set.db")
+    db = Database(path)
+    db.initialize()
+    db.set_balance("alice", 7.5)
+    assert db.get_balance("alice") == 7.5
+    assert db.get_balance_satoshi("alice") == to_satoshi(7.5)
+    with pytest.raises(TypeError, match="bool is not an amount"):
+        db.set_balance("alice", True)
+
+
 def test_sqlite_nonce_increment_sets_balance_satoshi_zero():
     tmp = tempfile.mkdtemp()
     path = os.path.join(tmp, "nonce.db")

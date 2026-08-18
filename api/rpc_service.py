@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List, Optional, Sequence
 
+from runtime.amount import WEI_PER_SATOSHI, abs_to_wei, to_satoshi
 from api.eth_format import (
     format_block,
     format_receipt,
@@ -213,7 +214,10 @@ class RpcService:
                 if not address:
                     raise ValueError("invalid address")
             balance = q.get_balance(address)
-            return hex(int(balance * 10**18))
+            try:
+                return hex(int(to_satoshi(balance or 0)) * WEI_PER_SATOSHI)
+            except (TypeError, ValueError):
+                return "0x0"
 
         if method == "eth_getTransactionCount":
             if isinstance(dto, AddressOnlyParams):
@@ -284,7 +288,10 @@ class RpcService:
             return hex(21_000)
 
         if method == "eth_gasPrice":
-            return hex(int(cfg.gas_price_wei * 10**18))
+            try:
+                return hex(abs_to_wei(getattr(cfg, "gas_price_wei", 0) or 0))
+            except (TypeError, ValueError):
+                return "0x0"
 
         if method == "eth_maxPriorityFeePerGas":
             return hex(int(getattr(cfg, "priority_fee_wei", 0) or 0))
@@ -295,7 +302,10 @@ class RpcService:
             tip = q.get_block(BlockQuery(tag=str(params[1] if len(params) > 1 else "latest")))
             tip_h = int(tip.get("height", q.tip_height())) if tip else q.tip_height()
             oldest = max(0, tip_h - block_count + 1)
-            base = hex(int(cfg.gas_price_wei * 10**18))
+            try:
+                base = hex(abs_to_wei(getattr(cfg, "gas_price_wei", 0) or 0))
+            except (TypeError, ValueError):
+                base = "0x0"
             return {
                 "oldestBlock": hex(oldest),
                 "baseFeePerGas": [base] * block_count,

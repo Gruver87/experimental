@@ -106,3 +106,13 @@ def test_new_block_bind_still_uses_shared_helper():
     )
     assert node._local_known_head_height_mismatch(DIGEST, 99) is True
     assert node._local_known_head_height_mismatch(DIGEST, 7) is False
+
+
+def test_head_height_store_error_is_mismatch_not_agree():
+    node = _node()
+    node.get_block = MagicMock(side_effect=RuntimeError("store down"))  # type: ignore[method-assign]
+    assert node._local_known_head_height_mismatch(DIGEST, 7) is True
+    assert (
+        node._new_block_head_height_refuse_reason(DIGEST, 7)
+        == "new_block_head_height_mismatch"
+    )

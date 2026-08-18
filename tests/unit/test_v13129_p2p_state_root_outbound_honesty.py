@@ -102,6 +102,42 @@ def test_missing_incomplete_header_refuses():
     assert node._state_root_response_for_height(2) is None
 
 
+def test_get_last_block_error_refuses_tip_root(caplog):
+    import logging
+
+    node = _node()
+
+    def _boom():
+        raise RuntimeError("last missing")
+
+    node.blockchain.get_last_block = _boom  # type: ignore[attr-defined]
+    with caplog.at_level(logging.WARNING, logger="P2P"):
+        assert node._state_root_response_for_height(3) is None
+        assert node._state_root_response_for_height(0) is None
+    assert "get_last_block failed in state_root_response" in caplog.text
+
+
+def test_empty_follower_get_last_none_refuses():
+    node = _node()
+    node.blockchain.get_last_block = lambda: None  # type: ignore[attr-defined]
+    assert node._state_root_response_for_height(3) is None
+
+
+def test_peer_close_logs_queue_wake_failure(caplog):
+    import logging
+    from network.p2p_node import PeerConnection
+
+    class _BoomQ:
+        def put_nowait(self, _item):
+            raise RuntimeError("q full")
+
+    peer = PeerConnection(None, None)
+    peer._send_q = _BoomQ()
+    with caplog.at_level(logging.DEBUG, logger="P2P"):
+        peer.close()
+    assert "close send_q wake failed" in caplog.text
+
+
 def test_security_status_exposes_outbound_honesty():
     node = _node()
     st = node.get_p2p_security_status()

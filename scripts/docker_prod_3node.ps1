@@ -275,12 +275,18 @@ foreach ($port in @(18181, 18182)) {
 }
 
 Write-Host "Waiting for 3-node mesh sync..." -ForegroundColor Cyan
+$wallet1 = Join-Path (Get-Location) "data\prod_mesh\wallets\validator-1.wallet.json"
+if (Test-Path $wallet1) {
+    $env:PROD_SMOKE_WALLET_PATH = $wallet1
+    Write-Host "PROD_SMOKE_WALLET_PATH=$wallet1" -ForegroundColor DarkGray
+}
 python scripts/verify_p2p_ci.py --mode prod-mesh3-live --url1 http://127.0.0.1:18180 --url2 http://127.0.0.1:18181 --url3 http://127.0.0.1:18182 --wait 360
-if ($LASTEXITCODE -ne 0) {
+$verifyRc = $LASTEXITCODE
+if ($verifyRc -ne 0) {
     Invoke-MeshCompose logs node1 --tail 20
     Invoke-MeshCompose logs node2 --tail 20
     Invoke-MeshCompose logs node3 --tail 20
-    exit $LASTEXITCODE
+    exit $verifyRc
 }
 
 python scripts/prod_smoke.py http://127.0.0.1:18180

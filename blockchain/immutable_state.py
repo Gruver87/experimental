@@ -72,7 +72,7 @@ class ImmutableStateManager:
         with self._lock:
             for addr, amount in balances.items():
                 acc = self.get_account(addr, create=True)
-                acc.balance_satoshi = self.to_satoshi(float(amount))
+                acc.balance_satoshi = self.to_satoshi(amount)
             return len(balances)
 
     def reconcile_from_store(self, store, addresses=None, *, fail_loud: bool = False) -> int:

@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import hashlib
-import math
 from typing import Any, Optional
 
 from bridge.ports import (
@@ -12,6 +11,7 @@ from bridge.ports import (
     L1RpcPort,
     ValidationResult,
 )
+from runtime.amount import money_abs
 
 
 def compute_replay_key(from_chain: str, event_tx_hash: str, log_index: int = 0) -> str:
@@ -37,7 +37,10 @@ class InboundMessageValidator:
         chain = str(envelope.from_chain or "").strip().lower()
         to_addr = str(envelope.to_addr or "").strip()
         tx_hash = str(envelope.event_tx_hash or "").strip()
-        amount = float(envelope.amount)
+        try:
+            amount = money_abs(envelope.amount, field="amount")
+        except (TypeError, ValueError):
+            return ValidationResult(ok=False, reason="invalid_amount")
 
         if not tx_hash or tx_hash in ("0", "0x0", "0x" + "0" * 64):
             return ValidationResult(ok=False, reason="empty_event_tx_hash")
@@ -45,7 +48,7 @@ class InboundMessageValidator:
             return ValidationResult(ok=False, reason="missing_recipient")
         if not chain:
             return ValidationResult(ok=False, reason="missing_from_chain")
-        if not math.isfinite(amount) or amount <= 0:
+        if amount <= 0:
             return ValidationResult(ok=False, reason="invalid_amount")
 
         replay_key = compute_replay_key(chain, tx_hash, int(envelope.log_index or 0))
@@ -116,7 +119,10 @@ class PassthroughInboundValidator:
         tx_hash = str(envelope.event_tx_hash or "").strip()
         if not tx_hash:
             return ValidationResult(ok=False, reason="empty_event_tx_hash")
-        if float(envelope.amount) <= 0:
+        try:
+            if money_abs(envelope.amount, field="amount") <= 0:
+                return ValidationResult(ok=False, reason="invalid_amount")
+        except (TypeError, ValueError):
             return ValidationResult(ok=False, reason="invalid_amount")
         if not str(envelope.to_addr or "").strip():
             return ValidationResult(ok=False, reason="missing_recipient")

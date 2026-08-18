@@ -3,6 +3,8 @@ import os
 import sys
 import tempfile
 
+import pytest
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, ROOT)
 
@@ -72,3 +74,29 @@ def test_l2_status_aggregator():
     assert "lightning" in st["modules"]
     assert "plasma" in st["modules"]
     assert st["l2_persisted"] is True
+
+
+def test_mev_profit_is_satoshi_quantized_bool_refused():
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "mev-money.db"))
+    db.initialize()
+    db.save_mev_simulation(
+        {
+            "sim_id": "s1",
+            "sim_type": "sandwich",
+            "profit": 2.0000003,
+            "created_at": 1,
+        }
+    )
+    assert db.get_mev_simulations()[0]["profit"] == 2.0
+    with pytest.raises(TypeError, match="bool is not an amount"):
+        db.save_mev_simulation(
+            {
+                "sim_id": "s2",
+                "sim_type": "sandwich",
+                "profit": True,
+                "created_at": 1,
+            }
+        )

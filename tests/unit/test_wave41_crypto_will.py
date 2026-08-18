@@ -105,3 +105,36 @@ def test_will_execute_requires_credit_backend():
 
     assert cw.execute_will("will2", force=True) is False
     assert cw.wills["will2"].status == "pending"
+
+
+def test_sqlite_will_amount_quantizes_and_refuses_bool():
+    import pytest
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "will-money.db"))
+    db.initialize()
+    db.save_crypto_will(
+        {
+            "will_id": "w1",
+            "owner": "0xa",
+            "heir": "0xb",
+            "amount": 25.0000003,
+            "assets": {},
+            "execution_time": 1,
+            "created_at": 1,
+            "status": "pending",
+            "witnesses": [],
+        }
+    )
+    assert db.get_crypto_wills()[0]["amount"] == 25.0
+    with pytest.raises(TypeError, match="bool is not an amount"):
+        db.save_crypto_will(
+            {
+                "will_id": "w2",
+                "owner": "0xa",
+                "heir": "0xb",
+                "amount": True,
+                "created_at": 1,
+            }
+        )

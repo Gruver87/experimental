@@ -9,9 +9,12 @@ domain handler runs.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Callable, Mapping, Optional
 
 from network.p2p_dispatch.types import TipEvidenceDecision
+
+logger = logging.getLogger("P2P.TipEvidence")
 
 ShadowProvider = Callable[[], Any]
 
@@ -39,7 +42,8 @@ class TipSafetyEvidenceBridge:
             return None
         try:
             return self._shadow_provider()
-        except Exception:
+        except Exception as exc:
+            logger.warning("tip-safety shadow provider failed: %s", exc)
             return None
 
     @property
@@ -84,19 +88,41 @@ class TipSafetyEvidenceBridge:
             return TipEvidenceDecision(ok=True, reason_code="tip_evidence_no_chain")
 
         try:
+            cand_h = int((data or {}).get("height") or (data or {}).get("number") or 0)
+        except (TypeError, ValueError):
+            cand_h = 0
+        try:
+            last_forge = int(getattr(shadow, "last_local_forge_height", 0) or 0)
+        except (TypeError, ValueError):
+            last_forge = 0
+        if last_forge > 0 and cand_h in (last_forge, last_forge + 1):
+            return TipEvidenceDecision(
+                ok=True,
+                reason_code="own_forge_echo",
+                detail=f"candidate {cand_h} within local forge {last_forge}",
+            )
+
+        try:
             from consensus.tip_safety.shadow import (
+                TipSafetyShadowObserver,
                 block_ref_from_mapping,
                 tip_state_from_chain,
             )
             from consensus.tip_safety import TipSafetyService
 
+            # Live chain tip only. Preferring stale ``svc.state`` made the
+            # miner refuse its own NEW_BLOCK echo as tip_unknown_parent
+            # (candidate=N head=N-2) after KeepVolumes restart.
+            if isinstance(shadow, TipSafetyShadowObserver):
+                shadow.sync_from_chain(chain)
             tip = tip_state_from_chain(chain)
             svc = getattr(shadow, "_service", None)
-            if svc is not None and getattr(svc, "state", None) is not None:
-                tip = svc.state
             candidate = block_ref_from_mapping(data)
-            # Prefer live shadow service (keeps AncestryWindow warm — ADR 0016).
-            if svc is not None and hasattr(svc, "evaluate_candidate"):
+            if (
+                isinstance(shadow, TipSafetyShadowObserver)
+                and svc is not None
+                and hasattr(svc, "evaluate_candidate")
+            ):
                 service = svc
             else:
                 service = TipSafetyService(state=tip, reorg_policy=self._reorg)

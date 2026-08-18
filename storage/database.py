@@ -14,6 +14,8 @@ import time
 from contextlib import contextmanager
 from typing import Optional, List, Dict, Any
 
+from runtime.amount import money_abs, parse_finite_number
+
 logger = logging.getLogger("Database")
 
 
@@ -626,6 +628,11 @@ class Database:
                 return False
 
     def _insert_block(self, block: Dict) -> None:
+        from runtime.amount import money_abs
+
+        burned = money_abs(block.get("total_burned", 0.0), field="total_burned")
+        stored = dict(block)
+        stored["total_burned"] = burned
         self.conn.execute(
             """INSERT OR REPLACE INTO blocks
                (height, hash, parent_hash, timestamp, miner,
@@ -639,14 +646,16 @@ class Database:
                 block.get("miner", ""),
                 block.get("tx_count", len(block.get("transactions", []))),
                 block.get("gas_used", 0),
-                block.get("total_burned", 0.0),
+                burned,
                 block.get("extra_data", ""),
-                json.dumps(block),
+                json.dumps(stored),
             ),
         )
-        self._insert_proposer_audit(block)
+        self._insert_proposer_audit(stored)
 
     def _insert_proposer_audit(self, block: Dict) -> None:
+        from runtime.amount import money_abs
+
         height = int(block.get("height", block.get("number", 0)) or 0)
         block_hash = block.get("hash", block.get("block_hash", "")) or ""
         proposer = self._normalize_address(
@@ -661,7 +670,7 @@ class Database:
                 block_hash,
                 proposer,
                 int(block.get("tx_count", len(block.get("transactions", []))) or 0),
-                float(block.get("total_burned", 0.0) or 0.0),
+                money_abs(block.get("total_burned", 0.0), field="total_burned"),
                 int(block.get("timestamp", int(time.time())) or 0),
                 int(time.time()),
             ),
@@ -886,6 +895,8 @@ class Database:
 
         self.conn.execute("DELETE FROM accounts")
         for addr, amount in alloc.items():
+            if isinstance(amount, bool):
+                raise TypeError("bool is not an amount")
             payload: dict = {}
             dual_write_balance(payload, amount)
             self.conn.execute(
@@ -926,6 +937,9 @@ class Database:
             return 0
 
     def _insert_transaction(self, tx: Dict) -> None:
+        from runtime.amount import tx_money_abs
+
+        money = tx_money_abs(tx)
         self.conn.execute(
             """INSERT OR REPLACE INTO transactions
                (hash, block_height, from_addr, to_addr, value,
@@ -936,11 +950,11 @@ class Database:
                 tx.get("block_height", 0),
                 self._normalize_address(tx.get("from_addr", tx.get("from", ""))),
                 self._normalize_address(tx.get("to_addr", tx.get("to", ""))),
-                tx.get("value", tx.get("amount", 0.0)),
+                money["value"],
                 tx.get("gas", 21000),
                 tx.get("gas_used", tx.get("gas", 21000)),
-                tx.get("fee", 0.0),
-                tx.get("burned", 0.0),
+                money["fee"],
+                money["burned"],
                 tx.get("nonce", 0),
                 tx.get("data", tx.get("tx_data", "")),
                 # Omit / None / unknown → fail-closed 0 (never invent success).
@@ -950,9 +964,12 @@ class Database:
         )
 
     def _insert_tx_receipt(self, tx: Dict, block_hash: str, block_height: int) -> None:
+        from runtime.amount import tx_money_abs
+
         tx_hash = tx.get("hash", tx.get("tx_hash", ""))
         if not tx_hash:
             return
+        money = tx_money_abs(tx)
         self.conn.execute(
             """INSERT OR REPLACE INTO tx_receipts
                (tx_hash, block_height, block_hash, from_addr, to_addr, value,
@@ -964,9 +981,9 @@ class Database:
                 block_hash,
                 self._normalize_address(tx.get("from_addr", tx.get("from", ""))),
                 self._normalize_address(tx.get("to_addr", tx.get("to", ""))),
-                float(tx.get("value", tx.get("amount", 0.0))),
-                float(tx.get("fee", 0.0)),
-                float(tx.get("burned", 0.0)),
+                money["value"],
+                money["fee"],
+                money["burned"],
                 int(tx.get("gas_used", tx.get("gas", 21000))),
                 # Omitted status → fail-closed (normalize None → 0).
                 self._normalize_tx_status(tx.get("status")),
@@ -975,51 +992,61 @@ class Database:
         )
 
     def get_tx_receipt(self, tx_hash: str) -> Optional[Dict]:
+        from runtime.amount import tx_money_abs
+
         with self.lock:
             row = self.conn.execute(
                 "SELECT * FROM tx_receipts WHERE tx_hash = ?", (tx_hash,)
             ).fetchone()
             if not row:
                 return None
+            money = tx_money_abs(dict(row))
             return {
                 "tx_hash": row["tx_hash"],
                 "block_height": row["block_height"],
                 "block_hash": row["block_hash"],
                 "from": row["from_addr"],
                 "to": row["to_addr"],
-                "value": row["value"],
-                "fee": row["fee"],
-                "burned": row["burned"],
+                "value": money["value"],
+                "fee": money["fee"],
+                "burned": money["burned"],
                 "gas_used": row["gas_used"],
                 "status": self._normalize_tx_status(row["status"]),
                 "timestamp": row["created_at"],
             }
 
     def get_receipts_by_block(self, block_height: int) -> List[Dict]:
+        from runtime.amount import tx_money_abs
+
         with self.lock:
             rows = self.conn.execute(
                 "SELECT * FROM tx_receipts WHERE block_height = ? ORDER BY created_at",
                 (int(block_height),),
             ).fetchall()
-            return [
-                {
-                    "tx_hash": r["tx_hash"],
-                    "block_height": r["block_height"],
-                    "block_hash": r["block_hash"],
-                    "from": r["from_addr"],
-                    "to": r["to_addr"],
-                    "value": r["value"],
-                    "fee": r["fee"],
-                    "burned": r["burned"],
-                    "gas_used": r["gas_used"],
-                    "status": self._normalize_tx_status(r["status"]),
-                    "timestamp": r["created_at"],
-                }
-                for r in rows
-            ]
+            out: List[Dict] = []
+            for r in rows:
+                money = tx_money_abs(dict(r))
+                out.append(
+                    {
+                        "tx_hash": r["tx_hash"],
+                        "block_height": r["block_height"],
+                        "block_hash": r["block_hash"],
+                        "from": r["from_addr"],
+                        "to": r["to_addr"],
+                        "value": money["value"],
+                        "fee": money["fee"],
+                        "burned": money["burned"],
+                        "gas_used": r["gas_used"],
+                        "status": self._normalize_tx_status(r["status"]),
+                        "timestamp": r["created_at"],
+                    }
+                )
+            return out
 
     def get_chain_metrics(self, window: int = 32) -> Dict:
         """Core L1 metrics: block time, throughput hints."""
+        from runtime.amount import from_satoshi_float, to_satoshi
+
         with self.lock:
             tip = self.get_chain_tip()
             tx_count = self.conn.execute(
@@ -1082,7 +1109,10 @@ class Database:
                 "window_elapsed_sec": round(window_elapsed, 2),
                 "tps": round(tps, 6),
                 "burn_last_window": round(
-                    sum(float(r["total_burned"] or 0) for r in rows), 6
+                    from_satoshi_float(
+                        sum(to_satoshi(r["total_burned"] or 0) for r in rows)
+                    ),
+                    6,
                 ),
                 "engine": self.engine,
             }
@@ -1093,6 +1123,8 @@ class Database:
         offset: int = 0,
         proposer: str = "",
     ) -> List[Dict]:
+        from runtime.amount import money_abs
+
         limit = max(1, min(int(limit), 200))
         offset = max(0, int(offset))
         with self.lock:
@@ -1116,7 +1148,7 @@ class Database:
                     "block_hash": r["block_hash"],
                     "proposer": r["proposer"],
                     "tx_count": r["tx_count"],
-                    "total_burned": r["total_burned"],
+                    "total_burned": money_abs(r["total_burned"], field="total_burned"),
                     "timestamp": r["block_ts"],
                     "recorded_at": r["recorded_at"],
                 }
@@ -1157,6 +1189,8 @@ class Database:
             return [dict(r) for r in rows]
 
     def get_proposer_detail(self, address: str, recent_limit: int = 10) -> Dict:
+        from runtime.amount import money_abs
+
         addr = self._normalize_address(address)
         with self.lock:
             row = self.conn.execute(
@@ -1175,7 +1209,7 @@ class Database:
                 "proposer": addr,
                 "blocks_proposed": int(row["blocks_proposed"] or 0),
                 "total_txs": int(row["total_txs"] or 0),
-                "total_burned": float(row["total_burned"] or 0.0),
+                "total_burned": money_abs(row["total_burned"] or 0, field="total_burned"),
                 "first_height": row["first_height"],
                 "last_height": row["last_height"],
                 "recent_blocks": recent,
@@ -1328,6 +1362,8 @@ class Database:
         return (address or "").strip().lower()
 
     def _serialize_tx_row(self, row: Dict, viewer_addr: str = "") -> Dict:
+        from runtime.amount import tx_money_abs
+
         viewer = self._normalize_address(viewer_addr)
         from_addr = self._normalize_address(row.get("from_addr", ""))
         to_addr = self._normalize_address(row.get("to_addr", ""))
@@ -1339,14 +1375,15 @@ class Database:
                 direction = "sent"
             elif to_addr == viewer:
                 direction = "received"
+        money = tx_money_abs(row)
         return {
             "hash": row.get("hash", ""),
             "block_height": row.get("block_height", 0),
             "from": from_addr,
             "to": to_addr,
-            "value": float(row.get("value", 0.0)),
-            "fee": float(row.get("fee", 0.0)),
-            "burned": float(row.get("burned", 0.0)),
+            "value": money["value"],
+            "fee": money["fee"],
+            "burned": money["burned"],
             "gas_used": int(row.get("gas_used", row.get("gas", 21000))),
             "status": self._normalize_tx_status(row.get("status")),
             "timestamp": int(row.get("timestamp", 0)),
@@ -1474,18 +1511,14 @@ class Database:
     # ── Аккаунты / балансы ───────────────────────────────────────────────────
 
     def get_balance(self, address: str) -> float:
-        from runtime.amount import from_satoshi_float
+        from runtime.amount import account_balance_abs
 
         with self.lock:
             row = self.conn.execute(
                 "SELECT balance, balance_satoshi FROM accounts WHERE address=?",
                 (address,),
             ).fetchone()
-            if not row:
-                return 0.0
-            if row["balance_satoshi"] is not None:
-                return from_satoshi_float(int(row["balance_satoshi"]))
-            return float(row["balance"]) if row["balance"] is not None else 0.0
+            return account_balance_abs(dict(row) if row else None)
 
     def get_balance_satoshi(self, address: str) -> int:
         from runtime.amount import account_satoshi
@@ -1527,9 +1560,11 @@ class Database:
             self.conn.commit()
             return self.get_balance(address)
 
-    def set_balance(self, address: str, balance: float) -> None:
+    def set_balance(self, address: str, balance: int) -> None:
         from runtime.amount import dual_write_balance
 
+        if isinstance(balance, bool):
+            raise TypeError("bool is not an amount")
         payload: dict = {}
         dual_write_balance(payload, balance)
         with self.lock:
@@ -1560,16 +1595,26 @@ class Database:
             return self.get_nonce(address)
 
     def get_account(self, address: str) -> Optional[Dict]:
+        from runtime.amount import account_satoshi, from_satoshi_float
+
         with self.lock:
             row = self.conn.execute(
                 "SELECT * FROM accounts WHERE address=?", (address,)
             ).fetchone()
-            return dict(row) if row else None
+            if not row:
+                return None
+            out = dict(row)
+            sat = account_satoshi(out)
+            out["balance_satoshi"] = sat
+            out["balance"] = from_satoshi_float(sat)
+            return out
 
     def save_account(self, address: str, balance: float = 0.0,
                      nonce: int = 0, code: str = None, storage: str = None) -> None:
         from runtime.amount import dual_write_balance
 
+        if isinstance(balance, bool):
+            raise TypeError("bool is not an amount")
         payload: dict = {}
         dual_write_balance(payload, balance)
         with self.lock:
@@ -1594,12 +1639,15 @@ class Database:
     # ── Валидаторы ───────────────────────────────────────────────────────────
 
     def save_validator(self, address: str, stake: float) -> None:
+        from runtime.amount import money_abs
+
+        stake_abs = money_abs(stake, field="stake")
         with self.lock:
             self.conn.execute(
                 """INSERT INTO validators (address, stake, joined_at)
                    VALUES (?,?,?)
                    ON CONFLICT(address) DO UPDATE SET stake=excluded.stake""",
-                (address, stake, int(time.time())),
+                (address, stake_abs, int(time.time())),
             )
             self.conn.commit()
 
@@ -1642,14 +1690,19 @@ class Database:
     # ── Сжигание токенов ─────────────────────────────────────────────────────
 
     def _insert_burn_record(self, block_height: int, burned_amount: float) -> None:
+        from runtime.amount import from_satoshi_float, money_abs, to_satoshi
+
+        burned = money_abs(burned_amount, field="burned")
         prev = self.conn.execute(
             "SELECT COALESCE(MAX(total_burned),0) as tb FROM burn_stats"
         ).fetchone()
-        total = float(prev["tb"]) + burned_amount
+        total = from_satoshi_float(
+            to_satoshi(prev["tb"] if prev else 0) + to_satoshi(burned)
+        )
         self.conn.execute(
             """INSERT OR REPLACE INTO burn_stats (block_height, burned_amount, total_burned)
                VALUES (?,?,?)""",
-            (block_height, burned_amount, total),
+            (block_height, burned, total),
         )
 
     def record_burn(self, block_height: int, burned_amount: float) -> None:
@@ -1658,13 +1711,17 @@ class Database:
             self.conn.commit()
 
     def get_total_burned(self) -> float:
+        from runtime.amount import money_abs
+
         with self.lock:
             row = self.conn.execute(
                 "SELECT COALESCE(MAX(total_burned),0) as tb FROM burn_stats"
             ).fetchone()
-            return float(row["tb"]) if row else 0.0
+            return money_abs(row["tb"] if row else 0, field="total_burned")
 
     def get_burn_stats(self) -> Dict:
+        from runtime.amount import money_abs
+
         with self.lock:
             row = self.conn.execute(
                 """SELECT COUNT(*) as blocks_with_burn,
@@ -1673,8 +1730,8 @@ class Database:
                    FROM burn_stats"""
             ).fetchone()
             return {
-                "total_burned": float(row["total"]),
-                "avg_per_block": float(row["avg_per_block"]),
+                "total_burned": money_abs(row["total"] or 0, field="total_burned"),
+                "avg_per_block": money_abs(row["avg_per_block"] or 0, field="avg_per_block"),
                 "blocks_with_burn": int(row["blocks_with_burn"]),
             }
 
@@ -1682,12 +1739,15 @@ class Database:
 
     def save_bridge_lock(self, from_addr: str, to_chain: str, to_addr: str,
                          amount: float, tx_hash: str) -> None:
+        from runtime.amount import money_abs
+
+        amt = money_abs(amount)
         with self.lock:
             self.conn.execute(
                 """INSERT OR REPLACE INTO bridge_locks
                    (tx_hash, from_addr, to_chain, to_addr, amount, status, created_at)
                    VALUES (?,?,?,?,?,'pending',?)""",
-                (tx_hash, from_addr, to_chain, to_addr, amount, int(time.time())),
+                (tx_hash, from_addr, to_chain, to_addr, amt, int(time.time())),
             )
             self.conn.commit()
 
@@ -1699,11 +1759,18 @@ class Database:
             self.conn.commit()
 
     def get_bridge_locks(self, limit: int = 50) -> List[Dict]:
+        from runtime.amount import money_abs
+
         with self.lock:
             rows = self.conn.execute(
                 "SELECT * FROM bridge_locks ORDER BY created_at DESC LIMIT ?", (limit,)
             ).fetchall()
-            return [dict(r) for r in rows]
+            out = []
+            for r in rows:
+                row = dict(r)
+                row["amount"] = money_abs(row.get("amount", 0), field="amount")
+                out.append(row)
+            return out
 
     def bridge_credit_key(self, from_chain: str, event_tx_hash: str, log_index: int = 0) -> str:
         """Replay key from source event identity (not claim recipient/amount)."""
@@ -1732,12 +1799,15 @@ class Database:
         log_index: int = 0,
     ) -> str:
         key = self.bridge_credit_key(from_chain, event_tx_hash, log_index)
+        from runtime.amount import money_abs
+
+        amt = money_abs(amount)
         with self.lock:
             self.conn.execute(
                 """INSERT OR IGNORE INTO bridge_credits
                    (credit_key, l1_tx_hash, recipient, amount, from_chain, credited_at)
                    VALUES (?,?,?,?,?,?)""",
-                (key, event_tx_hash, recipient, amount, from_chain, int(time.time())),
+                (key, event_tx_hash, recipient, amt, from_chain, int(time.time())),
             )
             self.conn.commit()
         return key
@@ -1755,6 +1825,9 @@ class Database:
         Insert-if-absent replay claim then credit recipient in one transaction.
         Returns {credited, duplicate, credit_key}.
         """
+        from runtime.amount import money_abs
+
+        amt = money_abs(amount)
         key = self.bridge_credit_key(from_chain, event_tx_hash, log_index)
         with self.atomic():
             row = self.conn.execute(
@@ -1770,12 +1843,12 @@ class Database:
                     key,
                     event_tx_hash,
                     recipient,
-                    float(amount),
+                    amt,
                     from_chain,
                     int(time.time()),
                 ),
             )
-            self.balance_delta(recipient, float(amount))
+            self.balance_delta(recipient, amt)
             lock_hash = (abs_tx_hash or event_tx_hash or "").strip()
             if lock_hash:
                 self.conn.execute(
@@ -1796,7 +1869,14 @@ class Database:
         tx_hash: str,
     ) -> None:
         """Debit sender (fail on underflow), burn fee share, persist lock atomically."""
-        from runtime.amount import account_satoshi, dual_write_balance, from_satoshi_float, try_debit_satoshi
+        from runtime.amount import (
+            account_balance_abs,
+            account_satoshi,
+            dual_write_balance,
+            from_satoshi_float,
+            money_abs,
+            try_debit_satoshi,
+        )
 
         with self.atomic():
             row = self.get_account(from_addr) or {
@@ -1806,23 +1886,22 @@ class Database:
                 "nonce": 0,
             }
             cur = int(account_satoshi(row))
-            new_sat = try_debit_satoshi(cur, float(amount))
+            new_sat = try_debit_satoshi(cur, money_abs(amount))
             dual_write_balance(row, from_satoshi_float(new_sat))
-            row["balance_satoshi"] = new_sat
-            self.save_account(
-                address=from_addr,
-                balance=float(row["balance"]),
-                nonce=int(row.get("nonce") or 0),
-                code=row.get("code"),
-                storage=row.get("storage"),
-            )
-            # Re-write satoshi after save_account float path
             self.conn.execute(
-                "UPDATE accounts SET balance=?, balance_satoshi=? WHERE address=?",
-                (float(row["balance"]), int(new_sat), from_addr),
+                """INSERT INTO accounts (address, balance, balance_satoshi, nonce)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(address) DO UPDATE
+                   SET balance=excluded.balance, balance_satoshi=excluded.balance_satoshi""",
+                (
+                    from_addr,
+                    account_balance_abs(row),
+                    int(new_sat),
+                    int(row.get("nonce") or 0),
+                ),
             )
             if burn_amount and burn_address:
-                self.balance_delta(burn_address, float(burn_amount))
+                self.balance_delta(burn_address, money_abs(burn_amount, field="burn_amount"))
             self.conn.execute(
                 """INSERT OR REPLACE INTO bridge_locks
                    (tx_hash, from_addr, to_chain, to_addr, amount, status, created_at)
@@ -1832,13 +1911,15 @@ class Database:
                     from_addr,
                     to_chain,
                     to_addr,
-                    float(net_amount),
+                    money_abs(net_amount, field="net_amount"),
                     int(time.time()),
                 ),
             )
 
     def refund_pending_bridge_lock(self, tx_hash: str) -> Dict:
         """Credit back pending lock amount and mark refunded atomically."""
+        from runtime.amount import money_abs
+
         with self.atomic():
             row = self.conn.execute(
                 "SELECT * FROM bridge_locks WHERE tx_hash=?", (tx_hash,)
@@ -1848,7 +1929,7 @@ class Database:
             lock = dict(row)
             if lock.get("status") != "pending":
                 return {"refunded": False, "error": "Lock not found or already processed"}
-            self.balance_delta(lock["from_addr"], float(lock["amount"]))
+            self.balance_delta(lock["from_addr"], money_abs(lock["amount"]))
             self.conn.execute(
                 "UPDATE bridge_locks SET status='refunded' WHERE tx_hash=?",
                 (tx_hash,),
@@ -1856,7 +1937,7 @@ class Database:
         return {
             "refunded": True,
             "tx_hash": tx_hash,
-            "amount": float(lock["amount"]),
+            "amount": money_abs(lock["amount"]),
         }
 
     def save_minivm_contract(self, address: str, bytecode: list, storage: dict, calls: int = 0) -> None:
@@ -2045,6 +2126,7 @@ class Database:
         submitted_at: int = 0,
     ) -> None:
         import time as _time
+        value = parse_finite_number(value, field="value")
         with self.lock:
             self.conn.execute(
                 """INSERT OR REPLACE INTO oracle_feeds
@@ -2054,7 +2136,7 @@ class Database:
                 (
                     feed_id,
                     symbol,
-                    float(value),
+                    value,
                     source,
                     reporter,
                     signature,
@@ -2090,7 +2172,7 @@ class Database:
                     report["report_id"],
                     report["symbol"],
                     report["reporter"],
-                    float(report["value"]),
+                    parse_finite_number(report["value"], field="value"),
                     report.get("signature", ""),
                     report.get("payload", "{}"),
                     int(report.get("submitted_at", 0)),
@@ -2131,11 +2213,11 @@ class Database:
                     ch["channel_id"],
                     ch["node1"],
                     ch["node2"],
-                    float(ch["capacity"]),
-                    float(ch["balance1"]),
-                    float(ch["balance2"]),
+                    money_abs(ch["capacity"], field="capacity"),
+                    money_abs(ch["balance1"], field="balance1"),
+                    money_abs(ch["balance2"], field="balance2"),
                     ch.get("status", "open"),
-                    float(ch.get("fee_rate", 0.00001)),
+                    parse_finite_number(ch.get("fee_rate", 0.00001), field="fee_rate"),
                     int(ch.get("created_at", 0)),
                 ),
             )
@@ -2152,7 +2234,15 @@ class Database:
                 rows = self.conn.execute(
                     "SELECT * FROM lightning_channels ORDER BY created_at DESC"
                 ).fetchall()
-            return [dict(r) for r in rows]
+            return [Database._lightning_channel_row(dict(r)) for r in rows]
+
+    @staticmethod
+    def _lightning_channel_row(row: Dict) -> Dict:
+        row["capacity"] = money_abs(row.get("capacity"), field="capacity")
+        row["balance1"] = money_abs(row.get("balance1"), field="balance1")
+        row["balance2"] = money_abs(row.get("balance2"), field="balance2")
+        row["fee_rate"] = parse_finite_number(row.get("fee_rate", 0), field="fee_rate")
+        return row
 
     def save_lightning_payment(self, p: Dict) -> None:
         with self.lock:
@@ -2166,8 +2256,8 @@ class Database:
                     p["channel_id"],
                     p["from_node"],
                     p["to_node"],
-                    float(p["amount"]),
-                    float(p.get("fee", 0)),
+                    money_abs(p["amount"], field="amount"),
+                    money_abs(p.get("fee", 0), field="fee"),
                     p.get("status", "completed"),
                     p.get("payment_hash", ""),
                     int(p.get("timestamp", 0)),
@@ -2181,7 +2271,13 @@ class Database:
                 "SELECT * FROM lightning_payments ORDER BY timestamp DESC LIMIT ?",
                 (int(limit),),
             ).fetchall()
-            return [dict(r) for r in rows]
+            return [Database._lightning_payment_row(dict(r)) for r in rows]
+
+    @staticmethod
+    def _lightning_payment_row(row: Dict) -> Dict:
+        row["amount"] = money_abs(row.get("amount"), field="amount")
+        row["fee"] = money_abs(row.get("fee", 0), field="fee")
+        return row
 
     def save_lightning_htlc(self, h: Dict) -> None:
         with self.lock:
@@ -2194,7 +2290,7 @@ class Database:
                     h["htlc_id"],
                     h["channel_id"],
                     h["payment_hash"],
-                    float(h["amount"]),
+                    money_abs(h["amount"], field="amount"),
                     int(h["expiry"]),
                     h["sender"],
                     h["receiver"],
@@ -2217,7 +2313,12 @@ class Database:
                     "SELECT * FROM lightning_htlcs ORDER BY created_at DESC LIMIT ?",
                     (int(limit),),
                 ).fetchall()
-            return [dict(r) for r in rows]
+            return [Database._lightning_htlc_row(dict(r)) for r in rows]
+
+    @staticmethod
+    def _lightning_htlc_row(row: Dict) -> Dict:
+        row["amount"] = money_abs(row.get("amount"), field="amount")
+        return row
 
     def save_lightning_channel_state(self, st: Dict) -> None:
         with self.lock:
@@ -2229,8 +2330,8 @@ class Database:
                 (
                     st["channel_id"],
                     int(st["version"]),
-                    float(st["balance1"]),
-                    float(st["balance2"]),
+                    money_abs(st["balance1"], field="balance1"),
+                    money_abs(st["balance2"], field="balance2"),
                     st["state_hash"],
                     st.get("sig_node1", ""),
                     st.get("sig_node2", ""),
@@ -2246,7 +2347,12 @@ class Database:
                    WHERE channel_id=? ORDER BY version DESC LIMIT 1""",
                 (channel_id,),
             ).fetchone()
-            return dict(row) if row else None
+            if not row:
+                return None
+            out = dict(row)
+            out["balance1"] = money_abs(out.get("balance1"), field="balance1")
+            out["balance2"] = money_abs(out.get("balance2"), field="balance2")
+            return out
 
     # ── Plasma L2 (Wave 40 persistence) ─────────────────────────────────────
 
@@ -2259,7 +2365,7 @@ class Database:
                 (
                     dep["id"],
                     dep["from"],
-                    float(dep["amount"]),
+                    money_abs(dep["amount"], field="amount"),
                     dep.get("main_tx_hash", ""),
                     int(dep.get("created_at", 0)),
                     dep.get("status", "confirmed"),
@@ -2278,7 +2384,7 @@ class Database:
                 out.append({
                     "id": r["deposit_id"],
                     "from": r["from_addr"],
-                    "amount": r["amount"],
+                    "amount": money_abs(r["amount"], field="amount"),
                     "main_tx_hash": r["main_tx_hash"],
                     "created_at": r["created_at"],
                     "status": r["status"],
@@ -2297,7 +2403,7 @@ class Database:
                     block["block_hash"],
                     block["parent_hash"],
                     json.dumps(block.get("transactions", [])),
-                    float(block.get("total_amount", 0)),
+                    money_abs(block.get("total_amount", 0), field="total_amount"),
                     int(block.get("transaction_count", block.get("tx_count", 0))),
                     int(block.get("created_at", 0)),
                     block.get("merkle_root", ""),
@@ -2320,7 +2426,7 @@ class Database:
                     "block_hash": r["block_hash"],
                     "parent_hash": r["parent_hash"],
                     "transactions": txs,
-                    "total_amount": r["total_amount"],
+                    "total_amount": money_abs(r["total_amount"], field="total_amount"),
                     "transaction_count": r["tx_count"],
                     "created_at": r["created_at"],
                 })
@@ -2336,7 +2442,7 @@ class Database:
                     ex["id"],
                     ex["deposit_id"],
                     ex["user"],
-                    float(ex["amount"]),
+                    money_abs(ex["amount"], field="amount"),
                     int(ex.get("created_at", 0)),
                     ex.get("status", "pending"),
                 ),
@@ -2355,7 +2461,7 @@ class Database:
                     "id": r["exit_id"],
                     "deposit_id": r["deposit_id"],
                     "user": r["user_addr"],
-                    "amount": r["amount"],
+                    "amount": money_abs(r["amount"], field="amount"),
                     "created_at": r["created_at"],
                     "status": r["status"],
                 })
@@ -2374,7 +2480,7 @@ class Database:
                     will["will_id"],
                     will["owner"],
                     will["heir"],
-                    float(will["amount"]),
+                    money_abs(will["amount"], field="amount"),
                     json.dumps(will.get("assets", {})),
                     int(will.get("execution_time", 0)),
                     int(will.get("created_at", 0)),
@@ -2405,7 +2511,7 @@ class Database:
                     "will_id": r["will_id"],
                     "owner": r["owner"],
                     "heir": r["heir"],
-                    "amount": r["amount"],
+                    "amount": money_abs(r["amount"], field="amount"),
                     "assets": assets,
                     "execution_time": r["execution_time"],
                     "created_at": r["created_at"],
@@ -2529,8 +2635,8 @@ class Database:
                     agent.get("status", "active"),
                     int(agent.get("created_at", 0)),
                     int(agent.get("last_action", 0)),
-                    float(agent.get("performance_score", 0)),
-                    float(agent.get("total_profit", 0)),
+                    parse_finite_number(agent.get("performance_score", 0), field="performance_score"),
+                    money_abs(agent.get("total_profit", 0), field="total_profit"),
                     int(agent.get("actions_count", 0)),
                     json.dumps(agent.get("strategy", {})),
                     json.dumps(agent.get("memory", [])),
@@ -2562,8 +2668,10 @@ class Database:
                     "status": r["status"],
                     "created_at": r["created_at"],
                     "last_action": r["last_action"],
-                    "performance_score": r["performance_score"],
-                    "total_profit": r["total_profit"],
+                    "performance_score": parse_finite_number(
+                        r["performance_score"], field="performance_score"
+                    ),
+                    "total_profit": money_abs(r["total_profit"], field="total_profit"),
                     "actions_count": r["actions_count"],
                     "strategy": strategy,
                     "memory": memory,
@@ -2588,7 +2696,7 @@ class Database:
                 (
                     sim["sim_id"],
                     sim.get("sim_type", sim.get("type", "")),
-                    float(sim.get("profit", 0)),
+                    money_abs(sim.get("profit", 0), field="profit"),
                     json.dumps(sim.get("payload", sim)),
                     int(sim.get("created_at", 0)),
                 ),
@@ -2607,7 +2715,7 @@ class Database:
                 out.append({
                     "sim_id": r["sim_id"],
                     "sim_type": r["sim_type"],
-                    "profit": r["profit"],
+                    "profit": money_abs(r["profit"], field="profit"),
                     "payload": payload,
                     "created_at": r["created_at"],
                 })
@@ -2663,7 +2771,7 @@ class Database:
                     token.get("image_url", ""),
                     token.get("owner", ""),
                     token.get("creator", ""),
-                    float(token.get("price", 0)),
+                    money_abs(token.get("price", 0), field="price"),
                     1 if token.get("for_sale") else 0,
                     int(token.get("created_at", 0)),
                     json.dumps(token.get("metadata") or {}),
@@ -2684,7 +2792,7 @@ class Database:
                     "image_url": r["image_url"],
                     "owner": r["owner"],
                     "creator": r["creator"],
-                    "price": r["price"],
+                    "price": money_abs(r["price"], field="price"),
                     "for_sale": bool(r["for_sale"]),
                     "created_at": r["created_at"],
                     "metadata": meta,
@@ -2702,7 +2810,7 @@ class Database:
                     offer["offer_id"],
                     offer.get("token_id", ""),
                     offer.get("bidder", ""),
-                    float(offer.get("price", 0)),
+                    money_abs(offer.get("price", 0), field="price"),
                     int(offer.get("expires_at", 0)),
                     offer.get("status", "pending"),
                     int(offer.get("created_at", 0)),
@@ -2717,13 +2825,18 @@ class Database:
             out = []
             for r in rows:
                 payload = self._loads_json(r["payload"] or "{}", context="nft_offer", default={})
-                out.append({"offer_id": r["offer_id"], **(payload if isinstance(payload, dict) else {})})
+                row = {"offer_id": r["offer_id"], **(payload if isinstance(payload, dict) else {})}
+                row["price"] = money_abs(r["price"], field="price")
+                out.append(row)
             return out
 
     def save_nft_auction(self, auction: Dict) -> None:
         with self.lock:
             aid = auction["auction_id"]
             payload = {k: v for k, v in auction.items() if k != "auction_id"}
+            for field in ("start_price", "reserve_price", "current_bid"):
+                if field in payload and payload[field] is not None:
+                    payload[field] = money_abs(payload[field], field=field)
             self.conn.execute(
                 """INSERT OR REPLACE INTO nft_auctions
                    (auction_id, token_id, seller, status, ends_at, payload, created_at)
@@ -2746,7 +2859,11 @@ class Database:
             out = []
             for r in rows:
                 payload = self._loads_json(r["payload"] or "{}", context="nft_auction", default={})
-                out.append({"auction_id": r["auction_id"], **(payload if isinstance(payload, dict) else {})})
+                row = {"auction_id": r["auction_id"], **(payload if isinstance(payload, dict) else {})}
+                for field in ("start_price", "reserve_price", "current_bid"):
+                    if field in row and row[field] is not None:
+                        row[field] = money_abs(row[field], field=field)
+                out.append(row)
             return out
 
     def save_nft_sale(self, sale: Dict) -> None:
@@ -2759,7 +2876,7 @@ class Database:
                     sale.get("token_id", ""),
                     sale.get("from", sale.get("from_addr", "")),
                     sale.get("to", sale.get("to_addr", "")),
-                    float(sale.get("price", 0)),
+                    money_abs(sale.get("price", 0), field="price"),
                     sale.get("type", sale.get("sale_type", "buy")),
                     int(sale.get("timestamp", sale.get("created_at", 0))),
                 ),
@@ -2777,7 +2894,7 @@ class Database:
                     "token_id": r["token_id"],
                     "from": r["from_addr"],
                     "to": r["to_addr"],
-                    "price": r["price"],
+                    "price": money_abs(r["price"], field="price"),
                     "type": r["sale_type"],
                     "timestamp": r["created_at"],
                 }
@@ -2889,8 +3006,8 @@ class BlockchainDB(Database):
     def __del__(self):
         try:
             self.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("BlockchainDB.__del__ close failed: %s", exc)
 
     def get_latest_block_number(self) -> int:
         return self.get_chain_tip()

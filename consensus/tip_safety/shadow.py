@@ -106,12 +106,29 @@ def tip_state_from_chain(blockchain: Any) -> TipState:
 
     genesis = str(getattr(blockchain, "GENESIS_HASH", _GENESIS_HASH) or _GENESIS_HASH)
 
+    # Canonical tip is get_height(), not a stale get_last_block() that can sit
+    # ahead of persisted height after a queued import or a failed catch-up.
     block: Optional[Mapping[str, Any]] = None
     try:
-        if hasattr(blockchain, "get_last_block"):
-            block = blockchain.get_last_block()
-        if block is None and height >= 0 and hasattr(blockchain, "get_block"):
+        if height >= 0 and hasattr(blockchain, "get_block"):
             block = blockchain.get_block(height)
+        if not isinstance(block, Mapping) and hasattr(blockchain, "get_last_block"):
+            last = blockchain.get_last_block()
+            if isinstance(last, Mapping):
+                try:
+                    last_h = int(last.get("height", -1) or -1)
+                except (TypeError, ValueError) as exc:
+                    raise TipValidationError(
+                        f"last_block height is not an int: {exc}"
+                    ) from exc
+                if height < 0 or last_h == height:
+                    block = last
+                else:
+                    raise TipValidationError(
+                        f"tip height mismatch get_height={height} last_block={last_h}"
+                    )
+    except TipValidationError:
+        raise
     except Exception as exc:
         raise TipValidationError(f"tip block lookup failed: {exc}") from exc
 
@@ -151,6 +168,7 @@ class TipSafetyShadowObserver:
         "enforce_refuse_total",
         "observe_errors",
         "sync_errors",
+        "last_local_forge_height",
     )
 
     def __init__(self, enabled: bool = False, enforce: bool = False) -> None:
@@ -168,6 +186,23 @@ class TipSafetyShadowObserver:
         self.enforce_refuse_total = 0
         self.observe_errors = 0
         self.sync_errors = 0
+        self.last_local_forge_height = 0
+
+    def note_local_forge(self, height: int) -> None:
+        """Record the height just applied on the local mining path.
+
+        NEW_BLOCK echo of that height (or the next pipeline height) must not
+        be treated as a skip-ahead / unknown parent against a stale window.
+        """
+        try:
+            h = int(height or 0)
+        except (TypeError, ValueError):
+            return
+        if h <= 0:
+            return
+        with self._lock:
+            if h > int(self.last_local_forge_height or 0):
+                self.last_local_forge_height = h
 
     @property
     def enabled(self) -> bool:
@@ -258,6 +293,21 @@ class TipSafetyShadowObserver:
         try:
             if self._service is None:
                 self.sync_from_chain(blockchain)
+            else:
+                # Bind the window to live get_height() before evaluate. A stale
+                # head (341) while the chain is at 339 turns catch-up of #340
+                # into a false "deep reorg" and wedges /health/ready (503).
+                try:
+                    raw_h = blockchain.get_height()
+                    chain_h = int(raw_h) if raw_h is not None else -1
+                except (TypeError, ValueError) as exc:
+                    _LOG.warning("[TipSafety] get_height parse failed: %s", exc)
+                    chain_h = -1
+                except Exception as exc:
+                    _LOG.warning("[TipSafety] get_height failed: %s", exc)
+                    chain_h = -1
+                if chain_h >= 0:
+                    self.sync_from_chain(blockchain)
             if self._service is None:
                 with self._lock:
                     self.observe_errors += 1

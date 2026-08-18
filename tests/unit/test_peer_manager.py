@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from types import SimpleNamespace
 
@@ -198,6 +199,31 @@ def test_has_active_endpoint():
     pm.register(FakePeer("e", host="1.2.3.4", port=55))
     assert pm.has_active_endpoint("1.2.3.4", 55)
     assert not pm.has_active_endpoint("1.2.3.4", 99)
+
+
+def test_clear_logs_close_failure(caplog):
+    class Boom(FakePeer):
+        def close(self):
+            raise RuntimeError("close boom")
+
+    pm = _mgr(max_peers=5)
+    pm.register(Boom("x"))
+    with caplog.at_level(logging.DEBUG, logger="PeerManager"):
+        pm.clear(close=True)
+    assert "close failed" in caplog.text
+    assert "close boom" in caplog.text
+    assert pm.peer_count() == 0
+
+
+def test_shape_reject_hook_failure_is_logged(caplog):
+    def boom(_reason: str) -> None:
+        raise RuntimeError("hook boom")
+
+    pm = PeerManager(PeerManagerSettings(max_peers=1), on_shape_reject=boom)
+    with caplog.at_level(logging.WARNING, logger="PeerManager"):
+        pm.note_shape_reject("max_peers")
+    assert "shape reject hook failed" in caplog.text
+    assert pm.shape_reject_counts.get("max_peers", 0) == 1
 
 
 def test_p2p_node_wires_peer_manager(tmp_path, monkeypatch):

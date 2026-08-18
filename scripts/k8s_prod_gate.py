@@ -33,13 +33,16 @@ def main() -> int:
             errors.append("node.prod.k8s.json: rocksdb_block_cache_mb required")
         if int(cfg.get("rocksdb_write_buffer_mb", 0) or 0) <= 0:
             errors.append("node.prod.k8s.json: rocksdb_write_buffer_mb required")
-        if "rocksdb_column_families" not in cfg:
+        if cfg.get("rocksdb_column_families") is not True:
             errors.append(
-                "node.prod.k8s.json: rocksdb_column_families required (default false)"
+                "node.prod.k8s.json: rocksdb_column_families must be true"
             )
         for key in (
             "p2p_max_message_bytes",
             "p2p_max_messages_per_sec",
+            "p2p_attest_messages_per_sec",
+            "p2p_tx_messages_per_sec",
+            "p2p_block_announce_messages_per_sec",
             "p2p_ban_seconds",
             "p2p_rate_limit_strikes",
         ):
@@ -72,6 +75,8 @@ def main() -> int:
         errors.append('configmap.yaml: TIP_SAFETY_ENFORCE must be "true"')
     if 'BRIDGE_ENABLED: "false"' not in cm:
         errors.append('configmap.yaml: BRIDGE_ENABLED must be "false"')
+    if 'ROCKSDB_COLUMN_FAMILIES: "true"' not in cm:
+        errors.append('configmap.yaml: ROCKSDB_COLUMN_FAMILIES must be "true"')
     for key in (
         "ROCKSDB_BLOCK_CACHE_MB",
         "ROCKSDB_WRITE_BUFFER_MB",

@@ -7,6 +7,7 @@
 
 from typing import Dict, Tuple, Any, Optional
 
+from runtime.amount import money_abs
 from runtime.tokenomics import build_allocations, MAX_SUPPLY_ABS
 
 POOL_META_KEY = "pool_locks_state"
@@ -96,7 +97,9 @@ class PoolLockManager:
         pools = state.get("pools", {})
         if from_addr not in pools:
             return
-        pools[from_addr]["spent"] = pools[from_addr].get("spent", 0.0) + float(amount)
+        pools[from_addr]["spent"] = pools[from_addr].get("spent", 0.0) + money_abs(
+            amount, field="amount"
+        )
         self._save(state)
 
     def catch_up_epochs(self, current_epoch: int) -> Dict[str, Any]:

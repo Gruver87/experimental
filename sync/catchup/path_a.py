@@ -92,8 +92,12 @@ class CatchUpPathAService:
         if callable(ng):
             try:
                 needs_genesis = bool(ng())
-            except Exception:
-                needs_genesis = False
+            except Exception as exc:
+                logger.warning("[PathA] needs_genesis check failed: %s", exc)
+                try:
+                    needs_genesis = int(local_h or 0) <= 0
+                except Exception:
+                    needs_genesis = True
         # Empty follower tip is height 0; leader genesis is also height 0.
         # Still ahead of "no block" — do not skip as not_ahead.
         if peer_h < local_h or (peer_h == local_h and not needs_genesis):
@@ -111,7 +115,8 @@ class CatchUpPathAService:
         if head:
             try:
                 local_blk = self._chain.get_block(head)
-            except Exception:
+            except Exception as exc:
+                logger.warning("[PathA] get_block(%s) for ahead-refuse failed: %s", head, exc)
                 local_blk = None
         # When importing genesis into an empty tip, peer_height may equal local
         # reported height (0). Policy ahead_refuse treats equal heights as
@@ -350,6 +355,28 @@ class CatchUpPathAService:
 
         self._side.note_import_fail(peer.peer_id)
         parent_hash = str(block_data.get("parent_hash") or "").strip()
+        cand_hash = _block_hash(block_data)
+        local_head = str(self._chain.head() or "").strip()
+        # Failed +1 extend (parent is the current tip) is not a fork.
+        if parent_hash and local_head and parent_hash.lower() == local_head.lower():
+            fail_h = body_h if body_h >= 0 else expected_height
+            self._side.on_progress(f"Import failed at #{fail_h}, aborting batch")
+            return "fail"
+        # Concurrent catch-up of a block we already have — do not roll back.
+        if body_h >= 0:
+            existing = None
+            try:
+                existing = self._chain.get_block(int(body_h))
+            except Exception as exc:
+                logger.warning("[PathA] get_block(%s) during import-fail check: %s", body_h, exc)
+                existing = None
+            if isinstance(existing, Mapping):
+                exist_h = _block_hash(existing)
+                if cand_hash and exist_h and cand_hash.lower() == exist_h.lower():
+                    self._side.on_progress(
+                        f"Duplicate #{body_h} already canonical, skip reorg"
+                    )
+                    return "fail"
         ancestor = None
         if parent_hash:
             try:

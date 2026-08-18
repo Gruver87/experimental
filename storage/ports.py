@@ -96,13 +96,13 @@ class StateStorePort(Protocol):
     def compute_state_root(self) -> str:
         ...
 
-    def balance_delta(self, address: str, delta: float) -> None:
+    def balance_delta(self, address: str, delta: int) -> None:
         ...
 
-    def update_balance(self, address: str, delta: float) -> float:
+    def update_balance(self, address: str, delta: int) -> float:
         ...
 
-    def set_balance(self, address: str, balance: float) -> None:
+    def set_balance(self, address: str, balance: int) -> None:
         ...
 
     def nonce_increment(self, address: str) -> int:
@@ -114,7 +114,7 @@ class StateStorePort(Protocol):
     def save_account(
         self,
         address: str,
-        balance: float = 0.0,
+        balance: int = 0,
         nonce: int = 0,
         code: Any = None,
         storage: Any = None,

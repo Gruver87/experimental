@@ -101,6 +101,7 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "abs_p2p_attestation_local_fail_total",
         "abs_p2p_peer_tx_reject_total",
         "abs_rocksdb_column_families",
+        "abs_rocksdb_running_compactions",
         "abs_db_engine",
         "abs_state_consistent",
         "abs_sync_wire_probe_ok",
@@ -171,6 +172,9 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
     )
     shared_keys = (
         "p2p_max_messages_per_sec",
+        "p2p_attest_messages_per_sec",
+        "p2p_tx_messages_per_sec",
+        "p2p_block_announce_messages_per_sec",
         "p2p_max_message_bytes",
         "p2p_ban_seconds",
         "p2p_rate_limit_strikes",
@@ -202,11 +206,24 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         rate = int(prod_cfg.get("p2p_max_messages_per_sec", 0) or 0)
         if rate <= 0:
             errors.append(f"{rel}: p2p_max_messages_per_sec must be > 0")
+        for class_key in (
+            "p2p_attest_messages_per_sec",
+            "p2p_tx_messages_per_sec",
+            "p2p_block_announce_messages_per_sec",
+        ):
+            cap = int(prod_cfg.get(class_key, 0) or 0)
+            if cap <= 0:
+                errors.append(f"{rel}: {class_key} must be > 0")
         max_bytes = int(prod_cfg.get("p2p_max_message_bytes", 0) or 0)
         if max_bytes and max_bytes < DEFAULT_MAX_P2P_LINE_BYTES // 2:
             errors.append(
                 f"{rel}: p2p_max_message_bytes below industrial floor "
                 f"({DEFAULT_MAX_P2P_LINE_BYTES // 2})"
+            )
+        if prod_cfg.get("rocksdb_column_families") is not True:
+            errors.append(
+                f"{rel}: rocksdb_column_families must be true "
+                "(dual-read legacy default; armed for next bake)"
             )
         if prod_cfg.get("bridge_enabled") is True:
             if "bridge" in Path(rel).name.lower():
@@ -228,6 +245,11 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
                 errors.append(f"{rel}: redis_url must be non-empty for mesh/k8s")
         if "mesh" in Path(rel).name.lower():
             mesh_json_cfgs.append((rel, prod_cfg))
+            if int(prod_cfg.get("testnet_expected_peers", 1) or 1) < 2:
+                errors.append(
+                    f"{rel}: 3-node mesh must set testnet_expected_peers>=2 "
+                    "so redial continues past a single remaining peer"
+                )
             # ADR 0016: industrial mesh must keep FEATURE_* sprouts off.
             _feature_keys = (
                 "feature_zk",
@@ -377,6 +399,12 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         errors.append("rocks_store.reorg purge must log corrupt tx_propagation JSON")
     if "rocksdb_properties_error" not in rocks_py:
         errors.append("rocks_store.get_stats must surface rocksdb_properties_error")
+    if "corrupt live_state_root_height meta" not in rocks_py:
+        errors.append("get_live_state_root_meta must log corrupt height (not silent except)")
+    if "get_account_rows failed, per-account load" not in rocks_py:
+        errors.append("load_writeback_accounts must log get_account_rows failure")
+    if "def get_rocks_runtime_stats" not in rocks_py:
+        errors.append("rocks_store must expose get_rocks_runtime_stats (no prefix scan)")
     db_py = (ROOT / "storage" / "database.py").read_text(encoding="utf-8")
     if "DELETE FROM evm_logs WHERE block_height" not in db_py:
         errors.append("SQLite reorg_truncate_above must delete evm_logs")
@@ -391,6 +419,13 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
     http_py = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
     if 'origins else "*"' in http_py:
         errors.append("api/http.py REST CORS must not fall back to *")
+    if "get_rocks_runtime_stats" not in http_py:
+        errors.append("/metrics must use get_rocks_runtime_stats (no prefix scan)")
+    harness_fn = http_py.split("def _build_state_consistency_harness", 1)[-1]
+    if "get_cached_account_count" not in harness_fn:
+        errors.append("consistency harness must use get_cached_account_count (no prefix scan)")
+    if "db.get_stats()" in harness_fn.split("def ", 1)[0]:
+        errors.append("consistency harness must not call db.get_stats()")
     health_py = (ROOT / "bridge" / "health.py").read_text(encoding="utf-8")
     if "probe_skipped" not in health_py:
         errors.append("bridge.health must mark unprobed L1 as probe_skipped")
@@ -495,6 +530,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("main.py must share AbsoluteNode SyncEngine with P2P")
         if "shared with P2P" not in main_py:
             errors.append("main.py must log SyncEngine shared with P2P")
+        if "secret lookup failed for" not in main_py:
+            errors.append("main.py wallet resolve must log SecretManager lookup failures")
     except Exception as exc:
         errors.append(f"fail-loud main.py inspect failed: {exc}")
     try:
@@ -882,6 +919,61 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("sync_state solo must fail-closed and clear consistency")
         if "No same-height peer root match — fail-closed" not in sync_py:
             errors.append("sync_state must require same-height peer root match before True")
+        if "get_last_block failed in _local_needs_genesis" not in sync_py:
+            errors.append("sync_engine _local_needs_genesis must log store errors")
+        fe_py = (ROOT / "finality_engine.py").read_text(encoding="utf-8")
+        if "native fe_quorum_reached failed" not in fe_py:
+            errors.append("finality_engine must log native fe_quorum_reached fallback")
+        casper_py = (ROOT / "consensus" / "finality_casper.py").read_text(encoding="utf-8")
+        if "native %s failed; Python path: %s" not in casper_py:
+            errors.append("Casper FFG must log native kernel fallbacks")
+        if '_native_fb("ffg_accumulate_vote"' not in casper_py:
+            errors.append("Casper FFG must log native ffg_accumulate_vote fallback")
+        ghost_py = (ROOT / "consensus" / "ghost.py").read_text(encoding="utf-8")
+        if '_native_fb("ghost_select_head"' not in ghost_py:
+            errors.append("GHOST must log native ghost_select_head fallback")
+        lmd_py = (ROOT / "consensus" / "lmd.py").read_text(encoding="utf-8")
+        if '_native_fb("lmd_compute_weights"' not in lmd_py:
+            errors.append("LMD must log native lmd_compute_weights fallback")
+        adapter_py = (ROOT / "consensus" / "adapter.py").read_text(encoding="utf-8")
+        if "total_active_stake failed; engine fallback" not in adapter_py:
+            errors.append("ConsensusAdapter.get_total_stake must log registry failures")
+        if "stake_abs = money_abs(stake, field=\"stake\")" not in adapter_py:
+            errors.append("ConsensusAdapter.add_validator must parse stake via money_abs")
+        reg_ad = (ROOT / "consensus" / "registry_adapter.py").read_text(encoding="utf-8")
+        if "security.consensus_refuse emit failed" not in reg_ad:
+            errors.append("AdapterConsensusEvidence must log bus emit failures")
+        if "consensus lockdown hook failed" not in reg_ad:
+            errors.append("AdapterConsensusLockdown must log hook failures")
+        rocks_ad = (ROOT / "storage" / "adapters" / "rocks_adapter.py").read_text(
+            encoding="utf-8"
+        )
+        if "in_transaction probe failed; assume open batch" not in rocks_ad:
+            errors.append("Rocks adapter must not nest atomic after in_transaction probe fail")
+        p2p_py = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+        if "native p2p_native_clamp_batch failed" not in p2p_py:
+            errors.append("P2P native batch clamp must log kernel fallback")
+        if "get_block failed during head-height bind" not in p2p_py:
+            errors.append("P2P head-height bind must log get_block store errors")
+        amt_py = (ROOT / "runtime" / "amount.py").read_text(encoding="utf-8")
+        if "def parse_p2p_wire_abs" not in amt_py:
+            errors.append("amount.py must expose parse_p2p_wire_abs")
+        if "def parse_finite_number" not in amt_py:
+            errors.append("amount.py must expose parse_finite_number for oracle prices")
+        path_a_py = (ROOT / "sync" / "catchup" / "path_a.py").read_text(encoding="utf-8")
+        if "[PathA] needs_genesis check failed" not in path_a_py:
+            errors.append("Path A must log needs_genesis store errors")
+        engine_io_py = (ROOT / "sync" / "catchup" / "engine_io.py").read_text(encoding="utf-8")
+        if "[EngineIO] needs_genesis checker failed" not in engine_io_py:
+            errors.append("EngineIO must log needs_genesis checker failures")
+        tip_ev = (ROOT / "network" / "p2p_dispatch" / "tip_evidence.py").read_text(
+            encoding="utf-8"
+        )
+        if "tip-safety shadow provider failed" not in tip_ev:
+            errors.append("tip_evidence must log shadow provider failures")
+        bc_py = (ROOT / "core" / "blockchain.py").read_text(encoding="utf-8")
+        if "canonical persist failed" not in bc_py:
+            errors.append("blockchain persist must log the original persist error")
     except Exception as exc:
         errors.append(f"fail-loud sync_engine inspect failed: {exc}")
     try:
@@ -1653,6 +1745,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "storage" / "hybrid_database.py"
         ).read_text(encoding="utf-8"):
             errors.append("hybrid_database must delegate load_writeback_accounts")
+        if "def get_rocks_runtime_stats" not in (
+            ROOT / "storage" / "hybrid_database.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("hybrid_database must delegate get_rocks_runtime_stats")
         # v1.3.65 — L1 fail-closed hardening
         vk_py = (ROOT / "crypto" / "validator_keys.py").read_text(encoding="utf-8")
         if "derive_address" not in vk_py:
@@ -1678,12 +1774,22 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         apply_q = (ROOT / "core" / "chain_apply_queue.py").read_text(encoding="utf-8")
         if "expired_total" not in apply_q or "deadline_monotonic" not in apply_q:
             errors.append("chain_apply_queue must expire stale jobs (v1.3.66)")
+        if "asyncio.wrap_future" not in apply_q:
+            errors.append("async apply submit must wrap_future (not to_thread wait)")
+        if "asyncio.to_thread(self.submit_import" in apply_q:
+            errors.append("submit_import_async must not block a thread-pool worker")
+        if "Saturated apply queue" not in p2p_py:
+            errors.append("wire probe must not stall HTTP when apply queue is full")
         if "drop mempool txs only after successful import" not in p2p_py:
             errors.append("p2p must remove mempool only after successful import (v1.3.66)")
         if "_schedule_sync" not in p2p_py or "_schedule_connect" not in p2p_py:
             errors.append("p2p must coalesce sync/connect tasks (v1.3.66)")
         if "fn prefix_last" not in storage_rs:
             errors.append("RocksEngine must expose prefix_last (v1.3.66)")
+        if "lexicographically last key across" not in storage_rs:
+            errors.append(
+                "prefix_last must merge target CF + legacy default (not primary-first)"
+            )
         if 'key_meta("chain_tip")' not in rocks_py2:
             errors.append("rocks_store must persist chain_tip meta (v1.3.66)")
         metrics_py2 = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
@@ -2394,6 +2500,63 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "p2p_node must refuse peer.height inflation from state_root_response (v1.3.129)"
             )
+        if "get_last_block failed in state_root_response" not in p2p_py:
+            errors.append(
+                "state_root_response must refuse when get_last_block fails (no silent tip root)"
+            )
+        if "close cancel send worker failed" not in p2p_py:
+            errors.append("PeerConnection.close must log send-worker cancel failures")
+        if "def _invoke_peer_hook" not in p2p_py:
+            errors.append("PeerConnection must log send/drop/egress hook failures")
+        if "%s hook failed" not in p2p_py:
+            errors.append("PeerConnection must log send/drop/egress hook failures")
+        if "set_timeout_ms failed" not in p2p_py:
+            errors.append("PeerConnection native write bound must log set_timeout_ms failures")
+        if "P2PLineFramer construct failed" not in p2p_py:
+            errors.append("P2PLineFramer construct failure must be logged")
+        if "native capability probe failed: %s" not in p2p_py:
+            errors.append("native capability probe must log the underlying exception")
+        if "native capability probe failed under" not in p2p_py:
+            errors.append("prod native capability probe must fail-closed")
+        else:
+            chunk = p2p_py.split("native capability probe failed under", 1)[1][:240]
+            if "from None" in chunk:
+                errors.append("native capability probe must chain cause (not from None)")
+            if "from exc" not in chunk:
+                errors.append("native capability probe must chain cause via from exc")
+        peer_mgr_py = (ROOT / "network" / "peer_manager.py").read_text(encoding="utf-8")
+        if "[PeerManager] close failed" not in peer_mgr_py:
+            errors.append("PeerManager must log peer.close() failures")
+        if "shape reject hook failed" not in peer_mgr_py:
+            errors.append("PeerManager must log shape-reject hook failures")
+        db_py = (ROOT / "storage" / "database.py").read_text(encoding="utf-8")
+        if "BlockchainDB.__del__ close failed" not in db_py:
+            errors.append("BlockchainDB.__del__ must log close failures")
+        persist_py = (ROOT / "storage" / "persistent_storage.py").read_text(
+            encoding="utf-8"
+        )
+        if "PersistentStorage.__del__ close failed" not in persist_py:
+            errors.append("PersistentStorage.__del__ must log close failures")
+        rocks_store_py = (ROOT / "storage" / "rocks_store.py").read_text(
+            encoding="utf-8"
+        )
+        if "native engine drop failed" not in rocks_store_py:
+            errors.append("RocksChainStore.close must log native engine drop failures")
+        catchup_py = (ROOT / "network" / "catchup_adapters.py").read_text(
+            encoding="utf-8"
+        )
+        if "[CatchUpChain] head failed" not in catchup_py:
+            errors.append("CatchUp chain adapter must log head() failures")
+        fork_py = (ROOT / "network" / "fork_adapters.py").read_text(encoding="utf-8")
+        if "async reorg_and_import failed" not in fork_py:
+            errors.append("Fork chain adapter must log async reorg failure before sync fallback")
+        libp2p_py = (
+            ROOT / "network" / "transport" / "libp2p_adapter" / "adapter.py"
+        ).read_text(encoding="utf-8")
+        if "attach_native failed" not in libp2p_py:
+            errors.append("libp2p adapter must log attach_native failures")
+        if "node close failed" not in libp2p_py:
+            errors.append("libp2p adapter must log node close failures")
         if "abs_p2p_native_state_root_outbound_honesty" not in (
             ROOT / "observability" / "metrics.py"
         ).read_text(encoding="utf-8"):
@@ -2592,6 +2755,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("p2p must expose native_mempool_cheap_refuse (v1.3.143)")
         if "MSG_NEW_TX," in p2p_py.split("RATE_LIMIT_EXEMPT_TYPES")[1].split("})")[0]:
             errors.append("RATE_LIMIT_EXEMPT_TYPES must not list MSG_NEW_TX (v1.3.143)")
+        if "def _class_rate_ok" not in p2p_py:
+            errors.append("P2P must enforce per-class rate quotas (attest/tx/block)")
+        if "rate_limit_class_exceeded" not in p2p_py:
+            errors.append("P2P class quota must soft-refuse rate_limit_class_exceeded")
         tx_pipe_py = (ROOT / "core" / "components" / "tx_pipeline.py").read_text(
             encoding="utf-8", errors="replace"
         )
@@ -3333,6 +3500,13 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "p2p must expose _get_blocks_past_tip_clamp_end (v1.3.182)"
             )
+        get_blocks_fn = p2p_py.split("async def _handle_get_blocks", 1)[-1].split(
+            "def _get_blocks_future_refuse_reason", 1
+        )[0]
+        if "asyncio.to_thread(_load_range)" not in get_blocks_fn:
+            errors.append(
+                "_handle_get_blocks must offload range fetch (asyncio.to_thread)"
+            )
         if "p2p_get_blocks_past_tip_clamp" not in (
             ROOT / "runtime" / "config.py"
         ).read_text(encoding="utf-8"):
@@ -3807,6 +3981,12 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_mempool_unparseable_value_refuse (v1.3.204)"
             )
+        if "parse_p2p_wire_abs" not in p2p_py:
+            errors.append("p2p mempool value must parse via parse_p2p_wire_abs (bool/hex refuse)")
+        if "fee_unparseable" not in p2p_py:
+            errors.append("p2p must refuse unparseable fee (not coerce to 0)")
+        if "value = float(data.get(\"value\"" in p2p_py:
+            errors.append("p2p mempool must not float() wire value")
         # v1.3.205 — mempool unparseable-nonce refuse before validate
         if "nonce_unparseable" not in p2p_py:
             errors.append(
@@ -3851,6 +4031,13 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         gen_src = inspect.getsource(Blockchain._ensure_genesis)
         if "genesis meta write failed" not in gen_src:
             errors.append("Blockchain._ensure_genesis must log genesis meta failures")
+        if "float(amount)" in gen_src:
+            errors.append("Blockchain._ensure_genesis must not float() genesis balances")
+        if "amount_abs = int(amount)" not in gen_src:
+            errors.append("Blockchain._ensure_genesis must mint integer ABS amounts")
+        init_src = inspect.getsource(Blockchain.__init__)
+        if "bind_tip_encoding_config failed" not in init_src:
+            errors.append("Blockchain.__init__ must log/raise bind_tip_encoding_config failures")
         if "except Exception:\n                pass" in gen_src and "set_meta" in gen_src:
             # still allow other passes elsewhere in function; only fail if set_meta still bare-pass
             if "except Exception:\n                pass\n            try:\n                self.db.set_meta" in gen_src:
@@ -3858,12 +4045,146 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         add_src = inspect.getsource(Blockchain.add_block)
         if "record_state_root_mismatch failed" not in add_src:
             errors.append("Blockchain.add_block must log mismatch audit failures")
+        persist_src = inspect.getsource(Blockchain._persist_canonical_via_storage)
+        if "UoW abort failed" not in persist_src:
+            errors.append("canonical persist must log UoW abort failures")
+        tx_from = inspect.getsource(__import__("core.blockchain", fromlist=["Transaction"]).Transaction.from_dict)
+        if "parse_rpc_value_abs" not in tx_from:
+            errors.append("Transaction.from_dict must parse value via parse_rpc_value_abs")
+        if "value=float(" in tx_from:
+            errors.append("Transaction.from_dict must not float() value")
     except Exception as exc:
         errors.append(f"fail-loud blockchain inspect failed: {exc}")
+    try:
+        main_py = (ROOT / "main.py").read_text(encoding="utf-8")
+        if "self.db.set_balance(addr, float(amount))" in main_py:
+            errors.append("Node genesis alloc must not float() balances")
+        if "self.db.set_balance(addr, int(amount))" not in main_py:
+            errors.append("Node genesis alloc must mint integer ABS amounts")
+        if "Genesis allocation failed" not in main_py:
+            errors.append("Node genesis alloc must log failures (prod raise)")
+    except Exception as exc:
+        errors.append(f"fail-loud main.py inspect failed: {exc}")
     try:
         http_py = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
         if "peer_probe_error" not in http_py:
             errors.append("GET /chain/state-root/status must expose peer_probe_error")
+        if "peer heights from get_peers_info failed" not in http_py:
+            errors.append("HTTP must log peer-height collection failures")
+        if "bridge_result_normalize_failed" not in http_py:
+            errors.append("bridge HTTP normalize fallback must not bool(result) success")
+        if "parse_abs_int" not in http_py:
+            errors.append("HTTP must parse ABS amounts as integers (parse_abs_int)")
+        if "def _http_abs" not in http_py:
+            errors.append("HTTP bridge/REST money must use _http_abs (satoshi-quantized ABS)")
+        if "def _http_engine_result" not in http_py:
+            errors.append("HTTP engine ops must use _http_engine_result (no bool(object))")
+        if '"slashed": bool(result)' in http_py:
+            errors.append("slashing record-vote must not paint slashed via bool(result)")
+        eth_fmt = (ROOT / "api" / "eth_format.py").read_text(encoding="utf-8")
+        if "float(tx.get(" in eth_fmt and "* 10**18" in eth_fmt:
+            errors.append("eth_format.format_tx must not IEEE-multiply ABS by 10**18")
+        if "to_satoshi" not in eth_fmt or "WEI_PER_SATOSHI" not in eth_fmt:
+            errors.append("eth_format.format_tx must convert ABS via satoshi*WEI_PER_SATOSHI")
+        if "parse_rpc_value_abs" not in http_py:
+            errors.append("JSON-RPC/REST money must use parse_rpc_value_abs (no IEEE wei divide)")
+        if "wei / 10**18" in http_py:
+            errors.append("HTTP _parse_tx_value must not IEEE-divide wei by 10**18")
+        amount_py = (ROOT / "runtime" / "amount.py").read_text(encoding="utf-8")
+        if "def parse_rpc_value_abs" not in amount_py:
+            errors.append("runtime.amount must define parse_rpc_value_abs")
+        if "def money_abs" not in amount_py:
+            errors.append("runtime.amount must define money_abs for storage/bridge")
+        if "def tx_money_abs" not in amount_py:
+            errors.append("runtime.amount must define tx_money_abs for tx value/fee/burned")
+        if "def writeback_balance_abs" not in amount_py:
+            errors.append("runtime.amount must define writeback_balance_abs for EVM writeback")
+        if "def abs_to_wei" not in amount_py:
+            errors.append("amount.py must define abs_to_wei for eth_gasPrice (sub-satoshi)")
+        if "gas_price_wei * 10**18" in http_py:
+            errors.append("eth_gasPrice must not IEEE-multiply gas_price_wei")
+        rpc_py = (ROOT / "api" / "rpc_service.py").read_text(encoding="utf-8")
+        if "gas_price_wei * 10**18" in rpc_py:
+            errors.append("rpc_service eth_gasPrice must not IEEE-multiply gas_price_wei")
+        if "bridge_pending_writeback_failed" not in (
+            ROOT / "execution" / "evm_adapter.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("EVM adapter must not silently drop pending writeback ops")
+        if "native get_account_view failed" not in (
+            ROOT / "execution" / "evm_adapter.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("EVM adapter must log native get_account_view failures")
+        gap = (ROOT / "docs" / "MAINNET_GAP_ANALYSIS.md").read_text(encoding="utf-8")
+        if "Experimental this tree 48h FAIL" not in gap:
+            errors.append(
+                "MAINNET_GAP_ANALYSIS must not hide Experimental 48h FAIL behind Hybrid tip-v2 PASS"
+            )
+        db_py = (ROOT / "storage" / "database.py").read_text(encoding="utf-8")
+        if "def set_balance(self, address: str, balance: int)" not in db_py:
+            errors.append("SQLite Database.set_balance must take integer ABS, not float")
+        if 'raise TypeError("bool is not an amount")' not in db_py:
+            errors.append("SQLite Database.set_balance must refuse bool amounts")
+        if 'return float(row["balance"])' in db_py:
+            errors.append("Database.get_balance must not return raw float(row['balance'])")
+        if "account_balance_abs" not in db_py:
+            errors.append("Database.get_balance must display via account_balance_abs")
+        rocks_py = (ROOT / "storage" / "rocks_store.py").read_text(encoding="utf-8")
+        if 'row["balance"] = float(row.get("balance"' in rocks_py:
+            errors.append("RocksStore account load must derive balance from satoshi")
+        if 'float(tx.get("value"' in db_py or 'float(row.get("value"' in db_py:
+            errors.append("SQLite tx persist/display must not float() value")
+        if 'float(row.get("value"' in rocks_py:
+            errors.append("RocksStore tx display must not float() value")
+        if 'float(block.get("total_burned"' in db_py:
+            errors.append("SQLite block persist must not float() total_burned")
+        if 'return float(row["tb"])' in db_py:
+            errors.append("Database.get_total_burned must display via money_abs")
+        if 'float(block.get("total_burned"' in rocks_py:
+            errors.append("RocksStore block persist must not float() total_burned")
+        if 'float(row.get("total_burned"' in rocks_py:
+            errors.append("RocksStore.get_total_burned must display via money_abs")
+        if 'float(row.get("balance") or 0)' in rocks_py:
+            errors.append("Rocks writeback merge must not float() balance")
+        if 'float(ch["capacity"])' in db_py or 'float(will["amount"])' in db_py:
+            errors.append("SQLite lightning/will persist must use money_abs, not float()")
+        if 'float(dep["amount"])' in db_py or 'float(ex["amount"])' in db_py:
+            errors.append("SQLite plasma persist must use money_abs, not float()")
+        if 'float(token.get("price"' in db_py or 'float(sale.get("price"' in db_py:
+            errors.append("SQLite NFT persist must use money_abs, not float()")
+        if 'float(agent.get("total_profit"' in db_py or 'float(sim.get("profit"' in db_py:
+            errors.append("SQLite AI/MEV persist must use money_abs, not float()")
+        if 'float(token.get("price"' in rocks_py or 'float(sale.get("price"' in rocks_py:
+            errors.append("Rocks NFT persist must use money_abs, not float()")
+        if 'float(row.get("price"' in rocks_py:
+            errors.append("Rocks NFT decode must overlay price via money_abs")
+        if 'float(lock["amount"])' in db_py:
+            errors.append("SQLite refund_pending_bridge_lock must display amount via money_abs")
+        if 'float(lock["amount"])' in rocks_py:
+            errors.append("Rocks refund_pending_bridge_lock must display amount via money_abs")
+        if 'balance=float(row["balance"])' in db_py:
+            errors.append("SQLite debit_and_create_bridge_lock must write account_balance_abs")
+        evm_py = (ROOT / "execution" / "evm_adapter.py").read_text(encoding="utf-8")
+        if "native nested pure frame failed" not in evm_py:
+            errors.append("EVM adapter must log native nested pure fallback")
+        if "native writeback apply failed" not in evm_py:
+            errors.append("EVM adapter must log native writeback apply fallback")
+        if "native nested host frame failed" not in evm_py:
+            errors.append("EVM adapter must log native nested host fallback")
+        if "CREATE _run_evm failed" not in evm_py:
+            errors.append("EVM CREATE must log _run_evm failures")
+        if "value_wei / 10**18" in evm_py:
+            errors.append("EVM writeback transfer_value must not IEEE-divide wei")
+        if "float(row.get(\"balance\")" in evm_py or "float(op.get(\"balance\")" in evm_py:
+            errors.append("EVM writeback save_account must not float() balance")
+        if "def set_balance(self, address: str, balance: int)" not in (
+            ROOT / "storage" / "ports.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("StoragePort.set_balance must take integer ABS, not float")
+        probe_py = (ROOT / "scripts" / "verify_prod_mesh_probe.py").read_text(
+            encoding="utf-8"
+        )
+        if "ALIGN_STATUS_RETRIES" not in probe_py:
+            errors.append("prod mesh probe must retry status alignment (mining-window race)")
         if "peer_probe_error" not in http_py or "state consistency harness peer probe failed" not in http_py:
             errors.append("state consistency harness must expose/log peer_probe_error")
         if "prices_error" not in http_py:
@@ -3882,6 +4203,271 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("/metrics must not apply Rocks config_fallback on non-rocks engines")
         if "peer_probe_ok" not in http_py:
             errors.append("state consistency harness must include peer_probe_ok check")
+        if "wire_consistent" not in http_py:
+            errors.append("harness p2p_state_consistent must accept live matching wire")
+        p2p_py = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+        if "_coalesced_peer_state_roots" not in p2p_py:
+            errors.append("P2PNode must coalesce concurrent state_root probes")
+        if "inflight continues" not in p2p_py:
+            errors.append("state_root sync waiter timeout must not cancel inflight probe")
+        if "_state_root_solicit_height" not in p2p_py:
+            errors.append("P2PNode must expose _state_root_solicit_height")
+        if "Do not cap at stale" not in p2p_py:
+            errors.append("state_root solicit must use local tip, not stale peer.height")
+        if "_attestation_already_seen" not in p2p_py:
+            errors.append("P2P must drop duplicate attestation gossip")
+        if "Echo of our own gossip" not in p2p_py:
+            errors.append("P2P must not re-apply/re-sign echoed local attestations")
+        if "signing against live tip" not in p2p_py:
+            errors.append("local attestation gossip must bind target_height to the target header")
+        if "state_root_outbound_lag_total" not in (
+            ROOT / "network" / "p2p_dispatch" / "handlers.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("state_root handler must answer ahead requests with local tip lag")
+        if "state_root_lag" not in (
+            ROOT / "sync" / "solicit.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("solicit hub must accept lower-height state_root lag replies")
+        if 'peer_probe_error = "empty"' not in http_py:
+            errors.append("harness must fail peer_probe_ok on empty wire with connected peers")
+        if "_stash_late_state_root" not in p2p_py:
+            errors.append("P2PNode must stash late state_root replies after solicit timeout")
+        if '== "late_state_root"' not in p2p_py:
+            errors.append("timed-out state_root waiter must stash late_state_root payloads")
+        if "per_peer_timeout=6.5" not in p2p_py:
+            errors.append("coalesced state_root flight must fit inside HTTP 8s STRICT budget")
+        if "Coalesced state_root flight is one RTT" not in p2p_py:
+            errors.append("coalesced state_root flight must not retry (HTTP 5s quick budget)")
+        if "await asyncio.sleep(0.4)" not in p2p_py:
+            errors.append("empty state_root gather must drain late stash inside HTTP 8s budget")
+        if "note_local_forge" not in p2p_py:
+            errors.append("P2PNode must defer state_root probe after local forge")
+        if "tip_safety defer skip-ahead" not in p2p_py:
+            errors.append(
+                "P2PNode must defer tip-safety skip-ahead while apply_queue is busy"
+            )
+        if "tip_safety defer own-forge echo" not in p2p_py:
+            errors.append("P2PNode must defer tip-safety for last locally forged height")
+        if "note(1.0, height=" not in main_py:
+            errors.append("mining must pass forged height into note_local_forge")
+        if main_py.find("note(1.0, height=") > main_py.find(
+            "await self.p2p._broadcast_block"
+        ):
+            errors.append("mining must note_local_forge before NEW_BLOCK broadcast")
+        if "own_forge_echo" not in (
+            ROOT / "network" / "p2p_dispatch" / "tip_evidence.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("dispatcher tip-evidence must allow own-forge NEW_BLOCK echo")
+        if "isinstance(shadow, TipSafetyShadowObserver)" not in (
+            ROOT / "network" / "p2p_dispatch" / "tip_evidence.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "tip-evidence must rebind live chain observer, not stale svc.state"
+            )
+        if "_wait_wire_probe_gate" not in p2p_py:
+            errors.append("coalesced state_root flight must wait apply-idle / post-forge hold")
+        if "await self.p2p._broadcast_block" not in main_py:
+            errors.append("mining must await NEW_BLOCK broadcast before sync_state probe")
+        if "def busy" not in (
+            ROOT / "core" / "chain_apply_queue.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("ChainApplyQueue must expose busy while dispatch is in-flight")
+        if "_apply_completed_wire_probe" not in p2p_py:
+            errors.append("completed state_root flight must feed ConsistencyService after waiter timeout")
+        if "def _try_local_head" not in p2p_py:
+            errors.append("p2p_node must fail-closed when head() lookup fails on tip binds")
+        if "local_tip_unreadable" not in p2p_py:
+            errors.append("p2p_node must refuse local_tip_unreadable instead of skipping tip binds")
+        if "coalesced wire probe task failed" not in p2p_py:
+            errors.append("completed wire probe must log task failures")
+        if "%s failed peer=" not in (
+            ROOT / "network" / "p2p" / "message_handler.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("legacy MessageHandler must log send failures")
+        if "set_accepting_requests failed at boot" not in (
+            ROOT / "main.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("main boot must log set_accepting_requests failures")
+        if "_kind_waiters" not in (
+            ROOT / "sync" / "solicit.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("solicit hub must park per-kind waiters so state_root is not blocked by mempool")
+        if "self._solicit_lock_for(pid, kind)" not in p2p_py:
+            errors.append("state_root solicit lock must be per-kind, not per-peer")
+        if "Wait outside the lock" not in p2p_py:
+            errors.append("solicit wait must not hold per-kind lock for the full timeout")
+        if "Isolated node: return immediately" not in p2p_py:
+            errors.append("coalesced state_root probe must not join a stale flight on 0 peers")
+        if "if pid and self.peers.get(pid) is not peer" not in p2p_py:
+            errors.append("solicit wait must fail-fast when the peer has already dropped")
+        if "Park even when kinds match" not in (
+            ROOT / "sync" / "solicit.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("solicit hub must park a second same-kind state_root waiter")
+        if "_send_ctrl_q" not in p2p_py:
+            errors.append("priority P2P send must enqueue on ctrl queue, not take write lock on caller")
+        if "_send_root_q" not in p2p_py:
+            errors.append("state_root must have its own send queue ahead of BLOCK/STATUS")
+        if "state_root enqueue does not wait the write Future" not in p2p_py:
+            errors.append("state_root send must not wait the write Future (solicit waiter owns RTT)")
+        if "require_wire_probe" not in (
+            ROOT / "scripts" / "soak_preflight.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("soak_preflight must support require_wire_probe for 48h prep")
+        if not (ROOT / "scripts" / "start_soak_prod_mesh_48h.ps1").is_file():
+            errors.append("scripts/start_soak_prod_mesh_48h.ps1 missing")
+        start48 = (ROOT / "scripts" / "start_soak_prod_mesh_48h.ps1").read_text(
+            encoding="utf-8"
+        )
+        if "-FullHarness" not in start48:
+            errors.append("48h start script must pass -FullHarness (not Strict)")
+        if "-Strict" in start48:
+            errors.append("48h start script must not pass -Strict (that is the 5h bar)")
+        bc_py = (ROOT / "core" / "blockchain.py").read_text(encoding="utf-8")
+        if "Last committed canonical root" not in bc_py:
+            errors.append(
+                "get_state_root must return committed header/meta, not rescan accounts"
+            )
+        sr_idx = bc_py.find("def get_state_root")
+        sr_fn = bc_py[sr_idx : sr_idx + 1400] if sr_idx >= 0 else ""
+        if "return self._compute_state_root_from_db()" in sr_fn:
+            errors.append(
+                "get_state_root must not fall through to _compute_state_root_from_db"
+            )
+        rocks_py = (ROOT / "storage" / "rocks_store.py").read_text(encoding="utf-8")
+        burn_idx = rocks_py.find("def get_total_burned")
+        burn_fn = rocks_py[burn_idx : burn_idx + 900] if burn_idx >= 0 else ""
+        if "prefix_last" not in burn_fn:
+            errors.append(
+                "get_total_burned must use Rocks prefix_last (not full P_BURN scan)"
+            )
+        if "Cheap probe only. get_stats() prefix-scans" not in (
+            ROOT / "api" / "http.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("/health/ready must not call get_stats() as the DB probe")
+        http_status_src = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
+        ready_fn = http_status_src.split('if path == "/health/ready"', 1)[-1].split(
+            "checks = {", 1
+        )[0]
+        if "db.get_stats()" in ready_fn:
+            errors.append("/health/ready must not call db.get_stats()")
+        if "no cheap db probe" not in ready_fn:
+            errors.append("/health/ready must fail-closed without cheap tip/height probe")
+        if "status_handler_ms" not in http_status_src:
+            errors.append("GET /status must emit status_handler_ms (soak SLO honesty)")
+        if "observe_status_ms" not in http_status_src:
+            errors.append("GET /status must record duration on MetricsCollector")
+        metrics_src = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
+        if "abs_http_status_duration_ms" not in metrics_src:
+            errors.append("metrics must export abs_http_status_duration_ms histogram")
+        if "def observe_status_ms" not in metrics_src:
+            errors.append("MetricsCollector.observe_status_ms missing")
+        if "account_count = 1" in http_py:
+            errors.append("harness must not fabricate accounts_present in quick mode")
+        hw_ps1 = (ROOT / "scripts" / "health_watch.ps1").read_text(encoding="utf-8")
+        if "After /health/ready: retry /status" not in hw_ps1:
+            errors.append("health_watch must retry /status after /health/ready succeeds")
+        if "full_every=$fullEveryLabel" not in hw_ps1:
+            errors.append("health_watch must log full_every=always when AlwaysFullHarness")
+        if "need <2000ms for 48h health_watch" not in (
+            ROOT / "scripts" / "soak_preflight.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("soak_preflight must fail-closed when /status exceeds 2s")
+        pf_py = (ROOT / "scripts" / "soak_preflight.py").read_text(encoding="utf-8")
+        if "quick=False" not in pf_py or "peer_timeout=8.0" not in pf_py:
+            errors.append(
+                "48h require_wire_probe must use full harness (not prod-mesh quick/3s)"
+            )
+        prep48 = (ROOT / "scripts" / "prepare_48h_soak.ps1").read_text(encoding="utf-8")
+        baked_py = (ROOT / "scripts" / "check_baked_state_root.py").read_text(encoding="utf-8")
+        if "Last committed canonical root" not in baked_py:
+            errors.append(
+                "check_baked_state_root.py must inspect get_state_root committed-root docstring"
+            )
+        gate_src = (ROOT / "scripts" / "industrial_gate.py").read_text(encoding="utf-8")
+        if "Never substitute another file" not in gate_src:
+            errors.append(
+                "industrial_gate must not swap a FAIL soak report for another file PASS"
+            )
+        if r"\(unhealthy\)" not in prep48:
+            errors.append(
+                "prepare_48h_soak must fail Docker Status (unhealthy), not substring healthy"
+            )
+        if "COMMITTED_STATE_ROOT_OK" not in prep48:
+            errors.append(
+                "prepare_48h_soak must exact-match COMMITTED_STATE_ROOT_OK (not substring OK)"
+            )
+        if "docker cp" not in prep48 or "check_baked_state_root.py" not in prep48:
+            errors.append(
+                "prepare_48h_soak must docker-cp check_baked_state_root.py into the running image"
+            )
+        docker_mesh = (ROOT / "scripts" / "docker_prod_3node.ps1").read_text(
+            encoding="utf-8"
+        )
+        if "$verifyRc = $LASTEXITCODE" not in docker_mesh:
+            errors.append(
+                "docker_prod_3node must capture verify_p2p_ci exit before compose logs"
+            )
+        if "PROD_SMOKE_WALLET_PATH" not in docker_mesh:
+            errors.append(
+                "docker_prod_3node must set PROD_SMOKE_WALLET_PATH for signed tx live check"
+            )
+        if not (ROOT / "scripts" / "summarize_soak_fail.py").is_file():
+            errors.append("scripts/summarize_soak_fail.py missing (honest FAIL pack)")
+        sum_py = (ROOT / "scripts" / "summarize_soak_fail.py").read_text(encoding="utf-8")
+        if '"passed": False' not in sum_py:
+            errors.append("summarize_soak_fail must hardcode passed=False")
+        if "_genesis_ceremony_status" not in (
+            ROOT / "api" / "http.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("GET /status must cache genesis ceremony verification")
+        if "_cached_prefix_len" not in rocks_py:
+            errors.append("Rocks get_stats must not full-scan P_TX/accounts on every call")
+        if "_native_write_bound" not in p2p_py:
+            errors.append("native P2P writes must set SO_SNDTIMEO so wait_for cannot leak the IO lock")
+        if "Late stash even when retry=False" not in p2p_py:
+            errors.append("state_root one-RTT flight must still consume the late stash")
+        if "wire probe backoff after timeout" not in (
+            ROOT / "sync" / "sync_engine.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("background state_root probe must back off after timeout/empty")
+        se_py = (ROOT / "sync" / "sync_engine.py").read_text(encoding="utf-8")
+        if "tip_probe_enabled=True" not in se_py or "peer_head_probe_enabled=True" not in se_py:
+            errors.append("fast_sync CatchUpConfig must enable Path A tip/peer-head probes")
+        if "sticky green expired after empty/timeout wire" not in se_py:
+            errors.append("empty wire sticky-green must expire after consecutive empties")
+        if "catch_up_peer_head_hash_mismatch" not in (
+            ROOT / "sync" / "catchup" / "engine_io.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("SyncEngineCatchUpIO must refuse peer-head hash mismatch")
+        if "_consume_late_state_root" not in p2p_py:
+            errors.append("state_root retry must consume the late stash before a second RTT")
+        shadow_py = (ROOT / "consensus" / "tip_safety" / "shadow.py").read_text(
+            encoding="utf-8"
+        )
+        if "Bind the window to live get_height()" not in shadow_py:
+            errors.append(
+                "tip-safety observe must rebind a stale window to get_height before evaluate"
+            )
+        if "Canonical tip is get_height()" not in shadow_py:
+            errors.append(
+                "tip_state_from_chain must anchor at get_height, not a stale last_block"
+            )
+        if "Same-hash proposal retry is not double_proposal" not in (
+            ROOT / "consensus" / "slashing.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("record_proposal must be hash-idempotent (catch-up retry is not slash)")
+        if "Concurrent catch-up of a block we already have" not in (
+            ROOT / "sync" / "catchup" / "path_a.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("PathA must not reorg on a duplicate canonical catch-up block")
+        if "_global_catch_up_lock" not in p2p_py:
+            errors.append("P2P must serialize PathA across peers")
+        compose = (ROOT / "docker-compose.prod.3node.yml").read_text(encoding="utf-8")
+        if 'TESTNET_EXPECTED_PEERS: "2"' not in compose:
+            errors.append("prod 3-node compose must set TESTNET_EXPECTED_PEERS=2")
+        if "BOOTSTRAP_PEERS: node1:5000,node3:5000" not in compose:
+            errors.append("prod node2 must bootstrap both miner and full2")
         if "state_root_encoding_honest" not in http_py:
             errors.append("state consistency harness must include state_root_encoding_honest check")
         if "/chain/state-root/encoding" not in http_py:
@@ -3971,6 +4557,7 @@ def _check_audit_pack_export() -> tuple[list[str], list[str]]:
             "column_families",
             "rocksdb_missing_column_family",
             "account_blob_too_large",
+            "estimate-num-keys-all-cf",
             "MAX_CONSENSUS_VALIDATORS",
             "too_many_validators",
             "consensus_stake_weighted_proposer",
@@ -4252,16 +4839,9 @@ def run_industrial_gate(
         )
 
     if min_soak_hours > 0:
-        evidence_soaks = sorted(
-            (ROOT / "docs" / "evidence" / "runs").glob("*/soak_report*.json"),
-            key=lambda p: p.stat().st_mtime if p.is_file() else 0,
-            reverse=True,
-        )
-        # Prefer packaged tip-v2 PASS (in-repo) over gitignored logs/ copies.
+        # Experimental soak reports only. Do not add docs/evidence/runs (Hybrid historical).
         soak_candidates = [
-            ROOT / "docs" / "evidence" / "runs" / "375d14f" / "soak_report_tipv2_48h_rerun.json",
-            *evidence_soaks,
-            ROOT / "logs" / "soak_report_tipv2_48h_rerun.json",
+            ROOT / "logs" / "soak_report_48h_experimental.json",
             ROOT / "logs" / "soak_report_48h.json",
             ROOT / "logs" / "soak_report.json",
         ]
@@ -4282,23 +4862,8 @@ def run_industrial_gate(
         else:
             try:
                 soak = json.loads(soak_path.read_text(encoding="utf-8"))
-                # Skip historical FAIL packs when a newer PASS exists later in candidates.
-                if not soak.get("passed"):
-                    alt = next(
-                        (
-                            p
-                            for p in ordered
-                            if p.is_file()
-                            and p != soak_path
-                            and bool(
-                                json.loads(p.read_text(encoding="utf-8")).get("passed")
-                            )
-                        ),
-                        None,
-                    )
-                    if alt is not None:
-                        soak_path = alt
-                        soak = json.loads(soak_path.read_text(encoding="utf-8"))
+                # Never substitute another file's PASS over this tree's FAIL
+                # (Experimental FAIL must not inherit Hybrid/legacy soak_report.json).
                 hrs = float(soak.get("hours_requested", 0) or 0)
                 if hrs < min_soak_hours:
                     soak_errors.append(f"soak_report hours_requested={hrs} < {min_soak_hours}")

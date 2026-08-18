@@ -24,6 +24,10 @@ DEFAULT_NODES = (
 )
 
 
+ALIGN_STATUS_RETRIES = 4
+ALIGN_STATUS_SLEEP_SEC = 3.0
+
+
 def _api(url: str, timeout: float = 10.0) -> dict[str, Any]:
     with urllib.request.urlopen(url, timeout=timeout) as resp:
         return json.loads(resp.read().decode())
@@ -35,6 +39,30 @@ def _probe_ready(base_url: str, timeout: float = 5.0) -> bool:
         return str(row.get("status", "")).lower() == "ready"
     except (urllib.error.URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError):
         return False
+
+
+def _mesh_alignment_errors(nodes: list[dict[str, Any]]) -> list[str]:
+    """Hard-fail fork/skew. Callers retry around mining-window 1-height races."""
+    errors: list[str] = []
+    heights = [n.get("height", 0) for n in nodes if n.get("reachable")]
+    if heights and max(heights) - min(heights) > 1:
+        errors.append(f"height spread across mesh: {heights}")
+    heads = [n.get("head_hash") for n in nodes if n.get("reachable") and n.get("head_hash")]
+    if len(heads) >= 2 and len(set(heads)) > 1:
+        errors.append("head hash mismatch across reachable nodes")
+    roots = [n.get("state_root") for n in nodes if n.get("reachable") and n.get("state_root")]
+    if len(roots) >= 2 and len(set(roots)) > 1:
+        errors.append("state root mismatch across reachable nodes")
+    return errors
+
+
+def _refresh_status_fields(url: str, row: dict[str, Any]) -> None:
+    st = _api(f"{url}/status", timeout=10)
+    row["height"] = int(st.get("height", 0) or 0)
+    row["peers"] = int(st.get("peers", st.get("peer_count", 0)) or 0)
+    row["chain_id"] = int(st.get("chain_id", 0) or 0)
+    row["deployment_mode"] = st.get("deployment_mode")
+    row["head_hash"] = st.get("head_hash")
 
 
 def verify_prod_mesh_probe(
@@ -110,15 +138,26 @@ def verify_prod_mesh_probe(
         nodes.append(row)
 
     if len(reachable) >= 2:
-        heights = [n.get("height", 0) for n in nodes if n.get("reachable")]
-        if heights and max(heights) - min(heights) > 1:
-            errors.append(f"height spread across mesh: {heights}")
-        heads = [n.get("head_hash") for n in nodes if n.get("reachable") and n.get("head_hash")]
-        if len(heads) >= 2 and len(set(heads)) > 1:
-            errors.append("head hash mismatch across reachable nodes")
-        roots = [n.get("state_root") for n in nodes if n.get("reachable") and n.get("state_root")]
-        if len(roots) >= 2 and len(set(roots)) > 1:
-            errors.append("state root mismatch across reachable nodes")
+        align = _mesh_alignment_errors(nodes)
+        attempt = 0
+        while align and attempt < ALIGN_STATUS_RETRIES:
+            time.sleep(ALIGN_STATUS_SLEEP_SEC)
+            for row in nodes:
+                if not row.get("reachable"):
+                    continue
+                try:
+                    _refresh_status_fields(str(row.get("url") or ""), row)
+                except (
+                    urllib.error.URLError,
+                    TimeoutError,
+                    OSError,
+                    ValueError,
+                    json.JSONDecodeError,
+                ):
+                    pass
+            align = _mesh_alignment_errors(nodes)
+            attempt += 1
+        errors.extend(align)
 
     meta: dict[str, Any] = {
         "timestamp": datetime.now(timezone.utc).isoformat(),

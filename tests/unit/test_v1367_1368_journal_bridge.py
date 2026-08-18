@@ -55,3 +55,42 @@ def test_needles_wave3_wave4():
     assert "def try_debit_satoshi" in amount
     rocks = (ROOT / "storage" / "rocks_store.py").read_text(encoding="utf-8")
     assert "try_debit_satoshi" in rocks
+
+
+def test_sqlite_bridge_lock_amount_is_satoshi_quantized_bool_refused(tmp_path):
+    from storage.database import Database
+
+    db = Database(str(tmp_path / "bridge-money.db"))
+    db.initialize()
+    alice = "0x" + "a" * 40
+    db.set_balance(alice, 10)
+    db.debit_and_create_bridge_lock(
+        from_addr=alice,
+        amount=1.0000003,
+        burn_address="",
+        burn_amount=0,
+        to_chain="ethereum",
+        to_addr="0x" + "b" * 40,
+        net_amount=1.0000003,
+        tx_hash="0x" + "11" * 32,
+    )
+    assert db.get_balance(alice) == 9.0
+    lock = db.get_bridge_locks()[0]
+    assert lock["amount"] == 1.0
+    refund = db.refund_pending_bridge_lock(lock["tx_hash"])
+    assert refund["refunded"] is True
+    assert refund["amount"] == 1.0
+    assert db.get_balance(alice) == 10.0
+    with pytest.raises(TypeError, match="bool is not an amount"):
+        db.debit_and_create_bridge_lock(
+            from_addr=alice,
+            amount=True,
+            burn_address="",
+            burn_amount=0,
+            to_chain="ethereum",
+            to_addr="0x" + "b" * 40,
+            net_amount=1.0,
+            tx_hash="0x" + "22" * 32,
+        )
+    with pytest.raises(TypeError, match="bool is not an amount"):
+        db.save_bridge_lock(alice, "ethereum", "0x" + "b" * 40, True, "0x" + "33" * 32)

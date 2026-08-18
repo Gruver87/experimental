@@ -151,7 +151,48 @@ def test_adapter_writeback_insufficient_does_not_mint(tmp_path):
 def test_adapter_wires_native_apply():
     adapter = (ROOT / "execution" / "evm_adapter.py").read_text(encoding="utf-8")
     assert "evm_apply_writeback_ops" in adapter
+    assert "native writeback apply failed" in adapter
+    assert "raise\n                pass" not in adapter.replace("\r\n", "\n")
     rust = (ROOT / "native" / "abs_native" / "src" / "evm_writeback.rs").read_text(
         encoding="utf-8"
     )
     assert "evm_apply_writeback_ops" in rust
+
+
+def test_native_writeback_fail_logs_and_python_fallback(tmp_path, caplog, monkeypatch):
+    import logging
+
+    from execution.evm_adapter import EVMAdapter
+    from runtime.config import Config
+    from storage.database import Database
+
+    def boom(*_a, **_k):
+        raise RuntimeError("native boom")
+
+    monkeypatch.setattr(native, "evm_apply_writeback_ops", boom)
+    cfg = Config()
+    cfg.db_path = str(tmp_path / "wb_fb.db")
+    db = Database(cfg.db_path, synchronous="NORMAL")
+    db.initialize()
+    addr = "0x" + "aa" * 20
+    try:
+        adapter = EVMAdapter(db, cfg)
+        with caplog.at_level(logging.WARNING, logger="evm_adapter"):
+            adapter._apply_nested_writeback_ops_now(
+                [
+                    {
+                        "op": "save_account",
+                        "address": addr,
+                        "balance": 1.5,
+                        "nonce": 1,
+                        "code": "",
+                        "storage": "{}",
+                    }
+                ]
+            )
+        assert "native writeback apply failed" in caplog.text
+        assert "native boom" in caplog.text
+        assert db.get_balance(addr) == 1.5
+        assert db.get_nonce(addr) == 1
+    finally:
+        db.close()

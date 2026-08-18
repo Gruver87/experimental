@@ -148,7 +148,7 @@ Then set `DB_ENGINE=rocksdb` / `"db_engine": "rocksdb"` in config.
 
 - [x] More hot-path encoding in Rust (batch account scan via `RocksEngine.state_root_from_account_prefix`)
 - [x] Tighter `StateRootAccumulator` ↔ `persist_block_atomic` invariant tests on reorg (`test_rocks_reorg_meta.py`)
-- [x] Optional: column families split (blocks / state / index) — opt-in via `rocksdb_column_families` / `ROCKSDB_COLUMN_FAMILIES` (dual-read legacy default)
+- [x] Column families split (blocks / state / index) — prod JSON `rocksdb_column_families=true`; dual-read legacy `default`
 
 ### P3 — Not now
 
@@ -175,7 +175,7 @@ Migration of aux rows into Rocks CF is **optional P1+** — not a mainnet blocke
 | `ROCKSDB_SYNC` | `FULL` | Durable WAL on prod |
 | `ROCKSDB_BLOCK_CACHE_MB` | `256` | LRU block cache; `0` = Rocks default |
 | `ROCKSDB_WRITE_BUFFER_MB` | `64` | Memtable size; `0` = Rocks default |
-| `ROCKSDB_COLUMN_FAMILIES` | `false` | Opt-in CF split (`blocks`/`state`/`index`); dual-reads legacy `default` |
+| `ROCKSDB_COLUMN_FAMILIES` | `true` (prod JSON) | CF split (`blocks`/`state`/`index`); dual-reads legacy `default`. Host `.env.example` stays false for local sqlite. |
 
 `GET /stats` (via `db.get_stats()`) includes `rocksdb_tuning` and live `rocksdb_properties` (memtable size, SST bytes, compactions) when native wheel supports it.
 
