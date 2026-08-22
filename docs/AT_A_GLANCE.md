@@ -20,16 +20,17 @@ The audit-freeze pin · public audited mainnet · listed ABS · prod libp2p mesh
 | Hard gate | **117** steps with `--rebuild` (operator-local, 2026-08-15) |
 | Default transport | **TCP+TLS** — `feature_libp2p=false` on prod JSON |
 | Industrial pin | [Hybrid `v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial) |
-| 48h soak here | **FAIL** (2026-08-16→18, `hard_fails=87`) — Hybrid `375d14f` is a different tree |
+| 48h soak here | **PASS** (2026-08-20→22, TCP+TLS, `hard_fails=0`) — not libp2p; prior FAIL 2026-08-16→18 on record |
 | Self-check | `.\scripts\verify_hard_all.ps1` (fail-closed, no soak start) · `python scripts/verify_experimental_rd.py` · `.\scripts\verify_adr0019_libp2p_hard.ps1 -Rebuild` |
 
 ## Proven vs not (honest)
 
 | Proven (lab) | Not claimed |
 |--------------|-------------|
-| rust-libp2p swarm A–DB behind Cargo `libp2p` | Prod mesh cutover |
+| rust-libp2p swarm A–DB behind Cargo `libp2p` | Prod libp2p mesh cutover |
+| Experimental 48h TCP+TLS soak (`hard_fails=0`) | Long-Range production / firm audit PDF |
 | Advertised unique cap 20; circuit out of crate book | Public IPFS DHT / Noise = mTLS |
-| AutoNAT/UPnP confirm admit-canonical-or-omit | 48h soak / tip proof |
+| AutoNAT/UPnP confirm admit-canonical-or-omit | Tip proof / public mainnet |
 | Identify observed confirm charges canonical key | Firm audit PDF |
 | Add/remove/expire match canonical charge key | NTFS replace = POSIX inode-atomic |
 | Long-Range / EVM precompile labs | Public VPS testnet / launched mainnet |

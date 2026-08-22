@@ -1,23 +1,11 @@
 {
   "schema": "abs.mesh_evidence.v1",
-  "created_unix": 1786133941,
-  "commit": "375d14fb457c670da2356dff71bac788e9d9eec1",
-  "honesty": "Artifacts listed here are operator-supplied. Absence means the claim is not independently verifiable from this package.",
-  "claims": {
-    "chain_sync": "see probe / node heights",
-    "health_ready": "requires /health/ready PASS in probe_log",
-    "48h_soak": "requires soak_report with passed=true"
-  },
+  "pointer": "docs/evidence/runs/0a7932c4/",
+  "honesty": "Experimental TCP+TLS 48h soak PASS 2026-08-20→22. Not libp2p cutover. Hybrid 375d14f is a different tree.",
   "files": {
-    "probe_log": {
-      "status": "missing"
-    },
     "soak_report": {
       "status": "present",
-      "path": "docs\\evidence\\runs\\375d14f\\soak_report_tipv2_48h_rerun.json",
-      "sha256": "825fef2aa3421c76a69000e8815c42ada0c3d7412e661ae98e02d9ac58912a7e",
-      "bytes": 865
+      "path": "docs/evidence/runs/0a7932c4/soak_report_48h_experimental.json"
     }
-  },
-  "manifest_sha256": "18cead206720497959a517d83219a785482dddc13794066a93ed74e7ebc70740"
+  }
 }

@@ -15,6 +15,8 @@ Canonical language for this repository is **English**. Older inherited entries b
 
 ### Experimental R&D
 
+- Experimental 48h prod-profile soak **PASS** (2026-08-20→22, TCP+TLS, `hard_fails=0`, image `0a7932c4` / bake `3c88632`). Packaged at `docs/evidence/runs/0a7932c4/`. Not libp2p cutover. Not Long-Range. Prior FAIL 2026-08-16→18 remains on record.
+
 - Slice CZ: Identify observed confirm charges the canonical key (trailing `/p2p/<peer>` does not occupy a second unique slot); `confirm_observed_addr` still returns the raw observed string
 - Slice DA: operator add/remove and behaviour expire match the canonical charge key (suffix cannot occupy or miss the crate slot)
 - Slice DB: persist JSON load collapses trailing `/p2p/<peer>` so restore cannot occupy a second unique slot

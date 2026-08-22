@@ -1,0 +1,18 @@
+experimental_tcp_tls_48h
+host_commit=a8756d14653782a4e40bdda145c83c6fd85b70ad
+consensus_bake=3c88632848ca2c9068fc3e8e1ddefd99fc02c8ba
+image_id=sha256:0a7932c4e96ed673ec84aedb6af18765777ecba5331e16fc1bb3315dd7df3b41
+started=2026-08-20T06:58:19+03:00
+ended=2026-08-22T06:59:35+03:00
+soak_hours=48
+hours_elapsed=48.0212
+status=FINISHED_PASS
+hard_fail_lines=0
+fail_lines=0
+mesh_warn_lines=0
+warn_lines=362
+pass_notes=strict mesh_warn=0; hours_elapsed=48.02 ok; health_watch_exit=0; cycles=498
+height_range=~12236→~19293
+transport=TCP+TLS mTLS; feature_libp2p=false; feature_long_range=false; bridge_enabled=false
+not_claimed=libp2p production mesh; Long-Range production protection; public mainnet; Hybrid 375d14f
+prior_fail=2026-08-16→18 logs/soak_report_48h_experimental.json passed=false hard_fails=87

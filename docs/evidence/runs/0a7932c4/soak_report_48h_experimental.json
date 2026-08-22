@@ -1,0 +1,25 @@
+{
+    "passed":  true,
+    "interval_sec":  300,
+    "mesh_acceptable":  true,
+    "ready_flaps_tolerated":  false,
+    "pass_notes":  "strict mesh_warn=0; hours_elapsed=48.02 ok",
+    "hours_elapsed":  48.0212,
+    "mesh_warns_transient_ok":  true,
+    "strict":  false,
+    "started_at":  "2026-08-20T06:58:19.5648350+03:00",
+    "ended_at":  "2026-08-22T06:59:35.7860563+03:00",
+    "log_file":  "logs/soak_48h_experimental.log",
+    "cycles_observed":  438.66666666666669,
+    "health_watch_exit":  0,
+    "counts":  {
+                   "fail_lines":  0,
+                   "ok_lines":  1316,
+                   "mesh_ok_lines":  314,
+                   "mesh_warn_lines":  0,
+                   "warn_lines":  362,
+                   "ready_only_fail_lines":  0,
+                   "hard_fail_lines":  0
+               },
+    "hours_requested":  48
+}

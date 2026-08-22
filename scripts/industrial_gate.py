@@ -4284,6 +4284,11 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "MAINNET_GAP_ANALYSIS must not hide Experimental 48h FAIL behind Hybrid tip-v2 PASS"
             )
+        if "Experimental this tree 48h PASS" not in gap:
+            errors.append(
+                "MAINNET_GAP_ANALYSIS must record Experimental 48h PASS (TCP+TLS 2026-08-20) "
+                "without treating it as libp2p cutover"
+            )
         db_py = (ROOT / "storage" / "database.py").read_text(encoding="utf-8")
         if "def set_balance(self, address: str, balance: int)" not in db_py:
             errors.append("SQLite Database.set_balance must take integer ABS, not float")

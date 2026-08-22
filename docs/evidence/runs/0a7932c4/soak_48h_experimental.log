@@ -1,0 +1,1995 @@
+﻿
+2026-08-20 06:58:19 health_watch start ports=18180,18181,18182 interval=300s full_every=always log=logs/soak_48h_experimental.log
+2026-08-20 06:58:20 OK port 18180 [full] height=12236 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 06:58:20 OK port 18181 [full] height=12236 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 06:58:21 OK port 18182 [full] height=12236 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 06:58:21 OK mesh aligned 18180:h12236/p2 18181:h12236/p2 18182:h12236/p2
+2026-08-20 07:03:26 OK port 18180 [full] height=12256 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:03:27 OK port 18181 [full] height=12256 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:03:27 OK port 18182 [full] height=12256 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:03:27 OK mesh aligned 18180:h12256/p2 18181:h12256/p2 18182:h12256/p2
+2026-08-20 07:08:35 OK port 18180 [full] height=12276 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:08:35 OK port 18181 [full] height=12276 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:08:35 OK port 18182 [full] height=12276 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:08:35 OK mesh aligned 18180:h12276/p2 18181:h12276/p2 18182:h12276/p2
+2026-08-20 07:13:43 OK port 18180 [full] height=12296 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-20 07:13:44 OK port 18181 [full] height=12296 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:13:44 OK port 18182 [full] height=12296 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:13:44 OK mesh aligned 18180:h12296/p2 18181:h12296/p2 18182:h12296/p2
+2026-08-20 07:18:52 OK port 18180 [full] height=12316 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-20 07:18:52 OK port 18181 [full] height=12316 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:18:53 OK port 18182 [full] height=12316 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:18:53 OK mesh aligned 18180:h12316/p2 18181:h12316/p2 18182:h12316/p2
+2026-08-20 07:24:00 OK port 18180 [full] height=12336 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:24:01 OK port 18181 [full] height=12336 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:24:01 OK port 18182 [full] height=12336 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:24:01 OK mesh aligned 18180:h12336/p2 18181:h12336/p2 18182:h12336/p2
+2026-08-20 07:29:01 OK port 18180 [full] height=12355 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:29:09 OK port 18181 [full] height=12355 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:29:09 OK port 18182 [full] height=12356 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:29:09 OK mesh aligned 18180:h12356/p2 18181:h12356/p2 18182:h12356/p2
+2026-08-20 07:34:09 OK port 18180 [full] height=12375 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:34:10 OK port 18181 [full] height=12375 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:34:17 OK port 18182 [full] height=12375 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:34:17 OK mesh aligned 18180:h12376/p2 18181:h12376/p2 18182:h12376/p2
+2026-08-20 07:39:18 OK port 18180 [full] height=12395 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:39:18 OK port 18181 [full] height=12395 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:39:18 OK port 18182 [full] height=12395 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:39:19 OK mesh aligned 18180:h12396/p2 18181:h12395/p2 18182:h12395/p2
+2026-08-20 07:44:20 OK port 18180 [full] height=12415 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:44:20 OK port 18181 [full] height=12415 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:44:20 OK port 18182 [full] height=12415 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:44:20 OK mesh aligned 18180:h12415/p2 18181:h12415/p2 18182:h12415/p2
+2026-08-20 07:49:28 OK port 18180 [full] height=12435 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-20 07:49:29 OK port 18181 [full] height=12435 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:49:29 OK port 18182 [full] height=12435 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:49:29 OK mesh aligned 18180:h12435/p2 18181:h12435/p2 18182:h12435/p2
+2026-08-20 07:54:37 OK port 18180 [full] height=12455 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-20 07:54:37 OK port 18181 [full] height=12455 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:54:37 OK port 18182 [full] height=12455 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:54:38 OK mesh aligned 18180:h12455/p2 18181:h12455/p2 18182:h12455/p2
+2026-08-20 07:59:45 OK port 18180 [full] height=12475 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:59:46 OK port 18181 [full] height=12475 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:59:46 OK port 18182 [full] height=12475 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 07:59:46 OK mesh aligned 18180:h12475/p2 18181:h12475/p2 18182:h12475/p2
+2026-08-20 08:04:54 OK port 18180 [full] height=12495 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:04:54 OK port 18181 [full] height=12495 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:04:54 OK port 18182 [full] height=12495 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:04:55 OK mesh aligned 18180:h12495/p2 18181:h12495/p2 18182:h12495/p2
+2026-08-20 08:10:02 OK port 18180 [full] height=12515 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:10:02 OK port 18181 [full] height=12515 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:10:03 OK port 18182 [full] height=12515 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:10:03 OK mesh aligned 18180:h12515/p2 18181:h12515/p2 18182:h12515/p2
+2026-08-20 08:15:11 OK port 18180 [full] height=12535 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-20 08:15:11 OK port 18181 [full] height=12535 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:15:12 OK port 18182 [full] height=12535 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:15:12 OK mesh aligned 18180:h12535/p2 18181:h12535/p2 18182:h12535/p2
+2026-08-20 08:20:19 OK port 18180 [full] height=12555 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:20:19 OK port 18181 [full] height=12555 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:20:20 OK port 18182 [full] height=12555 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:20:20 OK mesh aligned 18180:h12555/p2 18181:h12555/p2 18182:h12555/p2
+2026-08-20 08:25:28 OK port 18180 [full] height=12575 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-20 08:25:28 OK port 18181 [full] height=12575 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:25:29 OK port 18182 [full] height=12575 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:25:29 OK mesh aligned 18180:h12575/p2 18181:h12575/p2 18182:h12575/p2
+2026-08-20 08:30:36 OK port 18180 [full] height=12595 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:30:37 OK port 18181 [full] height=12595 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:30:37 OK port 18182 [full] height=12595 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:30:37 OK mesh aligned 18180:h12595/p2 18181:h12595/p2 18182:h12595/p2
+2026-08-20 08:35:45 OK port 18180 [full] height=12615 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-20 08:35:45 OK port 18181 [full] height=12615 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:35:46 OK port 18182 [full] height=12615 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:35:46 OK mesh aligned 18180:h12615/p2 18181:h12615/p2 18182:h12615/p2
+2026-08-20 08:40:53 OK port 18180 [full] height=12635 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:40:54 OK port 18181 [full] height=12635 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:40:54 OK port 18182 [full] height=12635 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:40:54 OK mesh aligned 18180:h12635/p2 18181:h12635/p2 18182:h12635/p2
+2026-08-20 08:46:02 OK port 18180 [full] height=12655 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:46:03 OK port 18181 [full] height=12655 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:46:03 OK port 18182 [full] height=12655 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:46:03 OK mesh aligned 18180:h12655/p2 18181:h12655/p2 18182:h12655/p2
+2026-08-20 08:51:11 OK port 18180 [full] height=12675 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:51:11 OK port 18181 [full] height=12675 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:51:12 OK port 18182 [full] height=12675 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:51:12 OK mesh aligned 18180:h12675/p2 18181:h12675/p2 18182:h12675/p2
+2026-08-20 08:56:19 OK port 18180 [full] height=12695 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:56:20 OK port 18181 [full] height=12695 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:56:20 OK port 18182 [full] height=12695 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 08:56:21 OK mesh aligned 18180:h12695/p2 18181:h12695/p2 18182:h12695/p2
+2026-08-20 09:01:28 OK port 18180 [full] height=12715 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:01:28 OK port 18181 [full] height=12715 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:01:29 OK port 18182 [full] height=12715 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:01:29 OK mesh aligned 18180:h12715/p2 18181:h12715/p2 18182:h12715/p2
+2026-08-20 09:06:36 OK port 18180 [full] height=12735 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:06:37 OK port 18181 [full] height=12735 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:06:37 OK port 18182 [full] height=12735 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:06:38 OK mesh aligned 18180:h12735/p2 18181:h12735/p2 18182:h12735/p2
+2026-08-20 09:11:45 OK port 18180 [full] height=12755 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:11:45 OK port 18181 [full] height=12755 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:11:46 OK port 18182 [full] height=12755 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:11:46 OK mesh aligned 18180:h12755/p2 18181:h12755/p2 18182:h12755/p2
+2026-08-20 09:16:53 OK port 18180 [full] height=12775 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:16:54 OK port 18181 [full] height=12775 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:16:54 OK port 18182 [full] height=12775 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:16:55 OK mesh aligned 18180:h12775/p2 18181:h12775/p2 18182:h12775/p2
+2026-08-20 09:22:02 OK port 18180 [full] height=12795 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:22:02 OK port 18181 [full] height=12795 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:22:03 OK port 18182 [full] height=12795 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:22:03 OK mesh aligned 18180:h12795/p2 18181:h12795/p2 18182:h12795/p2
+2026-08-20 09:27:10 OK port 18180 [full] height=12815 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:27:11 OK port 18181 [full] height=12815 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:27:11 OK port 18182 [full] height=12815 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:27:12 OK mesh aligned 18180:h12815/p2 18181:h12815/p2 18182:h12815/p2
+2026-08-20 09:32:19 OK port 18180 [full] height=12835 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:32:20 OK port 18181 [full] height=12835 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:32:20 OK port 18182 [full] height=12835 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:32:21 OK mesh aligned 18180:h12835/p2 18181:h12835/p2 18182:h12835/p2
+2026-08-20 09:37:27 OK port 18180 [full] height=12855 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:37:28 OK port 18181 [full] height=12855 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:37:28 OK port 18182 [full] height=12855 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:37:29 OK mesh aligned 18180:h12855/p2 18181:h12855/p2 18182:h12855/p2
+2026-08-20 09:42:36 OK port 18180 [full] height=12875 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:42:36 OK port 18181 [full] height=12875 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:42:37 OK port 18182 [full] height=12875 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:42:37 OK mesh aligned 18180:h12875/p2 18181:h12875/p2 18182:h12875/p2
+2026-08-20 09:47:44 OK port 18180 [full] height=12895 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:47:45 OK port 18181 [full] height=12895 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:47:45 OK port 18182 [full] height=12895 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:47:46 OK mesh aligned 18180:h12895/p2 18181:h12895/p2 18182:h12895/p2
+2026-08-20 09:52:53 OK port 18180 [full] height=12915 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:52:53 OK port 18181 [full] height=12915 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:52:54 OK port 18182 [full] height=12915 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:52:54 OK mesh aligned 18180:h12915/p2 18181:h12915/p2 18182:h12915/p2
+2026-08-20 09:58:01 OK port 18180 [full] height=12935 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:58:02 OK port 18181 [full] height=12935 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:58:03 OK port 18182 [full] height=12935 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 09:58:03 OK mesh aligned 18180:h12935/p2 18181:h12935/p2 18182:h12935/p2
+2026-08-20 10:03:10 OK port 18180 [full] height=12955 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:03:10 OK port 18181 [full] height=12955 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:03:11 OK port 18182 [full] height=12955 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:03:12 OK mesh aligned 18180:h12955/p2 18181:h12955/p2 18182:h12955/p2
+2026-08-20 10:08:18 OK port 18180 [full] height=12975 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:08:19 OK port 18181 [full] height=12975 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:08:19 OK port 18182 [full] height=12975 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:08:20 OK mesh aligned 18180:h12975/p2 18181:h12975/p2 18182:h12975/p2
+2026-08-20 10:13:27 OK port 18180 [full] height=12995 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:13:27 OK port 18181 [full] height=12995 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:13:28 OK port 18182 [full] height=12995 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:13:29 OK mesh aligned 18180:h12995/p2 18181:h12995/p2 18182:h12995/p2
+2026-08-20 10:18:35 OK port 18180 [full] height=13015 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:18:36 OK port 18181 [full] height=13015 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:18:36 OK port 18182 [full] height=13015 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:18:37 OK mesh aligned 18180:h13015/p2 18181:h13015/p2 18182:h13015/p2
+2026-08-20 10:23:44 OK port 18180 [full] height=13035 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:23:44 OK port 18181 [full] height=13035 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:23:45 OK port 18182 [full] height=13035 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:23:45 OK mesh aligned 18180:h13035/p2 18181:h13035/p2 18182:h13035/p2
+2026-08-20 10:28:52 OK port 18180 [full] height=13055 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:28:53 OK port 18181 [full] height=13055 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:28:53 OK port 18182 [full] height=13055 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:28:54 OK mesh aligned 18180:h13055/p2 18181:h13055/p2 18182:h13055/p2
+2026-08-20 10:34:01 OK port 18180 [full] height=13075 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:34:01 OK port 18181 [full] height=13075 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:34:02 OK port 18182 [full] height=13075 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:34:02 OK mesh aligned 18180:h13075/p2 18181:h13075/p2 18182:h13075/p2
+2026-08-20 10:39:09 OK port 18180 [full] height=13095 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:39:10 OK port 18181 [full] height=13095 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:39:10 OK port 18182 [full] height=13095 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:39:11 OK mesh aligned 18180:h13095/p2 18181:h13095/p2 18182:h13095/p2
+2026-08-20 10:44:18 OK port 18180 [full] height=13115 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:44:19 OK port 18181 [full] height=13115 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:44:19 OK port 18182 [full] height=13115 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:44:20 OK mesh aligned 18180:h13115/p2 18181:h13115/p2 18182:h13115/p2
+2026-08-20 10:49:26 OK port 18180 [full] height=13135 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:49:27 OK port 18181 [full] height=13135 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:49:28 OK port 18182 [full] height=13135 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:49:28 OK mesh aligned 18180:h13135/p2 18181:h13135/p2 18182:h13135/p2
+2026-08-20 10:54:35 OK port 18180 [full] height=13155 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:54:36 OK port 18181 [full] height=13155 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:54:36 OK port 18182 [full] height=13155 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:54:37 OK mesh aligned 18180:h13155/p2 18181:h13155/p2 18182:h13155/p2
+2026-08-20 10:59:43 OK port 18180 [full] height=13175 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:59:44 OK port 18181 [full] height=13175 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:59:44 OK port 18182 [full] height=13175 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 10:59:45 OK mesh aligned 18180:h13175/p2 18181:h13175/p2 18182:h13175/p2
+2026-08-20 11:04:52 OK port 18180 [full] height=13195 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:04:52 OK port 18181 [full] height=13195 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:04:53 OK port 18182 [full] height=13195 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:04:53 OK mesh aligned 18180:h13195/p2 18181:h13195/p2 18182:h13195/p2
+2026-08-20 11:10:00 OK port 18180 [full] height=13215 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:10:01 OK port 18181 [full] height=13215 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:10:02 OK port 18182 [full] height=13215 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:10:02 OK mesh aligned 18180:h13215/p2 18181:h13215/p2 18182:h13215/p2
+2026-08-20 11:15:09 OK port 18180 [full] height=13235 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:15:10 OK port 18181 [full] height=13235 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:15:11 OK port 18182 [full] height=13235 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:15:11 OK mesh aligned 18180:h13235/p2 18181:h13235/p2 18182:h13235/p2
+2026-08-20 11:20:18 OK port 18180 [full] height=13255 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:20:18 OK port 18181 [full] height=13255 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:20:19 OK port 18182 [full] height=13255 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:20:20 OK mesh aligned 18180:h13255/p2 18181:h13255/p2 18182:h13255/p2
+2026-08-20 11:25:26 OK port 18180 [full] height=13275 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:25:27 OK port 18181 [full] height=13275 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:25:28 OK port 18182 [full] height=13275 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:25:29 OK mesh aligned 18180:h13275/p2 18181:h13275/p2 18182:h13275/p2
+2026-08-20 11:30:36 OK port 18180 [full] height=13295 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:30:36 OK port 18181 [full] height=13295 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:30:37 OK port 18182 [full] height=13295 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:30:38 OK mesh aligned 18180:h13295/p2 18181:h13295/p2 18182:h13295/p2
+2026-08-20 11:35:44 OK port 18180 [full] height=13315 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:35:45 OK port 18181 [full] height=13315 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:35:46 OK port 18182 [full] height=13315 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:35:46 OK mesh aligned 18180:h13315/p2 18181:h13315/p2 18182:h13315/p2
+2026-08-20 11:40:53 OK port 18180 [full] height=13335 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:40:54 OK port 18181 [full] height=13335 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:40:54 OK port 18182 [full] height=13335 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:40:55 OK mesh aligned 18180:h13335/p2 18181:h13335/p2 18182:h13335/p2
+2026-08-20 11:46:01 OK port 18180 [full] height=13355 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:46:02 OK port 18181 [full] height=13355 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:46:03 OK port 18182 [full] height=13355 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:46:04 OK mesh aligned 18180:h13355/p2 18181:h13355/p2 18182:h13355/p2
+2026-08-20 11:51:06 OK port 18180 [full] height=13374 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:51:14 OK port 18181 [full] height=13375 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:51:14 OK port 18182 [full] height=13375 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:51:15 OK mesh aligned 18180:h13375/p2 18181:h13375/p2 18182:h13375/p2
+2026-08-20 11:56:17 OK port 18180 [full] height=13394 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:56:18 OK port 18181 [full] height=13394 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:56:19 OK port 18182 [full] height=13394 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 11:56:20 OK mesh aligned 18180:h13394/p2 18181:h13394/p2 18182:h13394/p2
+2026-08-20 12:01:26 OK port 18180 [full] height=13414 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:01:27 OK port 18181 [full] height=13414 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:01:28 OK port 18182 [full] height=13414 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:01:29 OK mesh aligned 18180:h13414/p2 18181:h13414/p2 18182:h13414/p2
+2026-08-20 12:06:35 OK port 18180 [full] height=13434 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:06:36 OK port 18181 [full] height=13434 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:06:36 OK port 18182 [full] height=13434 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:06:37 OK mesh aligned 18180:h13434/p2 18181:h13434/p2 18182:h13434/p2
+2026-08-20 12:11:44 OK port 18180 [full] height=13454 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:11:44 OK port 18181 [full] height=13454 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:11:45 OK port 18182 [full] height=13454 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:11:46 OK mesh aligned 18180:h13454/p2 18181:h13454/p2 18182:h13454/p2
+2026-08-20 12:16:53 OK port 18180 [full] height=13474 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:16:54 OK port 18181 [full] height=13474 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:16:54 OK port 18182 [full] height=13474 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:16:56 OK mesh aligned 18180:h13474/p2 18181:h13474/p2 18182:h13474/p2
+2026-08-20 12:22:02 OK port 18180 [full] height=13494 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:22:03 OK port 18181 [full] height=13494 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:22:04 OK port 18182 [full] height=13494 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:22:05 OK mesh aligned 18180:h13494/p2 18181:h13494/p2 18182:h13494/p2
+2026-08-20 12:27:13 OK port 18180 [full] height=13514 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:27:13 OK port 18181 [full] height=13514 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:27:14 OK port 18182 [full] height=13514 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:27:15 OK mesh aligned 18180:h13514/p2 18181:h13514/p2 18182:h13514/p2
+2026-08-20 12:32:22 OK port 18180 [full] height=13534 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:32:22 OK port 18181 [full] height=13534 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:32:23 OK port 18182 [full] height=13534 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:32:25 OK mesh aligned 18180:h13534/p2 18181:h13534/p2 18182:h13534/p2
+2026-08-20 12:37:31 OK port 18180 [full] height=13554 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:37:32 OK port 18181 [full] height=13554 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:37:33 OK port 18182 [full] height=13554 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:37:34 OK mesh aligned 18180:h13554/p2 18181:h13554/p2 18182:h13554/p2
+2026-08-20 12:42:40 OK port 18180 [full] height=13574 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:42:41 OK port 18181 [full] height=13574 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:42:41 OK port 18182 [full] height=13574 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:42:43 OK mesh aligned 18180:h13574/p2 18181:h13574/p2 18182:h13574/p2
+2026-08-20 12:47:49 OK port 18180 [full] height=13594 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:47:50 OK port 18181 [full] height=13594 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:47:51 OK port 18182 [full] height=13594 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:47:52 OK mesh aligned 18180:h13594/p2 18181:h13594/p2 18182:h13594/p2
+2026-08-20 12:52:58 OK port 18180 [full] height=13614 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:52:59 OK port 18181 [full] height=13614 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:53:00 OK port 18182 [full] height=13614 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:53:02 OK mesh aligned 18180:h13614/p2 18181:h13614/p2 18182:h13614/p2
+2026-08-20 12:58:07 OK port 18180 [full] height=13634 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:58:08 OK port 18181 [full] height=13634 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:58:09 OK port 18182 [full] height=13634 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 12:58:11 OK mesh aligned 18180:h13634/p2 18181:h13634/p2 18182:h13634/p2
+2026-08-20 13:03:17 OK port 18180 [full] height=13654 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:03:18 OK port 18181 [full] height=13654 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:03:19 OK port 18182 [full] height=13654 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:03:20 OK mesh aligned 18180:h13654/p2 18181:h13654/p2 18182:h13654/p2
+2026-08-20 13:08:27 OK port 18180 [full] height=13674 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:08:28 OK port 18181 [full] height=13674 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:08:29 OK port 18182 [full] height=13674 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:08:30 OK mesh aligned 18180:h13674/p2 18181:h13674/p2 18182:h13674/p2
+2026-08-20 13:13:36 OK port 18180 [full] height=13694 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:13:37 OK port 18181 [full] height=13694 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:13:38 OK port 18182 [full] height=13694 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:13:40 OK mesh aligned 18180:h13694/p2 18181:h13694/p2 18182:h13694/p2
+2026-08-20 13:18:46 OK port 18180 [full] height=13714 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:18:47 OK port 18181 [full] height=13714 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:18:48 OK port 18182 [full] height=13714 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:18:50 OK mesh aligned 18180:h13714/p2 18181:h13714/p2 18182:h13714/p2
+2026-08-20 13:23:51 OK port 18180 [full] height=13733 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:23:59 OK port 18181 [full] height=13733 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:23:59 OK port 18182 [full] height=13734 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:24:02 OK mesh aligned 18180:h13734/p2 18181:h13734/p2 18182:h13734/p2
+2026-08-20 13:29:09 OK port 18180 [full] height=13754 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:29:10 OK port 18181 [full] height=13754 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:29:11 OK port 18182 [full] height=13754 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:29:12 OK mesh aligned 18180:h13754/p2 18181:h13754/p2 18182:h13754/p2
+2026-08-20 13:34:18 OK port 18180 [full] height=13774 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:34:19 OK port 18181 [full] height=13774 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:34:20 OK port 18182 [full] height=13774 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:34:21 OK mesh aligned 18180:h13774/p2 18181:h13774/p2 18182:h13774/p2
+2026-08-20 13:39:22 OK port 18180 [full] height=13793 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:39:30 OK port 18181 [full] height=13794 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:39:31 OK port 18182 [full] height=13794 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:39:33 OK mesh aligned 18180:h13794/p2 18181:h13794/p2 18182:h13794/p2
+2026-08-20 13:44:41 OK port 18180 [full] height=13814 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-20 13:44:42 OK port 18181 [full] height=13814 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:44:43 OK port 18182 [full] height=13814 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:44:45 OK mesh aligned 18180:h13814/p2 18181:h13814/p2 18182:h13814/p2
+2026-08-20 13:49:51 OK port 18180 [full] height=13834 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:49:52 OK port 18181 [full] height=13834 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:49:53 OK port 18182 [full] height=13834 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:49:55 OK mesh aligned 18180:h13834/p2 18181:h13834/p2 18182:h13834/p2
+2026-08-20 13:55:02 OK port 18180 [full] height=13854 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:55:03 OK port 18181 [full] height=13854 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:55:05 OK port 18182 [full] height=13854 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 13:55:07 OK mesh aligned 18180:h13854/p2 18181:h13854/p2 18182:h13854/p2
+2026-08-20 14:00:11 OK port 18180 [full] height=13874 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:00:13 OK port 18181 [full] height=13874 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:00:14 OK port 18182 [full] height=13874 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:00:16 OK mesh aligned 18180:h13874/p2 18181:h13874/p2 18182:h13874/p2
+2026-08-20 14:05:22 WARN OK port 18180 [full] height=13894 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-20 14:05:23 OK port 18181 [full] height=13894 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:05:24 OK port 18182 [full] height=13894 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:05:26 OK mesh aligned 18180:h13894/p2 18181:h13894/p2 18182:h13894/p2
+2026-08-20 14:10:32 OK port 18180 [full] height=13914 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:10:33 OK port 18181 [full] height=13914 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:10:34 OK port 18182 [full] height=13914 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:10:36 OK mesh aligned 18180:h13914/p2 18181:h13914/p2 18182:h13914/p2
+2026-08-20 14:15:44 OK port 18180 [full] height=13934 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:15:45 OK port 18181 [full] height=13934 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:15:46 OK port 18182 [full] height=13934 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:15:48 OK mesh aligned 18180:h13934/p2 18181:h13934/p2 18182:h13934/p2
+2026-08-20 14:20:53 OK port 18180 [full] height=13954 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:20:54 OK port 18181 [full] height=13954 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:20:56 OK port 18182 [full] height=13954 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:20:58 OK mesh aligned 18180:h13954/p2 18181:h13954/p2 18182:h13954/p2
+2026-08-20 14:26:04 OK port 18180 [full] height=13974 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:26:05 OK port 18181 [full] height=13974 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:26:06 OK port 18182 [full] height=13974 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:26:09 OK mesh aligned 18180:h13974/p2 18181:h13974/p2 18182:h13974/p2
+2026-08-20 14:31:14 OK port 18180 [full] height=13992 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:31:15 OK port 18181 [full] height=13992 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:31:17 OK port 18182 [full] height=13992 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:31:19 OK mesh aligned 18180:h13992/p2 18181:h13992/p2 18182:h13992/p2
+2026-08-20 14:36:25 OK port 18180 [full] height=14012 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:36:26 OK port 18181 [full] height=14012 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:36:27 OK port 18182 [full] height=14012 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:36:30 OK mesh aligned 18180:h14012/p2 18181:h14012/p2 18182:h14012/p2
+2026-08-20 14:41:35 OK port 18180 [full] height=14032 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:41:36 OK port 18181 [full] height=14032 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:41:38 OK port 18182 [full] height=14032 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:41:40 OK mesh aligned 18180:h14032/p2 18181:h14032/p2 18182:h14032/p2
+2026-08-20 14:46:47 OK port 18180 [full] height=14052 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:46:48 OK port 18181 [full] height=14052 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:46:50 OK port 18182 [full] height=14052 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:46:53 OK mesh aligned 18180:h14052/p2 18181:h14052/p2 18182:h14052/p2
+2026-08-20 14:51:58 OK port 18180 [full] height=14072 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:51:59 OK port 18181 [full] height=14072 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:52:01 OK port 18182 [full] height=14072 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:52:04 OK mesh aligned 18180:h14072/p2 18181:h14072/p2 18182:h14072/p2
+2026-08-20 14:57:07 OK port 18180 [full] height=14092 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:57:15 OK port 18181 [full] height=14092 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:57:22 OK port 18182 [full] height=14093 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 14:57:25 OK mesh aligned 18180:h14093/p2 18181:h14093/p2 18182:h14093/p2
+2026-08-20 15:02:32 OK port 18180 [full] height=14113 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:02:33 OK port 18181 [full] height=14113 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:02:35 OK port 18182 [full] height=14113 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:02:37 OK mesh aligned 18180:h14113/p2 18181:h14113/p2 18182:h14113/p2
+2026-08-20 15:07:43 OK port 18180 [full] height=14133 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:07:45 OK port 18181 [full] height=14133 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:07:46 OK port 18182 [full] height=14133 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:07:49 OK mesh aligned 18180:h14133/p2 18181:h14133/p2 18182:h14133/p2
+2026-08-20 15:12:53 OK port 18180 [full] height=14153 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:12:54 OK port 18181 [full] height=14153 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:12:56 OK port 18182 [full] height=14153 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:12:59 OK mesh aligned 18180:h14153/p2 18181:h14153/p2 18182:h14153/p2
+2026-08-20 15:18:03 OK port 18180 [full] height=14173 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:18:05 OK port 18181 [full] height=14173 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:18:06 OK port 18182 [full] height=14173 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:18:09 OK mesh aligned 18180:h14173/p2 18181:h14173/p2 18182:h14173/p2
+2026-08-20 15:23:14 OK port 18180 [full] height=14193 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:23:15 OK port 18181 [full] height=14193 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:23:16 OK port 18182 [full] height=14193 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:23:20 OK mesh aligned 18180:h14193/p2 18181:h14193/p2 18182:h14193/p2
+2026-08-20 15:28:24 OK port 18180 [full] height=14213 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:28:25 OK port 18181 [full] height=14213 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:28:26 OK port 18182 [full] height=14213 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:28:30 OK mesh aligned 18180:h14213/p2 18181:h14213/p2 18182:h14213/p2
+2026-08-20 15:33:35 OK port 18180 [full] height=14229 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:33:37 OK port 18181 [full] height=14229 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:33:38 OK port 18182 [full] height=14229 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:33:41 OK mesh aligned 18180:h14229/p2 18181:h14229/p2 18182:h14229/p2
+2026-08-20 15:38:43 OK port 18180 [full] height=14241 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:38:51 OK port 18181 [full] height=14241 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:38:52 OK port 18182 [full] height=14242 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:38:56 OK mesh aligned 18180:h14242/p2 18181:h14242/p2 18182:h14242/p2
+2026-08-20 15:44:02 OK port 18180 [full] height=14262 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:44:03 OK port 18181 [full] height=14262 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:44:06 OK port 18182 [full] height=14262 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:44:09 OK mesh aligned 18180:h14262/p2 18181:h14262/p2 18182:h14262/p2
+2026-08-20 15:49:14 OK port 18180 [full] height=14282 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:49:17 OK port 18181 [full] height=14282 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:49:18 OK port 18182 [full] height=14282 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:49:21 OK mesh aligned 18180:h14282/p2 18181:h14282/p2 18182:h14282/p2
+2026-08-20 15:54:26 OK port 18180 [full] height=14302 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-20 15:54:28 OK port 18181 [full] height=14302 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:54:29 OK port 18182 [full] height=14302 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:54:33 OK mesh aligned 18180:h14302/p2 18181:h14302/p2 18182:h14302/p2
+2026-08-20 15:59:35 OK port 18180 [full] height=14320 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:59:43 OK port 18181 [full] height=14320 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 15:59:51 OK port 18182 [full] height=14321 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-20 15:59:54 OK mesh aligned 18180:h14321/p2 18181:h14321/p2 18182:h14321/p2
+2026-08-20 16:04:55 OK port 18180 [full] height=14340 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:05:04 OK port 18181 [full] height=14340 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:05:05 OK port 18182 [full] height=14341 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:05:09 OK mesh aligned 18180:h14341/p2 18181:h14341/p2 18182:h14341/p2
+2026-08-20 16:10:16 OK port 18180 [full] height=14361 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:10:18 OK port 18181 [full] height=14361 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:10:19 OK port 18182 [full] height=14361 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:10:22 OK mesh aligned 18180:h14361/p2 18181:h14361/p2 18182:h14361/p2
+2026-08-20 16:15:28 OK port 18180 [full] height=14381 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:15:30 OK port 18181 [full] height=14381 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:15:31 OK port 18182 [full] height=14381 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:15:36 OK mesh aligned 18180:h14381/p2 18181:h14381/p2 18182:h14381/p2
+2026-08-20 16:20:40 OK port 18180 [full] height=14401 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:20:41 OK port 18181 [full] height=14401 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:20:43 OK port 18182 [full] height=14401 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:20:46 OK mesh aligned 18180:h14401/p2 18181:h14401/p2 18182:h14401/p2
+2026-08-20 16:25:52 OK port 18180 [full] height=14421 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:25:54 OK port 18181 [full] height=14421 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:25:56 OK port 18182 [full] height=14421 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:26:00 OK mesh aligned 18180:h14421/p2 18181:h14421/p2 18182:h14421/p2
+2026-08-20 16:31:04 OK port 18180 [full] height=14441 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:31:06 OK port 18181 [full] height=14441 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:31:07 OK port 18182 [full] height=14441 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:31:12 OK mesh aligned 18180:h14441/p2 18181:h14441/p2 18182:h14441/p2
+2026-08-20 16:36:15 OK port 18180 [full] height=14459 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:36:17 OK port 18181 [full] height=14459 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:36:19 OK port 18182 [full] height=14459 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:36:22 OK mesh aligned 18180:h14459/p2 18181:h14459/p2 18182:h14459/p2
+2026-08-20 16:41:29 OK port 18180 [full] height=14479 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:41:30 OK port 18181 [full] height=14479 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:41:32 OK port 18182 [full] height=14479 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:41:37 OK mesh aligned 18180:h14479/p2 18181:h14479/p2 18182:h14479/p2
+2026-08-20 16:46:44 OK port 18180 [full] height=14497 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:46:45 OK port 18181 [full] height=14497 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:46:47 OK port 18182 [full] height=14497 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:46:53 OK mesh aligned 18180:h14497/p2 18181:h14497/p2 18182:h14497/p2
+2026-08-20 16:51:55 OK port 18180 [full] height=14515 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:51:57 OK port 18181 [full] height=14515 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:51:58 OK port 18182 [full] height=14515 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:52:03 OK mesh aligned 18180:h14515/p2 18181:h14515/p2 18182:h14515/p2
+2026-08-20 16:57:06 OK port 18180 [full] height=14533 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:57:08 OK port 18181 [full] height=14533 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:57:10 OK port 18182 [full] height=14533 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 16:57:14 OK mesh aligned 18180:h14533/p2 18181:h14533/p2 18182:h14533/p2
+2026-08-20 17:02:20 OK port 18180 [full] height=14553 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:02:21 OK port 18181 [full] height=14553 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:02:23 OK port 18182 [full] height=14553 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:02:27 OK mesh aligned 18180:h14553/p2 18181:h14553/p2 18182:h14553/p2
+2026-08-20 17:07:33 OK port 18180 [full] height=14573 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:07:35 OK port 18181 [full] height=14573 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:07:37 OK port 18182 [full] height=14573 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:07:41 OK mesh aligned 18180:h14573/p2 18181:h14573/p2 18182:h14573/p2
+2026-08-20 17:12:47 OK port 18180 [full] height=14593 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:12:48 OK port 18181 [full] height=14593 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:12:50 OK port 18182 [full] height=14593 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:12:54 OK mesh aligned 18180:h14593/p2 18181:h14593/p2 18182:h14593/p2
+2026-08-20 17:18:01 OK port 18180 [full] height=14609 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:18:03 OK port 18181 [full] height=14609 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:18:05 OK port 18182 [full] height=14609 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:18:09 OK mesh aligned 18180:h14609/p2 18181:h14609/p2 18182:h14609/p2
+2026-08-20 17:23:14 OK port 18180 [full] height=14627 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:23:16 OK port 18181 [full] height=14627 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:23:18 OK port 18182 [full] height=14627 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:23:23 OK mesh aligned 18180:h14627/p2 18181:h14627/p2 18182:h14627/p2
+2026-08-20 17:28:29 OK port 18180 [full] height=14647 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:28:31 OK port 18181 [full] height=14647 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:28:33 OK port 18182 [full] height=14647 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:28:37 OK mesh aligned 18180:h14647/p2 18181:h14647/p2 18182:h14647/p2
+2026-08-20 17:33:43 OK port 18180 [full] height=14665 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:33:45 OK port 18181 [full] height=14665 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:33:47 OK port 18182 [full] height=14665 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:33:51 OK mesh aligned 18180:h14665/p2 18181:h14665/p2 18182:h14665/p2
+2026-08-20 17:38:55 OK port 18180 [full] height=14683 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:38:57 OK port 18181 [full] height=14683 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:38:59 OK port 18182 [full] height=14683 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:39:03 OK mesh aligned 18180:h14683/p2 18181:h14683/p2 18182:h14683/p2
+2026-08-20 17:44:10 OK port 18180 [full] height=14701 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:44:12 OK port 18181 [full] height=14701 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:44:13 OK port 18182 [full] height=14701 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:44:18 OK mesh aligned 18180:h14701/p2 18181:h14701/p2 18182:h14701/p2
+2026-08-20 17:49:25 OK port 18180 [full] height=14719 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:49:27 OK port 18181 [full] height=14719 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:49:29 OK port 18182 [full] height=14719 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:49:33 OK mesh aligned 18180:h14719/p2 18181:h14719/p2 18182:h14719/p2
+2026-08-20 17:54:40 OK port 18180 [full] height=14737 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:54:42 OK port 18181 [full] height=14737 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:54:44 OK port 18182 [full] height=14737 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 17:54:49 OK mesh aligned 18180:h14737/p2 18181:h14737/p2 18182:h14737/p2
+2026-08-20 17:59:51 OK port 18180 [full] height=14756 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:00:00 OK port 18181 [full] height=14756 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:00:02 OK port 18182 [full] height=14757 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:00:07 OK mesh aligned 18180:h14757/p2 18181:h14757/p2 18182:h14757/p2
+2026-08-20 18:05:09 OK port 18180 [full] height=14775 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:05:18 OK port 18181 [full] height=14775 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:05:20 OK port 18182 [full] height=14776 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:05:27 OK mesh aligned 18180:h14776/p2 18181:h14776/p2 18182:h14776/p2
+2026-08-20 18:10:31 OK port 18180 [full] height=14794 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:10:33 OK port 18181 [full] height=14794 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:10:35 OK port 18182 [full] height=14794 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:10:40 OK mesh aligned 18180:h14794/p2 18181:h14794/p2 18182:h14794/p2
+2026-08-20 18:15:47 OK port 18180 [full] height=14814 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:15:50 OK port 18181 [full] height=14814 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:15:52 OK port 18182 [full] height=14814 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:15:57 OK mesh aligned 18180:h14814/p2 18181:h14814/p2 18182:h14814/p2
+2026-08-20 18:21:04 OK port 18180 [full] height=14832 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:21:06 OK port 18181 [full] height=14832 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:21:08 OK port 18182 [full] height=14832 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:21:13 OK mesh aligned 18180:h14832/p2 18181:h14832/p2 18182:h14832/p2
+2026-08-20 18:26:20 OK port 18180 [full] height=14850 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:26:22 OK port 18181 [full] height=14850 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:26:24 OK port 18182 [full] height=14850 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:26:30 OK mesh aligned 18180:h14850/p2 18181:h14850/p2 18182:h14850/p2
+2026-08-20 18:31:38 OK port 18180 [full] height=14868 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-20 18:31:40 OK port 18181 [full] height=14868 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:31:43 OK port 18182 [full] height=14868 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:31:51 OK mesh aligned 18180:h14868/p2 18181:h14868/p2 18182:h14868/p2
+2026-08-20 18:36:53 OK port 18180 [full] height=14886 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:36:55 OK port 18181 [full] height=14886 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:36:58 OK port 18182 [full] height=14886 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:37:03 OK mesh aligned 18180:h14886/p2 18181:h14886/p2 18182:h14886/p2
+2026-08-20 18:42:09 OK port 18180 [full] height=14904 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:42:11 OK port 18181 [full] height=14904 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:42:13 OK port 18182 [full] height=14904 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:42:19 OK mesh aligned 18180:h14904/p2 18181:h14904/p2 18182:h14904/p2
+2026-08-20 18:47:25 OK port 18180 [full] height=14924 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:47:28 OK port 18181 [full] height=14924 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:47:30 OK port 18182 [full] height=14924 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:47:35 OK mesh aligned 18180:h14924/p2 18181:h14924/p2 18182:h14924/p2
+2026-08-20 18:52:40 OK port 18180 [full] height=14944 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:52:42 OK port 18181 [full] height=14944 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:52:44 OK port 18182 [full] height=14944 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:52:50 OK mesh aligned 18180:h14944/p2 18181:h14944/p2 18182:h14944/p2
+2026-08-20 18:57:54 OK port 18180 [full] height=14964 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:57:56 OK port 18181 [full] height=14964 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:57:58 OK port 18182 [full] height=14964 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 18:58:04 OK mesh aligned 18180:h14964/p2 18181:h14964/p2 18182:h14964/p2
+2026-08-20 19:03:09 OK port 18180 [full] height=14982 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:03:11 OK port 18181 [full] height=14982 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:03:14 OK port 18182 [full] height=14982 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:03:19 OK mesh aligned 18180:h14982/p2 18181:h14982/p2 18182:h14982/p2
+2026-08-20 19:08:29 OK port 18180 [full] height=15001 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:08:31 OK port 18181 [full] height=15001 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:08:33 OK port 18182 [full] height=15001 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:08:39 OK mesh aligned 18180:h15001/p2 18181:h15001/p2 18182:h15001/p2
+2026-08-20 19:13:43 WARN OK port 18180 [full] height=15020 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-20 19:13:45 OK port 18181 [full] height=15020 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:13:47 OK port 18182 [full] height=15020 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:13:53 OK mesh aligned 18180:h15020/p2 18181:h15020/p2 18182:h15020/p2
+2026-08-20 19:18:55 OK port 18180 [full] height=15040 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:19:05 WARN OK port 18181 [full] height=15040 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-20 19:19:09 OK port 18182 [full] height=15041 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:19:15 OK mesh aligned 18180:h15041/p2 18181:h15041/p2 18182:h15041/p2
+2026-08-20 19:24:18 OK port 18180 [full] height=15060 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:24:21 OK port 18181 [full] height=15060 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:24:31 OK port 18182 [full] height=15060 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:24:36 OK mesh aligned 18180:h15061/p2 18181:h15061/p2 18182:h15061/p2
+2026-08-20 19:29:43 OK port 18180 [full] height=15073 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:29:45 OK port 18181 [full] height=15073 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:29:48 OK port 18182 [full] height=15073 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:29:54 OK mesh aligned 18180:h15073/p2 18181:h15073/p2 18182:h15073/p2
+2026-08-20 19:34:56 OK port 18180 [full] height=15093 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:35:01 OK port 18181 [full] height=15093 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:35:03 OK port 18182 [full] height=15093 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:35:09 OK mesh aligned 18180:h15094/p2 18181:h15094/p2 18182:h15094/p2
+2026-08-20 19:40:12 OK port 18180 [full] height=15113 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:40:15 OK port 18181 [full] height=15113 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:40:24 WARN OK port 18182 [full] height=15113 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-20 19:40:30 OK mesh aligned 18180:h15114/p2 18181:h15114/p2 18182:h15114/p2
+2026-08-20 19:45:32 OK port 18180 [full] height=15131 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:45:35 OK port 18181 [full] height=15131 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:45:44 WARN OK port 18182 [full] height=15131 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-20 19:45:50 OK mesh aligned 18180:h15131/p2 18181:h15131/p2 18182:h15131/p2
+2026-08-20 19:50:53 OK port 18180 [full] height=15150 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:50:55 OK port 18181 [full] height=15150 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:50:58 OK port 18182 [full] height=15150 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:51:06 OK mesh aligned 18180:h15150/p2 18181:h15150/p2 18182:h15150/p2
+2026-08-20 19:56:09 WARN OK port 18180 [full] height=15168 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-20 19:56:11 OK port 18181 [full] height=15168 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:56:14 OK port 18182 [full] height=15168 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 19:56:22 OK mesh aligned 18180:h15168/p2 18181:h15168/p2 18182:h15168/p2
+2026-08-20 20:01:25 OK port 18180 [full] height=15188 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:01:28 OK port 18181 [full] height=15188 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:01:30 OK port 18182 [full] height=15188 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:01:37 OK mesh aligned 18180:h15189/p2 18181:h15189/p2 18182:h15189/p2
+2026-08-20 20:06:40 OK port 18180 [full] height=15206 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-20 20:06:45 OK port 18181 [full] height=15206 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:06:48 OK port 18182 [full] height=15206 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:06:55 OK mesh aligned 18180:h15206/p2 18181:h15206/p2 18182:h15206/p2
+2026-08-20 20:11:57 OK port 18180 [full] height=15222 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:12:00 OK port 18181 [full] height=15222 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:12:03 OK port 18182 [full] height=15222 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:12:09 OK mesh aligned 18180:h15222/p2 18181:h15222/p2 18182:h15222/p2
+2026-08-20 20:17:12 OK port 18180 [full] height=15240 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:17:22 WARN OK port 18181 [full] height=15240 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-20 20:17:25 OK port 18182 [full] height=15241 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:17:31 OK mesh aligned 18180:h15241/p2 18181:h15241/p2 18182:h15241/p2
+2026-08-20 20:22:34 OK port 18180 [full] height=15258 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:22:44 OK port 18181 [full] height=15258 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:22:47 OK port 18182 [full] height=15259 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:22:53 OK mesh aligned 18180:h15259/p2 18181:h15259/p2 18182:h15259/p2
+2026-08-20 20:27:56 OK port 18180 [full] height=15277 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:27:59 OK port 18181 [full] height=15277 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:28:04 OK port 18182 [full] height=15277 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:28:10 OK mesh aligned 18180:h15277/p2 18181:h15277/p2 18182:h15277/p2
+2026-08-20 20:33:13 OK port 18180 [full] height=15287 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:33:21 OK port 18181 [full] height=15288 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-20 20:33:30 WARN OK port 18182 [full] height=15288 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-20 20:33:37 OK mesh aligned 18180:h15289/p2 18181:h15289/p2 18182:h15289/p2
+2026-08-20 20:38:40 OK port 18180 [full] height=15300 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:38:49 OK port 18181 [full] height=15301 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:38:52 OK port 18182 [full] height=15301 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:38:59 OK mesh aligned 18180:h15301/p2 18181:h15301/p2 18182:h15301/p2
+2026-08-20 20:44:03 OK port 18180 [full] height=15315 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:44:05 OK port 18181 [full] height=15315 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:44:15 WARN OK port 18182 [full] height=15315 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-20 20:44:22 OK mesh aligned 18180:h15315/p2 18181:h15315/p2 18182:h15315/p2
+2026-08-20 20:49:26 OK port 18180 [full] height=15323 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:49:29 OK port 18181 [full] height=15323 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:49:38 WARN OK port 18182 [full] height=15323 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-20 20:49:45 OK mesh aligned 18180:h15323/p2 18181:h15323/p2 18182:h15323/p2
+2026-08-20 20:54:48 OK port 18180 [full] height=15331 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:54:58 OK port 18181 [full] height=15332 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:55:01 OK port 18182 [full] height=15332 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 20:55:08 OK mesh aligned 18180:h15332/p2 18181:h15332/p2 18182:h15332/p2
+2026-08-20 21:00:12 OK port 18180 [full] height=15344 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:00:15 OK port 18181 [full] height=15344 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:00:18 OK port 18182 [full] height=15344 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:00:27 OK mesh aligned 18180:h15344/p2 18181:h15344/p2 18182:h15344/p2
+2026-08-20 21:05:30 OK port 18180 [full] height=15360 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:05:33 OK port 18181 [full] height=15360 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:05:36 OK port 18182 [full] height=15360 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:05:43 OK mesh aligned 18180:h15361/p2 18181:h15361/p2 18182:h15361/p2
+2026-08-20 21:10:46 OK port 18180 [full] height=15371 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:10:49 OK port 18181 [full] height=15371 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:10:53 WARN OK port 18182 [full] height=15372 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-20 21:11:00 OK mesh aligned 18180:h15372/p2 18181:h15372/p2 18182:h15372/p2
+2026-08-20 21:16:04 OK port 18180 [full] height=15389 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:16:11 OK port 18181 [full] height=15390 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:16:14 OK port 18182 [full] height=15390 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:16:22 OK mesh aligned 18180:h15390/p2 18181:h15390/p2 18182:h15390/p2
+2026-08-20 21:21:29 OK port 18180 [full] height=15409 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:21:31 OK port 18181 [full] height=15409 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:21:36 WARN OK port 18182 [full] height=15410 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-20 21:21:43 OK mesh aligned 18180:h15410/p2 18181:h15410/p2 18182:h15410/p2
+2026-08-20 21:26:46 OK port 18180 [full] height=15429 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:26:53 OK port 18181 [full] height=15429 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:27:03 OK port 18182 [full] height=15429 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:27:10 OK mesh aligned 18180:h15430/p2 18181:h15430/p2 18182:h15430/p2
+2026-08-20 21:32:13 OK port 18180 [full] height=15445 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:32:19 OK port 18181 [full] height=15445 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:32:22 WARN OK port 18182 [full] height=15446 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-20 21:32:30 OK mesh aligned 18180:h15446/p2 18181:h15446/p2 18182:h15446/p2
+2026-08-20 21:37:35 OK port 18180 [full] height=15464 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:37:38 OK port 18181 [full] height=15464 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:37:50 OK port 18182 [full] height=15464 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:37:58 OK mesh aligned 18180:h15464/p2 18181:h15464/p2 18182:h15464/p2
+2026-08-20 21:43:01 OK port 18180 [full] height=15478 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:43:04 OK port 18181 [full] height=15478 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:43:10 WARN OK port 18182 [full] height=15479 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-20 21:43:17 OK mesh aligned 18180:h15479/p2 18181:h15479/p2 18182:h15479/p2
+2026-08-20 21:48:20 OK port 18180 [full] height=15496 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:48:30 OK port 18181 [full] height=15496 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:48:36 OK port 18182 [full] height=15497 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:48:44 OK mesh aligned 18180:h15497/p2 18181:h15497/p2 18182:h15497/p2
+2026-08-20 21:53:47 OK port 18180 [full] height=15513 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:53:50 OK port 18181 [full] height=15513 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:53:53 OK port 18182 [full] height=15513 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:54:04 OK mesh aligned 18180:h15513/p2 18181:h15513/p2 18182:h15513/p2
+2026-08-20 21:59:07 OK port 18180 [full] height=15518 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:59:14 OK port 18181 [full] height=15519 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-20 21:59:18 OK port 18182 [full] height=15519 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 21:59:26 OK mesh aligned 18180:h15519/p2 18181:h15519/p2 18182:h15519/p2
+2026-08-20 22:04:29 OK port 18180 [full] height=15534 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:04:32 OK port 18181 [full] height=15534 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:04:36 WARN OK port 18182 [full] height=15535 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-20 22:04:44 OK mesh aligned 18180:h15535/p2 18181:h15535/p2 18182:h15535/p2
+2026-08-20 22:09:57 OK port 18180 [full] height=15552 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:10:00 OK port 18181 [full] height=15552 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:10:03 OK port 18182 [full] height=15552 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:10:11 OK mesh aligned 18180:h15552/p2 18181:h15552/p2 18182:h15552/p2
+2026-08-20 22:15:18 OK port 18180 [full] height=15571 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:15:21 OK port 18181 [full] height=15571 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:15:26 WARN OK port 18182 [full] height=15572 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-20 22:15:34 OK mesh aligned 18180:h15572/p2 18181:h15572/p2 18182:h15572/p2
+2026-08-20 22:20:37 OK port 18180 [full] height=15588 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:20:50 OK port 18181 [full] height=15588 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:20:54 OK port 18182 [full] height=15589 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:21:02 OK mesh aligned 18180:h15589/p2 18181:h15589/p2 18182:h15589/p2
+2026-08-20 22:26:06 OK port 18180 [full] height=15605 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:26:13 OK port 18181 [full] height=15605 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:26:16 OK port 18182 [full] height=15605 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:26:24 OK mesh aligned 18180:h15606/p2 18181:h15606/p2 18182:h15606/p2
+2026-08-20 22:31:31 OK port 18180 [full] height=15617 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:31:34 OK port 18181 [full] height=15617 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:31:45 WARN OK port 18182 [full] height=15617 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-20 22:31:53 OK mesh aligned 18180:h15617/p2 18181:h15617/p2 18182:h15617/p2
+2026-08-20 22:36:59 OK port 18180 [full] height=15634 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:37:03 OK port 18181 [full] height=15634 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:37:09 OK port 18182 [full] height=15634 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:37:17 OK mesh aligned 18180:h15634/p2 18181:h15634/p2 18182:h15634/p2
+2026-08-20 22:42:21 OK port 18180 [full] height=15650 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:42:31 OK port 18181 [full] height=15651 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:42:41 OK port 18182 [full] height=15651 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:42:50 OK mesh aligned 18180:h15652/p2 18181:h15652/p2 18182:h15652/p2
+2026-08-20 22:47:57 OK port 18180 [full] height=15665 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:48:00 OK port 18181 [full] height=15665 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:48:07 OK port 18182 [full] height=15665 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:48:15 OK mesh aligned 18180:h15665/p2 18181:h15665/p2 18182:h15665/p2
+2026-08-20 22:53:19 OK port 18180 [full] height=15681 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:53:23 OK port 18181 [full] height=15681 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:53:26 OK port 18182 [full] height=15681 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:53:38 OK mesh aligned 18180:h15681/p2 18181:h15681/p2 18182:h15681/p2
+2026-08-20 22:58:41 OK port 18180 [full] height=15692 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:58:45 OK port 18181 [full] height=15692 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 22:58:49 WARN OK port 18182 [full] height=15693 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-20 22:58:58 OK mesh aligned 18180:h15693/p2 18181:h15693/p2 18182:h15693/p2
+2026-08-20 23:04:04 OK port 18180 [full] height=15702 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:04:08 OK port 18181 [full] height=15702 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:04:12 WARN OK port 18182 [full] height=15703 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-20 23:04:21 OK mesh aligned 18180:h15703/p2 18181:h15703/p2 18182:h15703/p2
+2026-08-20 23:09:24 OK port 18180 [full] height=15717 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:09:32 WARN OK port 18181 [full] height=15718 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-20 23:09:37 OK port 18182 [full] height=15718 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:09:47 OK mesh aligned 18180:h15718/p2 18181:h15718/p2 18182:h15718/p2
+2026-08-20 23:14:50 OK port 18180 [full] height=15728 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:15:01 WARN OK port 18181 [full] height=15729 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-20 23:15:08 OK port 18182 [full] height=15729 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:15:17 OK mesh aligned 18180:h15729/p2 18181:h15729/p2 18182:h15729/p2
+2026-08-20 23:20:20 OK port 18180 [full] height=15731 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:20:24 OK port 18181 [full] height=15731 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:20:28 WARN OK port 18182 [full] height=15732 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-20 23:20:40 OK mesh aligned 18180:h15732/p2 18181:h15731/p2 18182:h15732/p2
+2026-08-20 23:25:44 OK port 18180 [full] height=15746 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:25:47 OK port 18181 [full] height=15746 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:25:51 OK port 18182 [full] height=15746 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:26:00 OK mesh aligned 18180:h15746/p2 18181:h15746/p2 18182:h15746/p2
+2026-08-20 23:31:05 OK port 18180 [full] height=15760 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:31:09 OK port 18181 [full] height=15760 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:31:13 WARN OK port 18182 [full] height=15761 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-20 23:31:22 OK mesh aligned 18180:h15761/p2 18181:h15761/p2 18182:h15761/p2
+2026-08-20 23:36:25 OK port 18180 [full] height=15771 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:36:29 OK port 18181 [full] height=15771 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:36:40 WARN OK port 18182 [full] height=15771 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-20 23:36:49 OK mesh aligned 18180:h15772/p2 18181:h15772/p2 18182:h15771/p2
+2026-08-20 23:41:53 OK port 18180 [full] height=15784 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:42:04 WARN OK port 18181 [full] height=15785 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-20 23:42:14 OK port 18182 [full] height=15785 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:42:24 OK mesh aligned 18180:h15786/p2 18181:h15786/p2 18182:h15786/p2
+2026-08-20 23:47:27 OK port 18180 [full] height=15797 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:47:31 OK port 18181 [full] height=15797 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:47:35 WARN OK port 18182 [full] height=15798 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-20 23:47:48 OK mesh aligned 18180:h15798/p2 18181:h15798/p2 18182:h15798/p2
+2026-08-20 23:52:51 WARN OK port 18180 [full] height=15812 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-20 23:52:55 OK port 18181 [full] height=15812 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:52:58 OK port 18182 [full] height=15812 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:53:14 OK mesh aligned 18180:h15812/p2 18181:h15812/p2 18182:h15812/p2
+2026-08-20 23:58:18 OK port 18180 [full] height=15824 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:58:29 OK port 18181 [full] height=15824 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:58:32 OK port 18182 [full] height=15825 peers=2 p2p=aligned aligned=True failed=
+2026-08-20 23:58:48 OK mesh aligned 18180:h15825/p2 18181:h15825/p2 18182:h15825/p2
+2026-08-21 00:03:52 OK port 18180 [full] height=15829 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:04:03 OK port 18181 [full] height=15829 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:04:06 OK port 18182 [full] height=15830 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:04:22 OK mesh aligned 18180:h15830/p2 18181:h15830/p2 18182:h15830/p2
+2026-08-21 00:09:26 WARN OK port 18180 [full] height=15846 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 00:09:30 OK port 18181 [full] height=15846 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:09:33 OK port 18182 [full] height=15846 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:09:43 OK mesh aligned 18180:h15847/p2 18181:h15847/p2 18182:h15847/p2
+2026-08-21 00:14:51 WARN OK port 18180 [full] height=15864 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 00:15:01 OK port 18181 [full] height=15864 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:15:06 OK port 18182 [full] height=15865 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:15:16 OK mesh aligned 18180:h15865/p2 18181:h15865/p2 18182:h15865/p2
+2026-08-21 00:20:25 OK port 18180 [full] height=15879 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 00:20:28 OK port 18181 [full] height=15879 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:20:32 OK port 18182 [full] height=15879 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:20:42 OK mesh aligned 18180:h15879/p2 18181:h15879/p2 18182:h15879/p2
+2026-08-21 00:25:46 OK port 18180 [full] height=15893 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:25:50 OK port 18181 [full] height=15893 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:25:54 WARN OK port 18182 [full] height=15894 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 00:26:06 OK mesh aligned 18180:h15894/p2 18181:h15894/p2 18182:h15895/p2
+2026-08-21 00:31:10 OK port 18180 [full] height=15908 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:31:21 OK port 18181 [full] height=15908 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:31:28 OK port 18182 [full] height=15909 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:31:41 OK mesh aligned 18180:h15910/p2 18181:h15910/p2 18182:h15910/p2
+2026-08-21 00:36:45 WARN OK port 18180 [full] height=15927 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 00:36:49 OK port 18181 [full] height=15927 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:36:53 OK port 18182 [full] height=15927 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:37:10 OK mesh aligned 18180:h15927/p2 18181:h15927/p2 18182:h15927/p2
+2026-08-21 00:42:16 OK port 18180 [full] height=15938 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:42:20 OK port 18181 [full] height=15938 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:42:23 OK port 18182 [full] height=15938 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:42:34 OK mesh aligned 18180:h15938/p2 18181:h15938/p2 18182:h15938/p2
+2026-08-21 00:47:38 WARN OK port 18180 [full] height=15952 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 00:47:48 OK port 18181 [full] height=15952 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:47:53 OK port 18182 [full] height=15953 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:48:03 OK mesh aligned 18180:h15953/p2 18181:h15953/p2 18182:h15953/p2
+2026-08-21 00:53:09 OK port 18180 [full] height=15960 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:53:23 WARN OK port 18181 [full] height=15960 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 00:53:27 OK port 18182 [full] height=15960 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:53:38 OK mesh aligned 18180:h15960/p2 18181:h15960/p2 18182:h15960/p2
+2026-08-21 00:58:44 OK port 18180 [full] height=15966 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:58:55 WARN OK port 18181 [full] height=15966 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 00:58:59 OK port 18182 [full] height=15966 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 00:59:09 OK mesh aligned 18180:h15966/p2 18181:h15966/p2 18182:h15966/p2
+2026-08-21 01:04:13 OK port 18180 [full] height=15972 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:04:17 OK port 18181 [full] height=15972 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:04:21 OK port 18182 [full] height=15972 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:04:35 OK mesh aligned 18180:h15972/p2 18181:h15972/p2 18182:h15972/p2
+2026-08-21 01:09:41 OK port 18180 [full] height=15987 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:09:45 OK port 18181 [full] height=15987 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:09:49 OK port 18182 [full] height=15987 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:09:59 OK mesh aligned 18180:h15987/p2 18181:h15987/p2 18182:h15987/p2
+2026-08-21 01:15:07 WARN OK port 18180 [full] height=16003 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 01:15:11 OK port 18181 [full] height=16003 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:15:15 OK port 18182 [full] height=16003 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:15:26 OK mesh aligned 18180:h16004/p2 18181:h16004/p2 18182:h16004/p2
+2026-08-21 01:20:30 OK port 18180 [full] height=16019 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:20:34 OK port 18181 [full] height=16019 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 01:20:48 OK port 18182 [full] height=16019 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:20:59 OK mesh aligned 18180:h16020/p2 18181:h16020/p2 18182:h16020/p2
+2026-08-21 01:26:03 OK port 18180 [full] height=16034 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:26:07 OK port 18181 [full] height=16034 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:26:11 OK port 18182 [full] height=16034 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:26:26 OK mesh aligned 18180:h16034/p2 18181:h16034/p2 18182:h16034/p2
+2026-08-21 01:31:30 OK port 18180 [full] height=16048 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:31:34 OK port 18181 [full] height=16048 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:31:38 OK port 18182 [full] height=16048 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:31:53 OK mesh aligned 18180:h16049/p2 18181:h16049/p2 18182:h16049/p2
+2026-08-21 01:37:00 OK port 18180 [full] height=16066 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:37:11 OK port 18181 [full] height=16067 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:37:16 OK port 18182 [full] height=16067 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:37:30 OK mesh aligned 18180:h16067/p2 18181:h16067/p2 18182:h16067/p2
+2026-08-21 01:42:38 OK port 18180 [full] height=16079 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:42:42 OK port 18181 [full] height=16079 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:42:47 OK port 18182 [full] height=16079 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:42:58 OK mesh aligned 18180:h16079/p2 18181:h16079/p2 18182:h16079/p2
+2026-08-21 01:48:09 OK port 18180 [full] height=16097 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:48:20 OK port 18181 [full] height=16097 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:48:25 OK port 18182 [full] height=16098 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:48:36 OK mesh aligned 18180:h16098/p2 18181:h16098/p2 18182:h16099/p2
+2026-08-21 01:53:40 OK port 18180 [full] height=16113 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:53:48 OK port 18181 [full] height=16113 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:53:59 OK port 18182 [full] height=16114 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 01:54:11 OK mesh aligned 18180:h16115/p2 18181:h16115/p2 18182:h16115/p2
+2026-08-21 01:59:15 OK port 18180 [full] height=16128 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:59:19 OK port 18181 [full] height=16128 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:59:32 OK port 18182 [full] height=16128 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 01:59:43 OK mesh aligned 18180:h16129/p2 18181:h16129/p2 18182:h16129/p2
+2026-08-21 02:04:49 OK port 18180 [full] height=16143 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:04:53 OK port 18181 [full] height=16143 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:04:58 OK port 18182 [full] height=16143 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:05:11 OK mesh aligned 18180:h16144/p2 18181:h16144/p2 18182:h16144/p2
+2026-08-21 02:10:18 OK port 18180 [full] height=16160 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:10:29 OK port 18181 [full] height=16160 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:10:34 OK port 18182 [full] height=16161 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:10:47 OK mesh aligned 18180:h16161/p2 18181:h16161/p2 18182:h16162/p2
+2026-08-21 02:15:58 OK port 18180 [full] height=16180 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:16:03 OK port 18181 [full] height=16180 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:16:07 OK port 18182 [full] height=16180 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:16:19 OK mesh aligned 18180:h16180/p2 18181:h16180/p2 18182:h16180/p2
+2026-08-21 02:21:26 OK port 18180 [full] height=16197 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:21:41 OK port 18181 [full] height=16197 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:21:45 OK port 18182 [full] height=16197 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:21:57 OK mesh aligned 18180:h16197/p2 18181:h16197/p2 18182:h16197/p2
+2026-08-21 02:27:02 OK port 18180 [full] height=16206 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:27:06 OK port 18181 [full] height=16206 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:27:16 OK port 18182 [full] height=16206 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:27:28 OK mesh aligned 18180:h16206/p2 18181:h16206/p2 18182:h16206/p2
+2026-08-21 02:32:32 WARN OK port 18180 [full] height=16223 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 02:32:36 OK port 18181 [full] height=16223 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:32:41 OK port 18182 [full] height=16223 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:32:58 OK mesh aligned 18180:h16223/p2 18181:h16223/p2 18182:h16223/p2
+2026-08-21 02:38:06 OK port 18180 [full] height=16233 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:38:10 OK port 18181 [full] height=16233 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:38:15 WARN OK port 18182 [full] height=16234 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 02:38:27 OK mesh aligned 18180:h16234/p2 18181:h16234/p2 18182:h16234/p2
+2026-08-21 02:43:32 OK port 18180 [full] height=16242 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:43:46 OK port 18181 [full] height=16242 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:43:50 OK port 18182 [full] height=16243 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 02:44:02 OK mesh aligned 18180:h16244/p2 18181:h16244/p2 18182:h16244/p2
+2026-08-21 02:49:07 OK port 18180 [full] height=16259 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:49:11 OK port 18181 [full] height=16259 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:49:16 OK port 18182 [full] height=16259 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:49:29 OK mesh aligned 18180:h16259/p2 18181:h16259/p2 18182:h16259/p2
+2026-08-21 02:54:43 OK port 18180 [full] height=16265 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:54:47 OK port 18181 [full] height=16265 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:54:52 OK port 18182 [full] height=16265 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 02:55:04 OK mesh aligned 18180:h16265/p2 18181:h16265/p2 18182:h16265/p2
+2026-08-21 03:00:09 OK port 18180 [full] height=16275 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:00:24 OK port 18181 [full] height=16275 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:00:29 OK port 18182 [full] height=16276 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:00:41 OK mesh aligned 18180:h16276/p2 18181:h16276/p2 18182:h16276/p2
+2026-08-21 03:05:45 OK port 18180 [full] height=16288 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:05:50 OK port 18181 [full] height=16288 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:05:59 WARN OK port 18182 [full] height=16289 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 03:06:12 OK mesh aligned 18180:h16289/p2 18181:h16289/p2 18182:h16289/p2
+2026-08-21 03:11:16 OK port 18180 [full] height=16307 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:11:21 OK port 18181 [full] height=16307 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:11:26 OK port 18182 [full] height=16307 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:11:43 OK mesh aligned 18180:h16307/p2 18181:h16307/p2 18182:h16307/p2
+2026-08-21 03:16:52 OK port 18180 [full] height=16319 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:16:57 OK port 18181 [full] height=16319 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:17:02 WARN OK port 18182 [full] height=16320 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 03:17:15 OK mesh aligned 18180:h16320/p2 18181:h16320/p2 18182:h16320/p2
+2026-08-21 03:22:20 OK port 18180 [full] height=16337 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:22:24 OK port 18181 [full] height=16337 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:22:29 WARN OK port 18182 [full] height=16338 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 03:22:46 OK mesh aligned 18180:h16338/p2 18181:h16338/p2 18182:h16338/p2
+2026-08-21 03:27:51 OK port 18180 [full] height=16351 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:28:03 OK port 18181 [full] height=16352 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:28:07 OK port 18182 [full] height=16352 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:28:24 OK mesh aligned 18180:h16352/p2 18181:h16352/p2 18182:h16352/p2
+2026-08-21 03:33:34 OK port 18180 [full] height=16369 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:33:38 OK port 18181 [full] height=16369 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:33:43 WARN OK port 18182 [full] height=16370 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 03:34:00 OK mesh aligned 18180:h16370/p2 18181:h16370/p2 18182:h16370/p2
+2026-08-21 03:39:06 OK port 18180 [full] height=16386 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:39:17 OK port 18181 [full] height=16386 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:39:22 OK port 18182 [full] height=16386 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:39:35 OK mesh aligned 18180:h16387/p2 18181:h16387/p2 18182:h16387/p2
+2026-08-21 03:44:40 OK port 18180 [full] height=16400 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:44:45 OK port 18181 [full] height=16400 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:44:54 WARN OK port 18182 [full] height=16401 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 03:45:12 OK mesh aligned 18180:h16401/p2 18181:h16401/p2 18182:h16401/p2
+2026-08-21 03:50:17 OK port 18180 [full] height=16417 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:50:22 OK port 18181 [full] height=16417 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:50:28 WARN OK port 18182 [full] height=16418 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 03:50:42 OK mesh aligned 18180:h16418/p2 18181:h16418/p2 18182:h16418/p2
+2026-08-21 03:55:47 OK port 18180 [full] height=16432 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:55:56 OK port 18181 [full] height=16432 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 03:56:08 OK port 18182 [full] height=16433 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 03:56:22 OK mesh aligned 18180:h16433/p2 18181:h16432/p2 18182:h16433/p2
+2026-08-21 04:01:27 OK port 18180 [full] height=16447 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:01:32 OK port 18181 [full] height=16447 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:01:41 OK port 18182 [full] height=16447 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:01:59 OK mesh aligned 18180:h16448/p2 18181:h16448/p2 18182:h16448/p2
+2026-08-21 04:07:06 WARN OK port 18180 [full] height=16462 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 04:07:11 OK port 18181 [full] height=16462 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:07:16 OK port 18182 [full] height=16462 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:07:34 OK mesh aligned 18180:h16463/p2 18181:h16463/p2 18182:h16463/p2
+2026-08-21 04:12:39 OK port 18180 [full] height=16475 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:12:45 OK port 18181 [full] height=16475 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:12:51 OK port 18182 [full] height=16475 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:13:05 OK mesh aligned 18180:h16475/p2 18181:h16475/p2 18182:h16475/p2
+2026-08-21 04:18:10 OK port 18180 [full] height=16486 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:18:15 OK port 18181 [full] height=16486 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:18:25 OK port 18182 [full] height=16487 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 04:18:40 OK mesh aligned 18180:h16487/p2 18181:h16487/p2 18182:h16487/p2
+2026-08-21 04:23:50 OK port 18180 [full] height=16503 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:23:55 OK port 18181 [full] height=16503 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:24:00 WARN OK port 18182 [full] height=16504 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 04:24:15 OK mesh aligned 18180:h16504/p2 18181:h16504/p2 18182:h16504/p2
+2026-08-21 04:29:20 OK port 18180 [full] height=16517 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:29:33 WARN OK port 18181 [full] height=16517 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 04:29:38 OK port 18182 [full] height=16518 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:29:52 OK mesh aligned 18180:h16519/p2 18181:h16519/p2 18182:h16519/p2
+2026-08-21 04:34:58 OK port 18180 [full] height=16534 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:35:03 OK port 18181 [full] height=16534 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:35:08 OK port 18182 [full] height=16534 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:35:27 OK mesh aligned 18180:h16534/p2 18181:h16534/p2 18182:h16534/p2
+2026-08-21 04:40:37 OK port 18180 [full] height=16544 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:40:42 OK port 18181 [full] height=16544 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:40:47 WARN OK port 18182 [full] height=16545 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 04:41:06 OK mesh aligned 18180:h16545/p2 18181:h16545/p2 18182:h16545/p2
+2026-08-21 04:46:13 OK port 18180 [full] height=16561 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:46:24 OK port 18181 [full] height=16561 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:46:36 OK port 18182 [full] height=16561 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:46:55 OK mesh aligned 18180:h16562/p2 18181:h16562/p2 18182:h16562/p2
+2026-08-21 04:52:01 WARN OK port 18180 [full] height=16578 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 04:52:11 OK port 18181 [full] height=16578 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:52:24 OK port 18182 [full] height=16579 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:52:38 OK mesh aligned 18180:h16579/p2 18181:h16579/p2 18182:h16579/p2
+2026-08-21 04:57:43 OK port 18180 [full] height=16594 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:57:49 OK port 18181 [full] height=16594 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:58:00 OK port 18182 [full] height=16594 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 04:58:14 OK mesh aligned 18180:h16594/p2 18181:h16594/p2 18182:h16594/p2
+2026-08-21 05:03:20 OK port 18180 [full] height=16610 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:03:32 OK port 18181 [full] height=16611 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:03:37 OK port 18182 [full] height=16611 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:03:57 OK mesh aligned 18180:h16612/p2 18181:h16612/p2 18182:h16612/p2
+2026-08-21 05:09:07 OK port 18180 [full] height=16623 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:09:13 OK port 18181 [full] height=16623 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:09:18 WARN OK port 18182 [full] height=16624 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 05:09:38 OK mesh aligned 18180:h16624/p2 18181:h16624/p2 18182:h16624/p2
+2026-08-21 05:14:44 OK port 18180 [full] height=16640 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:14:57 OK port 18181 [full] height=16640 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:15:04 OK port 18182 [full] height=16641 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:15:19 OK mesh aligned 18180:h16641/p2 18181:h16641/p2 18182:h16641/p2
+2026-08-21 05:20:24 OK port 18180 [full] height=16656 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:20:30 OK port 18181 [full] height=16656 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:20:35 OK port 18182 [full] height=16656 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:20:55 OK mesh aligned 18180:h16657/p2 18181:h16657/p2 18182:h16657/p2
+2026-08-21 05:26:05 OK port 18180 [full] height=16670 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:26:11 OK port 18181 [full] height=16670 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:26:16 WARN OK port 18182 [full] height=16671 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 05:26:37 OK mesh aligned 18180:h16671/p2 18181:h16671/p2 18182:h16671/p2
+2026-08-21 05:31:44 OK port 18180 [full] height=16687 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 05:31:56 OK port 18181 [full] height=16687 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:32:08 OK port 18182 [full] height=16687 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:32:29 OK mesh aligned 18180:h16688/p2 18181:h16688/p2 18182:h16688/p2
+2026-08-21 05:37:34 OK port 18180 [full] height=16702 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:37:47 OK port 18181 [full] height=16703 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:37:53 OK port 18182 [full] height=16703 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:38:08 OK mesh aligned 18180:h16703/p2 18181:h16703/p2 18182:h16703/p2
+2026-08-21 05:43:14 OK port 18180 [full] height=16719 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:43:21 OK port 18181 [full] height=16720 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 05:43:27 OK port 18182 [full] height=16720 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:43:48 OK mesh aligned 18180:h16720/p2 18181:h16720/p2 18182:h16721/p2
+2026-08-21 05:49:06 OK port 18180 [full] height=16733 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:49:11 OK port 18181 [full] height=16733 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:49:17 OK port 18182 [full] height=16733 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:49:37 OK mesh aligned 18180:h16733/p2 18181:h16733/p2 18182:h16733/p2
+2026-08-21 05:54:42 OK port 18180 [full] height=16740 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:54:54 OK port 18181 [full] height=16740 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 05:54:59 OK port 18182 [full] height=16741 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 05:55:15 OK mesh aligned 18180:h16741/p2 18181:h16741/p2 18182:h16741/p2
+2026-08-21 06:00:21 OK port 18180 [full] height=16753 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:00:27 OK port 18181 [full] height=16753 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:00:33 OK port 18182 [full] height=16753 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:00:53 OK mesh aligned 18180:h16753/p2 18181:h16753/p2 18182:h16753/p2
+2026-08-21 06:06:05 OK port 18180 [full] height=16765 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:06:11 OK port 18181 [full] height=16765 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:06:17 OK port 18182 [full] height=16765 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:06:38 OK mesh aligned 18180:h16765/p2 18181:h16765/p2 18182:h16765/p2
+2026-08-21 06:11:44 OK port 18180 [full] height=16778 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:11:58 WARN OK port 18181 [full] height=16779 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 06:12:04 OK port 18182 [full] height=16779 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:12:20 OK mesh aligned 18180:h16779/p2 18181:h16779/p2 18182:h16779/p2
+2026-08-21 06:17:25 OK port 18180 [full] height=16791 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:17:31 OK port 18181 [full] height=16791 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:17:37 OK port 18182 [full] height=16791 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:17:58 OK mesh aligned 18180:h16791/p2 18181:h16791/p2 18182:h16791/p2
+2026-08-21 06:23:16 OK port 18180 [full] height=16802 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:23:22 OK port 18181 [full] height=16802 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:23:28 OK port 18182 [full] height=16802 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:23:49 OK mesh aligned 18180:h16802/p2 18181:h16802/p2 18182:h16803/p2
+2026-08-21 06:28:55 OK port 18180 [full] height=16809 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:29:07 OK port 18181 [full] height=16809 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:29:13 OK port 18182 [full] height=16810 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 06:29:30 OK mesh aligned 18180:h16810/p2 18181:h16810/p2 18182:h16810/p2
+2026-08-21 06:34:36 OK port 18180 [full] height=16823 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:34:42 OK port 18181 [full] height=16823 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:34:47 WARN OK port 18182 [full] height=16824 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 06:35:10 OK mesh aligned 18180:h16824/p2 18181:h16824/p2 18182:h16824/p2
+2026-08-21 06:40:24 OK port 18180 [full] height=16832 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:40:30 OK port 18181 [full] height=16832 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:40:36 WARN OK port 18182 [full] height=16833 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 06:40:57 OK mesh aligned 18180:h16833/p2 18181:h16833/p2 18182:h16833/p2
+2026-08-21 06:46:03 OK port 18180 [full] height=16842 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:46:09 OK port 18181 [full] height=16842 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:46:21 OK port 18182 [full] height=16843 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 06:46:37 OK mesh aligned 18180:h16844/p2 18181:h16844/p2 18182:h16844/p2
+2026-08-21 06:51:43 OK port 18180 [full] height=16852 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:51:56 OK port 18181 [full] height=16853 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:52:02 OK port 18182 [full] height=16853 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:52:24 OK mesh aligned 18180:h16854/p2 18181:h16853/p2 18182:h16854/p2
+2026-08-21 06:57:36 OK port 18180 [full] height=16867 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:57:42 OK port 18181 [full] height=16867 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 06:57:48 WARN OK port 18182 [full] height=16868 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 06:58:04 OK mesh aligned 18180:h16868/p2 18181:h16868/p2 18182:h16868/p2
+2026-08-21 07:03:10 OK port 18180 [full] height=16883 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:03:16 OK port 18181 [full] height=16883 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:03:30 WARN OK port 18182 [full] height=16883 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 07:03:47 OK mesh aligned 18180:h16884/p2 18181:h16884/p2 18182:h16884/p2
+2026-08-21 07:08:59 OK port 18180 [full] height=16895 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:09:12 OK port 18181 [full] height=16896 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:09:18 OK port 18182 [full] height=16896 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:09:36 OK mesh aligned 18180:h16896/p2 18181:h16896/p2 18182:h16896/p2
+2026-08-21 07:14:43 OK port 18180 [full] height=16910 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:14:49 OK port 18181 [full] height=16910 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:14:55 OK port 18182 [full] height=16911 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 07:15:15 OK mesh aligned 18180:h16911/p2 18181:h16911/p2 18182:h16911/p2
+2026-08-21 07:20:26 OK port 18180 [full] height=16923 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 07:20:33 OK port 18181 [full] height=16923 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:20:39 OK port 18182 [full] height=16923 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:21:01 OK mesh aligned 18180:h16923/p2 18181:h16923/p2 18182:h16923/p2
+2026-08-21 07:26:08 WARN OK port 18180 [full] height=16933 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 07:26:23 OK port 18181 [full] height=16933 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:26:29 OK port 18182 [full] height=16933 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:26:47 OK mesh aligned 18180:h16934/p2 18181:h16934/p2 18182:h16934/p2
+2026-08-21 07:31:53 OK port 18180 [full] height=16945 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:31:59 OK port 18181 [full] height=16945 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:32:16 OK port 18182 [full] height=16946 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 07:32:36 OK mesh aligned 18180:h16946/p2 18181:h16946/p2 18182:h16946/p2
+2026-08-21 07:37:48 OK port 18180 [full] height=16962 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 07:37:54 OK port 18181 [full] height=16962 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:38:01 OK port 18182 [full] height=16963 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 07:38:24 OK mesh aligned 18180:h16963/p2 18181:h16962/p2 18182:h16963/p2
+2026-08-21 07:43:37 OK port 18180 [full] height=16973 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:43:46 OK port 18181 [full] height=16973 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:43:52 OK port 18182 [full] height=16973 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:44:11 OK mesh aligned 18180:h16973/p2 18181:h16974/p2 18182:h16974/p2
+2026-08-21 07:49:17 OK port 18180 [full] height=16988 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:49:24 OK port 18181 [full] height=16988 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:49:37 OK port 18182 [full] height=16989 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:50:00 OK mesh aligned 18180:h16989/p2 18181:h16989/p2 18182:h16989/p2
+2026-08-21 07:55:12 OK port 18180 [full] height=16998 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:55:25 OK port 18181 [full] height=16999 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:55:44 OK port 18182 [full] height=16999 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 07:56:05 OK mesh aligned 18180:h16999/p2 18181:h17000/p2 18182:h17000/p2
+2026-08-21 08:01:17 OK port 18180 [full] height=17013 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:01:30 OK port 18181 [full] height=17014 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:01:41 OK port 18182 [full] height=17014 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:02:05 OK mesh aligned 18180:h17014/p2 18181:h17014/p2 18182:h17014/p2
+2026-08-21 08:07:17 OK port 18180 [full] height=17029 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:07:24 OK port 18181 [full] height=17029 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:07:30 WARN OK port 18182 [full] height=17030 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 08:07:49 OK mesh aligned 18180:h17030/p2 18181:h17030/p2 18182:h17030/p2
+2026-08-21 08:12:56 OK port 18180 [full] height=17045 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:13:08 OK port 18181 [full] height=17045 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:13:21 OK port 18182 [full] height=17045 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:13:44 OK mesh aligned 18180:h17045/p2 18181:h17045/p2 18182:h17045/p2
+2026-08-21 08:18:50 OK port 18180 [full] height=17060 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:18:57 OK port 18181 [full] height=17060 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:19:16 OK port 18182 [full] height=17060 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:19:34 OK mesh aligned 18180:h17061/p2 18181:h17061/p2 18182:h17061/p2
+2026-08-21 08:24:46 OK port 18180 [full] height=17071 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:24:53 OK port 18181 [full] height=17071 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:24:59 WARN OK port 18182 [full] height=17072 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 08:25:18 OK mesh aligned 18180:h17072/p2 18181:h17072/p2 18182:h17072/p2
+2026-08-21 08:30:25 WARN OK port 18180 [full] height=17085 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 08:30:38 OK port 18181 [full] height=17085 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:30:47 OK port 18182 [full] height=17085 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:31:11 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 08:36:18 OK port 18180 [full] height=17099 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:36:24 OK port 18181 [full] height=17099 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:36:44 OK port 18182 [full] height=17099 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:36:56 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 08:42:03 WARN OK port 18180 [full] height=17112 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 08:42:10 OK port 18181 [full] height=17112 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:42:24 OK port 18182 [full] height=17112 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:42:42 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 08:47:53 OK port 18180 [full] height=17124 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:48:07 WARN OK port 18181 [full] height=17124 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 08:48:14 OK port 18182 [full] height=17125 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 08:48:32 OK mesh aligned 18180:h17125/p2 18181:h17125/p2 18182:h17125/p2
+2026-08-21 08:53:39 OK port 18180 [full] height=17139 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:53:46 OK port 18181 [full] height=17139 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:53:52 WARN OK port 18182 [full] height=17140 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 08:54:12 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 08:59:19 OK port 18180 [full] height=17150 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 08:59:38 WARN OK port 18181 [full] height=17150 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 08:59:45 OK port 18182 [full] height=17150 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:00:10 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 09:05:16 OK port 18180 [full] height=17165 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:05:30 OK port 18181 [full] height=17165 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:05:43 OK port 18182 [full] height=17166 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:06:02 OK mesh aligned 18180:h17166/p2 18181:h17166/p2 18182:h17166/p2
+2026-08-21 09:11:08 WARN OK port 18180 [full] height=17179 peers=2 p2p=aligned aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-08-21 09:11:15 OK port 18181 [full] height=17179 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:11:22 OK port 18182 [full] height=17179 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:11:34 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 09:16:41 OK port 18180 [full] height=17196 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:16:48 OK port 18181 [full] height=17196 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:16:55 OK port 18182 [full] height=17196 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:17:07 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 09:22:13 OK port 18180 [full] height=17208 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:22:20 OK port 18181 [full] height=17208 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:22:28 OK port 18182 [full] height=17209 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 09:22:40 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 09:27:47 WARN OK port 18180 [full] height=17226 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 09:27:54 OK port 18181 [full] height=17226 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:28:07 OK port 18182 [full] height=17227 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 09:28:29 OK mesh aligned 18180:h17227/p2 18181:h17227/p2 18182:h17227/p2
+2026-08-21 09:33:35 WARN OK port 18180 [full] height=17242 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 09:33:44 OK port 18181 [full] height=17242 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:33:58 OK port 18182 [full] height=17243 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:34:21 OK mesh aligned 18180:h17243/p2 18181:h17243/p2 18182:h17243/p2
+2026-08-21 09:39:29 OK port 18180 [full] height=17257 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:39:44 WARN OK port 18181 [full] height=17257 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 09:39:51 OK port 18182 [full] height=17258 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 09:40:16 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 09:45:24 OK port 18180 [full] height=17274 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:45:32 OK port 18181 [full] height=17274 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:45:39 OK port 18182 [full] height=17274 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:46:02 OK mesh aligned 18180:h17274/p2 18181:h17274/p2 18182:h17274/p2
+2026-08-21 09:51:16 OK port 18180 [full] height=17281 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:51:36 OK port 18181 [full] height=17282 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 09:51:43 OK port 18182 [full] height=17283 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:52:03 OK mesh aligned 18180:h17283/p2 18181:h17283/p2 18182:h17283/p2
+2026-08-21 09:57:10 OK port 18180 [full] height=17296 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:57:24 OK port 18181 [full] height=17296 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:57:38 OK port 18182 [full] height=17297 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 09:58:03 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 10:03:11 OK port 18180 [full] height=17311 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:03:18 OK port 18181 [full] height=17311 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:03:33 WARN OK port 18182 [full] height=17312 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 10:03:45 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 10:08:52 WARN OK port 18180 [full] height=17330 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 10:09:10 WARN OK port 18181 [full] height=17330 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 10:09:17 OK port 18182 [full] height=17330 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:09:43 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 10:14:54 OK port 18180 [full] height=17346 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:15:01 OK port 18181 [full] height=17346 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:15:17 OK port 18182 [full] height=17346 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:15:29 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 10:20:36 OK port 18180 [full] height=17358 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:20:57 OK port 18181 [full] height=17359 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:21:04 OK port 18182 [full] height=17359 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:21:29 OK mesh aligned 18180:h17360/p2 18181:h17359/p2 18182:h17360/p2
+2026-08-21 10:26:40 OK port 18180 [full] height=17372 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:26:57 WARN OK port 18181 [full] height=17373 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 10:27:06 OK port 18182 [full] height=17373 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:27:18 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 10:32:26 WARN OK port 18180 [full] height=17387 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 10:32:37 OK port 18181 [full] height=17387 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 10:32:44 OK port 18182 [full] height=17387 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:32:56 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 10:38:11 WARN OK port 18180 [full] height=17399 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 10:38:18 OK port 18181 [full] height=17399 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:38:32 OK port 18182 [full] height=17399 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:38:58 OK mesh aligned 18180:h17400/p2 18181:h17400/p2 18182:h17401/p2
+2026-08-21 10:44:10 OK port 18180 [full] height=17414 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:44:24 OK port 18181 [full] height=17414 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:44:32 OK port 18182 [full] height=17415 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 10:44:58 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 10:50:05 OK port 18180 [full] height=17430 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:50:20 OK port 18181 [full] height=17430 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:50:34 OK port 18182 [full] height=17431 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:50:55 OK mesh aligned 18180:h17431/p2 18181:h17431/p2 18182:h17431/p2
+2026-08-21 10:56:10 OK port 18180 [full] height=17444 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:56:17 WARN OK port 18181 [full] height=17445 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 10:56:28 OK port 18182 [full] height=17445 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 10:56:47 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 11:02:02 OK port 18180 [full] height=17458 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:02:10 OK port 18181 [full] height=17458 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:02:24 OK port 18182 [full] height=17459 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 11:02:45 OK mesh aligned 18180:h17459/p2 18181:h17459/p2 18182:h17459/p2
+2026-08-21 11:08:00 OK port 18180 [full] height=17472 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:08:14 OK port 18181 [full] height=17472 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:08:22 OK port 18182 [full] height=17472 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:08:47 OK mesh aligned 18180:h17472/p2 18181:h17472/p2 18182:h17473/p2
+2026-08-21 11:13:55 OK port 18180 [full] height=17482 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:14:14 WARN OK port 18181 [full] height=17482 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 11:14:24 OK port 18182 [full] height=17483 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 11:14:50 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 11:20:05 OK port 18180 [full] height=17492 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:20:12 OK port 18181 [full] height=17492 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:20:27 OK port 18182 [full] height=17493 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 11:20:48 OK mesh aligned 18180:h17494/p2 18181:h17494/p2 18182:h17494/p2
+2026-08-21 11:25:56 WARN OK port 18180 [full] height=17506 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 11:26:07 OK port 18181 [full] height=17506 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:26:16 OK port 18182 [full] height=17506 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:26:42 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 11:31:57 OK port 18180 [full] height=17523 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:32:05 OK port 18181 [full] height=17523 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:32:20 OK port 18182 [full] height=17524 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 11:32:32 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 11:37:40 OK port 18180 [full] height=17535 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:37:56 OK port 18181 [full] height=17535 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:38:03 OK port 18182 [full] height=17536 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 11:38:15 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 11:43:31 WARN OK port 18180 [full] height=17549 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 11:43:39 OK port 18181 [full] height=17549 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:43:47 OK port 18182 [full] height=17549 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:43:59 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 11:49:08 OK port 18180 [full] height=17554 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:49:23 OK port 18181 [full] height=17554 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:49:31 OK port 18182 [full] height=17555 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:49:43 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 11:54:54 OK port 18180 [full] height=17570 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:55:09 OK port 18181 [full] height=17570 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:55:31 OK port 18182 [full] height=17571 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 11:55:54 OK mesh aligned 18180:h17571/p2 18181:h17571/p2 18182:h17572/p2
+2026-08-21 12:01:02 OK port 18180 [full] height=17585 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:01:16 OK port 18181 [full] height=17586 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:01:24 OK port 18182 [full] height=17586 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:01:50 OK mesh aligned 18180:h17586/p2 18181:h17586/p2 18182:h17586/p2
+2026-08-21 12:07:00 OK port 18180 [full] height=17594 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:07:19 WARN OK port 18181 [full] height=17594 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 12:07:27 OK port 18182 [full] height=17595 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:07:39 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 12:12:56 WARN OK port 18180 [full] height=17609 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 12:13:04 OK port 18181 [full] height=17609 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:13:12 OK port 18182 [full] height=17609 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:13:24 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 12:18:35 OK port 18180 [full] height=17616 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:18:50 OK port 18181 [full] height=17616 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:18:58 OK port 18182 [full] height=17617 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:19:10 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 12:24:21 OK port 18180 [full] height=17633 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:24:36 OK port 18181 [full] height=17633 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:24:58 OK port 18182 [full] height=17634 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:25:21 OK mesh aligned 18180:h17634/p2 18181:h17634/p2 18182:h17635/p2
+2026-08-21 12:30:46 OK port 18180 [full] height=17651 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 12:30:54 OK port 18181 [full] height=17651 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:31:19 OK port 18182 [full] height=17651 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:31:46 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 12:37:01 OK port 18180 [full] height=17665 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:37:09 OK port 18181 [full] height=17665 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:37:28 WARN OK port 18182 [full] height=17666 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 12:37:40 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 12:43:00 OK port 18180 [full] height=17679 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:43:08 OK port 18181 [full] height=17679 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:43:16 OK port 18182 [full] height=17679 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:43:28 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 12:48:47 OK port 18180 [full] height=17695 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:48:55 OK port 18181 [full] height=17695 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:49:03 OK port 18182 [full] height=17696 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 12:49:23 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 12:54:31 OK port 18180 [full] height=17702 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:54:39 OK port 18181 [full] height=17702 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 12:54:48 OK port 18182 [full] height=17703 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 12:55:00 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 13:00:25 OK port 18180 [full] height=17709 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:00:40 OK port 18181 [full] height=17710 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:00:54 OK port 18182 [full] height=17710 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:01:18 OK mesh aligned 18180:h17710/p2 18181:h17710/p2 18182:h17710/p2
+2026-08-21 13:06:26 WARN OK port 18180 [full] height=17722 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 13:06:39 OK port 18181 [full] height=17722 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:06:48 OK port 18182 [full] height=17722 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:07:15 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 13:12:24 OK port 18180 [full] height=17729 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:12:32 OK port 18181 [full] height=17729 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:12:41 OK port 18182 [full] height=17730 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 13:13:01 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 13:18:13 OK port 18180 [full] height=17739 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:18:29 OK port 18181 [full] height=17739 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:18:54 OK port 18182 [full] height=17740 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:19:22 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 13:24:47 OK port 18180 [full] height=17755 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:24:56 OK port 18181 [full] height=17755 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:25:21 OK port 18182 [full] height=17755 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 13:25:41 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 13:31:14 WARN OK port 18180 [full] height=17773 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 13:31:40 OK port 18181 [full] height=17773 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:31:48 OK port 18182 [full] height=17773 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:32:08 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 13:37:34 OK port 18180 [full] height=17787 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:37:42 OK port 18181 [full] height=17787 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:38:08 OK port 18182 [full] height=17787 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:38:36 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 13:44:02 OK port 18180 [full] height=17801 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:44:34 OK port 18181 [full] height=17801 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:44:42 OK port 18182 [full] height=17801 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:45:02 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 13:50:29 OK port 18180 [full] height=17817 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:50:46 WARN OK port 18181 [full] height=17818 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 13:51:01 OK port 18182 [full] height=17818 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 13:51:21 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 13:56:30 OK port 18180 [full] height=17828 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:56:39 OK port 18181 [full] height=17829 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 13:56:48 OK port 18182 [full] height=17829 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 13:57:08 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 14:02:34 OK port 18180 [full] height=17841 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 14:02:56 WARN OK port 18181 [full] height=17841 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 14:03:05 OK port 18182 [full] height=17841 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:03:33 OK mesh aligned 18180:h17841/p2 18181:h17841/p2 18182:h17841/p2
+2026-08-21 14:08:59 OK port 18180 [full] height=17854 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:09:17 WARN OK port 18181 [full] height=17855 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 14:09:28 OK port 18182 [full] height=17855 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:09:56 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 14:15:22 OK port 18180 [full] height=17866 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:15:55 OK port 18181 [full] height=17866 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 14:16:04 OK port 18182 [full] height=17867 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:16:24 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 14:21:50 OK port 18180 [full] height=17882 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:22:10 WARN OK port 18181 [full] height=17883 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 14:22:19 OK port 18182 [full] height=17883 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:22:48 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 14:28:14 OK port 18180 [full] height=17897 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:28:32 WARN OK port 18181 [full] height=17897 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 14:28:46 OK port 18182 [full] height=17898 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:29:06 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 14:34:28 WARN OK port 18180 [full] height=17907 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 14:34:37 OK port 18181 [full] height=17907 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:34:46 OK port 18182 [full] height=17907 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:35:17 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 14:40:26 OK port 18180 [full] height=17919 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:40:35 OK port 18181 [full] height=17919 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:40:51 WARN OK port 18182 [full] height=17919 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 14:41:17 OK mesh aligned 18180:h17919/p2 18181:h17919/p2 18182:h17919/p2
+2026-08-21 14:46:26 OK port 18180 [full] height=17929 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:46:52 OK port 18181 [full] height=17929 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:47:08 OK port 18182 [full] height=17930 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:47:20 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 14:52:46 OK port 18180 [full] height=17944 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:52:55 OK port 18181 [full] height=17944 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:53:14 WARN OK port 18182 [full] height=17945 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 14:53:26 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 14:58:59 OK port 18180 [full] height=17958 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:59:08 OK port 18181 [full] height=17958 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:59:17 OK port 18182 [full] height=17958 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 14:59:29 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 15:04:55 OK port 18180 [full] height=17967 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 15:05:04 OK port 18181 [full] height=17967 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 15:05:27 WARN OK port 18182 [full] height=17968 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 15:05:39 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 15:11:09 OK port 18180 [full] height=17980 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 15:11:18 OK port 18181 [full] height=17980 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 15:11:27 OK port 18182 [full] height=17980 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 15:11:39 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 15:17:06 OK port 18180 [full] height=17985 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 15:17:22 OK port 18181 [full] height=17985 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 15:17:31 OK port 18182 [full] height=17987 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 15:17:43 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 15:23:09 OK port 18180 [full] height=17995 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 15:23:36 OK port 18181 [full] height=17995 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 15:23:48 OK port 18182 [full] height=17996 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 15:24:15 OK mesh aligned 18180:h17996/p2 18181:h17996/p2 18182:h17996/p2
+2026-08-21 15:29:25 WARN OK port 18180 [full] height=18009 peers=2 p2p=aligned aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-08-21 15:29:40 WARN OK port 18181 [full] height=18009 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 15:29:50 OK port 18182 [full] height=18010 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 15:30:10 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 15:35:37 OK port 18180 [full] height=18025 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 15:35:55 WARN OK port 18181 [full] height=18025 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 15:36:04 OK port 18182 [full] height=18026 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 15:36:16 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 15:41:50 OK port 18180 [full] height=18031 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 15:41:59 OK port 18181 [full] height=18031 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 15:42:08 OK port 18182 [full] height=18031 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 15:42:20 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 15:47:47 OK port 18180 [full] height=18043 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 15:48:03 OK port 18181 [full] height=18044 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 15:48:23 OK port 18182 [full] height=18044 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 15:48:55 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 15:54:11 WARN OK port 18180 [full] height=18055 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 15:54:24 OK port 18181 [full] height=18055 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 15:54:33 OK port 18182 [full] height=18055 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 15:55:00 OK mesh aligned 18180:h18055/p2 18181:h18055/p2 18182:h18055/p2
+2026-08-21 16:00:28 OK port 18180 [full] height=18067 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:00:55 OK port 18181 [full] height=18068 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 16:01:18 WARN OK port 18182 [full] height=18069 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 16:01:39 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 16:07:13 OK port 18180 [full] height=18085 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:07:22 OK port 18181 [full] height=18085 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:07:31 WARN OK port 18182 [full] height=18086 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 16:07:43 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 16:13:11 OK port 18180 [full] height=18098 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:13:38 OK port 18181 [full] height=18098 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:13:49 OK port 18182 [full] height=18099 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 16:14:19 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 16:19:29 OK port 18180 [full] height=18115 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:19:40 OK port 18181 [full] height=18115 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:19:57 OK port 18182 [full] height=18115 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:20:25 OK mesh aligned 18180:h18117/p2 18181:h18117/p2 18182:h18117/p2
+2026-08-21 16:25:44 OK port 18180 [full] height=18133 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:25:54 OK port 18181 [full] height=18133 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:26:23 OK port 18182 [full] height=18133 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:26:44 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 16:31:54 OK port 18180 [full] height=18142 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:32:23 OK port 18181 [full] height=18142 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:32:32 OK port 18182 [full] height=18143 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 16:33:02 OK mesh aligned 18180:h18143/p2 18181:h18143/p2 18182:h18143/p2
+2026-08-21 16:38:18 OK port 18180 [full] height=18143 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:38:34 OK port 18181 [full] height=18143 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:38:44 WARN OK port 18182 [full] height=18145 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 16:38:56 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 16:44:06 WARN OK port 18180 [full] height=18157 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 16:44:17 OK port 18181 [full] height=18157 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:44:34 OK port 18182 [full] height=18157 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:44:55 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 16:50:23 OK port 18180 [full] height=18163 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:50:39 OK port 18181 [full] height=18163 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:50:53 OK port 18182 [full] height=18164 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 16:51:05 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 16:56:41 OK port 18180 [full] height=18175 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 16:57:02 OK port 18181 [full] height=18176 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 16:57:21 WARN OK port 18182 [full] height=18176 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 16:57:43 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 17:03:01 WARN OK port 18180 [full] height=18182 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 17:03:11 WARN OK port 18181 [full] height=18183 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 17:03:24 OK port 18182 [full] height=18183 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:03:57 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 17:09:08 OK port 18180 [full] height=18195 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:09:25 OK port 18181 [full] height=18195 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:09:38 OK port 18182 [full] height=18197 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:09:50 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 17:14:59 OK port 18180 [full] height=18207 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:15:17 WARN OK port 18181 [full] height=18207 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 17:15:33 OK port 18182 [full] height=18209 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:15:45 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 17:21:06 WARN OK port 18180 [full] height=18223 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 17:21:16 OK port 18181 [full] height=18223 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:21:26 OK port 18182 [full] height=18223 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:21:55 OK mesh aligned 18180:h18223/p2 18181:h18223/p2 18182:h18223/p2
+2026-08-21 17:27:18 OK port 18180 [full] height=18237 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:27:36 OK port 18181 [full] height=18237 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:27:55 OK port 18182 [full] height=18237 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:28:17 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 17:33:27 OK port 18180 [full] height=18250 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:33:45 OK port 18181 [full] height=18250 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:34:02 OK port 18182 [full] height=18251 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:34:24 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 17:39:53 OK port 18180 [full] height=18260 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:40:10 OK port 18181 [full] height=18260 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:40:40 OK port 18182 [full] height=18262 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:41:11 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 17:46:39 WARN OK port 18180 [full] height=18266 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 17:47:04 WARN OK port 18181 [full] height=18266 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 17:47:40 OK port 18182 [full] height=18268 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 17:47:52 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 17:53:02 OK port 18180 [full] height=18278 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:53:19 OK port 18181 [full] height=18278 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:53:55 OK port 18182 [full] height=18279 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:54:17 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 17:59:38 OK port 18180 [full] height=18291 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 17:59:49 OK port 18181 [full] height=18291 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 18:00:06 OK port 18182 [full] height=18292 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 18:00:18 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 18:05:48 OK port 18180 [full] height=18295 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 18:06:05 OK port 18181 [full] height=18295 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 18:06:42 OK port 18182 [full] height=18297 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 18:07:04 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 18:12:14 OK port 18180 [full] height=18304 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 18:12:43 OK port 18181 [full] height=18304 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 18:12:54 OK port 18182 [full] height=18305 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 18:13:06 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 18:18:16 OK port 18180 [full] height=18313 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 18:18:39 WARN OK port 18181 [full] height=18314 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 18:18:49 OK port 18182 [full] height=18314 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 18:19:11 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 18:24:40 OK port 18180 [full] height=18324 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 18:24:57 OK port 18181 [full] height=18325 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 18:25:23 OK port 18182 [full] height=18325 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 18:25:54 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 18:31:05 OK port 18180 [full] height=18333 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 18:31:42 OK port 18181 [full] height=18334 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 18:32:02 WARN OK port 18182 [full] height=18334 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 18:32:36 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 18:37:46 OK port 18180 [full] height=18343 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 18:38:02 OK port 18181 [full] height=18343 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 18:38:19 OK port 18182 [full] height=18344 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 18:38:31 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 18:43:42 OK port 18180 [full] height=18351 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 18:43:59 WARN OK port 18181 [full] height=18351 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 18:44:17 WARN OK port 18182 [full] height=18353 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 18:44:48 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 18:50:12 OK port 18180 [full] height=18362 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 18:50:34 OK port 18181 [full] height=18362 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 18:50:54 WARN OK port 18182 [full] height=18363 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 18:51:16 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 18:56:33 OK port 18180 [full] height=18367 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 18:56:51 OK port 18181 [full] height=18367 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 18:57:03 OK port 18182 [full] height=18368 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 18:57:25 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 19:03:02 OK port 18180 [full] height=18368 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:03:12 WARN OK port 18181 [full] height=18369 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-08-21 19:03:23 OK port 18182 [full] height=18369 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:03:35 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 19:09:00 WARN OK port 18180 [full] height=18374 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 19:09:11 OK port 18181 [full] height=18374 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 19:09:28 OK port 18182 [full] height=18375 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 19:09:40 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 19:15:02 OK port 18180 [full] height=18385 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 19:15:12 OK port 18181 [full] height=18385 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:15:28 OK port 18182 [full] height=18385 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:15:40 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 19:20:57 OK port 18180 [full] height=18393 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:21:08 OK port 18181 [full] height=18393 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:21:25 OK port 18182 [full] height=18393 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:21:55 OK mesh aligned 18180:h18393/p2 18181:h18393/p2 18182:h18394/p2
+2026-08-21 19:27:27 OK port 18180 [full] height=18401 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:27:37 WARN OK port 18181 [full] height=18402 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 19:27:48 OK port 18182 [full] height=18402 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:28:00 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 19:33:10 WARN OK port 18180 [full] height=18412 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 19:33:47 OK port 18181 [full] height=18412 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:34:05 OK port 18182 [full] height=18413 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 19:34:17 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 19:39:37 WARN OK port 18180 [full] height=18417 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 19:39:50 OK port 18181 [full] height=18417 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:40:01 OK port 18182 [full] height=18417 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:40:13 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 19:45:23 OK port 18180 [full] height=18417 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:45:50 WARN OK port 18181 [full] height=18417 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 19:46:00 OK port 18182 [full] height=18417 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:46:22 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 19:51:54 OK port 18180 [full] height=18417 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:52:05 OK port 18181 [full] height=18417 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:52:15 OK port 18182 [full] height=18417 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:52:27 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 19:57:38 OK port 18180 [full] height=18433 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:58:10 OK port 18181 [full] height=18433 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:58:20 OK port 18182 [full] height=18433 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 19:58:32 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 20:03:43 OK port 18180 [full] height=18435 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 20:04:05 WARN OK port 18181 [full] height=18436 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 20:04:22 OK port 18182 [full] height=18437 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 20:04:34 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 20:09:45 OK port 18180 [full] height=18441 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 20:10:10 WARN OK port 18181 [full] height=18442 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 20:10:37 WARN OK port 18182 [full] height=18442 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 20:10:49 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 20:15:59 OK port 18180 [full] height=18455 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 20:16:30 OK port 18181 [full] height=18456 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 20:17:07 OK port 18182 [full] height=18456 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 20:17:39 OK mesh aligned 18180:h18457/p2 18181:h18457/p2 18182:h18457/p2
+2026-08-21 20:23:11 OK port 18180 [full] height=18466 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 20:23:22 OK port 18181 [full] height=18467 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 20:23:54 OK port 18182 [full] height=18467 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 20:24:26 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 20:29:37 OK port 18180 [full] height=18473 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 20:30:09 OK port 18181 [full] height=18473 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 20:30:20 OK port 18182 [full] height=18474 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 20:30:32 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 20:35:43 WARN OK port 18180 [full] height=18476 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 20:36:01 WARN OK port 18181 [full] height=18476 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 20:36:13 OK port 18182 [full] height=18476 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 20:36:46 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 20:42:18 OK port 18180 [full] height=18482 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 20:42:35 OK port 18181 [full] height=18483 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 20:42:57 WARN OK port 18182 [full] height=18483 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 20:43:31 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 20:48:42 OK port 18180 [full] height=18491 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 20:49:13 OK port 18181 [full] height=18492 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 20:49:24 OK port 18182 [full] height=18492 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 20:49:46 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 20:55:13 WARN OK port 18180 [full] height=18500 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 20:55:28 OK port 18181 [full] height=18501 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 20:56:06 OK port 18182 [full] height=18501 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 20:56:39 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 21:02:19 OK port 18180 [full] height=18517 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:02:36 OK port 18181 [full] height=18517 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:03:21 OK port 18182 [full] height=18520 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:03:33 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 21:08:44 OK port 18180 [full] height=18522 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:09:16 OK port 18181 [full] height=18522 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:09:34 OK port 18182 [full] height=18522 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:09:46 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 21:14:57 OK port 18180 [full] height=18535 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:15:08 OK port 18181 [full] height=18535 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:15:53 OK port 18182 [full] height=18535 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 21:16:05 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 21:21:16 OK port 18180 [full] height=18539 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:21:48 OK port 18181 [full] height=18539 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:21:59 OK port 18182 [full] height=18540 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 21:22:11 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 21:27:22 OK port 18180 [full] height=18541 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:27:39 OK port 18181 [full] height=18541 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:28:00 OK port 18182 [full] height=18542 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:28:33 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 21:34:05 OK port 18180 [full] height=18545 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:34:17 WARN OK port 18181 [full] height=18546 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 21:34:35 OK port 18182 [full] height=18546 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 21:34:47 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 21:39:57 OK port 18180 [full] height=18556 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:40:18 OK port 18181 [full] height=18556 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:40:36 OK port 18182 [full] height=18557 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:40:59 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 21:46:23 WARN OK port 18180 [full] height=18564 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 21:46:36 OK port 18181 [full] height=18565 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 21:47:15 OK port 18182 [full] height=18565 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:47:48 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 21:53:34 OK port 18180 [full] height=18579 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 21:53:57 WARN OK port 18181 [full] height=18579 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 21:54:15 WARN OK port 18182 [full] height=18581 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 21:54:37 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 21:59:48 OK port 18180 [full] height=18591 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 22:00:11 WARN OK port 18181 [full] height=18591 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-08-21 22:00:31 OK port 18182 [full] height=18592 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 22:00:43 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 22:05:54 OK port 18180 [full] height=18605 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 22:06:15 WARN OK port 18181 [full] height=18605 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 22:07:02 OK port 18182 [full] height=18605 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 22:07:35 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 22:12:46 OK port 18180 [full] height=18615 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 22:12:58 OK port 18181 [full] height=18615 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 22:13:50 OK port 18182 [full] height=18615 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 22:14:02 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 22:19:30 WARN OK port 18180 [full] height=18629 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-08-21 22:19:41 OK port 18181 [full] height=18629 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 22:20:00 OK port 18182 [full] height=18629 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 22:20:12 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 22:25:23 WARN OK port 18180 [full] height=18643 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 22:25:43 OK port 18181 [full] height=18643 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 22:26:01 OK port 18182 [full] height=18644 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 22:26:24 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 22:31:35 OK port 18180 [full] height=18655 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 22:32:21 WARN OK port 18181 [full] height=18656 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 22:32:45 WARN OK port 18182 [full] height=18656 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 22:33:19 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 22:38:30 OK port 18180 [full] height=18659 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 22:38:52 WARN OK port 18181 [full] height=18660 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 22:39:07 OK port 18182 [full] height=18660 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 22:39:19 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 22:44:38 OK port 18180 [full] height=18662 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 22:45:04 WARN OK port 18181 [full] height=18662 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-08-21 22:45:44 OK port 18182 [full] height=18662 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 22:46:17 OK mesh aligned 18180:h18663/p2 18181:h18664/p2 18182:h18664/p2
+2026-08-21 22:51:29 OK port 18180 [full] height=18673 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 22:51:56 WARN OK port 18181 [full] height=18673 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 22:52:07 OK port 18182 [full] height=18674 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 22:52:30 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-21 22:57:42 OK port 18180 [full] height=18677 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 22:58:08 WARN OK port 18181 [full] height=18677 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 22:58:26 OK port 18182 [full] height=18679 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 22:58:38 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 23:03:50 OK port 18180 [full] height=18685 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 23:04:01 WARN OK port 18181 [full] height=18686 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 23:04:21 OK port 18182 [full] height=18686 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 23:04:55 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 23:10:07 OK port 18180 [full] height=18692 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 23:10:18 OK port 18181 [full] height=18692 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 23:11:10 WARN OK port 18182 [full] height=18692 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 23:11:22 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 23:16:34 WARN OK port 18180 [full] height=18697 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 23:16:57 OK port 18181 [full] height=18697 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 23:17:19 OK port 18182 [full] height=18698 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 23:17:31 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 23:22:42 WARN OK port 18180 [full] height=18710 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 23:23:28 OK port 18181 [full] height=18710 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 23:23:45 OK port 18182 [full] height=18710 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 23:23:57 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 23:29:08 WARN OK port 18180 [full] height=18717 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 23:29:54 OK port 18181 [full] height=18717 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 23:30:40 OK port 18182 [full] height=18717 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 23:30:52 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-21 23:36:04 OK port 18180 [full] height=18718 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 23:36:22 OK port 18181 [full] height=18718 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 23:37:15 OK port 18182 [full] height=18720 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 23:37:48 OK mesh aligned 18180:h18721/p2 18181:h18721/p2 18182:h18721/p2
+2026-08-21 23:43:05 OK port 18180 [full] height=18731 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 23:43:23 OK port 18181 [full] height=18732 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 23:43:40 OK port 18182 [full] height=18733 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 23:44:14 OK mesh aligned 18180:h18733/p2 18181:h18733/p2 18182:h18734/p2
+2026-08-21 23:49:59 OK port 18180 [full] height=18744 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 23:50:11 OK port 18181 [full] height=18744 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 23:50:32 WARN OK port 18182 [full] height=18744 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-21 23:51:06 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-21 23:56:18 OK port 18180 [full] height=18751 peers=2 p2p=aligned aligned=True failed=
+2026-08-21 23:57:04 OK port 18181 [full] height=18751 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-21 23:57:31 WARN OK port 18182 [full] height=18752 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-21 23:58:05 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-22 00:03:17 OK port 18180 [full] height=18753 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 00:03:43 WARN OK port 18181 [full] height=18754 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 00:03:57 OK port 18182 [full] height=18754 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 00:04:09 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 00:09:28 OK port 18180 [full] height=18763 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 00:09:53 WARN OK port 18181 [full] height=18764 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-22 00:10:40 OK port 18182 [full] height=18764 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 00:11:15 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-22 00:16:26 OK port 18180 [full] height=18772 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 00:17:13 WARN OK port 18181 [full] height=18773 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 00:17:38 WARN OK port 18182 [full] height=18773 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 00:18:13 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-22 00:23:35 WARN OK port 18180 [full] height=18787 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 00:24:22 OK port 18181 [full] height=18787 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 00:25:08 OK port 18182 [full] height=18788 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 00:25:43 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-22 00:30:55 OK port 18180 [full] height=18797 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 00:31:41 WARN OK port 18181 [full] height=18798 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 00:31:53 OK port 18182 [full] height=18798 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 00:32:17 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-22 00:37:38 OK port 18180 [full] height=18809 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 00:38:26 OK port 18181 [full] height=18809 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 00:38:38 OK port 18182 [full] height=18810 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 00:38:50 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 00:44:09 OK port 18180 [full] height=18813 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 00:44:21 OK port 18181 [full] height=18813 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 00:45:08 OK port 18182 [full] height=18813 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 00:45:32 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-22 00:50:44 WARN OK port 18180 [full] height=18820 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 00:51:08 WARN OK port 18181 [full] height=18820 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 00:51:56 OK port 18182 [full] height=18821 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 00:52:31 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-22 00:57:43 OK port 18180 [full] height=18831 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 00:58:29 OK port 18181 [full] height=18831 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 00:58:56 WARN OK port 18182 [full] height=18832 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-08-22 00:59:20 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-22 01:04:31 WARN OK port 18180 [full] height=18846 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 01:05:18 OK port 18181 [full] height=18846 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 01:05:37 OK port 18182 [full] height=18847 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 01:06:01 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-22 01:11:48 OK port 18180 [full] height=18855 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 01:12:07 OK port 18181 [full] height=18855 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 01:12:26 OK port 18182 [full] height=18857 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 01:12:38 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 01:17:51 OK port 18180 [full] height=18863 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 01:18:15 OK port 18181 [full] height=18863 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 01:18:30 OK port 18182 [full] height=18863 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 01:18:54 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-22 01:24:06 OK port 18180 [full] height=18872 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 01:24:33 WARN OK port 18181 [full] height=18872 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 01:25:02 OK port 18182 [full] height=18873 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 01:25:14 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 01:30:27 OK port 18180 [full] height=18888 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 01:31:15 OK port 18181 [full] height=18888 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 01:31:34 OK port 18182 [full] height=18888 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 01:31:46 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 01:36:58 OK port 18180 [full] height=18895 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 01:37:17 OK port 18181 [full] height=18895 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 01:37:41 OK port 18182 [full] height=18896 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 01:38:05 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-22 01:43:18 OK port 18180 [full] height=18900 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 01:43:37 WARN OK port 18181 [full] height=18900 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 01:44:31 OK port 18182 [full] height=18901 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 01:45:06 WARN mesh probe: port 18182 status: Время ожидания завершения операции истекло.
+2026-08-22 01:50:19 OK port 18180 [full] height=18908 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 01:50:48 WARN OK port 18181 [full] height=18908 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 01:51:11 OK port 18182 [full] height=18910 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 01:51:23 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 01:56:44 OK port 18180 [full] height=18920 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 01:57:33 OK port 18181 [full] height=18920 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 01:57:45 OK port 18182 [full] height=18921 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 01:57:57 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 02:03:13 WARN OK port 18180 [full] height=18926 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-22 02:03:32 WARN OK port 18181 [full] height=18926 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 02:03:50 WARN OK port 18182 [full] height=18927 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-22 02:04:02 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 02:09:21 WARN OK port 18180 [full] height=18938 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 02:09:41 OK port 18181 [full] height=18938 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 02:09:53 OK port 18182 [full] height=18938 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 02:10:05 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 02:15:54 OK port 18180 [full] height=18947 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 02:16:13 OK port 18181 [full] height=18947 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 02:16:48 OK port 18182 [full] height=18949 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 02:17:12 WARN mesh probe: port 18181 status: Время ожидания завершения операции истекло.
+2026-08-22 02:22:26 OK port 18180 [full] height=18953 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 02:22:45 OK port 18181 [full] height=18953 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 02:23:41 OK port 18182 [full] height=18955 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 02:23:53 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 02:29:42 OK port 18180 [full] height=18962 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 02:30:38 OK port 18181 [full] height=18962 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 02:30:50 OK port 18182 [full] height=18962 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 02:31:02 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 02:36:28 OK port 18180 [full] height=18968 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 02:36:40 OK port 18181 [full] height=18968 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 02:37:35 OK port 18182 [full] height=18969 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 02:37:47 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 02:43:14 OK port 18180 [full] height=18979 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 02:43:27 OK port 18181 [full] height=18979 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 02:44:37 OK port 18182 [full] height=18979 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 02:44:49 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 02:50:38 OK port 18180 [full] height=18983 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 02:51:42 OK port 18181 [full] height=18983 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 02:52:31 OK port 18182 [full] height=18984 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 02:52:43 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 02:58:11 OK port 18180 [full] height=18996 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 02:59:15 OK port 18181 [full] height=18996 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 03:00:11 OK port 18182 [full] height=18997 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 03:00:23 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 03:05:42 OK port 18180 [full] height=19005 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 03:06:38 OK port 18181 [full] height=19006 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 03:06:58 WARN OK port 18182 [full] height=19007 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 03:07:10 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 03:12:51 OK port 18180 [full] height=19013 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 03:13:10 OK port 18181 [full] height=19014 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 03:14:21 OK port 18182 [full] height=19015 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 03:14:34 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 03:20:37 OK port 18180 [full] height=19021 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 03:20:57 OK port 18181 [full] height=19021 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 03:21:18 OK port 18182 [full] height=19021 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 03:21:30 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 03:27:42 WARN OK port 18180 [full] height=19021 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 03:28:01 OK port 18181 [full] height=19021 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 03:28:50 OK port 18182 [full] height=19021 peers=1 p2p=under_mesh aligned=True failed= (p2p not full mesh; chain OK)
+2026-08-22 03:29:02 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 03:34:52 OK port 18180 [full] height=19033 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 03:35:23 WARN OK port 18181 [full] height=19033 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 03:35:36 OK port 18182 [full] height=19035 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 03:35:48 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 03:41:44 OK port 18180 [full] height=19050 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 03:42:04 OK port 18181 [full] height=19050 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 03:42:33 OK port 18182 [full] height=19052 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 03:42:45 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 03:48:56 WARN OK port 18180 [full] height=19058 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 03:49:16 OK port 18181 [full] height=19058 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 03:50:19 OK port 18182 [full] height=19059 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 03:50:31 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 03:56:05 OK port 18180 [full] height=19059 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 03:56:25 OK port 18181 [full] height=19059 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 03:56:45 OK port 18182 [full] height=19060 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 03:56:57 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 04:02:17 WARN OK port 18180 [full] height=19070 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 04:02:38 OK port 18181 [full] height=19070 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 04:03:49 OK port 18182 [full] height=19071 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 04:04:01 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 04:09:24 OK port 18180 [full] height=19082 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 04:10:07 OK port 18181 [full] height=19082 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 04:10:20 OK port 18182 [full] height=19082 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 04:10:32 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 04:16:36 OK port 18180 [full] height=19092 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 04:17:05 WARN OK port 18181 [full] height=19092 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 04:17:18 OK port 18182 [full] height=19093 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 04:17:30 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 04:23:35 OK port 18180 [full] height=19106 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 04:23:55 OK port 18181 [full] height=19106 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 04:24:18 OK port 18182 [full] height=19108 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 04:24:30 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 04:30:41 WARN OK port 18180 [full] height=19114 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-08-22 04:31:01 OK port 18181 [full] height=19114 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 04:32:05 OK port 18182 [full] height=19114 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 04:32:18 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 04:37:54 OK port 18180 [full] height=19120 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 04:38:20 WARN OK port 18181 [full] height=19120 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 04:38:33 WARN OK port 18182 [full] height=19122 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok
+2026-08-22 04:38:45 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 04:44:07 OK port 18180 [full] height=19127 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 04:44:20 OK port 18181 [full] height=19127 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 04:45:32 OK port 18182 [full] height=19128 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 04:45:44 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 04:51:49 OK port 18180 [full] height=19138 peers=1 p2p=under_mesh aligned=True failed= (p2p not full mesh; chain OK)
+2026-08-22 04:53:00 OK port 18181 [full] height=19138 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 04:53:16 OK port 18182 [full] height=19138 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 04:53:28 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 04:59:39 OK port 18180 [full] height=19144 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:00:28 OK port 18181 [full] height=19144 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:00:48 OK port 18182 [full] height=19144 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:01:00 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 05:06:13 OK port 18180 [full] height=19144 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:07:25 OK port 18181 [full] height=19144 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 05:07:50 OK port 18182 [full] height=19145 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 05:08:02 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 05:13:24 OK port 18180 [full] height=19149 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:13:48 OK port 18181 [full] height=19149 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:14:07 OK port 18182 [full] height=19149 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:14:19 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 05:20:30 OK port 18180 [full] height=19159 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:21:42 OK port 18181 [full] height=19160 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:22:53 OK port 18182 [full] height=19161 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:23:05 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 05:28:34 OK port 18180 [full] height=19170 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:28:54 OK port 18181 [full] height=19170 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 05:29:13 OK port 18182 [full] height=19170 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:29:25 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 05:34:38 OK port 18180 [full] height=19178 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:35:59 OK port 18181 [full] height=19178 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:36:12 OK port 18182 [full] height=19178 peers=1 p2p=under_mesh aligned=True failed= (p2p not full mesh; chain OK)
+2026-08-22 05:36:24 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 05:42:36 OK port 18180 [full] height=19191 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:43:00 OK port 18181 [full] height=19191 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:43:20 OK port 18182 [full] height=19192 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:43:32 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 05:49:38 OK port 18180 [full] height=19205 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:50:50 OK port 18181 [full] height=19205 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:51:07 OK port 18182 [full] height=19205 peers=1 p2p=under_mesh aligned=True failed= (p2p not full mesh; chain OK)
+2026-08-22 05:51:19 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 05:56:33 OK port 18180 [full] height=19205 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 05:57:00 WARN OK port 18181 [full] height=19205 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 05:57:13 OK port 18182 [full] height=19206 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 05:57:25 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 06:03:47 OK port 18180 [full] height=19216 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 06:04:16 WARN OK port 18181 [full] height=19217 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 06:04:30 OK port 18182 [full] height=19217 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 06:04:42 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 06:11:04 OK port 18180 [full] height=19222 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 06:11:35 WARN OK port 18181 [full] height=19223 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 06:11:55 OK port 18182 [full] height=19223 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 06:12:07 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 06:18:29 OK port 18180 [full] height=19230 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 06:18:57 WARN OK port 18181 [full] height=19230 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 06:19:18 OK port 18182 [full] height=19231 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 06:19:30 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 06:25:51 OK port 18180 [full] height=19246 peers=0 p2p=solo aligned=True failed= (p2p not full mesh; chain OK)
+2026-08-22 06:27:04 OK port 18181 [full] height=19246 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 06:27:18 OK port 18182 [full] height=19246 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 06:27:30 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 06:33:52 OK port 18180 [full] height=19257 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 06:35:14 OK port 18181 [full] height=19259 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 06:35:43 WARN OK port 18182 [full] height=19259 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 06:35:56 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 06:41:46 OK port 18180 [full] height=19270 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 06:42:14 WARN OK port 18181 [full] height=19271 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 06:42:28 OK port 18182 [full] height=19271 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 06:42:40 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 06:49:03 OK port 18180 [full] height=19284 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 06:50:26 OK port 18181 [full] height=19284 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 06:50:48 OK port 18182 [full] height=19284 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 06:51:00 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 06:56:14 WARN OK port 18180 [full] height=19292 peers=2 p2p=aligned aligned=True failed=peer_probe_ok
+2026-08-22 06:57:43 OK port 18181 [full] height=19292 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 06:58:05 OK port 18182 [full] height=19293 peers=2 p2p=inconsistent aligned=True failed=
+2026-08-22 06:58:17 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 06:58:41 OK port 18180 [full] height=19293 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 06:59:04 OK port 18181 [full] height=19293 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 06:59:23 OK port 18182 [full] height=19293 peers=2 p2p=aligned aligned=True failed=
+2026-08-22 06:59:35 WARN mesh probe: port 18180 status: Время ожидания завершения операции истекло.
+2026-08-22 06:59:35 health_watch done (duration 2880m cycles=498 hard_fails=0)

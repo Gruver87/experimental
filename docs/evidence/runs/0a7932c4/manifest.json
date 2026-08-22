@@ -1,0 +1,19 @@
+{
+  "schema": "abs.mesh_evidence.v1",
+  "commit_host": "a8756d14653782a4e40bdda145c83c6fd85b70ad",
+  "image_id": "sha256:0a7932c4e96ed673ec84aedb6af18765777ecba5331e16fc1bb3315dd7df3b41",
+  "consensus_bake": "3c88632848ca2c9068fc3e8e1ddefd99fc02c8ba",
+  "honesty": "Experimental TCP+TLS 3-node prod-profile mesh. Not libp2p cutover. Not Long-Range. Not Hybrid 375d14f. Not public mainnet.",
+  "claims": {
+    "transport": "TCP+TLS mTLS (feature_libp2p=false)",
+    "48h_soak": "passed=true hard_fails=0 hours_elapsed=48.0212"
+  },
+  "files": {
+    "soak_report": {
+      "status": "present",
+      "path": "docs/evidence/runs/0a7932c4/soak_report_48h_experimental.json",
+      "sha256": "d6122e2959b718ff50e931e9c244a9615c4d8bbb17a31ec1d80e79a63e928759",
+      "bytes": 881
+    }
+  }
+}

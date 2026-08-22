@@ -25,7 +25,7 @@ Compared to documentation-only claims, **evidence level increased** in Jul 2026:
 | `prod_evm_smoke.py` (mempool, 3 RPC) | **PASS** | docker mesh Jul 12 evening + **re-PASS block #7** Jul 12 post-v1.2.29 |
 | `soak_monitor.ps1 -ProdMesh -Hours 7` | **PASS** | `logs/soak_report.json` (159 cycles, 0 fail) |
 | `soak_monitor.ps1 -ProdMesh -Hours 48` | **PASS** (2026-07-19 → 2026-07-21, v1.2.84) | `logs/soak_48h_v1.2.84_rerun3.log` + `logs/soak_report_48h.json` (`passed=true`, 0 FAIL; 11 transient ±1 height mesh WARNs accepted on rescore) |
-| Experimental 48h (`start_soak_prod_mesh_48h.ps1`) | **FAIL** (2026-08-16 → 18) | `logs/soak_report_48h_experimental.json` (`passed=false`, `hard_fails=87`, `/status` timeout). Hybrid `375d14f` is not this tree. |
+| Experimental 48h (`start_soak_prod_mesh_48h.ps1`) | **PASS** (2026-08-20 → 22, TCP+TLS) | [`docs/evidence/runs/0a7932c4/`](evidence/runs/0a7932c4/) `passed=true`, `hard_fails=0`, `hours_elapsed=48.02`. Image `0a7932c4` / bake `3c88632`. Not libp2p. Not Hybrid `375d14f`. Prior FAIL 2026-08-16→18 (`hard_fails=87`) stays on record. |
 | `bridge_decision_off` | **PASS** (2026-07-21) | Bridge stays OFF until audited L1 contracts — see [BRIDGE_L1_MAINNET](BRIDGE_L1_MAINNET.md) |
 | `testnet_readiness.ps1 -MinSoakHours 48` | **PASS** | After 48h soak report |
 
