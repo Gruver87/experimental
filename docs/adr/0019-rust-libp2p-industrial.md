@@ -626,4 +626,6 @@ feature `libp2p`), exposed to Python through the existing
 - Build: `maturin build --release --features "pyo3/extension-module,libp2p"`.
 - CI: experimental-rd job `rd-libp2p-rust`; Hybrid Node Checks default path
   unchanged (no libp2p feature).
-- Industrial gate continues to freeze `feature_libp2p=false` on prod mesh JSON.
+- Industrial JSON freeze (`feature_libp2p=false`) is **superseded on this
+  Experimental tree** by [ADR 0020](0020-libp2p-industrial-mesh.md). Hybrid
+  audit-pin JSON stays false. TCP+TLS soak `0a7932c4` is not libp2p evidence.

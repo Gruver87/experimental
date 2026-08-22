@@ -48,10 +48,10 @@ Explorer (solo): http://localhost:8080
 | Identify observed confirm charges canonical key | **Lab PASS** | Slice CZ |
 | Add/remove/expire match canonical charge key | **Lab PASS** | Slice DA |
 | Persist JSON load collapses `/p2p/<peer>` suffix | **Lab PASS** | Slice DB |
-| Default mesh stays TCP+TLS | **By design** | `feature_libp2p=false` on prod JSON |
+| Experimental mesh transport | **ADR 0020 libp2p** | `feature_libp2p=true` on Experimental prod mesh JSON; Hybrid pin stays TCP+TLS |
 | Profile F Long-Range / EVM depth labs | **Lab only** | ADR 0017 · `EVM_COMPAT_MATRIX` |
 | Hybrid 48h soak / firm audit / public mainnet | **No — other repo** | [Hybrid pin](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) |
-| Prod libp2p cutover | **No** | never flip audit-pin JSON |
+| Prod libp2p 48h soak | **Not yet** | 3-node libp2p mesh proven (probe/tx/harness); soak not started; do not relabel TCP+TLS `0a7932c4` |
 | 48h soak on this tree (TCP+TLS) | **PASS** | 2026-08-20→22 `hard_fails=0` — [evidence `0a7932c4`](docs/evidence/runs/0a7932c4/) — not libp2p cutover; not Hybrid `375d14f` |
 
 **Jump:** [Tracks](#what-is-active-here) · [Verify](#clone--verify) · [Docs](#docs-map) · [Contribute](CONTRIBUTING.md)
@@ -115,7 +115,7 @@ Default Hybrid CI / prod mesh builds **without** the `libp2p` feature.
 ## Honesty (read this)
 
 - Green lab / hard verify ≠ tip existence proof ≠ firm audit PDF.
-- `feature_libp2p` must stay **false** on prod mesh JSON (`778888`).
+- Experimental prod mesh JSON (`778888`) is **libp2p** (ADR 0020). Hybrid audit-pin JSON stays `feature_libp2p=false`. TCP+TLS soak `0a7932c4` is not libp2p evidence.
 - Do **not** push R&D into the audit-freeze Hybrid repo.
 - ABS tokenomics in-repo model ≠ listed asset / public mainnet.
 - Experimental tags are `rd-X.Y.Z` — **never** the Hybrid `v1.3.*-industrial` line.

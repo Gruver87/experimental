@@ -9,7 +9,8 @@ Fail-closed checklist (exit 1 on first FAIL unless --keep-going):
      (scripts/cargo_test_abs_native.py — real CPython link; not extension-module)
   4) cargo audit (native lockfile; uses .cargo/audit.toml)
   5) abs_native libp2p deep capability (protocols + block_peer + metrics keys)
-  6) industrial freeze: prod JSON feature_libp2p=false + Config prod OFF
+  6) industrial freeze: Experimental mesh JSON feature_libp2p=true (ADR 0020);
+     Config prod still forces Long-Range OFF
   7) bridge OFF audit gate
   8) pytest unit suite (libp2p + dual_stack + prod freeze)
   9) all Slice A–J labs (must print OK:/PASS)
@@ -890,11 +891,16 @@ def check_industrial_freeze() -> tuple[bool, str]:
             bad.append(f"missing {rel}")
             continue
         data = json.loads(path.read_text(encoding="utf-8"))
-        if bool(data.get("feature_libp2p", False)):
-            bad.append(f"{path.name}: feature_libp2p true")
+        is_mesh = "mesh" in path.name.lower()
+        if is_mesh:
+            if not bool(data.get("feature_libp2p", False)):
+                bad.append(f"{path.name}: ADR 0020 requires feature_libp2p true")
+        else:
+            if bool(data.get("feature_libp2p", False)):
+                bad.append(f"{path.name}: feature_libp2p true (single-node stays TCP+TLS)")
         if bool(data.get("feature_long_range", False)):
             bad.append(f"{path.name}: feature_long_range true")
-    # Config prod path
+    # Config: libp2p may be enabled in prod on Experimental; Long-Range stays off.
     env = os.environ.copy()
     env["DEPLOYMENT_MODE"] = "prod"
     env["FEATURE_LIBP2P"] = "true"
@@ -902,7 +908,7 @@ def check_industrial_freeze() -> tuple[bool, str]:
     code = (
         "from runtime.config import Config\n"
         "c=Config(); c.deployment_mode='prod'; c.apply_env()\n"
-        "assert c.feature_libp2p is False\n"
+        "assert c.feature_libp2p is True\n"
         "assert c.feature_long_range is False\n"
         "print('prod_freeze_ok')\n"
     )
@@ -911,7 +917,7 @@ def check_industrial_freeze() -> tuple[bool, str]:
         bad.append("Config prod freeze failed")
     if bad:
         return False, "; ".join(bad)
-    return True, "prod JSON + Config freeze OK"
+    return True, "prod JSON + Config freeze OK (ADR 0020 libp2p mesh)"
 
 
 def do_rebuild() -> tuple[bool, str]:
@@ -1064,7 +1070,7 @@ def main() -> int:
         for name, ok, _, detail in g.rows:
             if not ok:
                 _print(f"  - {name}: {detail}")
-    _print("honesty: lab/R&D only — TCP+TLS remains default industrial mesh")
+    _print("honesty: lab/R&D only — Experimental industrial mesh is ADR 0020 libp2p; Hybrid pin stays TCP+TLS; this gate is not a 48h soak")
     return 0 if failed == 0 else 1
 
 

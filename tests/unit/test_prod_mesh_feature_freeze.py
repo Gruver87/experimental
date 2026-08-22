@@ -12,7 +12,7 @@ if str(ROOT) not in sys.path:
 
 from features import FeatureFlags, MODULE_TIERS
 
-_FEATURE_KEYS = (
+_FEATURE_KEYS_OFF = (
     "feature_zk",
     "feature_minivm",
     "feature_sharding",
@@ -27,7 +27,6 @@ _FEATURE_KEYS = (
     "feature_ai_validator",
     "feature_smart_accounts",
     "feature_validator_selection",
-    "feature_libp2p",
     "feature_long_range",
 )
 
@@ -62,7 +61,11 @@ def test_prod_mesh_json_feature_freeze() -> None:
         data = json.loads(path.read_text(encoding="utf-8"))
         assert data.get("deployment_mode") == "prod"
         assert data.get("allow_state_root_rewrite") is False
-        for key in _FEATURE_KEYS:
+        for key in _FEATURE_KEYS_OFF:
             assert data.get(key) is False, f"{name}.{key} must be false"
         if "mesh" in name:
             assert int(data.get("chain_id", 0)) == 778888
+            assert data.get("feature_libp2p") is True, f"{name} ADR 0020 requires feature_libp2p true"
+            assert data.get("p2p_tls_enabled") is False, f"{name} Noise mesh must not enable native mTLS"
+        else:
+            assert data.get("feature_libp2p") is False, f"{name} single-node stays TCP+TLS"

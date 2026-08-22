@@ -16,7 +16,7 @@ default = ["extension-module"]
 extension-module = ["pyo3/extension-module"]
 # cargo test / embedding: initialize CPython on first GIL (incompatible with extension-module)
 auto-initialize = ["pyo3/auto-initialize"]
-# ADR 0019 — optional rust-libp2p swarm (experimental; not default industrial mesh)
+# ADR 0019/0020 — rust-libp2p swarm (Experimental industrial mesh; Hybrid pin stays off)
 libp2p = ["dep:libp2p", "dep:tokio", "dep:futures", "dep:async-trait"]
 
 [dependencies]

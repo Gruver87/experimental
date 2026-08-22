@@ -49,6 +49,8 @@ x-abs-prod-env: &abs-prod-env
   GENESIS_STRICT_MAINNET: ${GENESIS_STRICT_MAINNET:-false}
   GENESIS_ARTIFACT_PATH: ${GENESIS_ARTIFACT_PATH:-/app/data/shared/genesis_block.json}
   VALIDATORS_MANIFEST_PATH: data/validators.manifest.json
+  FEATURE_LIBP2P: "true"
+  ABS_LIBP2P_KEY_PATH: /app/data/libp2p/identity.key
 
 x-prod-node-build: &prod-node-build
   image: ${ABS_PROD_IMAGE:-abs-blockchain-prod:local}

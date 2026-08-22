@@ -45,7 +45,7 @@ def test_mint_admin_jwt_script(monkeypatch, tmp_path):
     assert payload["role"] == "admin"
 
 
-def test_prod_gate_requires_tls_on_all_profiles():
+def test_prod_gate_requires_tls_on_tcp_profiles():
     from prod_gate import PROD_FILES, check_file
 
     for path in PROD_FILES:
@@ -53,5 +53,8 @@ def test_prod_gate_requires_tls_on_all_profiles():
         tls_errs = [e for e in errors if "p2p_tls" in e]
         assert not tls_errs, f"{path}: {tls_errs}"
         raw = json.loads((ROOT / path).read_text(encoding="utf-8"))
-        assert raw.get("p2p_tls_enabled") is True
-        assert raw.get("p2p_tls_require_client_cert") is True
+        if raw.get("feature_libp2p") is True:
+            assert raw.get("p2p_tls_enabled") is False
+        else:
+            assert raw.get("p2p_tls_enabled") is True
+            assert raw.get("p2p_tls_require_client_cert") is True

@@ -152,9 +152,10 @@ def main() -> int:
         "honesty": [
             "Two repos, one operator view — not a git merge / not a single deployable tree",
             "PASS is not public mainnet / tip existence proof / firm audit PDF",
-            "Hybrid TCP+TLS remains the industrial default mesh",
-            "Experimental rust-libp2p PASS does not authorize prod libp2p cutover",
-            "feature_libp2p must stay false on prod mesh JSON",
+            "Hybrid TCP+TLS remains the Hybrid industrial default mesh",
+            "Experimental rust-libp2p PASS does not authorize Hybrid pin cutover",
+            "Experimental prod mesh JSON is libp2p (ADR 0020); Hybrid JSON stays false",
+            "TCP+TLS soak 0a7932c4 is not libp2p evidence",
             "Hybrid audit freeze preserved — verify only, never push R&D into Hybrid",
         ],
     }

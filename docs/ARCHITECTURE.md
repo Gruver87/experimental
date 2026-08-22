@@ -206,7 +206,8 @@ flowchart LR
 
 | Column | GitHub / this repo | Runtime |
 |--------|--------------------|---------|
-| Default mesh | TCP+TLS (ADR 0002 / 0008) | `feature_libp2p=false` on prod JSON |
+| Experimental mesh | rust-libp2p (ADR 0020) | `feature_libp2p=true` on Experimental prod mesh JSON |
+| Hybrid pin mesh | TCP+TLS (ADR 0002 / 0008) | audit-pin JSON stays `feature_libp2p=false` |
 | Lab swarm | rust-libp2p ADR 0019 **A–DB** (phase 105) | Cargo `libp2p` + `FEATURE_LIBP2P` |
 | Advertise | unique cap **20**; circuit never in crate book | Identify/mDNS/Kad/AutoNAT/UPnP/DCUtR omit uncharged; relay-client circuit confirm omitted; AutoNAT/UPnP confirm gated; observed confirm charges canonical key; add/remove/expire match canonical key |
 | Persist | tmp+fsync+replace; `dest.{pid}.{tid}.tmp`; stale other-tid sweep | JSON last-writer-wins; identity first-create exclusive |
@@ -256,8 +257,8 @@ scripts/                industrial_gate · mesh · soak
 | Component | Language | Prod (778888 prep) | Dev (77777) |
 |-----------|----------|-------------------|-------------|
 | REST / RPC / WS | Python | Yes | Yes |
-| P2P TCP + dispatch | Python | Yes (default) | Yes |
-| rust-libp2p swarm | Rust PyO3 | **Off** (`feature_libp2p=false`) | Opt-in lab |
+| P2P TCP + dispatch | Python | Yes (libp2p data plane, ADR 0020) | Yes |
+| rust-libp2p swarm | Rust PyO3 | **On** Experimental mesh (`feature_libp2p=true`); Hybrid pin stays off | Opt-in lab |
 | Catch-up / fork services | Python domain | Yes | Yes |
 | Consensus policy | Python | Unified LMD-GHOST + Round SM ports | Parallel/auto + Round SM |
 | Consensus BFT quorum live | — | **Not claimed** (`finality_quorum_live=False`) | Same |

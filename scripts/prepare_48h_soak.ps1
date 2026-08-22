@@ -7,6 +7,8 @@ param(
     [int]$MinFreeGb = 15,
     [switch]$RequireP2pTls,
     [switch]$SkipP2pTlsCheck,
+    [switch]$RequireLibp2p,
+    [switch]$SkipLibp2pCheck,
     [switch]$SkipMinerHarness
 )
 
@@ -15,9 +17,13 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Root = Split-Path -Parent $ScriptDir
 Set-Location $Root
 
-$wantTls = $true
+$wantTls = $false
+if ($RequireP2pTls) { $wantTls = $true }
 if ($SkipP2pTlsCheck) { $wantTls = $false }
-elseif ($PSBoundParameters.ContainsKey("RequireP2pTls") -and -not $RequireP2pTls) { $wantTls = $false }
+
+$wantLibp2p = $true
+if ($SkipLibp2pCheck) { $wantLibp2p = $false }
+elseif ($PSBoundParameters.ContainsKey("RequireLibp2p") -and -not $RequireLibp2p) { $wantLibp2p = $false }
 
 $fail = 0
 $gitSha = ""
@@ -29,7 +35,7 @@ function Fail-Step([string]$Msg) {
 }
 
 Write-Host "48h soak PREPARE (Experimental) - does not start soak" -ForegroundColor Cyan
-Write-Host "  hours=$Hours interval=${IntervalSec}s TLS=$(if ($wantTls) { 'required' } else { 'skipped' })" -ForegroundColor DarkGray
+Write-Host "  hours=$Hours interval=${IntervalSec}s TLS=$(if ($wantTls) { 'required' } else { 'skipped' }) libp2p=$(if ($wantLibp2p) { 'required' } else { 'skipped' })" -ForegroundColor DarkGray
 Write-Host "  scoring: default 48h (hard_fails=0). Not 5h STRICT. Not Hybrid historical PASS." -ForegroundColor DarkGray
 
 Write-Host "1) leftover soak monitors" -ForegroundColor Cyan
@@ -111,9 +117,10 @@ try {
     Fail-Step "docker exec state_root needle: $($_.Exception.Message)"
 }
 
-Write-Host "4) soak_preflight (TLS + wire probe on all 3 nodes)" -ForegroundColor Cyan
+Write-Host "4) soak_preflight (libp2p + wire probe on all 3 nodes)" -ForegroundColor Cyan
 $pf = @("scripts/soak_preflight.py", "--hours", $Hours, "--interval-sec", $IntervalSec, "--require-wire-probe")
 if ($wantTls) { $pf += "--require-p2p-tls" }
+if ($wantLibp2p) { $pf += "--require-libp2p" }
 python @pf
 if ($LASTEXITCODE -ne 0) { Fail-Step "soak_preflight" }
 

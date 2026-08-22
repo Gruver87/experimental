@@ -7,6 +7,7 @@ Not a gossipsub rewrite; not prod mesh cutover.
 
 from __future__ import annotations
 
+import json
 import time
 from typing import Any, List, Mapping, Optional, Sequence, Tuple
 
@@ -71,7 +72,7 @@ def prepare_abs_wire_frame(
     *,
     peer_id: str,
     msg_type: str,
-    payload: Optional[Mapping[str, Any]] = None,
+    payload: Any = None,
     adapter: Optional[NativeTransportAdapter] = None,
     rate_table: Any = None,
     max_bytes: int = 2 * 1024 * 1024,
@@ -80,13 +81,23 @@ def prepare_abs_wire_frame(
 ) -> Tuple[AdmitDecision, bytes]:
     """Prepare egress via ADR 0008 path. Refuse returns empty bytes (no encode fallback)."""
     ad = adapter or NativeTransportAdapter(require_native=False)
+    data_json: Optional[str] = None
+    if payload is None:
+        mapping: dict = {}
+        data_json = "null"
+    elif isinstance(payload, Mapping):
+        mapping = dict(payload)
+    else:
+        mapping = {}
+        data_json = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
     env = OutboundEnvelope(
         peer_id=str(peer_id),
         msg_type=str(msg_type),
-        payload=dict(payload or {}),
+        payload=mapping,
     )
     decision = ad.prepare_outbound(
         env,
+        data_json=data_json,
         now=float(now if now is not None else time.time()),
         max_bytes=int(max_bytes),
         rate_table=rate_table,

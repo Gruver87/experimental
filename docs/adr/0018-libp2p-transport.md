@@ -20,7 +20,9 @@ ADR 0008 wire codec. A full libp2p rewrite must not break the industrial default
 4. Phase-1 adapter may be a capability stub + in-process labs; **rust-libp2p**
    industrial wiring is specified in ADR 0019 (Cargo feature `libp2p`) without
    changing this dual-stack port surface.
-5. Industrial compose / prod mesh JSON keep `feature_libp2p=false`.
+5. Industrial compose / prod mesh JSON kept `feature_libp2p=false` until
+   **[ADR 0020](0020-libp2p-industrial-mesh.md)** (Experimental `778888` mesh
+   cutover). Hybrid audit-pin JSON stays false.
 
 ## Honesty
 
@@ -34,4 +36,4 @@ ADR 0008 wire codec. A full libp2p rewrite must not break the industrial default
   `libp2p_swarm_lab.py`, `libp2p_three_node_lab.py`, `libp2p_reqresp_lab.py`,
   `libp2p_relay_lab.py`, `libp2p_discovery_lab.py`, `libp2p_identify_lab.py`
   (in-process; not rust-libp2p / gossipsub / Kademlia).
-- Industrial gate freezes the flag off on prod mesh JSON.
+- Industrial gate freeze superseded on Experimental by ADR 0020.

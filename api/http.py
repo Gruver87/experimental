@@ -223,8 +223,10 @@ def _status_p2p_hardening_snapshot(cfg, p2p) -> Dict[str, Any]:
         "active_bans": int(sec.get("active_bans", 0) or 0),
         "attestation_local_fail": int(sec.get("attestation_local_fail", 0) or 0),
         "ops_errors": dict(sec.get("ops_errors") or {}),
-        # ADR 0019 — lab metrics only; default_mesh remains TCP+TLS
+        # ADR 0019/0020 — nested block is the live-mesh truth; flat keys stay for probes.
         "libp2p_feature": bool(libp2p.get("feature_libp2p")),
+        "libp2p_active": bool(libp2p.get("active")),
+        "libp2p_rust_backend": bool(libp2p.get("rust_backend") or libp2p.get("noise")),
         "libp2p_peers": int(libp2p.get("libp2p_peers", 0) or 0),
         "libp2p_dial_ok": int(libp2p.get("libp2p_dial_ok", 0) or 0),
         "libp2p_block_denied": int(libp2p.get("libp2p_block_denied", 0) or 0),
@@ -234,6 +236,7 @@ def _status_p2p_hardening_snapshot(cfg, p2p) -> Dict[str, Any]:
         "libp2p_honesty": str(
             libp2p.get("honesty") or "ADR0019_rust_libp2p_lab_not_prod_mesh"
         ),
+        "libp2p": libp2p,
     }
     if status_error:
         out["status_error"] = status_error
@@ -682,6 +685,22 @@ def _quorum_height_aligned(local_height: int, peer_heights: list[int]) -> bool:
     local = int(local_height or 0)
     agree = sum(1 for h in peer_heights if abs(int(h) - local) <= 1)
     return agree * 2 > len(peer_heights)
+
+
+def _p2p_listener_bound(p2p) -> bool:
+    """True when a data-plane listener is bound.
+
+    Asyncio uses ``_server``, native TCP+TLS uses ``_native_listener``,
+    ADR 0020 rust-libp2p uses ``_libp2p_listening``. Missing all three
+    must fail /health/ready (bind failure must not paint green).
+    """
+    if p2p is None:
+        return False
+    return (
+        getattr(p2p, "_server", None) is not None
+        or getattr(p2p, "_native_listener", None) is not None
+        or bool(getattr(p2p, "_libp2p_listening", False))
+    )
 
 
 def _deep_ready_mesh_checks(
@@ -1654,10 +1673,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ready_sprout_init = {}
                 if is_prod and p2p is not None:
                     # Listener must exist — bind failure clears _running (fail-closed).
-                    # Asyncio path uses _server; native TCP/TLS path uses _native_listener.
                     checks["p2p_running"] = bool(getattr(p2p, "_running", False)) and (
-                        getattr(p2p, "_server", None) is not None
-                        or getattr(p2p, "_native_listener", None) is not None
+                        _p2p_listener_bound(p2p)
                     )
                     # v1.3.125: prod native transport must expose semantic message-loop shell.
                     if (
@@ -2395,6 +2412,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "jwt_auth": _JWT_AVAILABLE,
                     },
                     "p2p_hardening": p2p_hard,
+                    "libp2p": dict(p2p_hard.get("libp2p") or {}),
                 }
                 status_ms = (time.perf_counter() - _status_t0) * 1000.0
                 payload["status_handler_ms"] = round(status_ms, 1)

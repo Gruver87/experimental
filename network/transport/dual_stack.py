@@ -1,4 +1,4 @@
-"""Dual-stack dial selector: TCP+TLS default, libp2p when FEATURE_LIBP2P (ADR 0018)."""
+"""Dual-stack dial selector: TCP+TLS default, libp2p when FEATURE_LIBP2P (ADR 0018/0020)."""
 
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ TransportKind = Literal["native_tcp_tls", "libp2p"]
 class DualStackDialer:
     """Select transport for outbound dial without changing industrial default.
 
-    When ``feature_libp2p`` is false (prod/default), always reports native.
-    When true, lab dials prefer libp2p adapter (phase-1 stub OK).
+    When ``feature_libp2p`` is false, reports native TCP+TLS.
+    When true (Experimental industrial mesh, ADR 0020), dials prefer libp2p.
     """
 
     def __init__(

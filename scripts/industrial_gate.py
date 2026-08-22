@@ -78,6 +78,11 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "_housekeeping_payload_ok",
         "peer_send_fail",
         "mid_session_handshake",
+        "_start_libp2p_listen",
+        "_libp2p_admit_raw_frame",
+        "send_abs_wire",
+        "ADR0020_experimental_libp2p_industrial_mesh",
+        "no TCP+TLS fallback",
     ):
         if needle not in p2p_mod:
             errors.append(f"p2p_node.py missing wire-reject surface: {needle}")
@@ -86,6 +91,7 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "shape_rejects_total",
         "rate_limit_drops",
         "_status_p2p_hardening_snapshot",
+        "libp2p_rust_backend",
     ):
         if needle not in http_src:
             errors.append(f"api/http.py missing status honesty surface: {needle}")
@@ -250,7 +256,8 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
                     f"{rel}: 3-node mesh must set testnet_expected_peers>=2 "
                     "so redial continues past a single remaining peer"
                 )
-            # ADR 0016: industrial mesh must keep FEATURE_* sprouts off.
+            # ADR 0016: industrial mesh keeps FEATURE_* sprouts off, except
+            # ADR 0020 Experimental libp2p cutover (mesh JSON must be true).
             _feature_keys = (
                 "feature_zk",
                 "feature_minivm",
@@ -266,7 +273,6 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
                 "feature_ai_validator",
                 "feature_smart_accounts",
                 "feature_validator_selection",
-                "feature_libp2p",
                 "feature_long_range",
             )
             for fk in _feature_keys:
@@ -275,6 +281,11 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
                         f"{rel}: ADR 0016 requires {fk}=false on prod mesh "
                         f"(got {prod_cfg.get(fk)!r})"
                     )
+            if prod_cfg.get("feature_libp2p") is not True:
+                errors.append(
+                    f"{rel}: ADR 0020 requires feature_libp2p=true on Experimental "
+                    f"prod mesh (got {prod_cfg.get('feature_libp2p')!r})"
+                )
             if prod_cfg.get("allow_state_root_rewrite") is True:
                 errors.append(
                     f"{rel}: allow_state_root_rewrite must be false on prod mesh"
@@ -343,6 +354,7 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
     mesh_env = dict(shared_compose_env)
     mesh_env["REDIS_RATE_LIMIT"] = "redis_rate_limit_enabled"
     mesh_env["REDIS_URL"] = "redis_url"
+    mesh_env["FEATURE_LIBP2P"] = "feature_libp2p"
     _freeze_compose_json("docker-compose.prod.3node.yml", mesh_json_cfgs, mesh_env)
 
     single_json: list[tuple[str, dict]] = []
@@ -432,11 +444,20 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
     metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     if "abs_l1_rpc_probed" not in metrics_py:
         errors.append("metrics.py missing abs_l1_rpc_probed")
-    if not prod_tls_enabled:
+    libp2p_mesh = any(c.get("feature_libp2p") is True for _, c in mesh_json_cfgs)
+    if not prod_tls_enabled and not libp2p_mesh:
         warnings.append(
             "prod mesh JSON: p2p_tls_enabled is not true "
             "(enable TLS overlay / -P2pTls for public mainnet wire)"
         )
+    for rel, prod_cfg in mesh_json_cfgs:
+        if prod_cfg.get("feature_libp2p") is True and prod_cfg.get("p2p_tls_enabled") is True:
+            errors.append(
+                f"{rel}: ADR 0020 libp2p mesh must not enable native p2p_tls "
+                "(Noise replaces mTLS)"
+            )
+    if not (ROOT / "docs" / "adr" / "0020-libp2p-industrial-mesh.md").is_file():
+        errors.append("missing ADR 0020 Experimental libp2p industrial mesh")
     # ADR 0003 — sync consistency boundary + solicit hub
     p2p_src = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
     sync_src = (ROOT / "sync" / "sync_engine.py").read_text(encoding="utf-8")
@@ -1028,6 +1049,15 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
                 "/health/ready p2p_running must accept native _native_listener "
                 "(v1.3.114+ prod transport)"
             )
+        if '_p2p_listener_bound' not in http_py:
+            errors.append(
+                "/health/ready must use _p2p_listener_bound (asyncio/native/libp2p)"
+            )
+        if '_libp2p_listening' not in http_py:
+            errors.append(
+                "/health/ready p2p_running must accept ADR 0020 rust swarm "
+                "(_libp2p_listening)"
+            )
     except Exception as exc:
         errors.append(f"fail-loud http inspect failed: {exc}")
     try:
@@ -1499,7 +1529,7 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         if "FEATURE_AI_VALIDATOR" not in cfg_py:
             errors.append("config must include FEATURE_AI_VALIDATOR")
         if "FEATURE_LIBP2P" not in cfg_py:
-            errors.append("config must include FEATURE_LIBP2P (experimental; prod forced off)")
+            errors.append("config must include FEATURE_LIBP2P (ADR 0020 Experimental mesh)")
         if "FEATURE_LONG_RANGE" not in cfg_py:
             errors.append("config must include FEATURE_LONG_RANGE (experimental; prod forced off)")
         relayer_py = (ROOT / "scripts" / "bridge_relayer.py").read_text(encoding="utf-8")

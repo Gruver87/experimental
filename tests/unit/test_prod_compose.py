@@ -44,7 +44,8 @@ def test_prod_mesh_compose_has_three_nodes():
     assert "\n  redis:" in text
     assert "REDIS_RATE_LIMIT" in text
     assert "REDIS_URL" in text
-    assert "abs-prod-mesh-redis" in text
+    assert "FEATURE_LIBP2P" in text
+    assert "ABS_LIBP2P_KEY_PATH" in text
     # Compose bootstrap healthcheck must be /live (not /ready) — peer quorum
     # chicken-egg with depends_on: node1 healthy before node2/3 start.
     assert "health/live" in text
@@ -65,7 +66,8 @@ def test_dockerfile_prod_requires_native_crypto():
     assert "ABS_REQUIRE_NATIVE_CRYPTO=true" in text
     assert "/health/ready" in text
     assert "type=cache" in text
-    assert "cargo fetch" in text
+    assert "libp2p" in text
+    assert "libp2p_available" in text
 
 
 def test_prod_gate_requires_rocksdb_on_all_prod_profiles():

@@ -39,14 +39,14 @@ def test_adapter_enabled_capability() -> None:
         ad.close()
 
 
-def test_prod_forces_libp2p_off(monkeypatch) -> None:
+def test_prod_allows_libp2p_keeps_long_range_off(monkeypatch) -> None:
     monkeypatch.setenv("DEPLOYMENT_MODE", "prod")
     monkeypatch.setenv("FEATURE_LIBP2P", "true")
     monkeypatch.setenv("FEATURE_LONG_RANGE", "true")
     cfg = Config()
     cfg.deployment_mode = "prod"
     cfg.apply_env()
-    assert cfg.feature_libp2p is False
+    assert cfg.feature_libp2p is True
     assert cfg.feature_long_range is False
 
 

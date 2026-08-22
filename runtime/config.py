@@ -922,8 +922,8 @@ class Config:
             self.feature_validator_selection = env_bool(
                 "FEATURE_VALIDATOR_SELECTION", False
             )
-            # Profile F R&D flags: hard-off in prod (env cannot enable).
-            self.feature_libp2p = False
+            # Profile F: Long-Range stays hard-off in prod (env cannot enable).
+            # ADR 0020: feature_libp2p may be enabled on Experimental mesh JSON/env.
             self.feature_long_range = False
             # Fail-closed: env cannot weaken these for prod (break-glass forbidden).
             self.require_wallet_file = True
@@ -1068,10 +1068,11 @@ class Config:
                 )
             if not self.require_native_crypto:
                 errors.append("prod mode requires ABS_REQUIRE_NATIVE_CRYPTO=true")
-            if not self.p2p_native_transport:
+            if not self.p2p_native_transport and not self.feature_libp2p:
                 errors.append(
                     "prod mode requires p2p_native_transport=true "
-                    "(native TCP+TLS data plane; set P2P_NATIVE_TRANSPORT=true)"
+                    "(native TCP+TLS data plane; set P2P_NATIVE_TRANSPORT=true) "
+                    "or feature_libp2p=true (ADR 0020 rust-libp2p mesh)"
                 )
             if not self.evm_create2_eip1014:
                 errors.append("prod mode requires evm_create2_eip1014=true")

@@ -25,7 +25,7 @@ Compared to documentation-only claims, **evidence level increased** in Jul 2026:
 | `prod_evm_smoke.py` (mempool, 3 RPC) | **PASS** | docker mesh Jul 12 evening + **re-PASS block #7** Jul 12 post-v1.2.29 |
 | `soak_monitor.ps1 -ProdMesh -Hours 7` | **PASS** | `logs/soak_report.json` (159 cycles, 0 fail) |
 | `soak_monitor.ps1 -ProdMesh -Hours 48` | **PASS** (2026-07-19 → 2026-07-21, v1.2.84) | `logs/soak_48h_v1.2.84_rerun3.log` + `logs/soak_report_48h.json` (`passed=true`, 0 FAIL; 11 transient ±1 height mesh WARNs accepted on rescore) |
-| Experimental 48h (`start_soak_prod_mesh_48h.ps1`) | **PASS** (2026-08-20 → 22, TCP+TLS) | [`docs/evidence/runs/0a7932c4/`](evidence/runs/0a7932c4/) `passed=true`, `hard_fails=0`, `hours_elapsed=48.02`. Image `0a7932c4` / bake `3c88632`. Not libp2p. Not Hybrid `375d14f`. Prior FAIL 2026-08-16→18 (`hard_fails=87`) stays on record. |
+| Experimental 48h (`start_soak_prod_mesh_48h.ps1`) | **PASS** (2026-08-20 → 22, TCP+TLS) | [`docs/evidence/runs/0a7932c4/`](evidence/runs/0a7932c4/) `passed=true`, `hard_fails=0`, `hours_elapsed=48.02`. Image `0a7932c4` / bake `3c88632`. **Not libp2p** (do not relabel). ADR 0020 3-node libp2p mesh proven 2026-08-22 (probe/tx/harness, `rust_backend=true`); libp2p 48h soak **not yet run**. Not Hybrid `375d14f`. Prior FAIL 2026-08-16→18 (`hard_fails=87`) stays on record. |
 | `bridge_decision_off` | **PASS** (2026-07-21) | Bridge stays OFF until audited L1 contracts — see [BRIDGE_L1_MAINNET](BRIDGE_L1_MAINNET.md) |
 | `testnet_readiness.ps1 -MinSoakHours 48` | **PASS** | After 48h soak report |
 
@@ -42,7 +42,7 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | Bridge L1 | **OFF by recorded decision** — see [Bridge OFF audit checklist](#bridge-off--pre-enable-audit-checklist) |
 | RocksDB column families | **Armed in prod JSON** (`rocksdb_column_families=true`, dual-read legacy `default`) — live mesh still on last bake until soak-day rebuild; not a 48h soak claim |
 | Ceremony pin | Automation exists; production hash/manifest still operator-owned |
-| P2P TLS | Default ON for prod mesh (+mTLS); handshake `node_id` bound to cert CN/SAN (v1.2.87) |
+| P2P TLS | Historical TCP+TLS soak used mTLS. **ADR 0020 Experimental mesh uses Noise** (libp2p); mTLS overlay is not the default on this tree. Hybrid pin stays TCP+TLS. |
 | JWT admin | `role=admin` enforced on protected POSTs; mint via `scripts/mint_admin_jwt.py` |
 | Tip-safety domain (`consensus/tip_safety`) | **Unit-proven** (stage 1) — see [ADR 0001](adr/0001-tip-safety.md) |
 | Tip-safety shadow (`TIP_SAFETY_SHADOW`) | **Wired observe-only** (stage 2) — metrics `abs_tip_safety_shadow_*` |

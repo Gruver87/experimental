@@ -1,8 +1,8 @@
-"""libp2p TransportPort adapter (ADR 0018 / 0019).
+"""libp2p TransportPort adapter (ADR 0018 / 0019 / 0020).
 
 When FEATURE_LIBP2P is on and abs_native was built with Cargo feature ``libp2p``,
-dials use the real rust-libp2p swarm. Otherwise Phase-1 stub handles remain
-(lab scaffolding). Default industrial mesh must keep FEATURE_LIBP2P=false.
+dials use the real rust-libp2p swarm. Experimental industrial mesh (ADR 0020)
+uses this adapter as the live data plane. Hybrid audit-pin stays TCP+TLS.
 """
 
 from __future__ import annotations
@@ -462,7 +462,7 @@ class Libp2pTransportAdapter:
         self,
         peer_id: str,
         msg_type: str,
-        payload: Optional[Mapping[str, Any]] = None,
+        payload: Any = None,
         *,
         codec: str = "v1",
     ) -> bytes:

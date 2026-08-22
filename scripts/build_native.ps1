@@ -29,13 +29,13 @@ try {
     }
     python -m pip install --upgrade maturin
     $wheelDir = Join-Path $crate "target\wheels"
-    python -m maturin build --release --out $wheelDir
+    python -m maturin build --release --features pyo3/extension-module,libp2p --out $wheelDir
     $wheel = Get-ChildItem $wheelDir -Filter "*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $wheel) {
         throw "abs_native wheel was not produced"
     }
     python -m pip install --force-reinstall $wheel.FullName
-    python -c "import abs_native; print('abs_native OK:', abs_native.sha256_hex(b'absolute')[:16]); assert hasattr(abs_native, 'evm_run_until_halt'); rocks=hasattr(abs_native,'RocksEngine'); print('RocksEngine:', rocks); assert rocks or __import__('sys').platform!='linux', 'RocksEngine missing on Linux CI'"
+    python -c "import abs_native; print('abs_native OK:', abs_native.sha256_hex(b'absolute')[:16]); assert hasattr(abs_native, 'evm_run_until_halt'); rocks=hasattr(abs_native,'RocksEngine'); print('RocksEngine:', rocks); assert rocks or __import__('sys').platform!='linux', 'RocksEngine missing on Linux CI'; assert hasattr(abs_native,'libp2p_available') and abs_native.libp2p_available(), 'libp2p_available() false - rebuild with Cargo feature libp2p'"
 }
 finally {
     Pop-Location

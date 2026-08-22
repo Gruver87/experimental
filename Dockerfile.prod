@@ -38,7 +38,7 @@ COPY native/abs_native/src ./src
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/native/abs_native/target \
-    python3 -m maturin build --release --out /wheels
+    python3 -m maturin build --release --features pyo3/extension-module,libp2p --out /wheels
 
 FROM python:3.13-slim
 
@@ -56,7 +56,7 @@ COPY . .
 COPY --from=rust-build /abs_bridge_bin /app/bridge/abs_bridge_bin
 COPY --from=rust-build /wheels /wheels
 RUN pip install --no-cache-dir /wheels/*.whl \
-  && python -c "import abs_native; assert hasattr(abs_native, 'RocksEngine'); from crypto import native; s=native.native_crypto_status(required=True); assert s['available'] and s['self_test'], s; print('abs_native OK (rocksdb)')"
+  && python -c "import abs_native; assert hasattr(abs_native, 'RocksEngine'); from crypto import native; s=native.native_crypto_status(required=True); assert s['available'] and s['self_test'], s; assert hasattr(abs_native, 'libp2p_available') and abs_native.libp2p_available(), 'libp2p_available() false'; print('abs_native OK (rocksdb+libp2p)')"
 RUN chmod +x /app/bridge/abs_bridge_bin
 
 EXPOSE 8545 8080 5000 8766

@@ -58,6 +58,7 @@ def run_soak_preflight(
     interval_sec: int = 300,
     require_p2p_tls: bool = False,
     require_wire_probe: bool = False,
+    require_libp2p: bool = False,
 ) -> tuple[list[str], list[str], dict]:
     import importlib.util
 
@@ -128,6 +129,19 @@ def run_soak_preflight(
                     errors.append(msg)
                 else:
                     warnings.append(msg)
+            lib = dict(st.get("libp2p") or {})
+            row["libp2p_active"] = bool(lib.get("active"))
+            row["libp2p_rust_backend"] = bool(lib.get("rust_backend"))
+            row["libp2p_honesty"] = str(lib.get("honesty") or "")
+            if require_libp2p:
+                if not lib.get("active") or not lib.get("rust_backend"):
+                    errors.append(
+                        f"node{i} libp2p not live "
+                        f"(active={lib.get('active')} rust_backend={lib.get('rust_backend')})"
+                    )
+                honesty = str(lib.get("honesty") or "")
+                if "lab_not_prod_mesh" in honesty:
+                    errors.append(f"node{i} libp2p honesty still lab: {honesty}")
         except OSError as exc:
             errors.append(f"node{i} /status: {exc}")
         try:
@@ -273,6 +287,7 @@ def run_soak_preflight(
             "Not 5h STRICT. Run preflight again immediately before starting soak."
         ),
         "require_p2p_tls": require_p2p_tls,
+        "require_libp2p": require_libp2p,
         "require_wire_probe": require_wire_probe,
     }
     return errors, warnings, meta
@@ -305,6 +320,11 @@ def main() -> int:
         action="store_true",
         help="Fail if any node harness is unhealthy or peers<2 (48h prep)",
     )
+    parser.add_argument(
+        "--require-libp2p",
+        action="store_true",
+        help="Fail if rust-libp2p swarm is not active on all nodes (ADR 0020)",
+    )
     parser.add_argument("--json", action="store_true", help="Print JSON summary")
     args = parser.parse_args()
 
@@ -313,6 +333,7 @@ def main() -> int:
         interval_sec=args.interval_sec,
         require_p2p_tls=args.require_p2p_tls,
         require_wire_probe=args.require_wire_probe,
+        require_libp2p=args.require_libp2p,
     )
     report_path = write_report(errors, warnings, meta)
 
