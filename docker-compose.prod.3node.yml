@@ -51,6 +51,14 @@ x-abs-prod-env: &abs-prod-env
   VALIDATORS_MANIFEST_PATH: data/validators.manifest.json
   FEATURE_LIBP2P: "true"
   ABS_LIBP2P_KEY_PATH: /app/data/libp2p/identity.key
+  # Docker bridge has no IGD/mDNS. rust /dns4/node2 is treated as mDNS (node2.)
+  # and HOL-stalls the swarm; Python resolves compose names to /ip4 instead.
+  ABS_LIBP2P_MDNS: "false"
+  # Python `_bootstrap_retry_loop` owns redial. rust reconnect HOL-stalls
+  # Noise inbound while retrying connection-refused boot dials.
+  ABS_LIBP2P_RECONNECT: "false"
+  # Handshake retry must outlive rust idle close (default 60s).
+  ABS_LIBP2P_IDLE_CONNECTION_TIMEOUT_SECS: "300"
 
 x-prod-node-build: &prod-node-build
   image: ${ABS_PROD_IMAGE:-abs-blockchain-prod:local}

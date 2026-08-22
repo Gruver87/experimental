@@ -18,6 +18,7 @@ import math
 import time
 import threading
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional, Callable, Any, Tuple
 
 from network.p2p_tls import (
@@ -239,6 +240,48 @@ def _clamp_native_timeout_ms(n: Any, default: int = 30000) -> int:
                 exc,
             )
     return max(1000, min(600_000, raw if raw > 0 else default))
+
+
+_libp2p_send_pool: Optional[ThreadPoolExecutor] = None
+_libp2p_inbox_pool: Optional[ThreadPoolExecutor] = None
+_libp2p_pool_lock = threading.Lock()
+
+
+def _ensure_libp2p_io_pools() -> tuple[ThreadPoolExecutor, ThreadPoolExecutor]:
+    """Dedicated pools so send_wire ACK waits cannot starve poll_inbox.
+
+    Default asyncio executor is shared with native I/O. rust ``send_wire``
+    blocks until the Noise ACK; saturating that pool stalls
+    ``_libp2p_inbox_loop`` and state_root replies miss the HTTP 8s waiter
+    (prepare miner harness ``peer_probe_ok`` empty).
+    """
+    global _libp2p_send_pool, _libp2p_inbox_pool
+    with _libp2p_pool_lock:
+        if _libp2p_send_pool is None:
+            _libp2p_send_pool = ThreadPoolExecutor(
+                max_workers=8, thread_name_prefix="abs-lp2p-send"
+            )
+        if _libp2p_inbox_pool is None:
+            _libp2p_inbox_pool = ThreadPoolExecutor(
+                max_workers=1, thread_name_prefix="abs-lp2p-inbox"
+            )
+        return _libp2p_send_pool, _libp2p_inbox_pool
+
+
+def _libp2p_send_wire_bg(adapter: Any, peer_id: str, frame: bytes) -> None:
+    """Complete rust-libp2p request-response off the peer send loop.
+
+    Absolute application replies arrive as inbox frames. Blocking the send
+    loop on the Noise ACK HOL-stalls state_root solicit (empty peer_probe_ok).
+    """
+    try:
+        adapter.send_wire(str(peer_id), bytes(frame))
+    except Exception as exc:
+        logger.warning(
+            "[P2P] libp2p send_wire bg failed to %s: %s",
+            str(peer_id)[:24],
+            exc,
+        )
 
 
 # Soft peer score lives in network.peer_manager (imported as _peer_health_score).
@@ -487,20 +530,18 @@ class PeerConnection:
         libp2p_pid = str(getattr(self, "_libp2p_peer_id", "") or "").strip()
         if libp2p_ad is not None and libp2p_pid:
             from network.transport.errors import TransportValidationError
+            from network.transport.libp2p_adapter.wire_bridge import (
+                prepare_abs_wire_frame,
+            )
 
             codec = self._effective_wire_codec()
             try:
-                await asyncio.wait_for(
-                    asyncio.to_thread(
-                        libp2p_ad.send_abs_wire,
-                        libp2p_pid,
-                        str(msg_type),
-                        data,
-                        codec=codec,
-                    ),
-                    timeout=self._native_write_timeout_sec() + 0.5,
+                decision, frame = prepare_abs_wire_frame(
+                    peer_id=libp2p_pid,
+                    msg_type=str(msg_type),
+                    payload=data,
+                    codec=codec,
                 )
-                return True
             except TransportValidationError as exc:
                 logger.warning(
                     "[P2P] libp2p abs wire prepare refused to %s: %s",
@@ -509,14 +550,37 @@ class PeerConnection:
                 )
                 self._invoke_peer_hook(self._on_egress_reject, name="egress_reject")
                 return False
+            if (not decision.ok) or not frame:
+                logger.warning(
+                    "[P2P] libp2p abs wire prepare refused to %s",
+                    self.peer_id or libp2p_pid,
+                )
+                self._invoke_peer_hook(self._on_egress_reject, name="egress_reject")
+                return False
+            # rust-libp2p `/abs/wire` is request-response: send_wire blocks until
+            # the remote ACK. Absolute replies are a later inbox frame, not that
+            # ACK. Waiting here HOL-blocks BLOCK/STATUS in the send loop so
+            # state_root solicit times out empty (48h prep peer_probe_ok).
+            # Prepare-fail stays HARD REFUSE above; ACK wait moves off the loop
+            # onto the dedicated send pool (never the default asyncio executor).
+            try:
+                send_pool, _ = _ensure_libp2p_io_pools()
+                asyncio.get_running_loop().run_in_executor(
+                    send_pool,
+                    _libp2p_send_wire_bg,
+                    libp2p_ad,
+                    libp2p_pid,
+                    bytes(frame),
+                )
             except Exception as exc:
                 logger.warning(
-                    "[P2P] libp2p send_abs_wire failed to %s: %s",
+                    "[P2P] libp2p send_abs_wire schedule failed to %s: %s",
                     self.peer_id or libp2p_pid,
                     exc,
                 )
                 self._invoke_peer_hook(self._on_send_fail, name="send_fail")
                 return False
+            return True
         if (
             self._native_conn is not None
             and hasattr(self._native_conn, "write_message")
@@ -2495,6 +2559,15 @@ class P2PNode:
             "nbytes": int(fr.raw_len),
         }
 
+    def _release_libp2p_session(self, peer: PeerConnection) -> None:
+        """Drop a rust session that never completed Absolute handshake."""
+        peer._libp2p_role = ""
+        peer._libp2p_inbound_handler = False
+        peer._libp2p_message_loop = False
+        lp = str(getattr(peer, "_libp2p_peer_id", "") or "")
+        if lp and self._libp2p_sessions.get(lp) is peer:
+            self._libp2p_sessions.pop(lp, None)
+
     def _new_libp2p_peer(self, host: str, port: int, libp2p_peer_id: str) -> PeerConnection:
         existing = self._libp2p_sessions.get(str(libp2p_peer_id))
         if existing is not None:
@@ -2528,10 +2601,24 @@ class P2PNode:
             peer = self._new_libp2p_peer("", 0, pid)
             self._attach_peer_hooks(peer)
             spawn_inbound = True
-        elif str(getattr(peer, "_libp2p_role", "") or "") != "outbound" and not getattr(
-            peer, "_libp2p_inbound_handler", False
-        ):
-            spawn_inbound = True
+        else:
+            role = str(getattr(peer, "_libp2p_role", "") or "")
+            if (
+                role != "outbound"
+                and not getattr(peer, "_libp2p_inbound_handler", False)
+                and not getattr(peer, "_libp2p_message_loop", False)
+            ):
+                spawn_inbound = True
+        kind = str(admitted.get("type") or "")
+        registered = bool(
+            getattr(peer, "peer_id", None)
+            and self.peers.get(peer.peer_id) is peer
+        )
+        # State-root solicit must not sit behind NEW_BLOCK apply on the
+        # per-peer message_loop (miner harness peer_probe_ok empty).
+        if registered and kind in (MSG_STATE_ROOT_REQUEST, MSG_STATE_ROOT_RESPONSE):
+            await self._handle_message(peer, admitted)
+            return
         q = getattr(peer, "_libp2p_inbound", None)
         if q is None:
             return
@@ -2546,9 +2633,11 @@ class P2PNode:
 
     async def _libp2p_inbox_loop(self) -> None:
         adapter = self._dual_stack.libp2p
+        _, inbox_pool = _ensure_libp2p_io_pools()
+        loop = asyncio.get_running_loop()
         while self._running:
             try:
-                items = await asyncio.to_thread(adapter.poll_inbox)
+                items = await loop.run_in_executor(inbox_pool, adapter.poll_inbox)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -2583,9 +2672,11 @@ class P2PNode:
             return
         ok = await self._do_handshake(peer, initiator=False)
         if not ok:
+            self._release_libp2p_session(peer)
             peer.close()
             return
         if self._is_banned(self._peer_key(peer)):
+            self._release_libp2p_session(peer)
             peer.close()
             return
         reg = self.peer_manager.register(
@@ -2594,11 +2685,14 @@ class P2PNode:
             local_node_id=self._local_node_id(),
         )
         if not reg.allowed:
+            if not (peer.peer_id and self.peers.get(peer.peer_id) is peer):
+                self._release_libp2p_session(peer)
             peer.close()
             return
         print(f"[P2P] Connected (libp2p): {peer}")
         self._bind_bootstraps_for_peer(peer)
         self._schedule_sync(peer)
+        peer._libp2p_message_loop = True
         await self._message_loop(peer)
 
     async def _native_accept_loop(self) -> None:
@@ -2887,10 +2981,13 @@ class P2PNode:
                 peer = self._new_libp2p_peer(host, int(port), remote)
                 if peer.peer_id and peer.peer_id in self.peers:
                     return True
-                if getattr(peer, "_libp2p_inbound_handler", False):
-                    return bool(peer.peer_id and peer.peer_id in self.peers)
-                if str(getattr(peer, "_libp2p_role", "") or "") == "outbound":
-                    return bool(peer.peer_id and peer.peer_id in self.peers)
+                # Failed handshake used to leave _libp2p_role=outbound on the
+                # reused session; later dials skipped Absolute handshake
+                # (rust dial_ok climbs, Python peers stay 0, idle-timeout).
+                if not (peer.peer_id and peer.peer_id in self.peers):
+                    peer._libp2p_role = ""
+                    peer._libp2p_inbound_handler = False
+                    peer._libp2p_message_loop = False
                 local_id = str(self._dual_stack.libp2p.peer_id or "")
                 # One Absolute handshake initiator per Noise session (lexicographic PeerId).
                 if local_id and remote and local_id > remote:
@@ -2957,6 +3054,8 @@ class P2PNode:
 
             ok = await self._do_handshake(peer, initiator=True)
             if not ok:
+                if self._use_libp2p_transport:
+                    self._release_libp2p_session(peer)
                 peer.close()
                 return False
             if self._is_banned(self._peer_key(peer)):
@@ -3001,6 +3100,8 @@ class P2PNode:
 
             # Синхронизация если отстаём
             self._schedule_sync(peer)
+            if self._use_libp2p_transport:
+                peer._libp2p_message_loop = True
             asyncio.create_task(self._message_loop(peer))
             return True
 
@@ -5839,6 +5940,17 @@ class P2PNode:
             return False
         return bool(hub.mempool_solicit_armed(pid))
 
+    def _peer_solicit_keys(self, peer: PeerConnection) -> List[str]:
+        """Absolute node_id plus rust-libp2p PeerId (waiters may be armed on either)."""
+        keys: List[str] = []
+        pid = str(getattr(peer, "peer_id", "") or "")
+        if pid:
+            keys.append(pid)
+        lp = str(getattr(peer, "_libp2p_peer_id", "") or "")
+        if lp and lp not in keys:
+            keys.append(lp)
+        return keys
+
     def _stash_late_state_root(self, peer: PeerConnection, data: Any) -> bool:
         """Keep a just-timed-out state_root payload instead of unsolicited strike.
 
@@ -5846,17 +5958,22 @@ class P2PNode:
         in the native buffer (miner HOL). Stash for the 400ms grace in
         ``_wait_peer_response`` so STRICT HTTP 8s can still score the wire.
         """
-        pid = str(getattr(peer, "peer_id", "") or "")
-        if not pid or not isinstance(data, dict):
+        keys = self._peer_solicit_keys(peer)
+        if not keys or not isinstance(data, dict):
             return False
-        marked = float((getattr(self, "_state_root_timeout_at", {}) or {}).get(pid, 0.0) or 0.0)
-        if marked <= 0.0 or (time.monotonic() - marked) > 2.0:
+        now = time.monotonic()
+        timeout_at = getattr(self, "_state_root_timeout_at", {}) or {}
+        marked = 0.0
+        for k in keys:
+            marked = max(marked, float(timeout_at.get(k, 0.0) or 0.0))
+        if marked <= 0.0 or (now - marked) > 2.0:
             return False
         late = getattr(self, "_state_root_late", None)
         if late is None:
             self._state_root_late = {}
             late = self._state_root_late
-        late[pid] = (data, time.monotonic())
+        for k in keys:
+            late[k] = (data, now)
         self._state_root_late_accepts_total = int(
             getattr(self, "_state_root_late_accepts_total", 0) or 0
         ) + 1
@@ -5864,16 +5981,19 @@ class P2PNode:
 
     def _consume_late_state_root(self, peer: PeerConnection) -> Optional[Dict]:
         """Use a stashed late reply instead of a second RTT (retry)."""
-        pid = str(getattr(peer, "peer_id", "") or "")
-        if not pid:
+        keys = self._peer_solicit_keys(peer)
+        if not keys:
             return None
-        late = (getattr(self, "_state_root_late", {}) or {}).pop(pid, None)
-        if not late:
-            return None
-        data, ts = late
-        if isinstance(data, dict) and (time.monotonic() - float(ts or 0.0)) < 2.0:
-            return data
-        return None
+        late_map = getattr(self, "_state_root_late", None) or {}
+        found: Optional[Dict] = None
+        for k in keys:
+            late = late_map.pop(k, None)
+            if not late:
+                continue
+            data, ts = late
+            if isinstance(data, dict) and (time.monotonic() - float(ts or 0.0)) < 2.0:
+                found = data
+        return found
 
     def _solicit_lock_for(self, peer_id: str, kind: str = "") -> asyncio.Lock:
         locks = getattr(self, "_solicit_peer_locks", None)
@@ -5928,18 +6048,15 @@ class P2PNode:
         except asyncio.TimeoutError:
             want_root = MSG_STATE_ROOT_RESPONSE in tuple(expected_types or ())
             if want_root:
-                self._state_root_timeout_at[pid] = time.monotonic()
+                now = time.monotonic()
+                for k in self._peer_solicit_keys(peer):
+                    self._state_root_timeout_at[k] = now
             hub.timeout(pid, result=None, kind=kind, fut=fut)
             if want_root:
                 await asyncio.sleep(0.4)
-                late = (getattr(self, "_state_root_late", {}) or {}).pop(pid, None)
+                late = self._consume_late_state_root(peer)
                 if late:
-                    data, ts = late
-                    if (
-                        isinstance(data, dict)
-                        and (time.monotonic() - float(ts or 0.0)) < 2.0
-                    ):
-                        return {"type": MSG_STATE_ROOT_RESPONSE, "data": data}
+                    return {"type": MSG_STATE_ROOT_RESPONSE, "data": late}
             return None
         finally:
             hub.clear(peer.peer_id, kind=kind, fut=fut)
@@ -7201,7 +7318,8 @@ class P2PNode:
         Stops sticky-first discovery eclipse: one random peer must not cancel bootstrap.
         """
         while self._running:
-            await asyncio.sleep(20)
+            delay = 5.0 if not self.peers else 20.0
+            await asyncio.sleep(delay)
             try:
                 if not self.config.bootstrap_peers:
                     continue

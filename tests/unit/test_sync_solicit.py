@@ -489,6 +489,33 @@ def test_clear_state_root_kind_keeps_mempool() -> None:
     assert hub.armed_count == 1
 
 
+def test_fulfill_state_root_via_libp2p_peer_id() -> None:
+    hub = SyncSolicitHub(verify_state_root=lambda *_a, **_k: None)
+    fut = _Fut()
+    rust_id = "12D3KooWtestpeer"
+    hub.arm(
+        rust_id,
+        (MSG_STATE_ROOT_RESPONSE,),
+        fut,
+        {"kind": "state_root", "height": 1, "expected_head": ""},
+    )
+    peer = _Peer("docker-prod-mesh-2")
+    peer._libp2p_peer_id = rust_id
+    msg = {
+        "type": MSG_STATE_ROOT_RESPONSE,
+        "data": {"height": 1, "state_root": "aa" * 32},
+    }
+    r = hub.fulfill_or_reject(
+        peer,
+        MSG_STATE_ROOT_RESPONSE,
+        msg["data"],
+        msg,
+        strike=lambda *_a: False,
+    )
+    assert r.consumed is True
+    assert fut.result is msg
+
+
 def test_no_network_import_in_solicit_domain() -> None:
     src = (ROOT / "sync" / "solicit.py").read_text(encoding="utf-8")
     assert "import network" not in src

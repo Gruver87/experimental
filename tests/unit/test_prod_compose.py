@@ -46,6 +46,9 @@ def test_prod_mesh_compose_has_three_nodes():
     assert "REDIS_URL" in text
     assert "FEATURE_LIBP2P" in text
     assert "ABS_LIBP2P_KEY_PATH" in text
+    assert "ABS_LIBP2P_MDNS" in text
+    assert "ABS_LIBP2P_RECONNECT" in text
+    assert "ABS_LIBP2P_IDLE_CONNECTION_TIMEOUT_SECS" in text
     # Compose bootstrap healthcheck must be /live (not /ready) — peer quorum
     # chicken-egg with depends_on: node1 healthy before node2/3 start.
     assert "health/live" in text

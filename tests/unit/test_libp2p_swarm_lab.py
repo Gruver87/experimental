@@ -48,6 +48,39 @@ def test_hostname_formats_as_dns4() -> None:
     assert Multiaddr(host="example.com", port=9).to_string() == "/dns4/example.com/tcp/9"
 
 
+def test_docker_hostname_dials_ip4(monkeypatch) -> None:
+    import socket
+
+    from network.transport.libp2p_adapter.adapter import resolve_libp2p_dial_multiaddr
+
+    def _gai(host, port, *a, **k):
+        assert host == "node2"
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.20.0.12", int(port)))]
+
+    monkeypatch.setattr("socket.getaddrinfo", _gai)
+    assert resolve_libp2p_dial_multiaddr("node2", 5000) == "/ip4/172.20.0.12/tcp/5000"
+
+
+def test_ip_literal_dials_ip4() -> None:
+    from network.transport.libp2p_adapter.adapter import resolve_libp2p_dial_multiaddr
+
+    assert resolve_libp2p_dial_multiaddr("10.0.0.8", 5000) == "/ip4/10.0.0.8/tcp/5000"
+
+
+def test_single_label_unresolved_fails_closed(monkeypatch) -> None:
+    import pytest
+
+    from network.transport.errors import TransportCapabilityError
+    from network.transport.libp2p_adapter.adapter import resolve_libp2p_dial_multiaddr
+
+    def _gai(*_a, **_k):
+        raise OSError("name or service not known")
+
+    monkeypatch.setattr("socket.getaddrinfo", _gai)
+    with pytest.raises(TransportCapabilityError, match="no A/AAAA"):
+        resolve_libp2p_dial_multiaddr("node2", 5000)
+
+
 def test_parse_multiaddr_quic_roundtrip() -> None:
     from network.transport.libp2p_adapter.multiaddr import Multiaddr, parse_multiaddr
 

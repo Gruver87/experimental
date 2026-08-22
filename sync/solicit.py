@@ -444,8 +444,11 @@ class SyncSolicitHub:
                 bump(name, delta)
 
         peer_id = str(getattr(peer, "peer_id", "") or "")
-        if str(msg_type or "") == MSG_STATE_ROOT_RESPONSE and peer_id:
-            waiters = self._collect_state_root_waiters(peer_id)
+        libp2p_id = str(getattr(peer, "_libp2p_peer_id", "") or "")
+        if str(msg_type or "") == MSG_STATE_ROOT_RESPONSE and (peer_id or libp2p_id):
+            waiters = self._collect_state_root_waiters(peer_id) if peer_id else []
+            if not waiters and libp2p_id and libp2p_id != peer_id:
+                waiters = self._collect_state_root_waiters(libp2p_id)
             if not waiters:
                 return SolicitResult(False, "no_waiter")
             last = SolicitResult(True, "late_state_root")

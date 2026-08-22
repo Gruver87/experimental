@@ -7,8 +7,10 @@ uses this adapter as the live data plane. Hybrid audit-pin stays TCP+TLS.
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import os
+import socket
 from typing import Any, Mapping, Optional
 
 from network.transport.errors import TransportCapabilityError, TransportValidationError
@@ -24,6 +26,44 @@ def native_libp2p_available() -> bool:
         return bool(getattr(abs_native, "libp2p_available", lambda: False)())
     except Exception:
         return False
+
+
+def resolve_libp2p_dial_multiaddr(host: str, port: int) -> str:
+    """Rust dial multiaddr. Docker single-label names must not stay ``/dns4``.
+
+    rust-libp2p/hickory treats ``/dns4/node2`` as mDNS (``node2.``) and misses
+    the compose A record, so boot dials fail with connection-refused until a
+    later inbound session. Resolve via OS getaddrinfo to ``/ip4``/``/ip6``.
+    Single-label names fail closed if DNS is not ready — bootstrap retries.
+    ``localhost`` / FQDNs stay ``/dns4`` for ADR 0019 Slice Y.
+    """
+    from network.transport.libp2p_adapter.multiaddr import Multiaddr
+
+    h = str(host or "").strip().strip("[]")
+    p = int(port or 0)
+    if not h or p <= 0:
+        raise TransportCapabilityError("libp2p dial requires host:port")
+    try:
+        ipaddress.ip_address(h)
+        return Multiaddr(host=h, port=p, peer_id="").to_string()
+    except ValueError:
+        pass
+    single_label = "." not in h.strip(".") and h.lower() != "localhost"
+    try:
+        infos = socket.getaddrinfo(h, p, type=socket.SOCK_STREAM)
+    except OSError:
+        infos = []
+    for fam, _socktype, _proto, _canon, sockaddr in infos:
+        if fam == socket.AF_INET and sockaddr:
+            return Multiaddr(host=str(sockaddr[0]), port=p, peer_id="").to_string()
+    for fam, _socktype, _proto, _canon, sockaddr in infos:
+        if fam == socket.AF_INET6 and sockaddr:
+            return Multiaddr(host=str(sockaddr[0]), port=p, peer_id="").to_string()
+    if single_label:
+        raise TransportCapabilityError(
+            f"libp2p dial: {h} has no A/AAAA yet (Docker DNS); retry"
+        )
+    return Multiaddr(host=h, port=p, peer_id="").to_string()
 
 
 class Libp2pTransportAdapter:
@@ -411,7 +451,7 @@ class Libp2pTransportAdapter:
         from network.transport.libp2p_adapter.multiaddr import Multiaddr
 
         ma_str = Multiaddr(host=host, port=port, peer_id=peer_id).to_string()
-        dial_addr = Multiaddr(host=host, port=port, peer_id="").to_string()
+        dial_addr = resolve_libp2p_dial_multiaddr(host, port)
 
         if self._native_capable:
             node = self._ensure_node()
@@ -419,9 +459,11 @@ class Libp2pTransportAdapter:
             try:
                 remote = node.dial(dial_addr)
             except Exception as exc:
-                if self._peer_policy is not None:
+                msg = str(exc)
+                transient = "Connection refused" in msg or "os error 111" in msg
+                if self._peer_policy is not None and not transient:
                     self._peer_policy.note_failure(
-                        peer_id=peer_id or str(exc),
+                        peer_id=peer_id or f"{host}:{port}",
                         reason="libp2p_dial_fail",
                         host=host,
                         port=port,
