@@ -32,7 +32,7 @@
   <text x="100" y="136" fill="#f8fafc" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="52" font-weight="700">Absolute Blockchain</text>
   <text x="100" y="192" fill="#94a3b8" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="26" font-weight="500">Experimental &#8212; R&amp;D sandbox &#8212; not the audit pin</text>
   <rect x="100" y="230" width="720" height="2" fill="url(#line)"/>
-  <text x="100" y="278" fill="#cbd5e1" font-family="Consolas, Menlo, monospace" font-size="18">ADR 0019 rust-libp2p &#183; Long-Range &#183; EVM depth &#183; default mesh = TCP+TLS</text>
+  <text x="100" y="278" fill="#cbd5e1" font-family="Consolas, Menlo, monospace" font-size="18">ADR 0019 rust-libp2p &#183; Long-Range &#183; EVM depth &#183; prod mesh = libp2p</text>
   <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="17" fill="#e2e8f0">
     <rect x="100" y="320" width="228" height="44" rx="8" fill="#312e81" stroke="#a78bfa" stroke-width="1.4"/>
     <text x="118" y="348">Lab PASS &#8800; cutover</text>

@@ -261,6 +261,33 @@ def main() -> int:
     if sb.get("gasUsed") != "0x0":
         return _fail("empty tx list gasUsed must be 0x0")
 
+    # fullTx=false → hashes; fullTx=true → stored tx dicts; inverted getLogs → []
+    tx_obj = {
+        "hash": "0xabc123",
+        "block_height": client.query.tip_height(),
+        "from_addr": "0x" + "11" * 20,
+        "to_addr": "0x" + "22" * 20,
+        "value": 0,
+    }
+    h = client.query.tip_height()
+    bh = client.query.blocks[h]["hash"]
+    client.query.blocks[h] = {
+        "height": h,
+        "hash": bh,
+        "transactions": [tx_obj],
+    }
+    hashes_only = client.call("eth_getBlockByNumber", ["latest", False])
+    txs_h = (hashes_only.get("result") or {}).get("transactions") or []
+    if not txs_h or not isinstance(txs_h[0], str):
+        return _fail("fullTx=false must return transaction hash strings")
+    full = client.call("eth_getBlockByNumber", ["latest", True])
+    txs_f = (full.get("result") or {}).get("transactions") or []
+    if not txs_f or not isinstance(txs_f[0], dict):
+        return _fail("fullTx=true must return transaction objects")
+    inv_logs = client.call("eth_getLogs", [{"fromBlock": "0x10", "toBlock": "0x1"}])
+    if inv_logs.get("result") != []:
+        return _fail("getLogs inverted range must return empty list")
+
     # runtime snapshot reachable
     from execution.evm_runtime import evm_compat_honesty_snapshot
     from runtime.config import Config

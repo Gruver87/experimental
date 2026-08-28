@@ -137,9 +137,47 @@ def main() -> int:
         if alone.aggregate_symbol("eth", quorum=2, max_age_sec=3600) is not None:
             return _fail("below quorum must not aggregate")
 
+        # Stale report must refuse (fail-closed timestamp)
+        stale_reg = OracleFeedRegistry(db, secret="")
+        old_ts = int(time.time()) - 10_000
+        stale = stale_reg.submit_report(
+            "link",
+            12.0,
+            "stale-rep",
+            payload={
+                "symbol": "link",
+                "value": 12.0,
+                "reporter": "stale-rep",
+                "ts": old_ts,
+            },
+            max_age_sec=300,
+        )
+        if stale.get("ok") is not False:
+            return _fail("stale oracle report must refuse")
+        if "stale" not in str(stale.get("error", "")).lower():
+            return _fail("expected stale oracle error")
+
+        # High deviation must not aggregate (median gate)
+        spread = OracleFeedRegistry(db, secret="")
+        now2 = int(time.time())
+        for reporter, value in (("d1", 100.0), ("d2", 102.0), ("d3", 200.0)):
+            spread.submit_report(
+                "xrp",
+                value,
+                reporter,
+                payload={
+                    "symbol": "xrp",
+                    "value": float(value),
+                    "reporter": reporter,
+                    "ts": now2,
+                },
+            )
+        if spread.aggregate_symbol("xrp", quorum=2, max_age_sec=3600) is not None:
+            return _fail("high deviation must not aggregate")
+
         db.close()
 
-    print("OK: oracle_lab PASS (HMAC + quorum median + reporter dedupe; not prod 778888)")
+    print("OK: oracle_lab PASS (HMAC + quorum + dedupe + stale/deviation refuse; not prod 778888)")
     return 0
 
 

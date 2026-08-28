@@ -1115,6 +1115,28 @@ def test_eth_gas_price_tx_lookup_honesty() -> None:
     assert client.call("eth_getBlockTransactionCountByNumber", ["0x9999"]).get("result") is None
 
 
+def test_eth_get_block_full_tx_and_logs_range_honesty() -> None:
+    """fullTx hash list vs objects; inverted getLogs returns []."""
+    client = FakeRpcClient()
+    h = client.query.tip_height()
+    tx = {
+        "hash": "0xabc123",
+        "block_height": h,
+        "from_addr": "0x" + "11" * 20,
+        "to_addr": "0x" + "22" * 20,
+        "value": 0,
+    }
+    bh = client.query.blocks[h]["hash"]
+    client.query.blocks[h] = {"height": h, "hash": bh, "transactions": [tx]}
+    hashes = client.call("eth_getBlockByNumber", ["latest", False])["result"]["transactions"]
+    assert isinstance(hashes[0], str)
+    full = client.call("eth_getBlockByNumber", ["latest", True])["result"]["transactions"]
+    assert isinstance(full[0], dict)
+    assert full[0]["hash"] == "0xabc123"
+    inv = client.call("eth_getLogs", [{"fromBlock": "0x10", "toBlock": "0x1"}])
+    assert inv.get("result") == []
+
+
 def test_eth_get_block_missing_and_sparse_header_honesty() -> None:
     """Missing block null; sparse header fields not invented."""
     client = FakeRpcClient()

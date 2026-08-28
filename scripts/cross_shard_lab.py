@@ -96,6 +96,36 @@ def _wave1_simple_ack(tmp: Path) -> int:
     return 0
 
 
+def _wave1_insufficient_balance_refuse(tmp: Path) -> int:
+    db0 = Database(str(tmp / "insuf0.db"))
+    db0.initialize()
+    db1 = Database(str(tmp / "insuf1.db"))
+    db1.initialize()
+    try:
+        sender, recipient, from_shard, to_shard = _cross_shard_pair(2)
+        db0.set_balance(sender, 5.0)
+        src = ShardingManager(
+            num_shards=2,
+            db=db0,
+            assigned_shard_id=from_shard,
+            node_id="lab-shard-src-insuf",
+            mode="distributed",
+        )
+        _, tx_id = src.add_transaction(
+            {"from": sender, "to": recipient, "value": 25.0, "nonce": 0}
+        )
+        if not tx_id:
+            return _fail("insufficient balance tx_id missing")
+        if src.cross_shard_txs[tx_id].status != "failed":
+            return _fail("insufficient balance must fail debit (status=failed)")
+        if db0.get_balance(sender) != 5.0:
+            return _fail("insufficient balance must not debit sender")
+    finally:
+        db0.close()
+        db1.close()
+    return 0
+
+
 def _wave2_validator_quorum(tmp: Path) -> int:
     db0 = Database(str(tmp / "q0.db"))
     db0.initialize()
@@ -175,11 +205,14 @@ def main() -> int:
         rc = _wave1_simple_ack(base)
         if rc != 0:
             return rc
+        rc = _wave1_insufficient_balance_refuse(base)
+        if rc != 0:
+            return rc
         rc = _wave2_validator_quorum(base)
         if rc != 0:
             return rc
 
-    print("OK: cross_shard_lab PASS (simple ACK + 2/3 validator quorum; Profile E)")
+    print("OK: cross_shard_lab PASS (ACK + quorum + insufficient balance refuse; Profile E)")
     return 0
 
 
