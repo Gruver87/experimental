@@ -1,253 +1,117 @@
-# Absolute Blockchain Ultimate Hybrid — Справочник команд
+# Absolute Blockchain — Справочник команд
 
-> **Полный список команд (без секретов):** [`ALL_COMMANDS.txt`](ALL_COMMANDS.txt)  
-> **Секреты:** только `.env` (gitignore) — см. [`secrets/README.md`](../secrets/README.md)  
-> **Личная копия с секретами (Desktop, не в git):** `Absolute_Blockchain_All_Commands_FIXED.txt`
+> **Полный список (без секретов):** [`ALL_COMMANDS.txt`](ALL_COMMANDS.txt)  
+> **Личная копия (Desktop):** `Absolute_Blockchain_All_Commands_FIXED.txt`  
+> **Бэкап Desktop:** `Absolute_Blockchain_All_Commands_FIXED.bak_20260828.txt`  
+> **Секреты:** только `.env` — [`secrets/README.md`](../secrets/README.md)
 
 | | |
 |---|---|
-| **Версия** | `1.3.206-industrial` |
-| **API Wave** | `61` |
-| **Обновлено** | 2026-07-26 |
-| **Entry** | `python main.py` / `.\scripts\start_node.ps1` / `make build` |
-| **Статус** | production-hardened R&D / prod-profile mesh — **не** public audited mainnet |
+| **Обновлено** | 2026-08-28 |
+| **Репозитории** | [Experimental](https://github.com/Gruver87/experimental) (R&D) · [Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) (audit pin) |
+| **Entry** | `python main.py` / `.\scripts\start_node.ps1` |
+| **Статус** | R&D / prod-profile mesh — **не** public audited mainnet |
 
 ---
 
 ## Честно
 
 - Gate green ≠ public mainnet
-- Prod mesh `778888` = profile, не запущенный публичный mainnet
-- Bridge на live mesh: **OFF** (пока нет audited L1 cutover)
-- Ceremony pin + external audit = org blockers
-- ABS = in-repo tokenomics (221M), не листинг
+- Prod mesh `778888` = industrial profile, не публичный mainnet
+- Bridge на live mesh: **OFF**
+- libp2p 48h — только с evidence в [`EVIDENCE_MATRIX.md`](EVIDENCE_MATRIX.md)
+- Council 87 NFT — staging `778889`, **не** L1 security guarantee
 
-Доказательства: [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md) · [AT_A_GLANCE.md](AT_A_GLANCE.md) · gaps: [MAINNET_GAP_ANALYSIS.md](MAINNET_GAP_ANALYSIS.md)
-
----
-
-## Единая проверка работоспособности
-
-**Windows (PowerShell):**
-
-```powershell
-cd C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate_Hybrid
-
-.\scripts\check_all.ps1                 # Quick — волны + industrial gate + ceremony_status (~20–40 с)
-.\scripts\check_all.ps1 -Mode Standard  # полный offline (pytest/audit)
-.\scripts\check_all.ps1 -Mode Full      # Standard + rebuild abs_native
-.\scripts\check_all.ps1 -Mode Live      # Quick + живой узел (:8080)
-.\scripts\check_all.ps1 -Mode Max       # Full + Live + P2P
-.\scripts\check_all.ps1 -Help
-```
-
-**Linux / macOS:**
-
-```bash
-make help
-make build        # abs_native
-make test-quick   # verify_industrial_waves.py
-make test-gate    # industrial_gate.py
-make mesh-up      # docker_prod_3node.sh
-```
-
-CI: `.github/workflows/test.yml` (Ubuntu) уже собирает native и гоняет pytest.
-Отчёт: `data/check_all.json`. Перед `-Mode Live` / `Max`: `python main.py` (или `.\scripts\start_node.ps1`).
-
-Алиасы того же полного gate: `.\scripts\test_all.ps1`, `.\scripts\check_everything.ps1`.
-
-### ADR 0012 — Chaos bombardment
-
-Smoke (CI / default pytest):
-
-```powershell
-pytest tests/chaos -q -m chaos_smoke --tb=line
-```
-
-**Total attack map (lab evidence, ≥500 / ≤120s):**
-
-```powershell
-$env:CHAOS_FULL="1"
-pytest tests/chaos/test_total_chaos_bombardment.py::test_total_chaos_bombardment_2min -q -m chaos_full --tb=line
-```
-
-Overrides: `CHAOS_DURATION_SEC`, `CHAOS_INJECTIONS`.  
-Honesty: prod `NodeOrchestrator` / `main.py` never arms chaos; garbage stays at `wire_codec` (no Rust `allow_threads` patch).
-
-
-### Live 4-node mesh + physical kill-9 (E2E)
-
-Requires `abs_native`. Spawns real `main.py` processes on `:15480–15483` (no mocks).
-
-```powershell
-$env:LIVE_MESH_E2E="1"
-pytest tests/e2e/test_live_mesh_consensus.py -q -m live_mesh --tb=line
-```
-
-Keep temp dirs on failure: `$env:LIVE_MESH_KEEP="1"`.
-
-### ADR 0014 — Graceful shutdown & deep `/health/ready`
-
-Unit DoD (offline):
-
-```powershell
-pytest tests/unit/test_health_ready_adr0014.py -q --tb=line
-```
-
-SIGTERM during mining → RocksDB clean close (live mesh gate):
-
-```powershell
-$env:LIVE_MESH_E2E="1"
-pytest tests/e2e/test_runtime_signals.py -q -m live_mesh --tb=line
-```
-
-K8s: readiness must use `/health/ready` (503 while draining or mesh not deep-ready); liveness stays `/health/live`.
-
-### ADR 0015 — Observability & Secret Management
-
-```powershell
-pytest tests/unit/test_prometheus_export_format.py tests/unit/test_secrets_isolation.py -q --tb=line
-```
-
-Backends: `$env:SECRET_BACKEND="env"` (default / K8s Secret→env), `"vault"` (`VAULT_ADDR` + `VAULT_TOKEN` + `VAULT_KV_PATH`), or `"file"` (dev wallet.json only). Package is `secret_mgmt/` (does not shadow stdlib `secrets`).
-
-### Disaster Recovery (Point 9)
-
-Ops runbooks: [`docs/DISASTER_RECOVERY.md`](DISASTER_RECOVERY.md) — RocksDB tip repair / wipe+fast-sync, BFT quorum stall, validator key rotate via SecretManager, auditor onboarding.
+Доказательства: [`EVIDENCE_MATRIX.md`](EVIDENCE_MATRIX.md) · [`EXECUTION_ORDER.md`](EXECUTION_ORDER.md) · [`MAINNET_GAP_ANALYSIS.md`](MAINNET_GAP_ANALYSIS.md)
 
 ---
 
-## Порты (шпаргалка)
-
-| Что | Порт / URL |
-|-----|------------|
-| Explorer + REST | `http://localhost:8080` |
-| Node2 / Node3 | `:8081` / `:8082` |
-| JSON-RPC | `:8545` (prod docker alt `:18545`) |
-| P2P | `:5000+` |
-| WebSocket | `:8766` |
-| Prod mesh 3 nodes | `:18180`–`:18182` |
-| Chain ID devnet | `77777` |
-| Chain ID mainnet-v1 profile | `778888` |
+## L1 Integration Gate [обязательно после core/P2P/sync]
 
 ```powershell
-(Invoke-RestMethod http://localhost:8080/status).api_wave
-(Invoke-RestMethod http://localhost:8080/status).node_version
+cd C:\Users\vovun\Desktop\Absolute_Blockchain_Experimental
+.\scripts\build_native.ps1
+.\scripts\docker_prod_3node.ps1 -SkipBuild -KeepVolumes
+.\scripts\probe_prod_mesh.ps1 -Quick
+python scripts/industrial_gate.py
 ```
 
 ---
 
 ## Быстрый старт
 
+### Experimental (R&D mesh, libp2p)
+
 ```powershell
-cd C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate_Hybrid
+cd C:\Users\vovun\Desktop\Absolute_Blockchain_Experimental
 pip install -r requirements.txt
 .\scripts\build_native.ps1
-.\scripts\init_env.ps1
-# заполнить .env (не коммитить)
-python scripts/apply_local_secrets.py
-.\scripts\start_node.ps1
+.\scripts\docker_prod_3node.ps1 -SkipBuild -KeepVolumes
+.\scripts\probe_prod_mesh.ps1 -Quick
 ```
 
-Открыть: http://localhost:8080
-
-### Автозапуск всего стека + окна Explorer
+### Hybrid (audit pin, TCP+TLS)
 
 ```powershell
-# Prod 3-node mesh (:18180-:18182) + 3 вкладки браузера  [DEFAULT]
+cd C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate_Hybrid
+.\scripts\build_native.ps1
 .\scripts\start_all.ps1 -SkipBuild -KeepVolumes
-
-# Solo node в отдельном окне + Explorer :8080
-.\scripts\start_all.ps1 -Mode Solo
-
-# Только открыть уже работающие Explorer'ы
-.\scripts\start_all.ps1 -Mode OpenOnly
-
-# Mesh + 3 окна docker logs
-.\scripts\start_all.ps1 -SkipBuild -KeepVolumes -OpenLogs
 ```
 
 ---
 
-## Оглавление полного справочника (`ALL_COMMANDS.txt`)
+## Порты
+
+| Что | Порт / URL |
+|-----|------------|
+| Solo REST | `http://localhost:8080` |
+| Prod mesh | `:18180`–`:18182` |
+| Staging APP (NFT council) | `http://127.0.0.1:19080` (Experimental) |
+| Chain ID prod mesh | `778888` |
+| Chain ID council staging | `778889` |
+
+---
+
+## Оглавление `ALL_COMMANDS.txt`
 
 | Часть | Тема |
 |------:|------|
-| 0 | Быстрый старт |
-| 1 | Первичная настройка |
-| 2 | Одна нода |
-| 3 | Два узла локально |
-| 4–6 | Docker 2 / 3 / 5-validator |
-| 7 | P2P sync / verify / heal |
-| 8 | REST API L1 |
-| 9 | Bridge |
-| 10–11 | Кошелёк / TX · JSON-RPC |
-| 12–14 | EVM · Explorer · Telegram |
-| 15 | Production / mainnet-v1 Docker |
-| 16 | Тесты · industrial gate · waves |
-| 17 | Soak · evidence · resilience |
-| 18 | RocksDB · backup · DR |
-| 19 | P2P TLS mesh |
-| 20 | Ceremony · validators · KMS |
-| 21 | Public testnet / VPS |
-| 22 | Observability · HA · K8s |
-| 23 | Диагностика |
-| 24 | Секреты → **только `.env`** (в репо — placeholders) |
-| 25–26 | Git / пути · сценарии дня |
-| 27 | Устаревшее |
-| 28 | Industrial waves map **v1.3.65–86** |
+| 0–23 | Старт, devnet, API, bridge, prod mesh, gate, soak, DR, ceremony |
+| 24 | Секреты — **только имена** (значения в `.env`) |
+| 25–27 | Git, сценарии дня, устаревшее |
+| 28 | ADR 0016 profiles |
+| 29 | Hybrid vs Experimental |
+| 30 | **L1 Integration Gate** |
+| 31 | Experimental R&D labs |
+| 32 | **Gruver87 Council NFT** (ADR 0022) |
 
 ---
 
-## Самые частые команды
+## Council NFT (Experimental, staging)
 
 ```powershell
-# Devnet 2 nodes
-.\scripts\stop_node.ps1
-.\scripts\start_two_nodes.ps1 -RustBridge -Fresh
-python scripts/verify_p2p_ci.py --mode devnet --wait 240
+python scripts/guarantor_council_manifest_gen.py
+python scripts/guarantor_council_lab.py
+docker compose -p abs-staging-app -f docker-compose.staging.app.yml up -d --build
+python scripts/guarantor_council_staging_ceremony.py --dry-run
+```
 
-# Industrial waves (v1.3.65–91)
-python scripts/verify_industrial_waves.py
+Документы: [`GRUVER87_COUNCIL_CHARTER.md`](GRUVER87_COUNCIL_CHARTER.md) · [`adr/0022-gruver87-genesis-council-governance.md`](adr/0022-gruver87-genesis-council-governance.md)
 
-# Native P2P fuzz smoke (Windows-friendly; cargo-fuzz on Linux CI)
-.\scripts\fuzz_native.ps1 -Mode smoke
-python scripts/industrial_gate.py
+---
 
-# Full local gate
-.\scripts\test_full_project.ps1 -SkipNativeBuild -Live -P2P
+## R&D batch (без soak)
 
-# Prod-profile 3-node mesh
-.\scripts\docker_prod_3node.ps1 -CeremonyDir data\ceremony_keys
-
-# Перед push
-python scripts/check_secrets.py
+```powershell
+python scripts/verify_parallel_rd_batch.py
 ```
 
 ---
 
-## Industrial waves (кратко)
+## Перед git push
 
-Последние P2P/EVM срезы: **v1.3.77–86** (ingress, bandwidth, egress, NDJSON framer; CREATE/writeback journal).  
-Полная таблица — **Часть 28** в [`ALL_COMMANDS.txt`](ALL_COMMANDS.txt) и [`PORTING_ROADMAP.md`](PORTING_ROADMAP.md).
+```powershell
+python scripts/check_secrets.py
+```
 
-**Не claimed:** full Rust P2P message-loop / libp2p (native I/O pumps+handshake+CN/SAN+auto-pong), public mainnet, external audit complete.
-
----
-
-## Архитектура (коротко)
-
-| Сервис | Порт | Статус |
-|--------|------|--------|
-| REST + Explorer | `:8080` | единый `main.py` |
-| JSON-RPC | `:8545` | eth_* подмножество |
-| P2P | `:5000` | 2/3/5-node + prod mesh proven |
-| WebSocket | `:8766` | live feed |
-| Storage | SQLite / RocksDB | Rocks — prod path |
-
-Hybrid: Python orchestrates · Rust `abs_native` — crypto / EVM kernels / P2P wire+rate+frame.
-
----
-
-PowerShell: всегда `.\scripts\...` (не без пути).  
-Команды вводить без хвостов из отчётов (`→ OK`, `→ 99 passed`).
+PowerShell: всегда `.\scripts\...` — не без пути.

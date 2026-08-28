@@ -1,1067 +1,651 @@
 # =============================================================================
-# ВАЖНО: это репозиторная копия БЕЗ секретов.
-# Личный файл С секретами (Desktop, не в git):
-#   C:\\Users\\vovun\\Desktop\\Absolute_Blockchain_All_Commands_FIXED.txt
-# Секреты в проекте: только .env  |  secrets/README.md
-# =============================================================================
-
-# =============================================================================
-# ABSOLUTE BLOCKCHAIN ULTIMATE HYBRID — ПОЛНЫЙ СПРАВОЧНИК КОМАНД
+# ABSOLUTE BLOCKCHAIN — ПОЛНЫЙ СПРАВОЧНИК КОМАНД (репозиторий, БЕЗ секретов)
 # =============================================================================
 # Автор:     Uladzimir Dabranski (Gruver87) · D.U.P.
-# Версия:    1.3.114-industrial Hybrid  |  API Wave 61
-# Обновлено: 2026-07-25
-# Проект:    C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate_Hybrid
-# GitHub:    https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid
-# Источник структуры: Desktop Absolute_Blockchain_All_Commands_FIXED.txt (2026-07-25)
-#
-# ⚠️  РЕПОЗИТОРНАЯ КОПИЯ БЕЗ СЕКРЕТОВ. Секреты только в .env (gitignore).
-#     Личная копия С секретами (Desktop): Absolute_Blockchain_All_Commands_FIXED.txt
-#     Краткая шпаргалка: docs/COMMANDS_REFERENCE.md
+# Обновлено: 2026-08-28 (sync Desktop → docs/ALL_COMMANDS.txt)
+
+# ДВА РЕПОЗИТОРИЯ (не путать):
+#   HYBRID  — audit-pin, TCP+TLS mesh
+#             C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate_Hybrid
+#             https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid  (master)
+
+#   EXPERIMENTAL — R&D: libp2p, Long-Range lab, council NFT, EVM depth
+#             C:\Users\vovun\Desktop\Absolute_Blockchain_Experimental
+#             https://github.com/Gruver87/experimental  (main)
+
+# Личная копия (Desktop, не в git): Absolute_Blockchain_All_Commands_FIXED.txt
+# Краткая шпаргалка: docs/COMMANDS_REFERENCE.md
+# Секреты: только .env · secrets/README.md
 # =============================================================================
 #
 # ЧЕСТНОСТЬ (всегда):
 #   · Gate green ≠ public mainnet
-#   · Prod mesh 778888 = profile, не запущенный публичный mainnet
-#   · Bridge на live mesh: OFF (пока нет audited L1 cutover)
-#   · Ceremony pin + external audit = org blockers
-#   · ABS = in-repo tokenomics (221M), не листинг
+#   · Prod mesh 778888 = industrial PROFILE, не публичный mainnet
+#   · Bridge на live mesh: OFF (ADR 0010 cutover отдельно)
+#   · libp2p 48h — PASS только с evidence в docs/EVIDENCE_MATRIX.md
+#   · Council NFT (87) — lab/staging 778889, НЕ security guarantee L1
+#   · External audit — org blocker (см. MAINNET_GAP_ANALYSIS.md)
 #
-# PowerShell: только .\scripts\...  (не «test_full_project.ps1» без пути)
-# Ввод команд БЕЗ хвостов из отчётов (→ OK, → 99 passed).
+# PowerShell: только .\scripts\...  (не «pytest» без cd в репо)
+# Команды вводить БЕЗ хвостов из отчётов (→ OK, → 99 passed).
 #
 # =============================================================================
-
 
 # =============================================================================
 # ОГЛАВЛЕНИЕ
 # =============================================================================
-#   Шпаргалка портов .................. сразу ниже
-#   Карта «что это» ................... легенда ярлыков
-#   ЧАСТЬ  0  Быстрый старт (3 команды)
-#   ЧАСТЬ  1  Первичная настройка
-#   ЧАСТЬ  2  Одна нода — старт / стоп / сброс
-#   ЧАСТЬ  3  Два узла локально (devnet)
-#   ЧАСТЬ  4  Docker 2-node devnet
-#   ЧАСТЬ  5  Docker 3-node testnet
-#   ЧАСТЬ  6  Docker 5-validator
-#   ЧАСТЬ  7  P2P sync / verify / лечение
-#   ЧАСТЬ  8  REST API (ядро L1)
-#   ЧАСТЬ  9  Bridge (кросс-чейн)
-#   ЧАСТЬ 10  Кошелёк / TX / майнинг
-#   ЧАСТЬ 11  JSON-RPC (:8545 / :18545)
-#   ЧАСТЬ 12  EVM и модули
-#   ЧАСТЬ 13  Web Explorer
-#   ЧАСТЬ 14  Telegram
-#   ЧАСТЬ 15  Production / mainnet-v1 Docker
-#   ЧАСТЬ 16  Тесты, industrial gate, waves
-#   ЧАСТЬ 17  Soak / evidence / resilience
-#   ЧАСТЬ 18  RocksDB / бэкап / DR
-#   ЧАСТЬ 19  P2P TLS mesh
-#   ЧАСТЬ 20  Ceremony / validators / KMS
-#   ЧАСТЬ 21  Public testnet / VPS
-#   ЧАСТЬ 22  Observability / HA / K8s
-#   ЧАСТЬ 23  Диагностика
-#   ЧАСТЬ 24  СЕКРЕТЫ (только локально)
-#   ЧАСТЬ 25  Git / пути / о проекте
-#   ЧАСТЬ 26  Типовые сценарии дня
-#   ЧАСТЬ 27  Устаревшее (не использовать)
-#   ЧАСТЬ 28  Industrial waves map (v1.3.65–86)
+#   Шпаргалка портов / chain_id ....... ниже
+#   Карта ярлыков .................... легенда
+#   ЧАСТЬ  0   Быстрый старт
+#   ЧАСТЬ  1   Первичная настройка
+#   ЧАСТЬ  2   Одна нода
+#   ЧАСТЬ  3–6 Devnet docker (2/3/5 node)
+#   ЧАСТЬ  7   P2P sync / verify
+#   ЧАСТЬ  8   REST API L1
+#   ЧАСТЬ  9   Bridge (OFF на prod mesh)
+#   ЧАСТЬ 10   Кошелёк / TX
+#   ЧАСТЬ 11   JSON-RPC
+#   ЧАСТЬ 12   EVM / sprouts (NFT off на 778888)
+#   ЧАСТЬ 13   Explorer
+#   ЧАСТЬ 14   Telegram
+#   ЧАСТЬ  15   Prod mesh Docker [778888]
+#   ЧАСТЬ  16   Тесты · industrial gate
+#   ЧАСТЬ  17   Soak / evidence
+#   ЧАСТЬ  18   RocksDB / DR
+#   ЧАСТЬ  19   P2P TLS (Hybrid) / libp2p (Experimental)
+#   ЧАСТЬ  20   Ceremony / validators
+#   ЧАСТЬ  21   Public testnet
+#   ЧАСТЬ  22   Observability / K8s
+#   ЧАСТЬ  23   Диагностика
+#   ЧАСТЬ  24   Секреты — шаблон (значения в .env)
+#   ЧАСТЬ  25   Git / пути
+#   ЧАСТЬ  26   Сценарии дня
+#   ЧАСТЬ  27   Устаревшее
+#   ЧАСТЬ  28   ADR / profiles (0016 sprouts)
+#   ЧАСТЬ  29   Hybrid vs Experimental — когда какой репо
+#   ЧАСТЬ  30   L1 Integration Gate (обязательный порядок)
+#   ЧАСТЬ  31   Experimental R&D (libp2p, LR, EVM labs)
+#   ЧАСТЬ  32   Gruver87 Council NFT (ADR 0022, chain 778889)
 # =============================================================================
 
 
 # =============================================================================
-# ШПАРГАЛКА — ПОРТЫ И URL
+# ШПАРГАЛКА — ПОРТЫ · CHAIN_ID
 # =============================================================================
 #
-# | Что                            | URL / порт                 | Зачем                        |
-# |--------------------------------|----------------------------|------------------------------|
-# | Explorer + REST                | http://localhost:8080      | UI + все REST                |
-# | Node2 REST                     | http://localhost:8081      | 2-я локальная / docker       |
-# | Node3 REST                     | http://localhost:8082      | 3-node docker                |
-# | Node4 / Node5                  | :8083 / :8084              | 5-validator                  |
-# | JSON-RPC (MetaMask)            | :8545                      | eth_*                        |
-# | Node2 RPC                      | :8546                      | docker 2-node                |
-# | P2P                            | :5000 … :5004              | gossip / sync                |
-# | WebSocket live                 | :8766                      | explorer live                |
-# | Docker PROD HTTP (alt)         | http://127.0.0.1:18080     | если :8080 занят             |
-# | Docker PROD JSON-RPC           | :18545                     | MetaMask prod profile        |
-# | Prod mesh 3 validators         | :18180 / :18181 / :18182   | docker_prod_3node.ps1        |
-# | Chain ID devnet/docker         | 77777                      | start_two_nodes / docker     |
-# | Chain ID solo default          | 1337                       | одиночная нода               |
-# | Chain ID mainnet-v1 profile    | 778888                     | prod docker — НЕ public MN   |
-# | Block time                     | ~12–15 сек                 | автомайнинг                  |
-# | Max supply                     | 221 000 000 ABS            | жёсткий лимит                |
-# | Founder D.U.P.                 | 17.4% → 38 454 000 ABS     | founder allocation           |
+# | Что                         | URL / порт              | Repo / profile        |
+# |-----------------------------|-------------------------|------------------------|
+# | Solo REST                   | http://localhost:8080   | dev                    |
+# | Node2 / Node3               | :8081 / :8082           | devnet docker          |
+# | JSON-RPC dev                | :8545                     | MetaMask dev           |
+# | Prod mesh HTTP              | :18180 / :18181 / :18182| docker_prod_3node      |
+# | Prod mesh RPC               | :18546–:18548           | prod profile           |
+# | Staging APP (NFT council)   | http://127.0.0.1:19080  | Experimental only      |
+# | Staging APP RPC             | :19545                    | chain_id 778889        |
+# | Staging APP P2P             | :19000                    | feature_nft=true       |
+# | Long-Range lab compose      | (см. LONG_RANGE_LAB)    | отдельный compose      |
+# | P2P dev                     | :5000 … :5004           | gossip                 |
+# | WebSocket                   | :8766                     | explorer live          |
 #
-# Проверка волны API:
-#   (Invoke-RestMethod http://localhost:8080/status).api_wave          # → 61
-#   (Invoke-RestMethod http://localhost:8080/status).node_version      # → 1.3.114-industrial
+# | chain_id | Где                          | feature_nft      |
+# |----------|------------------------------|------------------|
+# | 1337     | solo default                 | app default dev  |
+# | 77777    | devnet / testnet seed        | staging ok       |
+# | 778888   | industrial prod mesh         | MUST be false    |
+# | 778889   | app staging (council NFT)    | true             |
 #
-
-
-# =============================================================================
-# КАРТА ЯРЛЫКОВ (как читать файл)
-# =============================================================================
-#
-#   [DEV]      — локальная разработка / docker devnet 77777
-#   [PROD]     — profile mainnet-v1 778888 (не public mainnet)
-#   [GATE]     — проверка / fail-closed gate
-#   [SECRET]   — только Часть 24 / .env
-#   [RUST]     — abs_native / hybrid path
-#   [HONEST]   — ограничение: не заявлять лишнего
+# Founder: 17.4% = 38 454 000 ABS · max supply 221 000 000
+# Проверка версии: (Invoke-RestMethod http://127.0.0.1:18180/status).node_version
 #
 
 
 # =============================================================================
-# ЧАСТЬ 0: БЫСТРЫЙ СТАРТ (если просто «поднять ноду»)
+# КАРТА ЯРЛЫКОВ
+# =============================================================================
+#   [HYBRID]   — Ultimate_Hybrid repo (audit pin)
+#   [EXP]      — Experimental repo (R&D)
+#   [DEV]      — локальная разработка / devnet 77777
+#   [PROD]     — profile 778888 (не public mainnet)
+#   [STAGING]  — profile 778889 app/council
+#   [GATE]     — fail-closed проверка
+#   [LAB]      — lab script, не soak claim
+#   [HONEST]   — не заявлять mainnet / audit / 48h без evidence
+#   [SECRET]   — только .env (Part 24 — имена переменных)
+#
+
+
+# =============================================================================
+# ЧАСТЬ 0: БЫСТРЫЙ СТАРТ
 # =============================================================================
 
-cd C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate_Hybrid
-
-# 1) зависимости + native (один раз / после pull Rust)
+# --- [EXP] Industrial mesh (основная R&D работа) ---
+cd C:\Users\vovun\Desktop\Absolute_Blockchain_Experimental
 pip install -r requirements.txt
 .\scripts\build_native.ps1
-
-# 2) секреты в .env (см. Часть 24)
 .\scripts\init_env.ps1
-# notepad .env
-python scripts/apply_local_secrets.py
+# notepad .env  →  python scripts/apply_local_secrets.py
 
-# 3) старт
-.\scripts\start_node.ps1
-# Открыть: http://localhost:8080
+# Поднять 3-node prod mesh + проверить (см. Часть 30 — обязательный порядок)
+.\scripts\docker_prod_3node.ps1 -SkipBuild -KeepVolumes
+.\scripts\probe_prod_mesh.ps1 -Quick
+python scripts/industrial_gate.py
+
+# --- [HYBRID] Audit-pin mesh (TCP+TLS, без libp2p Experimental) ---
+cd C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate_Hybrid
+.\scripts\build_native.ps1
+.\scripts\start_all.ps1 -SkipBuild -KeepVolumes
+# Explorer: :18180 :18181 :18182
 
 
 # =============================================================================
 # ЧАСТЬ 1: ПЕРВИЧНАЯ НАСТРОЙКА
 # =============================================================================
 
-cd C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate_Hybrid
 pip install -r requirements.txt
-
 .\scripts\init_env.ps1
 notepad .env
 python scripts/apply_local_secrets.py
 
-# [RUST] Hybrid wheel
 .\scripts\build_native.ps1
 python -c "from crypto import native as n; print(n.self_test())"
 
-# .env (типичные флаги):
-#   ABS_REQUIRE_NATIVE_CRYPTO=true     # prod-like fail-closed
-#   BRIDGE_MODE=rust                   # simulator — только явный dev/test
-#   DEPLOYMENT_MODE=dev|staging|prod
-
-# Перед git push
+# Перед git push (оба репо):
 python scripts/check_secrets.py
 
+# Типичные .env флаги:
+#   DEPLOYMENT_MODE=dev|staging|prod
+#   ABS_REQUIRE_NATIVE_CRYPTO=true
+#   FEATURE_NFT=false          # prod mesh 778888
+#   FEATURE_LIBP2P=true        # Experimental mesh only
+#   FEATURE_LONG_RANGE=false   # prod JSON — всегда false (ADR 0017)
+
 
 # =============================================================================
-# ЧАСТЬ 2: ОДНА НОДА — СТАРТ / СТОП / СБРОС
+# ЧАСТЬ 2: ОДНА НОДА
 # =============================================================================
 
-# Рекомендуется
 .\scripts\start_node.ps1
-
-# Напрямую
 python main.py
-
-# Устарело (редирект на main.py)
-python node_persistent.py
-
-# CLI
-python main.py --mode rpc-only
-python main.py --http-port 8080
-python main.py --rpc-port 8545
-python main.py --port 5001
-python main.py --data-dir ./data/node2
-python main.py --config node2.example.json
-python main.py --config docker/node1.devnet5.rust.json
-python main.py --log-level DEBUG
-
-# Порядок конфига: .env → JSON узла → CLI
+python main.py --config docker/node.staging.app.json    # [STAGING] council/NFT lab
 
 .\scripts\stop_node.ps1
-# или Ctrl+C
-
-# Полный сброс локальной цепи (ОСТОРОЖНО — потеря данных)
-.\scripts\stop_node.ps1
-Remove-Item -Recurse -Force data\* -ErrorAction SilentlyContinue
-python main.py
-
 .\scripts\reset_genesis.ps1
 
-
-# =============================================================================
-# ЧАСТЬ 3: ДВА УЗЛА ЛОКАЛЬНО [DEV] (:8080 + :8081)
-# =============================================================================
-
-.\scripts\stop_node.ps1
-.\scripts\start_two_nodes.ps1
-.\scripts\start_two_nodes.ps1 -RustBridge
-.\scripts\start_two_nodes.ps1 -RustBridge -Fresh
-.\scripts\start_two_nodes.ps1 -Industrial
-.\scripts\start_two_nodes.ps1 -Industrial -Fresh
-.\scripts\start_industrial_devnet.ps1
-.\scripts\start_industrial_devnet.ps1 -Fresh
-
-# -Fresh       — сброс DB обеих нод (рекомендуется при рассинхроне)
-# -RustBridge  — node1 bridge_mode=rust; node2 обычно simulator
-# stop_node.ps1 убивает python/main.py, НЕ Docker Desktop
-
-.\scripts\devnet_status.ps1
-
-Get-Content data\node_stdout.log -Tail 40
-Get-Content data\node2\node_stdout.log -Tail 40
-Get-Content data\node.log -Tail 50
-Get-Content data\node_pids.json
+# Полный сброс data (ОСТОРОЖНО):
+# Remove-Item -Recurse -Force data\* -ErrorAction SilentlyContinue
 
 
 # =============================================================================
-# ЧАСТЬ 4: DOCKER 2-NODE DEVNET [DEV]
+# ЧАСТЬ 3–6: DEVNET DOCKER
 # =============================================================================
 
+# 2-node
 .\scripts\docker_devnet.ps1
-.\scripts\docker_devnet.ps1 -RustBridge
-.\scripts\docker_devnet.ps1 -RustBridge -Reset
-.\scripts\docker_devnet.ps1 -NoCloneDb
+.\scripts\start_two_nodes.ps1 -Fresh
 
-docker compose -f docker-compose.devnet.yml up --build
-docker compose -f docker-compose.devnet-rust.yml up --build
-docker compose -f docker-compose.devnet-rust.yml down
-
-docker compose -f docker-compose.devnet-rust.yml logs node1 --tail 40
-docker compose -f docker-compose.devnet-rust.yml logs node2 --tail 40
-
-
-# =============================================================================
-# ЧАСТЬ 5: DOCKER 3-NODE TESTNET [DEV]
-# =============================================================================
-# Порты: :8080 / :8081 / :8082  |  chain_id 77777  |  expected_peers=2
-
+# 3-node testnet (77777)
 .\scripts\docker_devnet_3node.ps1
-.\scripts\docker_devnet_3node.ps1 -NoCloneDb
-
-docker compose -f docker-compose.devnet-3node.yml up --build
-docker compose -f docker-compose.devnet-3node.yml down -v
-
-Invoke-RestMethod http://localhost:8080/testnet/mesh
-Invoke-RestMethod http://localhost:8081/testnet/mesh
-Invoke-RestMethod http://localhost:8082/testnet/mesh
-
-python scripts/verify_p2p_ci.py --mode devnet3
 python scripts/verify_p2p_ci.py --mode devnet3 --wait 360
 
-
-# =============================================================================
-# ЧАСТЬ 6: DOCKER 5-VALIDATOR [DEV]
-# =============================================================================
-# :8080..:8084  |  3 miners + 2 attesters
-
+# 5-validator
 .\scripts\docker_devnet_5validator.ps1
-.\scripts\docker_devnet_5validator.ps1 -NoCloneDb
-
-docker compose -f docker-compose.devnet-5validator.yml up --build
-docker compose -f docker-compose.devnet-5validator.yml down -v
-
-1..5 | ForEach-Object {
-    $p = 8079 + $_
-    Invoke-RestMethod "http://127.0.0.1:$p/status" | Select-Object node_id, height, api_wave, node_version
-}
-
-Invoke-RestMethod http://localhost:8080/testnet/validators
 python scripts/verify_p2p_ci.py --mode devnet5 --wait 360
 
 
 # =============================================================================
-# ЧАСТЬ 7: P2P — SYNC / VERIFY / ЛЕЧЕНИЕ
+# ЧАСТЬ 7: P2P — SYNC / VERIFY
 # =============================================================================
 
-# --- verify_p2p_ci режимы ---
 python scripts/verify_p2p_ci.py --mode auto
-python scripts/verify_p2p_ci.py --mode devnet --wait 240
-python scripts/verify_p2p_ci.py --mode devnet3 --wait 360
-python scripts/verify_p2p_ci.py --mode devnet5 --wait 360
-python scripts/verify_p2p_ci.py --mode ci
-python scripts/verify_p2p_ci.py --mode ci3
-python scripts/verify_p2p_ci.py --mode ci-adversarial
-python scripts/verify_p2p_ci.py --mode ci-fork
-python scripts/verify_p2p_ci.py --mode ci-bridge
-python scripts/verify_p2p_ci.py --mode ci-bridge-relayer
 python scripts/verify_p2p_ci.py --mode prod-smoke
-
 .\scripts\verify_p2p.ps1
 
-# --- topology / reconnect ---
+Invoke-RestMethod http://127.0.0.1:8080/chain/consistency/harness
 Invoke-RestMethod http://127.0.0.1:8080/p2p/topology
-Invoke-RestMethod http://127.0.0.1:8080/p2p/reconnect -Method POST -Body '{"timeout":20}' -ContentType 'application/json'
-
-# --- catch-up / reconcile ---
-Invoke-RestMethod http://127.0.0.1:8081/sync/fast-sync -Method POST -Body '{"timeout":300}' -ContentType 'application/json'
-Invoke-RestMethod http://127.0.0.1:8080/sync/reconcile -Method POST -Body '{"timeout":300}' -ContentType 'application/json'
-
-# --- consistency / fork / peers ---
-Invoke-RestMethod http://localhost:8080/chain/consistency/harness
-Invoke-RestMethod http://localhost:8080/testnet/fork-status
-Invoke-RestMethod http://localhost:8080/slashing/events
-Invoke-RestMethod http://127.0.0.1:8080/peers
 Invoke-RestMethod http://127.0.0.1:8080/sync/status
-Invoke-RestMethod http://127.0.0.1:8080/chain/state-root/status
 
-# --- mesh heal (если разъехались) ---
 .\scripts\mesh_stabilize.ps1
 .\scripts\mesh_heal_fork.ps1
 .\scripts\mesh_recover.ps1
-
-# Коды verify_p2p_ci: 0 OK | 1 down | 2 no sync | 4 chain_id | 5 state_root | 7 tx prop | 12 harness
-#
-# Типичное лечение:
-#   FAIL tx prop → stop + start_two_nodes.ps1 -RustBridge -Fresh
-#   gap>0 при peers → fast-sync + reconcile на отстающей
-#   confirmed=False при OK tx — норма (mempool, блок ещё не смайнен)
+python scripts/check_mesh_catchup.py
 
 
 # =============================================================================
-# ЧАСТЬ 8: REST API — ЯДРО L1
+# ЧАСТЬ 8: REST API — L1
 # =============================================================================
 
 Invoke-RestMethod http://localhost:8080/health/live
 Invoke-RestMethod http://localhost:8080/health/ready
 Invoke-RestMethod http://localhost:8080/status
 Invoke-RestMethod http://localhost:8080/features
-Invoke-RestMethod http://localhost:8080/metrics
-
-# Токеномика
 Invoke-RestMethod http://localhost:8080/tokenomics
-Invoke-RestMethod http://localhost:8080/founder
-Invoke-RestMethod http://localhost:8080/allocation
-Invoke-RestMethod http://localhost:8080/stats
 Invoke-RestMethod http://localhost:8080/pools/locks
+Invoke-RestMethod http://localhost:8080/pools/dao/status
 
-# Цепь / TX
-Invoke-RestMethod http://localhost:8080/chain/metrics
-Invoke-RestMethod http://localhost:8080/tx/receipt/TX_HASH_HERE
-Invoke-RestMethod "http://localhost:8080/address/0xADDR/activity"
-Invoke-RestMethod "http://localhost:8080/address/0xADDR/txs?limit=20"
-Invoke-RestMethod http://localhost:8080/chain/proposers/stats
-
-# Отправка (dev auto_sign — только с локальным ключом)
+# TX (dev auto_sign — только локальный ключ)
 $body = '{"auto_sign":true,"to":"0x2222222222222222222222222222222222222222","value":0.01,"gas":21000}'
 Invoke-RestMethod http://localhost:8080/tx/send -Method POST -Body $body -ContentType 'application/json'
-Invoke-RestMethod http://localhost:8080/mempool
-Invoke-RestMethod http://localhost:8080/tx/trace/TX_HASH_HERE
-
-# Testnet helpers
-Invoke-RestMethod http://localhost:8080/testnet/mesh
-Invoke-RestMethod http://localhost:8080/testnet/validators
-Invoke-RestMethod http://localhost:8080/testnet/multi-node-proof
-Invoke-RestMethod http://localhost:8080/testnet/fork-exercise -Method POST -Body '{}' -ContentType 'application/json'
-Invoke-RestMethod http://localhost:8080/testnet/bridge-relayer-proof
-
-# P2P security status (ingress/egress/framer — industrial)
-# (если эндпоинт есть на вашей сборке — иначе смотри /status + /metrics)
-Invoke-RestMethod http://localhost:8080/status
 
 
 # =============================================================================
-# ЧАСТЬ 9: BRIDGE (КРОСС-ЧЕЙН)
+# ЧАСТЬ 9: BRIDGE [HONEST — OFF на prod mesh]
 # =============================================================================
-# [HONEST] На live prod mesh bridge OFF. Cutover = отдельный lab/gate.
 
 Invoke-RestMethod http://localhost:8080/bridge
-Invoke-RestMethod http://localhost:8080/bridge/relayer/status
-
-# Relayer sidecar
-python scripts/bridge_relayer.py
-
-# L1 preflight / cutover (нужен ETH_RPC_URL из Части 24)
-python scripts/bridge_l1_preflight.py
-.\scripts\bridge_l1_cutover.ps1 -ProbeL1
-.\scripts\bridge_l1_cutover.ps1 -Live
-.\scripts\bridge_l1_live_probe.ps1
-.\scripts\bridge_cutover_evidence_suite.ps1
-
-# Audit: bridge must stay OFF on live mesh profile
 python scripts/bridge_off_audit_gate.py
-
+python scripts/bridge_l1_preflight.py
 # Документ: docs/BRIDGE_L1_MAINNET.md
 
 
 # =============================================================================
-# ЧАСТЬ 10: КОШЕЛЁК / TX / МАЙНИНГ
+# ЧАСТЬ 10–11: КОШЕЛЁК · JSON-RPC
 # =============================================================================
 
 Invoke-RestMethod "http://localhost:8080/wallet/balance/0xbeb0962327d6f0ad8de263bd883bb184e88744a2"
-Invoke-RestMethod http://localhost:8080/wallet/info
 
-# Майнинг — автоматический цикл в main.py (~12–15с). Отдельного POST /api/mine нет.
-# Faucet (devnet):
-Invoke-RestMethod http://localhost:8080/testnet/faucet -Method POST -Body '{"address":"0xADDR","amount":10}' -ContentType 'application/json'
-
-
-# =============================================================================
-# ЧАСТЬ 11: JSON-RPC
-# =============================================================================
-
-# Dev :8545
 curl -s -X POST http://127.0.0.1:8545 -H "Content-Type: application/json" -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_chainId\",\"params\":[],\"id\":1}"
-curl -s -X POST http://127.0.0.1:8545 -H "Content-Type: application/json" -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}"
-
-# [PROD] Docker :18545 — нужен X-API-Key из Части 24 (RPC_API_KEYS)
-# curl ... -H "X-API-Key: <RPC_API_KEYS>" http://127.0.0.1:18545 ...
 
 
 # =============================================================================
-# ЧАСТЬ 12: EVM И МОДУЛИ
+# ЧАСТЬ 12: EVM · SPROUTS (ADR 0016)
 # =============================================================================
-# [HONEST] EVM — не полный Ethereum. Модули ZK/PQ/Lightning — R&D / prod-blocked.
+# [HONEST] Не full Geth. Prod 778888: все feature_*=false кроме EVM depth в core.
 
 Invoke-RestMethod http://localhost:8080/features
-Invoke-RestMethod http://localhost:8080/evm/validate -Method POST -Body '{"bytecode":"6001600055"}' -ContentType 'application/json'
-Invoke-RestMethod http://localhost:8080/evm/logs
-Invoke-RestMethod "http://localhost:8080/nft/..."
-Invoke-RestMethod http://localhost:8080/oracles/prices
-Invoke-RestMethod http://localhost:8080/sharding/status
+Invoke-RestMethod http://localhost:8080/nft/stats          # disabled на 778888
 
-# Industrial EVM path (native): value CALL / CREATE writeback journal — в abs_native
-# Проверка: python scripts/verify_industrial_waves.py
+# [LAB] EVM honesty (Experimental, без mesh):
+python scripts/evm_rpc_lab.py
+python scripts/evm_logs_lab.py
+python scripts/evm_filters_lab.py
+python scripts/oracle_lab.py
+python scripts/cross_shard_lab.py
 
+# Live mesh EVM smoke:
+python scripts/prod_evm_smoke.py
+python scripts/prod_signed_tx_smoke.py
 
-# =============================================================================
-# ЧАСТЬ 13: WEB EXPLORER
-# =============================================================================
-
-# http://localhost:8080
-# http://localhost:8080/docs          (OpenAPI, если включён)
-# WS live: ws://localhost:8766
+# Матрица: docs/sprouts/EVM_COMPAT_MATRIX.md
 
 
 # =============================================================================
-# ЧАСТЬ 14: TELEGRAM
+# ЧАСТЬ 13–14: EXPLORER · TELEGRAM
 # =============================================================================
-# Токен: Часть 24 → TELEGRAM_BOT_TOKEN
-# Автостарт из main.py при наличии токена в .env
-# Команды бота: /status /bridge /balance (зависит от сборки)
+# http://localhost:8080  ·  ws://localhost:8766
+# Telegram: TELEGRAM_BOT_TOKEN в .env → автостарт из main.py
 
 
 # =============================================================================
-# ЧАСТЬ 15: PRODUCTION / MAINNET-V1 DOCKER [PROD]
+# ЧАСТЬ 15: PROD MESH DOCKER [PROD] chain 778888
 # =============================================================================
-# [HONEST] Это prod PROFILE (chain 778888), не публичный mainnet.
 
-.\scripts\setup_prod_env.ps1
-.\scripts\setup_prod_env.ps1 -Force -EthRpcUrl "https://mainnet.infura.io/v3/<INFURA_KEY>"
+# [EXP] libp2p Noise mesh (ADR 0020) — default в Experimental
+cd C:\Users\vovun\Desktop\Absolute_Blockchain_Experimental
+.\scripts\docker_prod_3node.ps1 -SkipBuild -KeepVolumes
+# ⚠️  -P2pTls НЕ использовать в Experimental (refuse в скрипте)
 
-# Одиночный prod (+ optional bridge lab)
-.\scripts\docker_prod.ps1
-.\scripts\docker_prod.ps1 -Bridge
+# [HYBRID] TCP+TLS overlay
+cd C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate_Hybrid
+.\scripts\docker_prod_3node.ps1 -CeremonyDir data\ceremony_keys -SkipBuild -KeepVolumes
+.\scripts\docker_prod_3node.ps1 -P2pTls -SkipBuild -KeepVolumes   # Hybrid only
 
-# 3-node mesh (bridge OFF на валидаторах)
-.\scripts\docker_prod_3node.ps1 -CeremonyDir data\ceremony_keys
+.\scripts\probe_prod_mesh.ps1 -Quick
+.\scripts\probe_prod_mesh.ps1
+python scripts/verify_prod_mesh_probe.py
 
-# Вся сеть одной командой
-.\scripts\docker_prod_full_network.ps1 -CeremonyDir data\ceremony_keys
-
-# Порты prod:
-#   Bridge+relayer lab :18080 / :18545
-#   Mesh validators    :18180–18182 / :18546–18548
-
-Invoke-RestMethod http://127.0.0.1:18080/health/ready
+Invoke-RestMethod http://127.0.0.1:18180/health/ready
 Invoke-RestMethod http://127.0.0.1:18180/status
 
-.\scripts\mainnet_live_gate.ps1
-.\scripts\mainnet_readiness.ps1
+.\scripts\start_all.ps1 -SkipBuild -KeepVolumes
 python scripts/mainnet_readiness.py --json
-python scripts/mainnet_readiness.py --ceremony-dir data/ceremony_keys --live --base-url http://127.0.0.1:18180
-
-# Очистить stale ETH_RPC_URL из Windows env (если cutover видит старый URL):
-#   [Environment]::SetEnvironmentVariable("ETH_RPC_URL", $null, "User")
-#   [Environment]::SetEnvironmentVariable("ETH_RPC_URL", $null, "Process")
-
-# Документы: docs/MAINNET_GAP_ANALYSIS.md · docs/EVIDENCE_MATRIX.md
 
 
 # =============================================================================
-# ЧАСТЬ 16: ТЕСТЫ · INDUSTRIAL GATE · WAVES
+# ЧАСТЬ 16: ТЕСТЫ · INDUSTRIAL GATE [GATE]
 # =============================================================================
 
-# --- Главные entry ---
-# ЕДИНАЯ проверка (рекомендуется):
-.\scripts\check_all.ps1                 # Quick
-.\scripts\check_all.ps1 -Mode Standard  # полный offline
-.\scripts\check_all.ps1 -Mode Full      # + rebuild native
-.\scripts\check_all.ps1 -Mode Live      # + живой узел
-.\scripts\check_all.ps1 -Mode Max       # Full+Live+P2P
-.\scripts\check_all.ps1 -Help
-# Отчёт: data/check_all.json
-
-.\scripts\test_full_project.ps1 -SkipNativeBuild
-.\scripts\test_full_project.ps1
-.\scripts\test_blockchain_full.ps1 -SkipNativeBuild
-.\scripts\check_hybrid_full.ps1
-.\scripts\check_everything.ps1
-.\scripts\release_gate.ps1 -SkipNativeBuild
-.\scripts\release_gate.ps1 -Mainnet -SkipNativeBuild
-
-# Live + P2P
-.\scripts\stop_node.ps1
-.\scripts\start_two_nodes.ps1 -Fresh
-.\scripts\test_full_project.ps1 -SkipNativeBuild -Live -P2P
-
-# --- [GATE] Industrial (код + waves 1.3.65–1.3.87) ---
+.\scripts\check_all.ps1
+.\scripts\check_all.ps1 -Mode Standard
 python scripts/industrial_gate.py
-.\scripts\industrial_gate.ps1
 python scripts/verify_industrial_waves.py
-.\scripts\verify_industrial_waves.ps1
-python scripts/verify_industrial_waves.py --skip-gate
-# Отчёт: data/verify_industrial_waves.json · data/industrial_gate.json
-
-# Mainnet / pre-mainnet
-.\scripts\pre_mainnet_audit.ps1
-.\scripts\mainnet_readiness.ps1
-python scripts/mainnet_readiness.py --json
-python scripts/mainnet_readiness.py --no-strict-audit --json
-.\scripts\external_audit_tracker.ps1 -List
-
-# Prod smoke
-python scripts/prod_smoke.py http://127.0.0.1:8080
-python scripts/verify_p2p_ci.py --mode prod-smoke
-python scripts/prod_signed_tx_smoke.py
-python scripts/prod_evm_smoke.py
-
-# Native
-.\scripts\build_native.ps1
-
-# Full audit
-python scripts/full_audit.py
-python scripts/full_audit.py --live --p2p --p2p-wait 300
-.\scripts\full_audit.ps1
-python scripts/mega_audit.py
+python scripts/final_audit.py
 python scripts/prod_gate.py
 
 pytest tests/unit/ -q
 pytest tests/ -q --ignore=tests/legacy
 
-# Ожидаемо (июль 2026): industrial waves verify ~99 unit в WAVE_TESTS; api_wave=61
+# [EXP] Параллельный R&D batch (labs, не soak):
+python scripts/verify_parallel_rd_batch.py
+python scripts/verify_experimental_rd.py
 
 
 # =============================================================================
-# ЧАСТЬ 17: SOAK · EVIDENCE · RESILIENCE
+# ЧАСТЬ 17: SOAK · EVIDENCE [HONEST]
 # =============================================================================
-# [HONEST] 48h soak PASS (Jul 2026) — см. docs/EVIDENCE_MATRIX.md
+# 48h PASS — только если docs/EVIDENCE_MATRIX.md + logs с passed=true, hard_fails=0
 
 .\scripts\prepare_48h_soak.ps1
-.\scripts\soak_preflight.py
-.\scripts\soak_monitor.ps1
-.\scripts\soak_status.ps1
-.\scripts\stop_soak_monitors.ps1
-.\scripts\restart_soak_prod_mesh.ps1
-.\scripts\post_soak_verify.ps1
-python scripts/post_soak_verify.py
+python scripts/soak_preflight.py
+.\scripts\soak_monitor.ps1 -ProdMesh -Hours 7
+.\scripts\start_soak_prod_mesh_48h.ps1          # operator: libp2p 48h — явная команда
+.\scripts\health_watch.ps1 -ProdMesh -DurationMin 120   # 2h smoke pre-48h
 
-.\scripts\prod_evidence_suite.ps1
-.\scripts\prod_mesh_resilience_suite.ps1
 .\scripts\prod_mesh_failover.ps1
-.\scripts\prod_mesh_industrial.ps1
-.\scripts\prod_mesh_full.ps1
-.\scripts\health_watch.ps1
-
-python scripts/stamp_release_evidence.py
-python scripts/export_audit_pack.py
-.\scripts\export_audit_pack.ps1
+.\scripts\prod_mesh_resilience_suite.ps1
+python scripts/post_soak_verify.py
 python scripts/record_evidence_run.py
+.\scripts\export_audit_pack.ps1
+
+# Evidence index: docs/EVIDENCE_MATRIX.md · docs/EXECUTION_ORDER.md
 
 
 # =============================================================================
-# ЧАСТЬ 18: ROCKSDB · БЭКАП · DR
+# ЧАСТЬ 18: ROCKSDB · DR
 # =============================================================================
-# Документ: docs/STORAGE_ROCKSDB.md
 
-python scripts/migrate_sqlite_to_rocks.py
 python scripts/backup_chainstore.py
-.\scripts\backup_chainstore.ps1
-python scripts/restore_chainstore.py
-.\scripts\quick_restore.ps1
-.\scripts\dr_restore_rehearsal.ps1
-python scripts/backup_rocks_drill.py
-python scripts/bench_storage_commit.py
-python scripts/backup_db.py
-.\scripts\backup_scheduled.ps1
+.\scripts\dr_restore_rehearsal.ps1 -DockerMesh1
+# Runbook: docs/DISASTER_RECOVERY.md
 
 
 # =============================================================================
-# ЧАСТЬ 19: P2P TLS MESH
+# ЧАСТЬ 19: P2P TRANSPORT
 # =============================================================================
 
-python scripts/gen_p2p_dev_tls.py
+# [HYBRID] TCP+TLS mTLS overlay
 python scripts/gen_p2p_mesh_tls.py
-.\scripts\prepare_p2p_tls_mesh.ps1
-python scripts/p2p_tls_preflight.py
 .\scripts\docker_prod_3node_p2ptls.ps1
 .\scripts\probe_p2p_tls_mesh.ps1
-python scripts/verify_p2p_tls_mesh.py
-.\scripts\p2p_tls_evidence_suite.ps1
 
-# Industrial native P2P (не full transport):
-#   v1.3.77 ingress admit + governor
-#   v1.3.78 inbound bandwidth
-#   v1.3.85 outbound egress bandwidth
-#   v1.3.86 NDJSON line framer
-#   v1.3.87 unified egress prepare
-#   v1.3.88 P2P kernel fuzz_api / cargo-fuzz smoke
-#   v1.3.89 Sybil/Eclipse public subnet + reserved outbound slots
-#   v1.3.90 native plain-TCP transport slice (opt-in)
-#   v1.3.91 native rustls TLS on transport
-#   v1.3.92 native read_message frame+parse pump
-#   v1.3.93 native write_message encode+write pump
-#   v1.3.94 native read_messages batch pump
-#   v1.3.95 native write_messages / write_payloads batch
-#   v1.3.96 native handshake_roundtrip I/O fuse
-#   v1.3.97 native peer cert CN/SAN identities
-#   v1.3.114 prod-mandatory native P2P transport
-# Config: p2p_max_bytes_per_sec · p2p_max_outbound_bytes_per_sec · p2p_max_inbound_per_ip
+# [EXP] libp2p rust (ADR 0018–0020)
+python scripts/verify_adr0019_libp2p.py
+python scripts/verify_adr0019_libp2p_hard.ps1
+# libp2p unit labs: scripts/libp2p_rust_*_lab.py (много — только при отладке)
+python scripts/package_libp2p_evidence.py
+
+# Blocker status: docs/sprouts/LIBP2P_48H_PREP.md
 
 
 # =============================================================================
-# ЧАСТЬ 20: CEREMONY · VALIDATORS · KMS
+# ЧАСТЬ 20: CEREMONY · VALIDATORS
 # =============================================================================
 
 python scripts/genesis_ceremony.py --write data/genesis_ceremony.json
-.\scripts\genesis_ceremony.ps1
 python scripts/genesis_ceremony_keygen.py
-python scripts/genesis_ceremony_verify_wallet.py
-.\scripts\pin_ceremony_hash.ps1
-.\scripts\prepare_ceremony_deploy.ps1
-.\scripts\deploy_ceremony_prod.ps1
-.\scripts\ceremony_evidence_suite.ps1
 python scripts/ceremony_preflight.py
-.\scripts\ceremony_env.ps1
-
-# Провайдеры ключей:
-#   VALIDATOR_KEY_PROVIDER=local|external|aws_kms|gcp_kms|gcp_cloudhsm|aws_cloudhsm
-# Manifest: validators.manifest.example.json · GET /validators/registry
+.\scripts\pin_ceremony_hash.ps1
+.\scripts\ceremony_evidence_suite.ps1
 
 Invoke-RestMethod http://localhost:8080/validators/registry
-Invoke-RestMethod http://localhost:8080/sharding/cross-shard/quorum/TX_ID
+# Документ: docs/GENESIS_CEREMONY.md
 
 
 # =============================================================================
-# ЧАСТЬ 21: PUBLIC TESTNET / VPS
+# ЧАСТЬ 21: PUBLIC TESTNET
 # =============================================================================
-# [HONEST] Public URL / listed testnet — ещё не claimed. Локальный seed — proven.
 
 .\scripts\docker_testnet_seed.ps1
-.\scripts\docker_testnet_mesh.ps1
-.\scripts\docker_testnet_mesh3.ps1
-.\scripts\probe_testnet_mesh.ps1
-python scripts/verify_testnet_mesh.py
-.\scripts\testnet_readiness.ps1
 .\scripts\testnet_evidence_suite.ps1
-.\scripts\testnet_health_watch.ps1
-.\scripts\testnet_uptime_probe.ps1
-python scripts/testnet_uptime_probe.py
-.\scripts\public_testnet_gate.ps1
 python scripts/public_testnet_gate.py
-.\scripts\prepare_vps_testnet.ps1
-python scripts/vps_testnet_preflight.py
-# bash: scripts/vps_testnet_bootstrap.sh · vps_testnet_bootstrap_mesh3.sh
-.\scripts\prepare_testnet_dns_cutover.ps1
-python scripts/testnet_dns_cutover.py
-.\scripts\testnet_backup_restore.ps1
-
-# Документ: docs/PUBLIC_TESTNET.md
+# [HONEST] Public DNS/mainnet listing — not claimed
 
 
 # =============================================================================
-# ЧАСТЬ 22: OBSERVABILITY · HA · K8s
+# ЧАСТЬ 22: OBSERVABILITY · K8s
 # =============================================================================
 
-docker compose -f docker-compose.ha.yml up --build
-docker compose -f docker-compose.observability.yml up
-kubectl apply -k deploy/k8s/
+Invoke-RestMethod http://127.0.0.1:18180/metrics
 python scripts/k8s_prod_gate.py
-
-$env:LOG_JSON = "true"
-python main.py
-
-# Prometheus alerts: deploy/prometheus/alerts.yml
-# Метрики P2P: abs_p2p_bandwidth_rejects_total · abs_p2p_egress_rejects_total · …
+# ADR 0015: docs/adr/0015-observability-secret-management.md
 
 
 # =============================================================================
 # ЧАСТЬ 23: ДИАГНОСТИКА
 # =============================================================================
 
-Get-NetTCPConnection -LocalPort 8080,8081,8545,5000,8766 -ErrorAction SilentlyContinue |
-  Select-Object LocalPort, State, OwningProcess
-
-Get-Process python -ErrorAction SilentlyContinue | Select-Object Id, CPU, WorkingSet
+Get-NetTCPConnection -LocalPort 8080,18180,18181,18182,19080 -ErrorAction SilentlyContinue
 Get-Content data\node.log -Tail 80
-Get-Content data\node_stdout.log -Tail 80
-
-Invoke-RestMethod http://localhost:8080/health/ready
-Invoke-RestMethod http://localhost:8080/status
+docker logs abs-prod-mesh3-node1-1 --tail 80    # имя контейнера может отличаться
 
 .\scripts\cleanup_disk.ps1
-.\scripts\probe_mesh_nodes.ps1
-.\scripts\probe_prod_mesh.ps1
-python scripts/verify_prod_mesh_probe.py
-python scripts/verify_prod_stack.py
+python scripts/check_blockchain.py
+python scripts/verify_full_blockchain.py
 
 
 # =============================================================================
-# ЧАСТЬ 24: СЕКРЕТЫ, КЛЮЧИ И АДРЕСА — ВСЁ ПОДПИСАНО
+# ЧАСТЬ 24: СЕКРЕТЫ — ШАБЛОН (значения ТОЛЬКО в .env проекта)
 # =============================================================================
-# ⚠️  ХРАНИТЬ ТОЛЬКО ЛОКАЛЬНО. НЕ КОММИТИТЬ. НЕ ДЕЛИТЬСЯ.
-#     Рабочая копия для ноды: ...\Absolute_Blockchain_Ultimate_Hybrid\.env
-#     Инициализация: .\scripts\init_env.ps1 → notepad .env → apply_local_secrets.py
+# ⚠️  Не вставлять реальные ключи в этот файл. Только имена + назначение.
+#     Рабочий .env: ...\Absolute_Blockchain_Experimental\.env
+#                   ...\Absolute_Blockchain_Ultimate_Hybrid\.env
+#     Применить: python scripts/apply_local_secrets.py
 # =============================================================================
 
-# ─────────────────────────────────────────────────────────────────────────────
-# [СЕКРЕТ] OPENWEATHER_API_KEY — оракул погоды OpenWeatherMap
-# Назначение: GET /oracles/weather (без ключа = demo-режим)
-# Где задать: .env → OPENWEATHER_API_KEY=...
-OPENWEATHER_API_KEY=<set_in_.env_only>
-
-# ─────────────────────────────────────────────────────────────────────────────
-# [СЕКРЕТ] WEATHERAPI_KEY — запасной оракул погоды WeatherAPI.com
-# Назначение: fallback для /oracles/weather
-# Где задать: .env → WEATHERAPI_KEY=...
-WEATHERAPI_KEY=<set_in_.env_only>
-
-# ─────────────────────────────────────────────────────────────────────────────
-# [СЕКРЕТ] TELEGRAM_BOT_TOKEN — токен бота от @BotFather
-# Назначение: автостарт Telegram-бота в main.py; /status /bridge /balance
-# Где задать: .env → TELEGRAM_BOT_TOKEN=...
-# Опционально: TELEGRAM_ADMIN_CHAT_IDS=123456789
-TELEGRAM_BOT_TOKEN=<set_in_.env_only>
-
-# ─────────────────────────────────────────────────────────────────────────────
-# [СЕКРЕТ] WALLET_PRIVATE_KEY — ECDSA secp256k1, 64 hex символа
-# Назначение: подпись TX (auto_sign в /tx/send); dev_signer на node1
-# Где задать: .env → WALLET_PRIVATE_KEY=<set_in_.env_only>
-# ⚠️  НЕ хранить в wallet.json в git. Применить: python scripts/apply_local_secrets.py
-WALLET_PRIVATE_KEY=<set_in_.env_only>
-PROD_WALLET_ADDRESS=0x728600a5ee5f6d337a2245b3b11293b92d439019
-PROD_WALLET_PUBLIC_KEY=<from_wallet_json_public_only>
-# Файл: C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate_Hybrid\data\wallet.json
-
-# ─────────────────────────────────────────────────────────────────────────────
-# [СЕКРЕТ] JWT_SECRET — подпись admin JWT (production)
-# Назначение: защита admin-эндпоинтов при JWT_ENFORCE_ADMIN=true
-# Где задать: .env → JWT_SECRET=<redacted>
-JWT_SECRET=<set_in_.env_only>
-
-# ─────────────────────────────────────────────────────────────────────────────
-# [СЕКРЕТ] GITHUB_TOKEN — Personal Access Token для gh CLI / git push
-# Назначение: .\scripts\set_github_token.ps1, gh pr create
-# Где задать: .env → GITHUB_TOKEN=ghp_...
-# Scope: repo (минимум)
-GITHUB_TOKEN=<ghp_..._from_github_settings_tokens>
-
-# ─────────────────────────────────────────────────────────────────────────────
-# [СЕКРЕТ] BRIDGE_ORACLE_SECRET — HMAC для /bridge/oracle/*
-# Назначение: X-Bridge-Oracle-Signature, relayer callbacks
-# Где задать: .env → BRIDGE_ORACLE_SECRET=...
-BRIDGE_ORACLE_SECRET=<set_in_.env_only>
-
-# ─────────────────────────────────────────────────────────────────────────────
-# [СЕКРЕТ] ETH_RPC_URL — Ethereum Mainnet RPC (Infura)
-# Назначение: bridge relayer, L1 proof, prod startup probe
-# Infura сеть: Ethereum Mainnet (НЕ Sepolia)
-# Где задать: .env → ETH_RPC_URL=<redacted>
-ETH_RPC_URL=https://mainnet.infura.io/v3/<INFURA_API_KEY>
-INFURA_API_KEY=<set_in_.env_only>
-
-# ─────────────────────────────────────────────────────────────────────────────
-# [СЕКРЕТ] BSC_RPC_URL — BSC RPC (опционально)
-BSC_RPC_URL=<set_in_.env_only>
-
-# ─────────────────────────────────────────────────────────────────────────────
-# [СЕКРЕТ] RPC_API_KEYS — ключи JSON-RPC (production Docker)
-# Назначение: RPC_API_KEY_REQUIRED=true, заголовок X-API-Key на :18545
-# Генерация: python scripts/generate_rpc_key.py или setup_prod_env.ps1
-RPC_API_KEY_REQUIRED=true
-RPC_API_KEYS=<set_in_.env_only>
-
-# ─────────────────────────────────────────────────────────────────────────────
-# [PROD] GENESIS_CEREMONY_HASH + manifest (docker prod)
-GENESIS_CEREMONY_HASH=<pin_via_pin_ceremony_hash.ps1>
-VALIDATORS_MANIFEST_PATH=data/validators.manifest.json
-CORS_ORIGINS=https://explorer.example.com
-BRIDGE_MODE=rust
-BRIDGE_REQUIRE_L1_PROOF=true
-BRIDGE_PROBE_L1_RPC=false
-DEPLOYMENT_MODE=prod
-ABS_REQUIRE_NATIVE_CRYPTO=true
-
-# ─────────────────────────────────────────────────────────────────────────────
-# [СНИМОК] ПОЛНАЯ КОПИЯ .env — вставить в проект при восстановлении
-# Путь: ...\Absolute_Blockchain_Ultimate_Hybrid\.env
-# Дата: 2026-07-05 (после setup_prod_env -Force + docker_prod -Bridge OK)
-# ─────────────────────────────────────────────────────────────────────────────
-#
-# DEPLOYMENT_MODE=prod
-# JWT_SECRET=<set_in_.env_only>
+# OPENWEATHER_API_KEY=        # /oracles/weather (demo без ключа)
+# WEATHERAPI_KEY=             # fallback weather oracle
+# TELEGRAM_BOT_TOKEN=         # Telegram bot autostart
+# TELEGRAM_ADMIN_CHAT_IDS=    # optional admin chats
+# WALLET_PRIVATE_KEY=         # dev auto_sign (64 hex) — НЕ в git
+# JWT_SECRET=                 # admin JWT; council genesis-mint на staging
+# GITHUB_TOKEN=               # gh CLI / git push (scope: repo)
+# BRIDGE_ORACLE_SECRET=       # HMAC bridge oracle
+# ETH_RPC_URL=                # bridge L1 probe (Infura/Alchemy)
+# RPC_API_KEYS=               # X-API-Key на prod RPC :18545
 # RPC_API_KEY_REQUIRED=true
-# RPC_API_KEYS=<set_in_.env_only>
-# BRIDGE_ORACLE_SECRET=<redacted>vs4r9zoxfNbTJ8SqVarjRbKazCE
-# CORS_ORIGINS=https://explorer.example.com
-# ETH_RPC_URL=<redacted>
-# BRIDGE_MODE=rust
-# BRIDGE_REQUIRE_L1_PROOF=true
-# BRIDGE_PROBE_L1_RPC=false
-# ABS_REQUIRE_NATIVE_CRYPTO=true
+# GENESIS_CEREMONY_HASH=      # prod docker pin
 # VALIDATORS_MANIFEST_PATH=data/validators.manifest.json
-# GENESIS_CEREMONY_HASH=<pin_via_pin_ceremony_hash.ps1>
-#
-# ─────────────────────────────────────────────────────────────────────────────
-# [СНИМОК] УСТАРЕВШИЕ PROD СЕКРЕТЫ (после setup_prod_env -Force не действуют)
-# ─────────────────────────────────────────────────────────────────────────────
-# JWT_SECRET_OLD_1=9x2x6e7xbixwbmWCLYIMWMargKVGmx0uOK1dHUK3Ks8
-# BRIDGE_ORACLE_SECRET_OLD_1=daSifQDy8dYAhrwp3zG3X4vIziJiXe1evsmkqdPWLSA
-# RPC_API_KEYS_OLD_1=7TPPgQ4lla1kHJEFneOIbZxYGgHZyCv1lD4NK8zMz-g
-# RPC_API_KEYS_OLD_2=-vYVuwSNqsgghmpu-qw9F9PHenqNNxtfISnrEfzrg7c
-#
-# ─────────────────────────────────────────────────────────────────────────────
-# [СНИМОК] data/wallet.json (prod docker miner)
-# ─────────────────────────────────────────────────────────────────────────────
-# {
-#   "address": "0x728600a5ee5f6d337a2245b3b11293b92d439019",
-#   "public_key": "<redacted>c5ebdf7b1b243a6a565d4ad986bc152742e58045d0913fbc7d05cac6116c0fece91ff34fd800004bd81de65b7dd2efa5a0d7162d90f5f976",
-#   "private_key": "<redacted>"
-# }
+# DEPLOYMENT_MODE=prod|staging|dev
+# ABS_REQUIRE_NATIVE_CRYPTO=true
+# SECRET_BACKEND=env          # ADR 0015 (file refused in prod)
+# NGROK_AUTHTOKEN=            # ngrok tunnel (optional)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# [СЕКРЕТ] NGROK_AUTHTOKEN — туннель для внешнего доступа к ноде
-# Назначение: ngrok http 8080
-# Где: ngrok config add-authtoken ...
-NGROK_AUTHTOKEN=<set_in_.env_only>
-
-# ─────────────────────────────────────────────────────────────────────────────
-# [СЕКРЕТ] SSH — удалённый доступ (ngrok TCP tunnel)
-# Назначение: удалённая отладка / деплой
-# ⚠️  Сменить пароль при публичном exposure
-SSH_USERNAME=<set_in_.env_only>
-SSH_PASSWORD=<set_in_.env_only>
-SSH_HOST=<set_in_.env_only>
-SSH_PORT=<set_in_.env_only>
-
-# ─────────────────────────────────────────────────────────────────────────────
-# [СЕКРЕТ] QUANTUM_WALLET — post-quantum demo (SPHINCS+), НЕ для mainnet
-# Назначение: features/postquantum, учебный кошелёк
-QUANTUM_ADDRESS=qc:c48784c344a1536f3437
-QUANTUM_PRIVATE_KEY=<set_in_.env_only>
-QUANTUM_PUBLIC_KEY=<public_demo>
-
-# ─────────────────────────────────────────────────────────────────────────────
-# [ПУБЛИЧНО] FOUNDER D.U.P. v1.2 — основной founder-кошелёк (221M, 17.4%)
-# Файл: docker/founder.wallet.json, data/wallet.json (только public_key в git)
-# API: GET /founder, GET /wallet/balance/0xbeb096...
+# Публичные адреса (можно хранить здесь):
 FOUNDER_ADDRESS=0xbeb0962327d6f0ad8de263bd883bb184e88744a2
-FOUNDER_PUBLIC_KEY=a1275e2fe9dd794b8a8c4cb2a6d2a8343d3a4a328dccd15db4985c3c425d87a506c1d4f4c54d611ef83ecbf88aa4a62af53c8677bb972e5a7849d767be2bc800
 FOUNDER_NAME=Uladzimir Dabranski
 FOUNDER_INITIALS=D.U.P.
 FOUNDER_ALLOCATION_ABS=38454000
+ECOSYSTEM_POOL=0xecosystem000000000000000000000000000001
+TREASURY_POOL=0xtreasury00000000000000000000000000001
 
-# ─────────────────────────────────────────────────────────────────────────────
-# [ПУБЛИЧНО] LEGACY foundation v57 (архив)
-LEGACY_FOUNDATION_ADDRESS=0x40e908721295de4a5cbc775abac8909781aeeea8
-
-# ─────────────────────────────────────────────────────────────────────────────
-# [ПУБЛИЧНО] DEVNET POOL / TEST ADDRESSES
-ECOSYSTEM_POOL=0xecosystem00000000000000000000000000001
-STAKING_POOL=0xstaking0000000000000000000000000000001
-TEST_RECIPIENT=0xcbf6f1029bce4dc33bb7c20e6ef2c67e23c2f687
-
-# ─────────────────────────────────────────────────────────────────────────────
-# [DEV-ONLY] DEVNET5 VALIDATORS 2..5 — детерминированные ключи
-# Формула: private_key = <redacted>
-# НЕ production. Адреса: GET http://localhost:8080/testnet/validators
-
-# ─────────────────────────────────────────────────────────────────────────────
-# [ПУБЛИЧНО] GITHUB / ПРОЕКТ
 GITHUB_USERNAME=Gruver87
-GITHUB_REPO=Absolute_Blockchain_Ultimate_Hybrid
-GITHUB_URL=https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid
+GITHUB_REPO_HYBRID=Absolute_Blockchain_Ultimate_Hybrid
+GITHUB_REPO_EXPERIMENTAL=experimental
 CONTACT_EMAIL=gruverpetrov@gmail.com
 
-# ─────────────────────────────────────────────────────────────────────────────
-# [ПУБЛИЧНО] СЕТЕВЫЕ ПАРАМЕТРЫ
-CHAIN_ID_DEVNET=77777
-CHAIN_ID_MAINNET_V1=778888
-CHAIN_ID_SOLO=1337
-BLOCK_TIME_SEC=12
-MAX_SUPPLY_ABS=221000000
-BURN_PERCENT=2
-NODE_VERSION=1.3.114-industrial
-API_WAVE=61
-
-# ─────────────────────────────────────────────────────────────────────────────
-# [СЕКРЕТ] ABS_JWT — JWT для Telegram-бота к API (опционально)
-ABS_JWT=<set_in_.env_only>
-
-# Чеклист безопасности:
-#   1. Секреты только в .env (.gitignore)
-#   2. python scripts/check_secrets.py — перед каждым git push
-#   3. Не коммитить data/wallet.json с private_key
-#   4. Этот Desktop-файл — личный, не в репозитории
-#   5. При утечке — revoke BotFather / GitHub / OpenWeather / Infura / RPC key
-#
+# Чеклист:
+#   1. python scripts/check_secrets.py перед push
+#   2. Не коммитить data/wallet.json с private_key
+#   3. При утечке — rotate BotFather / GitHub / Infura / JWT / RPC keys
 
 
 # =============================================================================
-# ЧАСТЬ 25: GIT · ПУТИ · О ПРОЕКТЕ
+# ЧАСТЬ 25: GIT · ПУТИ
 # =============================================================================
 
-cd C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate_Hybrid
+# [EXP]
+cd C:\Users\vovun\Desktop\Absolute_Blockchain_Experimental
 git status
-git pull origin master
-.\scripts\push_origin.ps1
-python scripts/check_secrets.py
+git pull origin main
+git push origin main
 
-# Важные пути
-#   main.py                         — entry
-#   runtime/config.py               — node_version, P2P/EVM флаги
-#   native/abs_native/              — Rust PyO3
-#   network/p2p_node.py             — P2P control plane
-#   execution/evm_adapter.py        — EVM + writeback journal
-#   data/                           — DB, логи, wallet (локально)
-#   docs/EVIDENCE_MATRIX.md         — proven vs not
-#   docs/MAINNET_GAP_ANALYSIS.md    — честный gap list
-#   docs/PORTING_ROADMAP.md         — industrial priorities
-#   RELEASE_NOTES_v1.3.114.md       — последний релиз
-#   CHANGELOG.md
-
-# О проекте (актуально 2026-07-25):
-#   Версия:      1.3.114-industrial
-#   API Wave:    61
-#   Entry:       python main.py
-#   Hybrid:      abs_native (crypto, EVM kernels, P2P wire/rate/frame)
-#   Proven:      docker 2/3/5, prod mesh 778888, 48h soak PASS
-#   Not claimed: public mainnet, external audit complete, full Rust P2P transport
-
-
-# =============================================================================
-# ЧАСТЬ 26: ТИПОВЫЕ СЦЕНАРИИ ДНЯ
-# =============================================================================
-
-# A) Утро разработчика
+# [HYBRID]
 cd C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate_Hybrid
+git pull origin master
+git push origin master
+
+# Ключевые пути (оба репо, структура похожа):
+#   main.py                    entry
+#   runtime/config.py          flags, deployment_mode
+#   runtime/tokenomics.py      221M, founder 17.4%
+#   runtime/pool_locks.py      validator DAO unlock pools
+#   features/council_nft.py    [EXP] ADR 0022 council mint
+#   features/nft.py            marketplace (Profile C)
+#   docs/adr/                  ADR 0001–0022 (EXP: +0017–0022)
+#   docs/EVIDENCE_MATRIX.md    proven vs not
+#   docs/EXECUTION_ORDER.md    [EXP] blockers B1–B3
+#   docs/sprouts/              deployment profiles A–F
+#   scripts/industrial_gate.py [GATE]
+
+
+# =============================================================================
+# ЧАСТЬ 26: СЦЕНАРИИ ДНЯ
+# =============================================================================
+
+# A) [EXP] Утро — mesh + gate
+cd C:\Users\vovun\Desktop\Absolute_Blockchain_Experimental
 git pull
 .\scripts\build_native.ps1
-.\scripts\start_node.ps1
+.\scripts\docker_prod_3node.ps1 -SkipBuild -KeepVolumes
+.\scripts\probe_prod_mesh.ps1 -Quick
+python scripts/industrial_gate.py
 
-# B) Проверка перед push
+# B) Перед push
 python scripts/check_secrets.py
-python scripts/verify_industrial_waves.py
-.\scripts\test_full_project.ps1 -SkipNativeBuild
+python scripts/verify_parallel_rd_batch.py
 
-# C) Поднять 2 ноды и прогнать P2P
-.\scripts\stop_node.ps1
-.\scripts\start_two_nodes.ps1 -RustBridge -Fresh
-python scripts/verify_p2p_ci.py --mode devnet --wait 240
+# C) [STAGING] Council NFT ceremony
+docker compose -p abs-staging-app -f docker-compose.staging.app.yml up -d --build
+python scripts/guarantor_council_manifest_gen.py
+python scripts/guarantor_council_staging_ceremony.py --dry-run
+# $env:JWT_SECRET = "<из .env staging>"
+python scripts/guarantor_council_staging_ceremony.py --base-url http://127.0.0.1:19080
 
-# D) Prod mesh (локальный Docker profile)
-.\scripts\docker_prod_3node.ps1 -CeremonyDir data\ceremony_keys
-Invoke-RestMethod http://127.0.0.1:18180/health/ready
-
-# E) Evidence / audit pack
-.\scripts\prod_evidence_suite.ps1
-python scripts/export_audit_pack.py
+# D) Evidence pack
+.\scripts\export_audit_pack.ps1 -Json
 
 
 # =============================================================================
 # ЧАСТЬ 27: УСТАРЕВШЕЕ — НЕ ИСПОЛЬЗОВАТЬ
 # =============================================================================
 #
-# | Было (v55/v57)                    | Сейчас                              |
+# | Было                              | Сейчас                              |
 # |-----------------------------------|-------------------------------------|
 # | python node_persistent.py         | python main.py                      |
-# | python extended_api_server.py     | REST на :8080                       |
-# | python rpc_proxy.py               | RPC :8545                           |
-# | python real_world_oracles.py      | /oracles/*                          |
-# | python dynamic_sharding.py        | /sharding/*                         |
-# | python global_p2p_network.py      | P2P в main.py                       |
-# | python telegram_super_bot.py      | автостарт из .env                   |
-# | start_all_services.bat (3 окна)   | .\scripts\start_node.ps1            |
-# | POST /api/mine                    | автомайнинг                         |
-# | /api/balance, /api/transaction    | /wallet/balance/, POST /tx/send     |
-# | logs/blockchain.log               | data/node.log                       |
-# | Extended API :8081                | :8081 = node2, не Extended          |
+# | POST /api/mine                    | автомайнинг в main.py               |
+# | -P2pTls на Experimental mesh      | REFUSE — libp2p Noise ADR 0020      |
+# | feature_nft=true на 778888        | industrial_gate FAIL                |
+# | feature_long_range=true prod JSON | ADR 0017 lab only                   |
+# | «87 NFT гаранты L1»               | council governance only (ADR 0022)  |
+# | Claim libp2p 48h без evidence     | см. EVIDENCE_MATRIX (35104db0 FAIL) |
+# | Extended API :8081 отдельный      | :8081 = node2 REST                  |
 #
 
 
 # =============================================================================
-# ЧАСТЬ 28: INDUSTRIAL WAVES MAP (v1.3.65 → v1.3.114)
+# ЧАСТЬ 28: ADR · PROFILES (0016)
 # =============================================================================
-# Полный roadmap: docs/PORTING_ROADMAP.md
-# Verify: python scripts/verify_industrial_waves.py
 #
-# | Tag     | Что сделано (кратко)                              | Claim?        |
-# |---------|---------------------------------------------------|---------------|
-# | 1.3.65  | Fail-closed crypto / storage / API body limits    | code          |
-# | 1.3.66  | Load backpressure + tip O(1)                      | code          |
-# | 1.3.67  | Tx writeback journal + storage arena              | code          |
-# | 1.3.68  | Bridge semantic bind + fail-closed debit          | code          |
-# | 1.3.69  | Block-scoped sat session                          | code          |
-# | 1.3.70  | Recursive native frames / live DELEGATECALL       | code          |
-# | 1.3.71  | Inline leaf DELEGATECALL/CALLCODE                 | code          |
-# | 1.3.72  | P2P sync admission + outbound honesty             | code          |
-# | 1.3.73  | Apply-queue priority lanes                        | code          |
-# | 1.3.74  | value=0 CALL/STATICCALL inline                    | code          |
-# | 1.3.75  | Multi-depth CALL frames (cap 4)                   | code          |
-# | 1.3.76  | Value CALL via bridge_state.balances              | code          |
-# | 1.3.77  | P2P ingress admit + connection governor           | code          |
-# | 1.3.78  | Inbound bandwidth / cost units                    | code          |
-# | 1.3.79  | CALLCODE value                                    | code          |
-# | 1.3.80  | Inline simple CREATE                              | code          |
-# | 1.3.81  | CREATE2 empty/STOP                                | code          |
-# | 1.3.82  | CREATE RETURN runtime                             | code          |
-# | 1.3.83  | Inline value → writeback journal                  | code          |
-# | 1.3.84  | Inline CREATE save_account journal                | code          |
-# | 1.3.85  | Outbound egress bandwidth                         | code          |
-# | 1.3.86  | NDJSON line framer (P2PLineFramer)                | code          |
-# | 1.3.87  | unified egress prepare (encode+allow+size+egress)| code          |
-# | 1.3.88  | P2P kernel fuzz_api / cargo-fuzz smoke            | code          |
-# | 1.3.89  | Sybil/Eclipse subnet + reserved outbound          | code          |
-# | 1.3.90  | Native plain-TCP transport slice                  | code          |
-# | 1.3.91  | Native rustls TLS on transport                    | code          |
-# | 1.3.92  | Native read_message (frame+parse pump)            | code          |
-# | 1.3.93  | Native write_message (encode+write pump)          | code          |
-# | 1.3.94  | Native read_messages batch pump                   | code          |
-# | 1.3.95  | Native write_messages / write_payloads batch      | code          |
-# | 1.3.96  | Native handshake_roundtrip I/O fuse               | code          |
-# | 1.3.97  | Native peer cert CN/SAN identities                | code          |
-# | 1.3.98  | Native auto-pong keepalive                        | code          |
-# | 1.3.99  | Native keepalive consume / touch                  | code          |
-# | 1.3.100 | Native housekeeping payload gate                 | code          |
-# | 1.3.101 | Native batch/chunk config knobs                   | code          |
-# | 1.3.102 | Native I/O timeout config                          | code          |
-# | 1.3.103 | Native mid-session handshake gate                 | code          |
-# | 1.3.104 | Native status payload gate                       | code          |
-# | 1.3.105 | Native attestation shape gate                    | code          |
-# | 1.3.106 | Native block sync shape gates                     | code          |
-# | 1.3.107 | Native block fetch shape gates                    | code          |
-# | 1.3.108 | Native tx gossip shape gates                      | code          |
-# | 1.3.109 | Native singular block payload gate                | code          |
-# | 1.3.110 | Native peer discovery shape gates                 | code          |
-# | 1.3.111 | Native state-root shape gates                     | code          |
-# | 1.3.112 | Native cross-shard shape gates                    | code          |
-# | 1.3.113 | Native handshake payload gate                    | code          |
-# | 1.3.114 | Prod-mandatory native P2P transport               | code          |
+# | Profile | chain_id | Назначение                          |
+# |---------|----------|-------------------------------------|
+# | A Industrial L1 | 778888 | prod mesh, feature_*=false   |
+# | B Bridge cutover| (ADR 0010) | bridge lab                 |
+# | C App staging | 778889 | NFT + council                  |
+# | D L2 sandbox  | aux DB | plasma/lightning/wasm          |
+# | E Shard lab   | separate mesh | sharding lab            |
+# | F Experimental| lab flags | libp2p, long-range         |
 #
-# Remaining (не claimed):
-#   · Full Rust P2P message-loop / libp2p — ещё Python (native I/O pumps+handshake+CN/SAN+auto-pong)
-#   · Public mainnet / external audit complete
-#   · Bridge ON на live mesh без audited L1
-#
+# Документы: docs/sprouts/README.md
+# ADR 0022 council: docs/GRUVER87_COUNCIL_CHARTER.md
 
 
 # =============================================================================
-# КОНЕЦ СПРАВОЧНИКА — Absolute Blockchain Ultimate Hybrid v1.3.114
+# ЧАСТЬ 29: HYBRID vs EXPERIMENTAL — КОГДА ЧТО
 # =============================================================================
-# Следующее обновление файла: после следующего industrial tag (v1.3.114+)
-# Бэкап этой версии: Absolute_Blockchain_All_Commands_FIXED.bak_20260725.txt
+#
+# | Задача                         | Репо          |
+# |--------------------------------|---------------|
+# | Audit-pin / tip-v2 industrial  | HYBRID        |
+# | libp2p mesh / 48h soak R&D     | EXPERIMENTAL  |
+# | Long-Range lab                 | EXPERIMENTAL  |
+# | Council 87 NFT                 | EXPERIMENTAL  |
+# | EVM depth labs                 | EXPERIMENTAL  |
+# | TCP+TLS mTLS prod reference    | HYBRID        |
+# | Port fixes back to audit pin   | merge Hybrid  |
+#
+# Не смешивать: Long-Range + audit pin mesh · NFT on 778888
+
+
+# =============================================================================
+# ЧАСТЬ 30: L1 INTEGRATION GATE [GATE] — обязательный порядок (Windows)
+# =============================================================================
+# После изменений core / EVM / P2P / sync / bridge / native — В ТАКОМ ПОРЯДКЕ:
+
+cd C:\Users\vovun\Desktop\Absolute_Blockchain_Experimental
+.\scripts\build_native.ps1
+.\scripts\docker_prod_3node.ps1 -SkipBuild -KeepVolumes
+.\scripts\probe_prod_mesh.ps1 -Quick
+python scripts/industrial_gate.py
+
+# FAIL probe → docker logs на упавшую ноду, fix runtime, не claim pass от pytest alone
+
+
+# =============================================================================
+# ЧАСТЬ 31: EXPERIMENTAL R&D [LAB]
+# =============================================================================
+
+# Параллельный batch (labs + unit subset + gate):
+python scripts/verify_parallel_rd_batch.py
+
+# Long-Range preflight (2h/48h NOT started без команды):
+python scripts/long_range_lab_2h_harness.py
+python -m pytest tests/unit -k long_range -q
+
+# Mempool ADR 0021 phase 0 fixtures:
+python -m pytest tests/unit/test_adr0021_phase1_fixtures.py -q
+
+# libp2p evidence pack:
+python scripts/package_libp2p_evidence.py
+
+# Execution order / blockers:
+#   docs/EXECUTION_ORDER.md
+#   B1 libp2p 48h · B2 LR soak · B3 mempool Rust phases
+
+
+# =============================================================================
+# ЧАСТЬ 32: GRUVER87 COUNCIL NFT [STAGING] ADR 0022
+# =============================================================================
+# 87 steward NFT · birth 1987 / Gruver87 · НЕ L1 security · НЕ prod 778888
+
+# Документы:
+#   docs/adr/0022-gruver87-genesis-council-governance.md
+#   docs/GRUVER87_COUNCIL_CHARTER.md
+#   docs/GRUVER87_LONG_TERM_TRUST_MODEL.md
+#   docs/genesis/gruver87-council-manifest.json
+
+# Генерация manifest (87 SVG + SHA-256):
+python scripts/guarantor_council_manifest_gen.py
+python scripts/guarantor_council_manifest_gen.py --check
+
+# Design labs (без Docker):
+python scripts/guarantor_council_lab.py
+python scripts/guarantor_council_staging_mint_lab.py
+
+# Staging compose Profile C (chain 778889):
+docker compose -p abs-staging-app -f docker-compose.staging.app.yml up -d --build
+docker compose -p abs-staging-app -f docker-compose.staging.app.yml down -v
+
+# REST (staging :19080):
+Invoke-RestMethod http://127.0.0.1:19080/council/manifest?summary=1
+Invoke-RestMethod http://127.0.0.1:19080/council/stats
+Invoke-RestMethod http://127.0.0.1:19080/nft/stats
+
+# Genesis mint ceremony (admin JWT = JWT_SECRET из staging .env):
+python scripts/mint_admin_jwt.py
+python scripts/guarantor_council_staging_ceremony.py --dry-run
+python scripts/guarantor_council_staging_ceremony.py --base-url http://127.0.0.1:19080
+
+# POST вручную:
+# Invoke-RestMethod http://127.0.0.1:19080/council/genesis-mint -Method POST -Headers @{Authorization="Bearer <JWT>"} -Body '{}' -ContentType 'application/json'
+
+# Unit:
+python -m pytest tests/unit/test_council_nft.py -q
+
+# [HONEST] Not claimed: mainnet council · signed on-chain gov · 48h council soak
+
+
+# =============================================================================
+# КОНЕЦ СПРАВОЧНИКА
+#   Hybrid: audit pin · Experimental: R&D + council + libp2p
+#   Обновлять после major ADR / gate / evidence changes
+#   Бэкап перед большим edit: Absolute_Blockchain_All_Commands_FIXED.bak_YYYYMMDD.txt
 # =============================================================================
