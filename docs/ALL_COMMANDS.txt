@@ -507,7 +507,7 @@ python scripts/verify_parallel_rd_batch.py
 docker compose -p abs-staging-app -f docker-compose.staging.app.yml up -d --build
 python scripts/guarantor_council_manifest_gen.py
 python scripts/guarantor_council_staging_ceremony.py --dry-run
-# $env:JWT_SECRET = "<из .env staging>"
+# JWT_SECRET: load from local .env Part 24 (Experimental staging only; >=32 bytes)
 python scripts/guarantor_council_staging_ceremony.py --base-url http://127.0.0.1:19080
 
 # D) Evidence pack
@@ -629,7 +629,7 @@ Invoke-RestMethod http://127.0.0.1:19080/council/manifest?summary=1
 Invoke-RestMethod http://127.0.0.1:19080/council/stats
 Invoke-RestMethod http://127.0.0.1:19080/nft/stats
 
-# Genesis mint ceremony (admin JWT = JWT_SECRET из staging .env):
+# Genesis mint ceremony (admin JWT from local .env when jwt_enforce_admin=true):
 python scripts/mint_admin_jwt.py
 python scripts/guarantor_council_staging_ceremony.py --dry-run
 python scripts/guarantor_council_staging_ceremony.py --base-url http://127.0.0.1:19080

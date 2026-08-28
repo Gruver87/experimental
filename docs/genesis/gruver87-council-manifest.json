@@ -7,7 +7,7 @@
   "rationale": "Birth year 1987 and public identity Gruver87; fixed steward council",
   "adr": "0022",
   "charter_version": "1.0",
-  "generated_at": "2026-08-28",
+  "generated_at": "2026-08-29",
   "manifest_tokens_sha256": "4487b29a26a09ba63b078bb3f95d08fd0bd79a8ef4f9e3e355cca1f4ecc49680",
   "mint_policy": {
     "genesis_mint_only": true,
