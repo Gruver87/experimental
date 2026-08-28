@@ -107,6 +107,11 @@ _COMPAT_ROWS: List[Dict[str, str]] = [
         "status": "partial",
         "notes": "Missing block null; sparse header null-honesty",
     },
+    {
+        "area": "eth_newFilter_polling",
+        "status": "partial",
+        "notes": "HTTP polling filters; unknown id []",
+    },
     {"area": "eip_4844_blobs", "status": "not_claimed", "notes": "Out of scope"},
     {"area": "eof", "status": "not_claimed", "notes": "Out of scope"},
     {"area": "full_geth_json_rpc", "status": "not_claimed", "notes": "Wave-gated methods only"},

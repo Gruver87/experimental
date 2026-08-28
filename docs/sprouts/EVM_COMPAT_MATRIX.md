@@ -13,6 +13,7 @@ Scope: Absolute hybrid EVM subset on the single apply path.
 | `eth_estimateGas` | **Partial** | Adapter estimate when present. No 21000 floor. Missing adapter / adapter `None` → JSON `null` (`evm_rpc_lab` + `test_eth_estimate_gas_null_without_adapter`) |
 | `eth_getTransactionReceipt` | **Partial** | Core fields + logs + **logsBloom from address/topics**. Missing tx → JSON `null`. Missing `gas_used` is `null` — never the `21000` transfer stub. Lab + unit (formatter + RPC) |
 | `eth_getLogs` | **Partial** | Rows from the log index. Missing inclusion fields → `null`. Empty range → `[]`. Lab + unit (formatter + RPC) |
+| `eth_newFilter` / `eth_getFilterChanges` / `eth_uninstallFilter` | **Partial** | Polling filters only (not WS subs). Missing store → error. Unknown filter id → `[]`. Lab: `evm_filters_lab.py` |
 | `eth_getBlockByNumber` / `ByHash` | **Partial** | Missing block → JSON `null`. Sparse header null-honesty. `fullTx=false` → hash list; `fullTx=true` → stored tx objects (lab + unit). Lab + unit (formatter + RPC) |
 | `eth_getBlockTransactionCount*` / `eth_getUncleCount*` | **Partial** | Count of the observed block. **Missing block is JSON `null`**, not `0x0` (that would look like an empty block exists) |
 | `eth_getUncleByBlock*AndIndex` | **Partial** | JSON `null` when the parent block is missing, the index is out of range, or the uncle is hash-only without a stored header. Does not invent a header. Absolute has no uncle blocks |
@@ -33,6 +34,6 @@ Scope: Absolute hybrid EVM subset on the single apply path.
 | EOF | **Not claimed** | Out of scope |
 | Full geth JSON-RPC surface | **Not claimed** | Wave-gated methods only |
 
-Evidence: `scripts/prod_evm_smoke.py` · `scripts/evm_precompile_lab.py` · `scripts/evm_rpc_lab.py` · `scripts/evm_nested_lab.py` · `scripts/evm_reorg_lab.py` · `scripts/evm_logs_lab.py` · unit tests under `tests/unit/test_evm_rpc_compat.py`.
+Evidence: `scripts/prod_evm_smoke.py` · `scripts/evm_precompile_lab.py` · `scripts/evm_rpc_lab.py` · `scripts/evm_filters_lab.py` · `scripts/evm_nested_lab.py` · `scripts/evm_reorg_lab.py` · `scripts/evm_logs_lab.py` · unit tests under `tests/unit/test_evm_rpc_compat.py`.
 
 Update this table when a wave closes a row — never mark Supported without a test.

@@ -24,6 +24,7 @@ LABS = [
     "scripts/evm_nested_lab.py",
     "scripts/evm_reorg_lab.py",
     "scripts/evm_logs_lab.py",
+    "scripts/evm_filters_lab.py",
     "scripts/long_range_lab_2h_harness.py",
 ]
 
