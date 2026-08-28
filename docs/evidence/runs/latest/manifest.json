@@ -1,11 +1,11 @@
 {
   "schema": "abs.mesh_evidence.v1",
-  "pointer": "docs/evidence/runs/0a7932c4/",
-  "honesty": "Experimental TCP+TLS 48h soak PASS 2026-08-20→22. Not libp2p cutover. Hybrid 375d14f is a different tree.",
+  "pointer": "docs/evidence/runs/87f51b3e/",
+  "honesty": "Experimental libp2p 48h soak FAIL 2026-08-26→28 (mesh_warn=46, health_watch_exit=0). Not a libp2p PASS. TCP+TLS PASS remains docs/evidence/runs/0a7932c4/. Hybrid 375d14f is a different tree.",
   "files": {
     "soak_report": {
       "status": "present",
-      "path": "docs/evidence/runs/0a7932c4/soak_report_48h_experimental.json"
+      "path": "docs/evidence/runs/87f51b3e/soak_report_48h_experimental.json"
     }
   }
 }

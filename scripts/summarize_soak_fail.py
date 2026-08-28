@@ -39,6 +39,36 @@ def _parse_ts(line: str) -> datetime | None:
         return None
 
 
+def _diagnose(fail_lines: list[str], report: dict) -> str:
+    """Honest per-run diagnosis. Never invent a PASS or a stale root cause."""
+    joined = "\n".join(fail_lines)
+    exit_code = report.get("health_watch_exit")
+    hard = (report.get("counts") or {}).get("hard_fail_lines")
+    ready_only = (report.get("counts") or {}).get("ready_only_fail_lines")
+    hours = report.get("hours_elapsed")
+    parts = [
+        f"hours_elapsed={hours} health_watch_exit={exit_code} "
+        f"hard_fail_lines={hard} ready_only_fail={ready_only} fail_lines={len(fail_lines)}."
+    ]
+    if any("ready:" in line and "503" in line for line in fail_lines):
+        parts.append(
+            "Last-cycle /health/ready returned 503 and GET /status timed out on "
+            "the same port. health_watch counts that as hard_fail (exit=1), so "
+            "default 48h scoring is passed=false even when soak_monitor labels "
+            "the line ready_only_fail."
+        )
+    elif any("status" in line.lower() for line in fail_lines):
+        parts.append("FAIL lines include GET /status timeout/error.")
+    elif fail_lines:
+        parts.append("See first_fail/last_fail. Do not relabel as PASS.")
+    else:
+        parts.append("No FAIL lines in the log; if report.passed is false, see health_watch_exit.")
+    if "status_slow" in joined:
+        parts.append("status_slow also present on FAIL lines.")
+    parts.append("This file remains FAIL evidence. Not Hybrid 375d14f. Not TCP+TLS 0a7932c4.")
+    return " ".join(parts)
+
+
 def summarize(
     *,
     log_path: Path,
@@ -118,11 +148,7 @@ def summarize(
         "hours_with_zero_fails_before_max": hours_zero_fail,
         "fails_by_hour": {str(k): by_hour[k] for k in sorted(by_hour)},
         "fails_by_port": dict(by_port),
-        "diagnosis_this_run": (
-            "GET /status timed out after /health/ready succeeded. "
-            "Root cause on this tree: get_state_root() rescanned accounts. "
-            "Fix is committed-root lookup; this file remains FAIL evidence."
-        ),
+        "diagnosis_this_run": _diagnose(fail_lines, report),
     }
     if passed_report:
         payload["note"] = (

@@ -4683,6 +4683,38 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         hw_ps1 = (ROOT / "scripts" / "health_watch.ps1").read_text(encoding="utf-8")
         if "After /health/ready: retry /status" not in hw_ps1:
             errors.append("health_watch must retry /status after /health/ready succeeds")
+        if "status_slow" not in hw_ps1 or "ReadyFallback" not in hw_ps1:
+            errors.append(
+                "health_watch must ready-fallback (not hard FAIL) when /status times out"
+            )
+        if "Do not call p2p.get_topology() on GET /status" not in http_status_src:
+            errors.append("GET /status must not call p2p.get_topology() (soak HOL)")
+        if "_status_native_crypto_cached" not in http_py:
+            errors.append("GET /status must cache native_crypto_status (soak HOL)")
+        if "_status_tip_hash" not in http_py:
+            errors.append("GET /status must use cheap tip hash meta (not always get_last_block)")
+        if "Single security snapshot" not in http_status_src:
+            errors.append("GET /status must call get_p2p_security_status once")
+        catchup_py = (ROOT / "scripts" / "check_mesh_catchup.py").read_text(encoding="utf-8")
+        if "/p2p/topology" not in catchup_py or 'p2p.get("topology_healthy")' in catchup_py:
+            errors.append(
+                "check_mesh_catchup must read topology_healthy from GET /p2p/topology, not /status"
+            )
+        p2p_py = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+        if "mid_session_handshake_libp2p" not in p2p_py:
+            errors.append(
+                "libp2p mid-session Absolute handshake must soft-refuse (no 300s soak ban)"
+            )
+        if "no /status re-fetch" not in hw_ps1:
+            errors.append("health_watch mesh alignment must not re-fetch GET /status")
+        if "live_fallback" not in hw_ps1:
+            errors.append("health_watch must fall back to /health/live on ready+status HOL")
+        soak_mon = (ROOT / "scripts" / "soak_monitor.ps1").read_text(encoding="utf-8")
+        if "$hwArgs.FullHarnessEvery = 6" not in soak_mon:
+            errors.append("48h soak_monitor must set FullHarnessEvery=6 (not AlwaysFullHarness)")
+        soak_st = (ROOT / "scripts" / "soak_status.ps1").read_text(encoding="utf-8")
+        if "soak_48h_experimental.log" not in soak_st:
+            errors.append("soak_status must prefer soak_48h_experimental.log")
         if "full_every=$fullEveryLabel" not in hw_ps1:
             errors.append("health_watch must log full_every=always when AlwaysFullHarness")
         if "need <2000ms for 48h health_watch" not in (

@@ -27,17 +27,22 @@ if (Test-Path $activePath) {
 }
 
 if (-not $log) {
-    $logs = Get-ChildItem -Path (Join-Path $Root $LogGlob) -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTime -Descending
-    if (-not $logs) {
-        Write-Host "No soak log matching $LogGlob" -ForegroundColor Yellow
-        exit 1
+    $prefer48 = Join-Path $Root "logs/soak_48h_experimental.log"
+    if (Test-Path $prefer48) {
+        $log = $prefer48
+    } else {
+        $logs = Get-ChildItem -Path (Join-Path $Root $LogGlob) -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending
+        if (-not $logs) {
+            Write-Host "No soak log matching $LogGlob" -ForegroundColor Yellow
+            exit 1
+        }
+        if ($logs.Count -gt 1) {
+            Write-Host "WARN: multiple soak logs - run .\scripts\stop_soak_monitors.ps1 -Force then restart_soak_prod_mesh.ps1" -ForegroundColor Yellow
+            $logs | ForEach-Object { Write-Host "  - $($_.Name)" -ForegroundColor DarkGray }
+        }
+        $log = $logs[0].FullName
     }
-    if ($logs.Count -gt 1) {
-        Write-Host "WARN: multiple soak logs - run .\scripts\stop_soak_monitors.ps1 -Force then restart_soak_prod_mesh.ps1" -ForegroundColor Yellow
-        $logs | ForEach-Object { Write-Host "  - $($_.Name)" -ForegroundColor DarkGray }
-    }
-    $log = $logs[0].FullName
 }
 
 $lines = Get-Content $log -Encoding UTF8 -ErrorAction SilentlyContinue

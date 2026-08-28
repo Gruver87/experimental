@@ -1,0 +1,35 @@
+{
+  "passed": false,
+  "claim": "FAIL",
+  "note": "Experimental soak FAIL pack. Not a 48h PASS. Hybrid docs/evidence/runs/375d14f is a different tree.",
+  "log_file": "C:/Users/vovun/Desktop/Absolute_Blockchain_Experimental/logs/soak_48h_experimental.log",
+  "report_file": "C:/Users/vovun/Desktop/Absolute_Blockchain_Experimental/logs/soak_report_48h_experimental.json",
+  "report_passed": false,
+  "hours_elapsed": 48.0861,
+  "hours_requested": 48,
+  "health_watch_exit": 1,
+  "counts_from_report": {
+    "fail_lines": 1,
+    "ok_lines": 1149,
+    "mesh_ok_lines": 317,
+    "mesh_warn_lines": 0,
+    "warn_lines": 397,
+    "ready_only_fail_lines": 1,
+    "hard_fail_lines": 0
+  },
+  "full_every_logged": "6",
+  "mesh_ok_lines": 317,
+  "fail_lines": 1,
+  "warn_peer_probe_ok": 34,
+  "first_fail": "2026-08-26 12:14:45 FAIL port 18181 ready: \u0423\u0434\u0430\u043b\u0435\u043d\u043d\u044b\u0439 \u0441\u0435\u0440\u0432\u0435\u0440 \u0432\u043e\u0437\u0432\u0440\u0430\u0442\u0438\u043b \u043e\u0448\u0438\u0431\u043a\u0443: (503) \u0421\u0435\u0440\u0432\u0435\u0440 \u043d\u0435 \u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d.; status: \u0412\u0440\u0435\u043c\u044f \u043e\u0436\u0438\u0434\u0430\u043d\u0438\u044f \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u0438\u044f \u043e\u043f\u0435\u0440\u0430\u0446\u0438\u0438 \u0438\u0441\u0442\u0435\u043a\u043b\u043e.",
+  "last_fail": "2026-08-26 12:14:45 FAIL port 18181 ready: \u0423\u0434\u0430\u043b\u0435\u043d\u043d\u044b\u0439 \u0441\u0435\u0440\u0432\u0435\u0440 \u0432\u043e\u0437\u0432\u0440\u0430\u0442\u0438\u043b \u043e\u0448\u0438\u0431\u043a\u0443: (503) \u0421\u0435\u0440\u0432\u0435\u0440 \u043d\u0435 \u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d.; status: \u0412\u0440\u0435\u043c\u044f \u043e\u0436\u0438\u0434\u0430\u043d\u0438\u044f \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u0438\u044f \u043e\u043f\u0435\u0440\u0430\u0446\u0438\u0438 \u0438\u0441\u0442\u0435\u043a\u043b\u043e.",
+  "first_fail_hour": 48,
+  "hours_with_zero_fails_before_max": 48,
+  "fails_by_hour": {
+    "48": 1
+  },
+  "fails_by_port": {
+    "18181": 1
+  },
+  "diagnosis_this_run": "hours_elapsed=48.0861 health_watch_exit=1 hard_fail_lines=0 ready_only_fail=1 fail_lines=1. Last-cycle /health/ready returned 503 and GET /status timed out on the same port. health_watch counts that as hard_fail (exit=1), so default 48h scoring is passed=false even when soak_monitor labels the line ready_only_fail. This file remains FAIL evidence. Not Hybrid 375d14f. Not TCP+TLS 0a7932c4."
+}

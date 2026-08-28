@@ -1,0 +1,28 @@
+experimental_libp2p_48h_rerun
+host_commit=7005e6764b83b5e5e2b2e8838e500232fb75ba2b
+host_dirty=true
+image_id=sha256:87f51b3ee5cdfb7c69cbe95a459eb1ce247bf9cbaea52d892465c59354b9e923
+started=2026-08-26T13:50:14+03:00
+ended=2026-08-28T13:52:15+03:00
+soak_hours=48
+hours_elapsed=48.0335
+status=FINISHED_FAIL
+health_watch_exit=0
+hard_fail_lines_scorer=0
+fail_lines=0
+ready_only_fail_lines=0
+mesh_ok_lines=451
+mesh_warn_lines=46
+warn_lines=462
+status_slow_warns=~398
+ready_fallback_warns=~398
+peer_probe_ok_warns=18
+cycles=497
+height_range=~35745→~44034
+last_cycle=2026-08-28 13:52:15 OK mesh aligned h44034
+pass_notes=mesh_warn=46 not acceptable; hours_elapsed=48.03 ok; mesh_warns_transient_ok=false (one gap=4 at 2026-08-27 22:21:40)
+transport=libp2p Noise (feature_libp2p=true); feature_long_range=false; bridge_enabled=false
+fixes_baked=/status HOL defer topology; native_crypto cache; libp2p mid_session_handshake soft-refuse; health_watch ready_fallback
+not_claimed=libp2p 48h PASS; Long-Range production; public mainnet; Hybrid 375d14f; TCP+TLS 0a7932c4 relabel
+prior_libp2p_fail=docs/evidence/runs/35104db0/
+prior_tcp_tls_pass=docs/evidence/runs/0a7932c4/

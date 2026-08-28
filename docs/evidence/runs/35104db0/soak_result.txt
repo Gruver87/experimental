@@ -1,0 +1,25 @@
+experimental_libp2p_48h
+host_commit=7005e6764b83b5e5e2b2e8838e500232fb75ba2b
+host_dirty=true
+image_id=sha256:35104db0edd082d727f6c2dcb98b279a02ee13961b75fa8eeee94b5ac48c9011
+started=2026-08-24T12:11:11+03:00
+ended=2026-08-26T12:16:21+03:00
+soak_hours=48
+hours_elapsed=48.0861
+status=FINISHED_FAIL
+health_watch_exit=1
+hard_fail_lines_scorer=0
+fail_lines=1
+ready_only_fail_lines=1
+mesh_ok_lines=317
+mesh_warn_lines=0
+warn_lines=397
+status_slow_warns=214
+peer_probe_ok_warns=34
+cycles=466
+height_range=~27698→~35590
+last_fail=2026-08-26 12:14:45 FAIL port 18181 /health/ready 503 + /status timeout
+pass_notes=strict mesh_warn=0; ready_only_fail=1 tolerated (mesh aligned, no hard fails); hours_elapsed=48.09 ok; health_watch_exit=1 => passed=false
+transport=libp2p Noise (feature_libp2p=true); feature_long_range=false; bridge_enabled=false
+not_claimed=libp2p 48h PASS; Long-Range production; public mainnet; Hybrid 375d14f; TCP+TLS 0a7932c4 relabel
+prior_tcp_tls_pass=docs/evidence/runs/0a7932c4/

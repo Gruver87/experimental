@@ -43,7 +43,7 @@ if ($RescoreOnly) {
     if ($Strict) {
         Write-Host "  STRICT: mesh_warn=0, no ready-flap, no 1-height skew, full harness every cycle" -ForegroundColor Yellow
     } elseif ($FullHarness) {
-        Write-Host "  full harness every cycle (WARN on probe flake; 48h default scoring)" -ForegroundColor DarkGray
+        Write-Host "  full harness every 6 cycles (WARN on probe flake; 48h default scoring)" -ForegroundColor DarkGray
     }
     Write-Host "  Press Ctrl+C to stop early; partial report will be written." -ForegroundColor DarkGray
 }
@@ -60,7 +60,9 @@ if (-not $RescoreOnly) {
         $hwArgs.Strict = $true
         $hwArgs.AlwaysFullHarness = $true
     } elseif ($FullHarness) {
-        $hwArgs.AlwaysFullHarness = $true
+        # 48h: full harness every 6th cycle (health_watch default). Always-on
+        # full harness HOL-stalls GET /status and paints hard FAILs on a live mesh.
+        $hwArgs.FullHarnessEvery = 6
     }
 
     try {

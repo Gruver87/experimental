@@ -1,0 +1,31 @@
+{
+  "passed": false,
+  "claim": "FAIL",
+  "note": "Experimental soak FAIL pack. Not a 48h PASS. Hybrid docs/evidence/runs/375d14f is a different tree.",
+  "log_file": "docs/evidence/runs/87f51b3e/soak_48h_experimental.log",
+  "report_file": "docs/evidence/runs/87f51b3e/soak_report_48h_experimental.json",
+  "report_passed": false,
+  "hours_elapsed": 48.0335,
+  "hours_requested": 48,
+  "health_watch_exit": 0,
+  "counts_from_report": {
+    "fail_lines": 0,
+    "ok_lines": 1075,
+    "mesh_ok_lines": 451,
+    "mesh_warn_lines": 46,
+    "warn_lines": 462,
+    "ready_only_fail_lines": 0,
+    "hard_fail_lines": 0
+  },
+  "full_every_logged": "6",
+  "mesh_ok_lines": 451,
+  "fail_lines": 0,
+  "warn_peer_probe_ok": 18,
+  "first_fail": null,
+  "last_fail": null,
+  "first_fail_hour": null,
+  "hours_with_zero_fails_before_max": 0,
+  "fails_by_hour": {},
+  "fails_by_port": {},
+  "diagnosis_this_run": "hours_elapsed=48.0335 health_watch_exit=0 hard_fail_lines=0 ready_only_fail=0 fail_lines=0. No FAIL lines in the log; if report.passed is false, see health_watch_exit. This file remains FAIL evidence. Not Hybrid 375d14f. Not TCP+TLS 0a7932c4."
+}

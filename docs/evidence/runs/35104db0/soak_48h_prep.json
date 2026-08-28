@@ -1,0 +1,11 @@
+﻿{
+    "prepared_at":  "2026-08-24T12:11:10.1323119+03:00",
+    "interval_sec":  300,
+    "start_command":  ".\\scripts\\start_soak_prod_mesh_48h.ps1 -Hours 48 -IntervalSec 300",
+    "git_dirty":  true,
+    "hours":  48,
+    "ok":  true,
+    "note":  "Experimental 48h prep. Not a soak PASS. Do not rebuild Docker until soak ends.",
+    "git_sha":  "7005e6764b83b5e5e2b2e8838e500232fb75ba2b",
+    "image_id":  "sha256:35104db0edd082d727f6c2dcb98b279a02ee13961b75fa8eeee94b5ac48c9011"
+}

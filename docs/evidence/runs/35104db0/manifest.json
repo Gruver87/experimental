@@ -1,0 +1,27 @@
+{
+  "schema": "abs.mesh_evidence.v1",
+  "commit_host": "7005e6764b83b5e5e2b2e8838e500232fb75ba2b",
+  "host_dirty": true,
+  "image_id": "sha256:35104db0edd082d727f6c2dcb98b279a02ee13961b75fa8eeee94b5ac48c9011",
+  "honesty": "Experimental libp2p 3-node prod-profile mesh 48h soak FAIL. Not a PASS. Do not relabel TCP+TLS 0a7932c4. Not Long-Range. Not Hybrid 375d14f. Not public mainnet.",
+  "claims": {
+    "transport": "libp2p Noise (feature_libp2p=true)",
+    "48h_soak": "passed=false health_watch_exit=1 hours_elapsed=48.0861 fail_lines=1"
+  },
+  "files": {
+    "soak_report": {
+      "status": "present",
+      "path": "docs/evidence/runs/35104db0/soak_report_48h_experimental.json",
+      "sha256": "4569e4114ead373170b87f56f36d517484cd96c8b1e3d0e992482defa3245d01",
+      "bytes": 925
+    },
+    "soak_log": {
+      "status": "present",
+      "path": "docs/evidence/runs/35104db0/soak_48h_experimental.log"
+    },
+    "fail_summary": {
+      "status": "present",
+      "path": "docs/evidence/runs/35104db0/soak_48h_experimental_fail_summary.json"
+    }
+  }
+}

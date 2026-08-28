@@ -2614,6 +2614,12 @@ class P2PNode:
             getattr(peer, "peer_id", None)
             and self.peers.get(peer.peer_id) is peer
         )
+        # Noise reconnect Absolute HS into a live Absolute epoch must not
+        # enter message_loop as hard mid_session_handshake (48h soak self-ban).
+        if registered and kind in (MSG_HANDSHAKE, MSG_HANDSHAKE_ACK):
+            self._handshake_rejects = int(self._handshake_rejects or 0) + 1
+            self._strike_peer_sync(peer, "mid_session_handshake_libp2p")
+            return
         # State-root solicit must not sit behind NEW_BLOCK apply on the
         # per-peer message_loop (miner harness peer_probe_ok empty).
         if registered and kind in (MSG_STATE_ROOT_REQUEST, MSG_STATE_ROOT_RESPONSE):
@@ -3558,6 +3564,10 @@ class P2PNode:
                     "rate_limited",
                     # Catch-up / tip races under partial mesh — drop tip, do not ban.
                     "tip_unknown_parent",
+                    # libp2p Noise reconnect can re-send Absolute handshake into a
+                    # live Absolute epoch (session lifetime mismatch). Soft-refuse
+                    # only — TCP+TLS still hard-bans mid_session_handshake.
+                    "mid_session_handshake_libp2p",
                 }
             )
             self._SOFT_REFUSE_STRIKE_REASONS = soft
@@ -3734,9 +3744,19 @@ class P2PNode:
             if self._strike_peer_sync(peer, f"unknown_type:{msg_type}"):
                 self._remove_peer(peer.peer_id, peer)
             return
-        # Mid-session handshake is abuse (initial handshake uses _do_handshake recv).
+        # Mid-session handshake is abuse on TCP+TLS (initial HS uses _do_handshake).
+        # On libp2p, Noise can reconnect while Absolute epoch is still live — that
+        # re-HS is soft-refused (no 300s ban). Real TCP mid-session HS still bans.
         if msg_type in (MSG_HANDSHAKE, MSG_HANDSHAKE_ACK):
             self._handshake_rejects = int(self._handshake_rejects or 0) + 1
+            if bool(getattr(self, "_use_libp2p_transport", False)):
+                logger.warning(
+                    "[P2P] mid-session %s from %s (libp2p soft-refuse)",
+                    msg_type,
+                    peer.peer_id or self._peer_key(peer),
+                )
+                self._strike_peer_sync(peer, "mid_session_handshake_libp2p")
+                return
             logger.warning(
                 "[P2P] mid-session %s from %s",
                 msg_type,

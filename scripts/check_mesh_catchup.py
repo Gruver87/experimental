@@ -7,7 +7,7 @@ Pass (exit 0):
   all three /health/ready == 200
   height gap <= 1
   each node peers >= 2
-  topology_healthy, state_consistent, wire_probe_ok all true
+  GET /p2p/topology topology_healthy, ready state_consistent, wire_probe_ok all true
 
 Fail (exit 1) if any of those break. Mesh down = exit 2.
 """
@@ -52,6 +52,7 @@ def main() -> int:
         try:
             code, ready = _get(f"{base}/health/ready", timeout=5.0)
             code_s, st = _get(f"{base}/status", timeout=5.0)
+            code_t, topo = _get(f"{base}/p2p/topology", timeout=8.0)
         except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
             print(f"{role:<8} DOWN {exc}")
             rows.append(row)
@@ -63,12 +64,16 @@ def main() -> int:
         p2p = st.get("p2p_summary") if isinstance(st, dict) else {}
         if not isinstance(p2p, dict):
             p2p = {}
+        if not isinstance(topo, dict):
+            topo = {}
         sec = p2p.get("security") if isinstance(p2p.get("security"), dict) else {}
         row["ready_code"] = int(code)
         row["ready_status"] = str(ready.get("status") or "")
         row["height"] = int(st.get("height") or 0) if code_s == 200 else -1
         row["peers"] = int(st.get("peers") or st.get("peer_count") or 0)
-        row["topo"] = bool(p2p.get("topology_healthy"))
+        # GET /status defers topology (topology_deferred) so HOL stays honest.
+        # Catch-up reads GET /p2p/topology — the dedicated graph path.
+        row["topo"] = bool(code_t == 200 and topo.get("topology_healthy"))
         row["consist"] = bool(checks.get("state_consistent"))
         row["wire"] = bool(checks.get("wire_probe_ok"))
         row["rate_drops"] = int(sec.get("rate_limit_drops") or 0)
