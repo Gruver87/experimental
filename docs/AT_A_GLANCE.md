@@ -36,6 +36,7 @@ The audit-freeze pin · public audited mainnet · listed ABS · Hybrid `v1.3.*-i
 | Long-Range WS lab (ADR 0017 waves 1–14 + lab compose `abs-lr-lab` + 2h preflight) | Long-Range **production** / BLS quorum / 48h soak armed |
 | EVM depth lab (waves 8–11 + RPC honesty incl. gasPrice/tx lookup/blockNumber/filters; `GET /evm/status`) | Full geth parity / EIP-4844 / EVM-only 48h soak claim |
 | Oracle quorum + shard 2/3 labs (`oracle_lab`, `cross_shard_lab`; prod flags off) | Oracles/sharding on prod mesh 778888 |
+| Gruver87 council ADR 0022 (Profile C `:19080`, 87 genesis mint) | Council 48h soak / on-chain signed gov / mainnet treasury |
 | Fail-closed identity/persist ACL labs (Windows) | Merging Dependabot major bumps |
 
 ## Where R&D lives
@@ -47,6 +48,7 @@ The audit-freeze pin · public audited mainnet · listed ABS · Hybrid `v1.3.*-i
 | `scripts/verify_adr0019_libp2p_hard.py` | Hard gate |
 | `docs/adr/0019-rust-libp2p-industrial.md` | Slice ledger |
 | `docs/sprouts/` | Profile F / Long-Range / EVM matrix |
+| `docs/sprouts/GOVERNANCE_COUNCIL_PROFILE.md` | Profile C council NFT (778889) |
 
 ## Next click
 

@@ -1,0 +1,20 @@
+{
+  "schema": "abs.council_evidence.v1",
+  "honesty": "Profile C staging compose (chain 778889) genesis mint 87/87. Not 48h soak. Not signed on-chain governance. Not mainnet.",
+  "claims": {
+    "adr": "0022",
+    "chain_id": 778889,
+    "compose": "docker-compose.staging.app.yml",
+    "base_url": "http://127.0.0.1:19080",
+    "genesis_mint": "minted_count=87 genesis_complete=true",
+    "manifest_sha256_prefix": "4487b29a26a09ba6",
+    "jwt_enforce_admin": false,
+    "on_chain_standard": false
+  },
+  "files": {
+    "ceremony_result": {
+      "status": "present",
+      "path": "docs/evidence/runs/council-staging-genesis-20260828/ceremony_result.json"
+    }
+  }
+}

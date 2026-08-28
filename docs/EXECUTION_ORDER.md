@@ -149,6 +149,7 @@ Other optional depth:
 | Long-Range | Waves 1–14 labs + 2h preflight harness | Lab soak, prod |
 | EVM | Waves 8–11 + maxPriorityFee null-honesty, prod smoke (Jul) | Re-run after B1, further COMPAT_MATRIX |
 | Mempool Rust | Phase 0 `MempoolPort` | Phases 1–3 after B1 |
+| Council ADR 0022 | Lab + live staging 778889 genesis 87/87 (2026-08-28) | On-chain signed gov, mainnet, 48h council soak |
 
 ---
 

@@ -57,13 +57,17 @@ Dry-run preflight (node optional if manifest checked locally):
 python scripts/guarantor_council_staging_ceremony.py --dry-run
 ```
 
-Live staging ceremony (compose up on :19080, JWT_SECRET set):
+Live staging ceremony (compose up on :19080; JWT only if `jwt_enforce_admin=true`):
 
 ```powershell
+docker compose -p abs-staging-app -f docker-compose.staging.app.yml up -d --build
 python scripts/guarantor_council_staging_ceremony.py --base-url http://127.0.0.1:19080
 ```
 
-POST `/council/genesis-mint` — admin JWT, forbidden on prod / 778888.
+When staging JSON keeps `jwt_enforce_admin=false` (default), ceremony POSTs without admin JWT.
+If enforced: `JWT_SECRET` **>= 32 bytes**, same in container and shell.
+
+POST `/council/genesis-mint` — forbidden on prod / 778888.
 
 Expected: refuse-list PASS, cap 87 PASS, manifest schema PASS.
 
@@ -75,7 +79,7 @@ Expected: refuse-list PASS, cap 87 PASS, manifest schema PASS.
 | Full manifest 87 + SHA-256 | **Done** (`gruver87-council-manifest.json`) |
 | `guarantor_council_lab.py` | **PASS** |
 | Staging genesis mint lab | **PASS** (`guarantor_council_staging_mint_lab.py`) |
-| Live staging compose `778889` | Not started |
+| Live staging compose `778889` | **PASS** (2026-08-28; 87/87; [`council-staging-genesis-20260828`](../evidence/runs/council-staging-genesis-20260828/)) |
 | Mainnet council | **Not claimed** |
 
 Update [EVIDENCE_MATRIX.md](../EVIDENCE_MATRIX.md) only after lab PASS.

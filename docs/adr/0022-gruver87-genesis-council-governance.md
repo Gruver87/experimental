@@ -129,5 +129,5 @@ Council proposals and execution **must refuse**:
 - [x] Lab: `guarantor_council_lab.py` PASS on full manifest
 - [x] Staging genesis mint lab (`guarantor_council_staging_mint_lab.py`)
 - [x] Staging ceremony script + `POST /council/genesis-mint` (admin JWT; not prod)
-- [ ] Operator run on live `778889` compose
-- [ ] `EVIDENCE_MATRIX.md` row updated when lab PASS (not before)
+- [x] Operator run on live `778889` compose (2026-08-28; 87/87 genesis mint; evidence [`council-staging-genesis-20260828`](../evidence/runs/council-staging-genesis-20260828/))
+- [x] `EVIDENCE_MATRIX.md` row updated (lab + live staging; not 48h / not mainnet)

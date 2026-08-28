@@ -3,12 +3,14 @@
 """
 Staging ceremony: POST /council/genesis-mint on Profile C node (778889).
 
-Requires running staging compose (:19080) and admin JWT when jwt_enforce_admin.
+Requires running staging compose (:19080). Admin JWT only when jwt_enforce_admin.
 
 Usage:
   docker compose -p abs-staging-app -f docker-compose.staging.app.yml up -d --build
-  $env:JWT_SECRET = "..."   # same as container
   python scripts/guarantor_council_staging_ceremony.py --base-url http://127.0.0.1:19080
+
+Optional (when jwt_enforce_admin=true on staging JSON):
+  $env:JWT_SECRET = "..."   # >= 32 bytes, same as container
 
 Dry-run (stats + manifest only):
   python scripts/guarantor_council_staging_ceremony.py --dry-run
@@ -29,6 +31,7 @@ from typing import Any, Dict, Optional
 ROOT = Path(__file__).resolve().parents[1]
 STAGING_CHAIN_ID = 778889
 DEFAULT_BASE = "http://127.0.0.1:19080"
+MIN_HS256_SECRET_BYTES = 32
 
 
 def _get(url: str, timeout: float = 30.0) -> Dict[str, Any]:
@@ -36,16 +39,21 @@ def _get(url: str, timeout: float = 30.0) -> Dict[str, Any]:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def _post_json(url: str, body: Dict[str, Any], token: str, timeout: float = 120.0) -> Dict[str, Any]:
+def _post_json(
+    url: str,
+    body: Dict[str, Any],
+    token: Optional[str] = None,
+    timeout: float = 120.0,
+) -> Dict[str, Any]:
     data = json.dumps(body).encode("utf-8")
+    headers: Dict[str, str] = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(
         url,
         data=data,
         method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-        },
+        headers=headers,
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -58,6 +66,47 @@ def _post_json(url: str, body: Dict[str, Any], token: str, timeout: float = 120.
             payload = {"error": raw or exc.reason}
         payload["_http_status"] = exc.code
         return payload
+
+
+def _jwt_enforced(base: str) -> bool:
+    try:
+        status = _get(f"{base}/status")
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return True
+    return bool(status.get("jwt_enforce_admin"))
+
+
+def _resolve_admin_token(
+    *,
+    base: str,
+    jwt_arg: str,
+    jwt_secret_arg: str,
+) -> Optional[str]:
+    """Return Bearer token when jwt_enforce_admin; else None (open POST on staging)."""
+    if not _jwt_enforced(base):
+        print("  OK: jwt_enforce_admin=false — genesis-mint without admin JWT")
+        return None
+
+    token = jwt_arg.strip()
+    if token:
+        return token
+
+    secret = jwt_secret_arg.strip() or os.environ.get("JWT_SECRET", "").strip()
+    if not secret:
+        raise RuntimeError(
+            "staging jwt_enforce_admin=true — set --jwt or JWT_SECRET "
+            "(>= 32 bytes, same as container)"
+        )
+
+    secret_len = len(secret.encode("utf-8"))
+    if secret_len < MIN_HS256_SECRET_BYTES:
+        raise RuntimeError(
+            f"JWT_SECRET too short for HS256 "
+            f"(need >= {MIN_HS256_SECRET_BYTES} bytes, got {secret_len}). "
+            "Rotate to >=32 bytes in .env and restart staging, or pass --jwt"
+        )
+
+    return _mint_jwt(secret)
 
 
 def _mint_jwt(secret: str) -> str:
@@ -121,13 +170,15 @@ def main() -> int:
         print("RESULT: PASS (dry-run preflight)")
         return 0
 
-    secret = (args.jwt_secret or os.environ.get("JWT_SECRET", "")).strip()
-    token = args.jwt.strip()
-    if not token:
-        if not secret:
-            print("FAIL: set --jwt or JWT_SECRET / --jwt-secret for genesis-mint POST")
-            return 1
-        token = _mint_jwt(secret)
+    try:
+        token = _resolve_admin_token(
+            base=base,
+            jwt_arg=args.jwt,
+            jwt_secret_arg=args.jwt_secret,
+        )
+    except RuntimeError as exc:
+        print(f"FAIL: {exc}")
+        return 1
 
     result = _post_json(f"{base}/council/genesis-mint", {}, token)
     if result.get("ok") is not True:

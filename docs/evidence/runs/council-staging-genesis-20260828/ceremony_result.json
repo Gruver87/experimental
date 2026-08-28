@@ -1,0 +1,44 @@
+{
+  "run_id": "council-staging-genesis-20260828",
+  "profile": "ADR 0016 Profile C app staging",
+  "chain_id": 778889,
+  "base_url": "http://127.0.0.1:19080",
+  "compose_project": "abs-staging-app",
+  "date": "2026-08-28",
+  "steps": [
+    {
+      "name": "guarantor_council_lab",
+      "result": "PASS"
+    },
+    {
+      "name": "guarantor_council_staging_mint_lab",
+      "result": "PASS"
+    },
+    {
+      "name": "guarantor_council_staging_ceremony",
+      "command": "python scripts/guarantor_council_staging_ceremony.py --base-url http://127.0.0.1:19080",
+      "result": "PASS",
+      "notes": "Initial mint 87; subsequent runs idempotent skip"
+    },
+    {
+      "name": "GET /council/stats",
+      "result": "PASS",
+      "snapshot": {
+        "collection_id": "gruver87-council-87",
+        "supply_cap": 87,
+        "minted_count": 87,
+        "genesis_complete": true,
+        "unique_owners": 7,
+        "execution_bound": true,
+        "on_chain_standard": false
+      }
+    }
+  ],
+  "not_claimed": [
+    "48h council soak",
+    "public mainnet",
+    "ERC-721 on-chain standard",
+    "signed treasury execution",
+    "L1 security guarantee via NFT"
+  ]
+}
