@@ -21,6 +21,6 @@ Scope: Absolute hybrid EVM subset on the single apply path.
 | EOF | **Not claimed** | Out of scope |
 | Full geth JSON-RPC surface | **Not claimed** | Wave-gated methods only |
 
-Evidence: `scripts/prod_evm_smoke.py` · unit tests under `tests/unit/test_evm_rpc_compat.py`.
+Evidence: `scripts/prod_evm_smoke.py` · `scripts/evm_precompile_lab.py` · `scripts/evm_rpc_lab.py` · `scripts/evm_nested_lab.py` · unit tests under `tests/unit/test_evm_rpc_compat.py`.
 
 Update this table when a wave closes a row — never mark Supported without a test.

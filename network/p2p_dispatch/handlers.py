@@ -267,3 +267,7 @@ async def handle_cross_shard_ack(host: DispatchHost, peer: Any, data: Any) -> No
 
 async def handle_shard_migration(host: DispatchHost, peer: Any, data: Any) -> None:
     await host.handle_shard_migration(peer, data)
+
+
+async def handle_ws_checkpoint(host: DispatchHost, peer: Any, data: Any) -> None:
+    await host.handle_ws_checkpoint(peer, data)

@@ -22,33 +22,16 @@ _LOG = logging.getLogger("abs.tip_safety.shadow")
 _GENESIS_HASH = "0" * 64
 
 
+def _optional_ws_service(config: Any | None = None) -> Optional[Any]:
+    """Attach ADR 0017 WS gate when ``feature_long_range`` or ``FEATURE_LONG_RANGE``."""
+    from consensus.long_range.runtime import build_ws_service
+
+    return build_ws_service(config)
+
+
 def _optional_ws_service_from_env() -> Optional[Any]:
-    """Attach ADR 0017 WS gate when FEATURE_LONG_RANGE.
-
-    Persist path: ``ABS_WS_CHECKPOINT_PATH`` (height+hash JSON). Optional
-    ``ABS_WS_ANCHOR_HEIGHT`` / ``ABS_WS_ANCHOR_HASH`` seed only when that file
-    is missing; an existing empty store must not re-seed from leftover env.
-    Init errors return an empty WS service (tip-import refuses) — never drop
-    the gate.
-    """
-    import os
-
-    flag = str(os.environ.get("FEATURE_LONG_RANGE", "") or "").strip().lower()
-    if flag not in ("1", "true", "yes", "on"):
-        return None
-    try:
-        from consensus.long_range.checkpoint_store import bind_persisted_ws
-
-        return bind_persisted_ws(
-            path=str(os.environ.get("ABS_WS_CHECKPOINT_PATH", "") or "").strip() or None,
-            env_height=str(os.environ.get("ABS_WS_ANCHOR_HEIGHT", "") or "").strip(),
-            env_hash=str(os.environ.get("ABS_WS_ANCHOR_HASH", "") or "").strip(),
-        )
-    except Exception as exc:
-        _LOG.warning("FEATURE_LONG_RANGE WS service init failed (fail-closed empty): %s", exc)
-        from consensus.long_range import WeakSubjectivityService
-
-        return WeakSubjectivityService()
+    """Backward-compatible alias (env-only callers / legacy tests)."""
+    return _optional_ws_service(None)
 
 
 def block_ref_from_mapping(data: Mapping[str, Any]) -> BlockRef:
@@ -156,6 +139,7 @@ class TipSafetyShadowObserver:
     __slots__ = (
         "_enabled",
         "_enforce",
+        "_config",
         "_lock",
         "_service",
         "_last_decision",
@@ -171,9 +155,15 @@ class TipSafetyShadowObserver:
         "last_local_forge_height",
     )
 
-    def __init__(self, enabled: bool = False, enforce: bool = False) -> None:
+    def __init__(
+        self,
+        enabled: bool = False,
+        enforce: bool = False,
+        config: Any | None = None,
+    ) -> None:
         self._enforce = bool(enforce)
         self._enabled = bool(enabled) or self._enforce
+        self._config = config
         self._lock = threading.RLock()
         self._service: Optional[TipSafetyService] = None
         self._last_decision: Optional[ApplyDecision] = None
@@ -260,7 +250,7 @@ class TipSafetyShadowObserver:
                 max_blocks = int(os.environ.get("TIP_ANCESTRY_WINDOW_MAX", "256") or 256)
             except (TypeError, ValueError):
                 max_blocks = 256
-            ws = _optional_ws_service_from_env()
+            ws = _optional_ws_service(self._config)
             with self._lock:
                 self._service = TipSafetyService(
                     state,

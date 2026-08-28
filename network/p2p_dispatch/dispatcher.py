@@ -31,6 +31,7 @@ from network.p2p_dispatch.constants import (
     MSG_STATE_ROOT_RESPONSE,
     MSG_STATUS,
     MSG_VALIDATOR_REGISTER,
+    MSG_WS_CHECKPOINT,
 )
 from network.p2p_dispatch import handlers as h
 from network.p2p_dispatch.ports import DispatchHost, TipEvidencePort
@@ -167,6 +168,7 @@ def build_default_registry(
             (MSG_CROSS_SHARD_TX, h.handle_cross_shard_tx),
             (MSG_CROSS_SHARD_ACK, h.handle_cross_shard_ack),
             (MSG_SHARD_MIGRATION, h.handle_shard_migration),
+            (MSG_WS_CHECKPOINT, h.handle_ws_checkpoint),
         ]
     )
     return registry

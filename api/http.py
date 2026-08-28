@@ -840,6 +840,7 @@ _RATE_LIMIT_EXEMPT_PATHS = frozenset({
     "/testnet/bridge-relayer-proof",
     "/testnet/fork-exercise",
     "/consensus/stats",
+    "/consensus/weak-subjectivity",
     "/metrics",
     "/sync/fast-sync",
     "/sync/reconcile",
@@ -885,7 +886,9 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/sync/status", "summary": "Chain sync status"},
     {"method": "GET", "path": "/features", "summary": "Feature flags and module availability"},
     {"method": "GET", "path": "/evm/supported-opcodes", "summary": "EVM opcode support matrix"},
+    {"method": "GET", "path": "/evm/status", "summary": "EVM compat honesty snapshot (Profile A lab; not full geth)"},
     {"method": "GET", "path": "/consensus/attestations", "summary": "Latest validator attestations (LMD)"},
+    {"method": "GET", "path": "/consensus/weak-subjectivity", "summary": "Long-Range WS lab status (ADR 0017; prod always off)"},
     {"method": "GET", "path": "/consensus/attestations/by-block", "summary": "Attestation votes aggregated per block"},
     {"method": "GET", "path": "/bridge", "summary": "Bridge overview"},
     {"method": "GET", "path": "/bridge/locks", "summary": "Bridge lock records"},
@@ -2780,6 +2783,27 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "error": "consensus_adapter_missing",
                     })
 
+            elif path == "/consensus/weak-subjectivity":
+                ca = self.__class__.consensus_adapter
+                cfg = self.__class__.config
+                if ca and hasattr(ca, "weak_subjectivity_status"):
+                    try:
+                        self._json(dict(ca.weak_subjectivity_status()))
+                    except Exception as e:
+                        self._json({
+                            "long_range_defense": False,
+                            "error": str(e),
+                        })
+                elif cfg is not None:
+                    from consensus.long_range.runtime import weak_subjectivity_honesty_snapshot
+
+                    self._json(weak_subjectivity_honesty_snapshot(cfg))
+                else:
+                    self._json({
+                        "long_range_defense": False,
+                        "error": "consensus_adapter_missing",
+                    })
+
             elif path == "/features":
                 from features import FeatureFlags, OPTIONAL_MODULE_PROBES, probe_optional_module
                 cfg = self.__class__.config
@@ -2828,9 +2852,27 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/evm/supported-opcodes":
                 try:
                     from execution.evm_bytecode_validator import supported_opcodes_summary
-                    self._json(supported_opcodes_summary())
+                    from execution.evm_runtime import merge_compat_summary
+
+                    self._json(merge_compat_summary(supported_opcodes_summary()))
                 except Exception as e:
                     self._json({"error": str(e)})
+
+            elif path == "/evm/status":
+                try:
+                    from execution.evm_runtime import evm_compat_honesty_snapshot
+
+                    cfg = self.__class__.config
+                    snap = evm_compat_honesty_snapshot(cfg)
+                    try:
+                        from execution.evm_bytecode_validator import supported_opcodes_summary
+
+                        snap["opcodes"] = supported_opcodes_summary()
+                    except Exception as exc:
+                        snap["opcodes_error"] = str(exc)
+                    self._json(snap)
+                except Exception as e:
+                    self._json({"evm_enabled": False, "error": str(e)})
 
             elif path == "/evm/logs" or path.startswith("/evm/logs/"):
                 db = self.__class__.db

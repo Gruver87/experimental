@@ -30,6 +30,7 @@ MSG_VALIDATOR_REGISTER = "validator_register"
 MSG_CROSS_SHARD_TX = "cross_shard_tx"
 MSG_CROSS_SHARD_ACK = "cross_shard_ack"
 MSG_SHARD_MIGRATION = "shard_migration"
+MSG_WS_CHECKPOINT = "ws_checkpoint"
 
 DISPATCHABLE_TYPES = frozenset(
     {
@@ -54,5 +55,6 @@ DISPATCHABLE_TYPES = frozenset(
         MSG_CROSS_SHARD_TX,
         MSG_CROSS_SHARD_ACK,
         MSG_SHARD_MIGRATION,
+        MSG_WS_CHECKPOINT,
     }
 )

@@ -29,6 +29,12 @@ class CheckpointStore:
             return
         self._items.append(cert)
 
+    def adopt_peer_certificate(self, cert: CheckpointCertificate) -> str:
+        """Merge peer cert when anchor is not regressive (wave-14 gossip)."""
+        from consensus.long_range.gossip import adopt_peer_certificate
+
+        return adopt_peer_certificate(self, cert)
+
     def latest(self) -> Optional[CheckpointCertificate]:
         return self._items[-1] if self._items else None
 

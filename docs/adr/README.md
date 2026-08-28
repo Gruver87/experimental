@@ -26,5 +26,6 @@ Boundary ADRs for Absolute Blockchain Ultimate Hybrid.
 | [0018](0018-libp2p-transport.md) | libp2p dual-stack transport | Accepted (experimental) |
 | [0019](0019-rust-libp2p-industrial.md) | rust-libp2p industrial path | Accepted (experimental) |
 | [0020](0020-libp2p-industrial-mesh.md) | Experimental industrial libp2p mesh | Accepted (experimental) |
+| [0021](0021-mempool-validation-rust-phases.md) | Mempool / validation Rust phases (plan) | Accepted (plan only) |
 
-System map: [ARCHITECTURE.md](../ARCHITECTURE.md) · sprouts: [sprouts/](../sprouts/)
+System map: [ARCHITECTURE.md](../ARCHITECTURE.md) · sprouts: [sprouts/](../sprouts/) · **execution order:** [EXECUTION_ORDER.md](../EXECUTION_ORDER.md)

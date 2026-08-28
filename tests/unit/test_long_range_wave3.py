@@ -113,20 +113,20 @@ def test_tip_safety_restart_from_disk_refuses_below_anchor(tmp_path) -> None:
 
 
 def test_optional_ws_flag_off_detached(monkeypatch) -> None:
-    from consensus.tip_safety.shadow import _optional_ws_service_from_env
+    from consensus.tip_safety.shadow import _optional_ws_service
 
     monkeypatch.setenv("FEATURE_LONG_RANGE", "false")
-    assert _optional_ws_service_from_env() is None
+    assert _optional_ws_service() is None
 
 
 def test_optional_ws_flag_on_empty_attaches_and_refuses(monkeypatch) -> None:
-    from consensus.tip_safety.shadow import _optional_ws_service_from_env
+    from consensus.tip_safety.shadow import _optional_ws_service
 
     monkeypatch.setenv("FEATURE_LONG_RANGE", "true")
     monkeypatch.delenv("ABS_WS_CHECKPOINT_PATH", raising=False)
     monkeypatch.delenv("ABS_WS_ANCHOR_HEIGHT", raising=False)
     monkeypatch.delenv("ABS_WS_ANCHOR_HASH", raising=False)
-    svc = _optional_ws_service_from_env()
+    svc = _optional_ws_service(None)
     assert svc is not None
     assert svc.get_anchor() is None
     w, _mid, anchor = _seed()
@@ -138,7 +138,7 @@ def test_optional_ws_flag_on_empty_attaches_and_refuses(monkeypatch) -> None:
 
 
 def test_optional_ws_restart_from_checkpoint_path(monkeypatch, tmp_path) -> None:
-    from consensus.tip_safety.shadow import _optional_ws_service_from_env
+    from consensus.tip_safety.shadow import _optional_ws_service
 
     path = tmp_path / "ws.json"
     bind_persisted_ws(path=path, env_height="10", env_hash="ff" * 32)
@@ -146,7 +146,7 @@ def test_optional_ws_restart_from_checkpoint_path(monkeypatch, tmp_path) -> None
     monkeypatch.setenv("ABS_WS_CHECKPOINT_PATH", str(path))
     monkeypatch.delenv("ABS_WS_ANCHOR_HEIGHT", raising=False)
     monkeypatch.delenv("ABS_WS_ANCHOR_HASH", raising=False)
-    svc = _optional_ws_service_from_env()
+    svc = _optional_ws_service()
     assert svc is not None
     assert svc.get_anchor() is not None
     assert svc.get_anchor().height == 10
@@ -162,7 +162,7 @@ def test_optional_ws_missing_digest_file_fail_closed_empty(monkeypatch, tmp_path
     """Corrupt persist (no digest) must not drop the WS gate or load a lowered height."""
     import json
 
-    from consensus.tip_safety.shadow import _optional_ws_service_from_env
+    from consensus.tip_safety.shadow import _optional_ws_service
 
     path = tmp_path / "ws.json"
     path.write_text(
@@ -186,7 +186,7 @@ def test_optional_ws_missing_digest_file_fail_closed_empty(monkeypatch, tmp_path
     monkeypatch.setenv("ABS_WS_CHECKPOINT_PATH", str(path))
     monkeypatch.delenv("ABS_WS_ANCHOR_HEIGHT", raising=False)
     monkeypatch.delenv("ABS_WS_ANCHOR_HASH", raising=False)
-    svc = _optional_ws_service_from_env()
+    svc = _optional_ws_service()
     assert svc is not None
     assert svc.get_anchor() is None
     w, _mid, anchor = _seed()
@@ -201,7 +201,7 @@ def test_optional_ws_empty_items_file_ignores_leftover_env(monkeypatch, tmp_path
     """Existing persist with empty items + leftover env must not lower the anchor."""
     import json
 
-    from consensus.tip_safety.shadow import _optional_ws_service_from_env
+    from consensus.tip_safety.shadow import _optional_ws_service
 
     path = tmp_path / "ws.json"
     path.write_text(json.dumps({"max_history": 8, "items": []}), encoding="utf-8")
@@ -209,7 +209,7 @@ def test_optional_ws_empty_items_file_ignores_leftover_env(monkeypatch, tmp_path
     monkeypatch.setenv("ABS_WS_CHECKPOINT_PATH", str(path))
     monkeypatch.setenv("ABS_WS_ANCHOR_HEIGHT", "1")
     monkeypatch.setenv("ABS_WS_ANCHOR_HASH", "bb" * 32)
-    svc = _optional_ws_service_from_env()
+    svc = _optional_ws_service()
     assert svc is not None
     assert svc.get_anchor() is None
     w, _mid, anchor = _seed()

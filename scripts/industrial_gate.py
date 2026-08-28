@@ -4718,6 +4718,58 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "libp2p mid-session Absolute handshake must soft-refuse (no 300s soak ban)"
             )
+        lr_runtime = (ROOT / "consensus" / "long_range" / "runtime.py").read_text(
+            encoding="utf-8"
+        )
+        shadow_py = (ROOT / "consensus" / "tip_safety" / "shadow.py").read_text(
+            encoding="utf-8"
+        )
+        if "long_range_feature_armed" not in lr_runtime:
+            errors.append("ADR 0017 long_range runtime must expose long_range_feature_armed")
+        if "weak_subjectivity_honesty_snapshot" not in lr_runtime:
+            errors.append("ADR 0017 must expose weak_subjectivity_honesty_snapshot")
+        if "build_ws_service" not in shadow_py:
+            errors.append("tip_safety shadow must wire build_ws_service from Config")
+        if not (ROOT / "scripts" / "long_range_p2p_lab.py").is_file():
+            errors.append("ADR 0017 long_range_p2p_lab.py missing (wave-13 P2P import)")
+        if not (ROOT / "consensus" / "long_range" / "gossip.py").is_file():
+            errors.append("ADR 0017 long_range gossip.py missing (wave-14 checkpoint gossip)")
+        if not (ROOT / "scripts" / "long_range_gossip_lab.py").is_file():
+            errors.append("ADR 0017 long_range_gossip_lab.py missing (wave-14 gossip lab)")
+        if "MSG_WS_CHECKPOINT" not in p2p_py or '"ws_checkpoint"' not in p2p_py:
+            errors.append("P2P allowlist must include ws_checkpoint (ADR 0017 wave-14)")
+        http_py = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
+        if "/consensus/weak-subjectivity" not in http_py:
+            errors.append("GET /consensus/weak-subjectivity missing (ADR 0017 lab honesty)")
+        evm_runtime = ROOT / "execution" / "evm_runtime.py"
+        if not evm_runtime.is_file():
+            errors.append("EVM depth evm_runtime.py missing (Profile A lab honesty)")
+        elif "evm_compat_honesty_snapshot" not in evm_runtime.read_text(encoding="utf-8"):
+            errors.append("evm_runtime must expose evm_compat_honesty_snapshot")
+        if not (ROOT / "scripts" / "evm_rpc_lab.py").is_file():
+            errors.append("EVM depth evm_rpc_lab.py missing (wave-9 RPC lab)")
+        if not (ROOT / "scripts" / "evm_nested_lab.py").is_file():
+            errors.append("EVM depth evm_nested_lab.py missing (wave-10 nested lab)")
+        if "/evm/status" not in http_py:
+            errors.append("GET /evm/status missing (EVM compat honesty endpoint)")
+        if not (ROOT / "docs" / "EXECUTION_ORDER.md").is_file():
+            errors.append("docs/EXECUTION_ORDER.md missing (master R&D sequence)")
+        exec_order = (ROOT / "docs" / "EXECUTION_ORDER.md").read_text(encoding="utf-8")
+        if "feature_long_range=false" not in exec_order or "libp2p 48h" not in exec_order:
+            errors.append("EXECUTION_ORDER must document libp2p 48h before Long-Range / mempool Rust")
+        if not (ROOT / "docs" / "adr" / "0021-mempool-validation-rust-phases.md").is_file():
+            errors.append("ADR 0021 mempool-validation-rust-phases missing")
+        mempool_ports = ROOT / "blockchain" / "ports.py"
+        if not mempool_ports.is_file():
+            errors.append("blockchain/ports.py MempoolPort missing (ADR 0021 phase-0)")
+        elif "class MempoolPort" not in mempool_ports.read_text(encoding="utf-8"):
+            errors.append("blockchain/ports.py must define MempoolPort")
+        if not (ROOT / "scripts" / "oracle_lab.py").is_file():
+            errors.append("oracle_lab.py missing (aux sprout lab)")
+        if not (ROOT / "scripts" / "cross_shard_lab.py").is_file():
+            errors.append("cross_shard_lab.py missing (Profile E lab)")
+        if not (ROOT / "docs" / "sprouts" / "ORACLE_LAB_PROFILE.md").is_file():
+            errors.append("ORACLE_LAB_PROFILE.md missing")
         if "live_fallback" not in hw_core:
             errors.append("health_watch must fall back to /health/live on ready+status HOL")
         soak_mon = (ROOT / "scripts" / "soak_monitor.ps1").read_text(encoding="utf-8")

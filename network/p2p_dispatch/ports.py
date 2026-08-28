@@ -79,6 +79,9 @@ class DispatchHost(Protocol):
     async def handle_shard_migration(self, peer: Any, data: Any) -> None:
         ...
 
+    async def handle_ws_checkpoint(self, peer: Any, data: Any) -> None:
+        ...
+
     def get_block_future_refuse_reason(self, height: int) -> str:
         ...
 

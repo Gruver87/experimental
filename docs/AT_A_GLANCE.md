@@ -33,7 +33,9 @@ The audit-freeze pin · public audited mainnet · listed ABS · Hybrid `v1.3.*-i
 | AutoNAT/UPnP confirm admit-canonical-or-omit | Tip proof / public mainnet |
 | Identify observed confirm charges canonical key | Firm audit PDF |
 | Add/remove/expire match canonical charge key | NTFS replace = POSIX inode-atomic |
-| Long-Range / EVM precompile labs | Public VPS testnet / launched mainnet |
+| Long-Range WS lab (ADR 0017 waves 1–14, unit + `long_range_p2p_lab` + `long_range_gossip_lab`) | Long-Range **production** / BLS quorum / 48h soak armed |
+| EVM depth lab (waves 8–10: precompile + rpc + nested; `GET /evm/status`) | Full geth parity / EIP-4844 / EVM-only 48h soak claim |
+| Oracle + cross-shard labs (`oracle_lab`, `cross_shard_lab`; prod flags off) | Oracles/sharding on prod mesh 778888 |
 | Fail-closed identity/persist ACL labs (Windows) | Merging Dependabot major bumps |
 
 ## Where R&D lives
@@ -48,6 +50,7 @@ The audit-freeze pin · public audited mainnet · listed ABS · Hybrid `v1.3.*-i
 
 ## Next click
 
+- **Execution order (what when):** [EXECUTION_ORDER.md](EXECUTION_ORDER.md)
 - Hybrid pin (do not break): [Ultimate Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid)
 - Contribute: [CONTRIBUTING](../CONTRIBUTING.md)
 - GitHub About: [REPO_PROFILE](../.github/REPO_PROFILE.md)

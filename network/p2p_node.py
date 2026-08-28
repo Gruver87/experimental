@@ -121,6 +121,7 @@ MSG_VALIDATOR_REGISTER = "validator_register"
 MSG_CROSS_SHARD_TX = "cross_shard_tx"
 MSG_CROSS_SHARD_ACK = "cross_shard_ack"
 MSG_SHARD_MIGRATION = "shard_migration"
+MSG_WS_CHECKPOINT = "ws_checkpoint"
 
 ALLOWED_WIRE_TYPES = frozenset({
     MSG_HANDSHAKE,
@@ -147,6 +148,7 @@ ALLOWED_WIRE_TYPES = frozenset({
     MSG_CROSS_SHARD_TX,
     MSG_CROSS_SHARD_ACK,
     MSG_SHARD_MIGRATION,
+    MSG_WS_CHECKPOINT,
 })
 
 # Housekeeping + consensus/sync wire types are not counted toward per-peer rate limits.
@@ -2228,6 +2230,9 @@ class P2PNode:
     async def handle_shard_migration(self, peer: PeerConnection, data: Any) -> None:
         await self._handle_shard_migration(peer, data)
 
+    async def handle_ws_checkpoint(self, peer: PeerConnection, data: Any) -> None:
+        await self._handle_ws_checkpoint(peer, data)
+
     def get_block_future_refuse_reason(self, height: int) -> str:
         return self._get_block_future_refuse_reason(height)
 
@@ -3568,6 +3573,8 @@ class P2PNode:
                     # live Absolute epoch (session lifetime mismatch). Soft-refuse
                     # only — TCP+TLS still hard-bans mid_session_handshake.
                     "mid_session_handshake_libp2p",
+                    # Long-Range WS gossip is lab-only (ADR 0017); prod drops without ban.
+                    "ws_checkpoint_unarmed",
                 }
             )
             self._SOFT_REFUSE_STRIKE_REASONS = soft
@@ -3841,6 +3848,12 @@ class P2PNode:
             elif msg_type == MSG_SHARD_MIGRATION:
                 if native.validate_p2p_shard_migration(data) is None:
                     self._strike_peer_sync(peer, "bad_shard_migration")
+                    return
+            elif msg_type == MSG_WS_CHECKPOINT:
+                from consensus.long_range.gossip import validate_ws_checkpoint_payload
+
+                if validate_ws_checkpoint_payload(data) is None:
+                    self._strike_peer_sync(peer, "bad_ws_checkpoint")
                     return
             elif msg_type in (MSG_GET_MEMPOOL, MSG_GET_PEERS, MSG_PING, MSG_PONG):
                 if not _housekeeping_payload_ok(msg_type, data):
@@ -7141,6 +7154,36 @@ class P2PNode:
             return
         if hasattr(self._sharding, "receive_shard_migration"):
             self._sharding.receive_shard_migration(parsed)
+
+    async def _handle_ws_checkpoint(self, peer: PeerConnection, data: Dict):
+        """Merge peer WS checkpoint when Long-Range lab flag is armed (ADR 0017)."""
+        from consensus.long_range.gossip import (
+            OUTCOME_DIGEST_INVALID,
+            OUTCOME_PARSE_ERROR,
+            OUTCOME_UNARMED,
+            ingest_peer_ws_checkpoint,
+        )
+
+        result = ingest_peer_ws_checkpoint(config=self.config, data=data)
+        outcome = str(result.get("outcome") or "")
+        if outcome == OUTCOME_UNARMED:
+            self._strike_peer_sync(peer, "ws_checkpoint_unarmed")
+            return
+        if outcome in (OUTCOME_PARSE_ERROR, OUTCOME_DIGEST_INVALID):
+            self._strike_peer_sync(peer, "bad_ws_checkpoint")
+            return
+        if result.get("adopted"):
+            self.bump_counter("ws_checkpoint_adopt_total")
+            shadow = getattr(self, "tip_safety_shadow", None)
+            if shadow is not None and hasattr(shadow, "sync_from_chain"):
+                try:
+                    shadow.sync_from_chain(self.blockchain)
+                except Exception as exc:
+                    logger.warning(
+                        "[P2P] ws_checkpoint adopt: shadow resync failed: %s", exc
+                    )
+        else:
+            self.bump_counter("ws_checkpoint_ignore_total")
 
     async def broadcast_shard_migration(self, payload: Dict):
         if not isinstance(payload, dict):

@@ -12,7 +12,8 @@ Lab-only profile for Long-Range. libp2p on Experimental `778888` mesh is
 
 - **Experimental industrial mesh:** rust-libp2p Noise/Yamux + ADR 0008 `/abs/wire` (ADR 0020).
 - **Hybrid audit-pin:** native TCP + TLS/mTLS (unchanged).
-- **Long-Range:** stays off. `feature_long_range=false` on prod JSON.
+- **Long-Range:** stays off on prod mesh JSON. Lab arm: `feature_long_range=true` (dev) or `FEATURE_LONG_RANGE` env + `ABS_WS_CHECKPOINT_PATH`.
+- **Execution order:** [EXECUTION_ORDER.md](../EXECUTION_ORDER.md) — libp2p 48h → LR lab soak → EVM regression → mempool Rust (ADR 0021).
 
 ## EVM depth
 
@@ -22,7 +23,7 @@ Compatibility gaps: [EVM_COMPAT_MATRIX.md](EVM_COMPAT_MATRIX.md).
 ## Gates
 
 - `scripts/industrial_gate.py` requires Experimental mesh JSON `feature_libp2p=true` and `feature_long_range=false`.
-- Lab scripts: `scripts/long_range_lab.py`, `scripts/libp2p_lab_smoke.py`,
+- Lab scripts: `scripts/long_range_lab.py`, `scripts/long_range_p2p_lab.py`, `scripts/long_range_gossip_lab.py`, `scripts/evm_precompile_lab.py`, `scripts/evm_rpc_lab.py`, `scripts/evm_nested_lab.py`, `scripts/oracle_lab.py`, `scripts/cross_shard_lab.py`, `scripts/libp2p_lab_smoke.py`,
   `scripts/libp2p_two_node_lab.py`, `scripts/libp2p_swarm_lab.py`,
   `scripts/libp2p_three_node_lab.py`,   `scripts/libp2p_reqresp_lab.py`,
   `scripts/libp2p_relay_lab.py`, `scripts/libp2p_discovery_lab.py`,

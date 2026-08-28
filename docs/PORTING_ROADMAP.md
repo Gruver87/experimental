@@ -1273,3 +1273,21 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - `feature_zk`, `feature_lightning`, `feature_pq`, etc.
 - `mock_l1_rpc`, `auto_sign` on `/tx/send`
 - Post-quantum private-key helper endpoints
+
+---
+
+## Priority 10 — Mempool / validation Rust (planned, ADR 0021)
+
+**Status:** **Not started.** Do not implement until [EXECUTION_ORDER.md](EXECUTION_ORDER.md) Phase 1 (libp2p 48h PASS).
+
+| Sub-phase | Deliverable | Behavior change |
+|-----------|-------------|-----------------|
+| 0 | `blockchain/ports.py` `MempoolPort` | None (protocol + structural test) |
+| 1 | Rust validation kernels + snapshot from Python | Optional fast path |
+| 2 | Rust priority store behind port | Perf after parity proof |
+| 3 | EVM deploy admit (Rust or callback) | Golden vs Python validator |
+
+Detail: [adr/0021-mempool-validation-rust-phases.md](adr/0021-mempool-validation-rust-phases.md).
+
+**Already in Rust (do not re-implement):** P2P wire shape, batch ECDSA, solicit-only mempool shell, rate limits — see `p2p_transport.rs` / `p2p_wire.rs`.
+

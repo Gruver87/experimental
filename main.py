@@ -719,6 +719,7 @@ class NodeOrchestrator:
         self.tip_safety_shadow = TipSafetyShadowObserver(
             enabled=_shadow,
             enforce=_enforce,
+            config=config,
         )
         self.p2p.tip_safety_shadow = self.tip_safety_shadow
         if self.tip_safety_shadow.enabled:

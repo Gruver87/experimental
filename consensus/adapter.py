@@ -378,20 +378,10 @@ class ConsensusAdapter:
         )
 
     def weak_subjectivity_status(self) -> Dict[str, Any]:
-        """Honesty surface: tip AncestryWindow ≠ Long-Range / weak-subjectivity."""
-        return {
-            "long_range_defense": False,
-            "weak_subjectivity_checkpoints": False,
-            "tip_ancestry_window": True,
-            "tip_ancestry_window_note": (
-                "Bounded ancestor rollback only (ADR 0001 stage-1.5); "
-                "not a weak-subjectivity checkpoint scheme."
-            ),
-            "finality_quorum_live": bool(
-                getattr(self.config, "finality_quorum_live", False)
-            ),
-            "detail": "honesty_only",
-        }
+        """Honesty surface: tip AncestryWindow vs Long-Range / weak-subjectivity."""
+        from consensus.long_range.runtime import weak_subjectivity_honesty_snapshot
+
+        return weak_subjectivity_honesty_snapshot(self.config)
 
     def quorum_certificate(
         self, round_id: RoundId, vote_type: VoteType
