@@ -21,6 +21,8 @@ Scope: Absolute hybrid EVM subset on the single apply path.
 | `eth_coinbase` / `eth_mining` / `eth_hashrate` | **Partial** | Empty `miner_address` → coinbase `null`. `mining_enabled=false` → `false` (mesh gate when P2P bound). Hashrate always `0x0` — Absolute is **not** ethash. Lab + unit |
 | `eth_getCode` / `eth_getBalance` / `eth_getStorageAt` | **Partial** | Missing account: code `0x`, balance `0x0` wei, storage slot `0x0`. Not invented bytecode. Lab + unit |
 | `eth_protocolVersion` | **Partial** | JSON-RPC client compatibility constant `0x41` (65) — **not** a claim of Ethereum eth/65 wire protocol |
+| `eth_chainId` / `net_version` / `web3_clientVersion` | **Partial** | Config-backed: `hex(chain_id)`, decimal `net_version`, `Absolute/{node_version}/python`. Lab + unit |
+| `eth_syncing` / `net_peerCount` | **Partial** | No P2P/sync adapter → `false` / `0x0`. With peers, syncing follows mesh consistency + wire probe (not invented catch-up). Lab + unit |
 | Blob txs (EIP-4844) | **Not claimed** | Optional / out of scope |
 | EOF | **Not claimed** | Out of scope |
 | Full geth JSON-RPC surface | **Not claimed** | Wave-gated methods only |

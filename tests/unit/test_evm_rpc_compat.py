@@ -1090,6 +1090,17 @@ def test_eth_coinbase_mining_hashrate_honesty() -> None:
     assert client.call("eth_hashrate", []).get("result") == "0x0"
 
 
+def test_eth_chain_net_sync_client_honesty() -> None:
+    """Config chain id, client string, no-P2P sync false, peer count 0x0."""
+    client = FakeRpcClient()
+    assert client.call("eth_chainId", []).get("result") == hex(77777)
+    assert client.call("net_version", []).get("result") == "77777"
+    cv = client.call("web3_clientVersion", []).get("result")
+    assert str(cv).startswith("Absolute/") and str(cv).endswith("/python")
+    assert client.call("eth_syncing", []).get("result") is False
+    assert client.call("net_peerCount", []).get("result") == "0x0"
+
+
 def test_eth_get_code_balance_storage_missing_account() -> None:
     """Missing account: code 0x, balance 0x0, storage 0x0 (not invented bytecode)."""
     client = FakeRpcClient()

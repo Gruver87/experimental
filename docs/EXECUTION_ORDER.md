@@ -11,7 +11,7 @@ Last updated: 2026-08-28.
 
 | ID | Blocker | Evidence | Next action |
 |----|---------|----------|-------------|
-| B1 | **libp2p 48h soak** not PASS | `35104db0`, `87f51b3e` FAIL; 2h smoke PASS (`mesh-fix-smoke-2h`) | Rebuild → `probe_prod_mesh -Quick` → optional 2h smoke → **48h #3 on operator command** |
+| B1 | **libp2p 48h soak** not PASS | `35104db0`, `87f51b3e` FAIL; 2h smoke PASS (`mesh-fix-smoke-2h-pre48h3`, `hard_fails=0`) | Rebuild → `probe_prod_mesh -Quick` → **48h #3 on operator command** (2h pre-flight done) |
 | B2 | **Long-Range** not soak-proven | Lab waves 1–14 unit+labs only; `feature_long_range=false` prod | After B1 → LR lab 2h → LR lab 48h (separate JSON, not prod mesh) |
 | B3 | **Mempool/validation Rust** phases 1–3 blocked | ADR 0021; **phase 0 landed** (`blockchain/ports.py` `MempoolPort`) | After B1 (+ optional B2 lab soak) → phase 1 kernels |
 

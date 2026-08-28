@@ -166,6 +166,24 @@ def main() -> int:
     if proto.get("result") != hex(65):
         return _fail("protocolVersion is Absolute JSON-RPC compat constant (hex 65)")
 
+    # eth_chainId / net_version / web3_clientVersion / eth_syncing / net_peerCount
+    chain = client.call("eth_chainId", [])
+    if chain.get("result") != hex(77777):
+        return _fail("chainId must match config (hex 77777 in lab)")
+    net_ver = client.call("net_version", [])
+    if net_ver.get("result") != "77777":
+        return _fail("net_version must be decimal chain_id string")
+    client_ver = client.call("web3_clientVersion", [])
+    cv = client_ver.get("result") or ""
+    if not str(cv).startswith("Absolute/") or not str(cv).endswith("/python"):
+        return _fail("web3_clientVersion must be Absolute/{version}/python")
+    syncing = client.call("eth_syncing", [])
+    if syncing.get("result") is not False:
+        return _fail("eth_syncing without P2P must be false (not object)")
+    peers = client.call("net_peerCount", [])
+    if peers.get("result") != "0x0":
+        return _fail("net_peerCount without P2P must be 0x0")
+
     # runtime snapshot reachable
     from execution.evm_runtime import evm_compat_honesty_snapshot
     from runtime.config import Config
@@ -176,7 +194,7 @@ def main() -> int:
 
     print(
         "OK: evm_rpc_lab PASS "
-        "(null-honesty + fees + coinbase/mining + getCode/balance/storage + protocolVersion)"
+        "(null-honesty + fees + coinbase/mining + getCode/balance/storage + protocolVersion + chain/net/sync)"
     )
     return 0
 

@@ -34,6 +34,7 @@ UNIT = [
     "tests/unit/test_evm_rpc_compat.py::test_eth_max_priority_fee_null_without_eip1559",
     "tests/unit/test_evm_rpc_compat.py::test_eth_coinbase_mining_hashrate_honesty",
     "tests/unit/test_evm_rpc_compat.py::test_eth_get_code_balance_storage_missing_account",
+    "tests/unit/test_evm_rpc_compat.py::test_eth_chain_net_sync_client_honesty",
 ]
 
 

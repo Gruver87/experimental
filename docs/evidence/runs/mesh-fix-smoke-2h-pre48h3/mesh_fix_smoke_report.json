@@ -1,0 +1,25 @@
+{
+  "passed": true,
+  "interval_sec": 60,
+  "mesh_acceptable": true,
+  "ready_flaps_tolerated": false,
+  "pass_notes": "hard_fails=0 mesh_warn=0; pre-48h #3 smoke",
+  "hours_elapsed": 2.0006,
+  "mesh_warns_transient_ok": true,
+  "strict": false,
+  "started_at": "2026-08-28T19:40:27.0000000",
+  "ended_at": "2026-08-28T21:40:29.0000000",
+  "log_file": "logs/mesh_fix_smoke_2h_pre48h3.log",
+  "cycles_observed": 119,
+  "health_watch_exit": 0,
+  "counts": {
+    "fail_lines": 0,
+    "ok_lines": 357,
+    "mesh_ok_lines": 119,
+    "mesh_warn_lines": 0,
+    "warn_lines": 0,
+    "ready_only_fail_lines": 0,
+    "hard_fail_lines": 0
+  },
+  "hours_requested": 2
+}

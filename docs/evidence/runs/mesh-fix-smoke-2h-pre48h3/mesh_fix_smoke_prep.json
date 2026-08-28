@@ -1,0 +1,13 @@
+{
+  "prepared_at": "2026-08-28T19:39:00+03:00",
+  "kind": "mesh_fix_smoke_2h_pre48h3",
+  "hours": 2,
+  "interval_sec": 60,
+  "full_harness_every": 6,
+  "log_file": "logs/mesh_fix_smoke_2h_pre48h3.log",
+  "start_command": ".\\scripts\\health_watch.ps1 -ProdMesh -DurationMin 120 -IntervalSec 60 -FullHarnessEvery 6 -LogFile logs/mesh_fix_smoke_2h_pre48h3.log",
+  "probe_quick": "RESULT: OK",
+  "heights_at_start": [45217, 45217, 45217],
+  "note": "Operator-requested 2h smoke before libp2p 48h #3. Not a 48h soak claim.",
+  "48h_soak": "not_started"
+}

@@ -52,6 +52,16 @@ _COMPAT_ROWS: List[Dict[str, str]] = [
         "status": "partial",
         "notes": "Compat constant 0x41 — not eth/65 wire claim",
     },
+    {
+        "area": "eth_chainId_net_clientVersion",
+        "status": "partial",
+        "notes": "Config chain_id + Absolute/{node_version}/python client string",
+    },
+    {
+        "area": "eth_syncing_net_peerCount",
+        "status": "partial",
+        "notes": "No adapter → false/0x0; mesh-bound when P2P wired",
+    },
     {"area": "eip_4844_blobs", "status": "not_claimed", "notes": "Out of scope"},
     {"area": "eof", "status": "not_claimed", "notes": "Out of scope"},
     {"area": "full_geth_json_rpc", "status": "not_claimed", "notes": "Wave-gated methods only"},

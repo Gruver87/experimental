@@ -1,0 +1,18 @@
+{
+  "schema": "abs.mesh_evidence.v1",
+  "honesty": "Experimental libp2p 3-node prod mesh 2h smoke PASS (pre-48h #3). Not a 48h soak PASS. Not public mainnet.",
+  "claims": {
+    "transport": "libp2p Noise (feature_libp2p=true)",
+    "2h_smoke": "passed=true health_watch_exit=0 hard_fails=0 mesh_warn=0 hours_elapsed=2.0006"
+  },
+  "files": {
+    "smoke_report": {
+      "status": "present",
+      "path": "docs/evidence/runs/mesh-fix-smoke-2h-pre48h3/mesh_fix_smoke_report.json"
+    },
+    "smoke_prep": {
+      "status": "present",
+      "path": "docs/evidence/runs/mesh-fix-smoke-2h-pre48h3/mesh_fix_smoke_prep.json"
+    }
+  }
+}

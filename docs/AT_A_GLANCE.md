@@ -20,7 +20,7 @@ The audit-freeze pin · public audited mainnet · listed ABS · Hybrid `v1.3.*-i
 | Hard gate | **117** steps with `--rebuild` (operator-local, 2026-08-15) |
 | Default transport | **libp2p (ADR 0020)** on Experimental prod mesh JSON — Hybrid pin stays TCP+TLS |
 | Industrial pin | [Hybrid `v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial) |
-| 48h soak here | TCP+TLS **PASS** (2026-08-20→22, `0a7932c4`). libp2p 48h **FAIL** ×2: `35104db0` · `87f51b3e`. libp2p **2h smoke PASS** (2026-08-28, mesh_warn=0) — not 48h. |
+| 48h soak here | TCP+TLS **PASS** (2026-08-20→22, `0a7932c4`). libp2p 48h **FAIL** ×2: `35104db0` · `87f51b3e`. libp2p **2h smoke PASS** (2026-08-28, `mesh-fix-smoke-2h-pre48h3`, mesh_warn=0) — not 48h. |
 | Self-check | `.\scripts\verify_hard_all.ps1` (fail-closed, no soak start) · `python scripts/verify_experimental_rd.py` · `.\scripts\verify_adr0019_libp2p_hard.ps1 -Rebuild` |
 
 ## Proven vs not (honest)

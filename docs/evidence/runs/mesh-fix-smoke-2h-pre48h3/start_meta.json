@@ -1,0 +1,11 @@
+﻿{
+    "note":  "libp2p 2h smoke before 48h #3; not a 48h claim",
+    "head":  "148ea98b6c8caf591b97efcabd6f491fdb970d6367eed91911e90b6540a70c04",
+    "heights":  [
+                    45217,
+                    45217,
+                    45217
+                ],
+    "probe_ok":  true,
+    "started_at":  "2026-08-28T19:39:38.7276519+03:00"
+}
