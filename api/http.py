@@ -5390,6 +5390,33 @@ class RESTHandler(BaseHTTPRequestHandler):
                 )
                 self._json(result)
 
+            elif path == "/council/genesis-mint":
+                if not self._require_jwt_admin(path):
+                    return
+                cfg = self.__class__.config
+                mode = str(getattr(cfg, "deployment_mode", "dev") or "dev").lower()
+                if mode == "prod":
+                    self._error(403, "council genesis mint forbidden in prod deployment_mode")
+                    return
+                chain_id = int(getattr(cfg, "chain_id", 0) or 0)
+                if chain_id == 778888:
+                    self._error(403, "council genesis mint forbidden on industrial mesh 778888")
+                    return
+                if not getattr(cfg, "feature_nft", False):
+                    self._error(503, "feature_nft disabled")
+                    return
+                nft = self.__class__.nft
+                if not nft:
+                    self._error(503, "NFT module not enabled")
+                    return
+                try:
+                    from features.council_nft import genesis_mint_from_manifest
+
+                    result = genesis_mint_from_manifest(nft)
+                    self._json(result)
+                except Exception as exc:
+                    self._json({"ok": False, "error": str(exc), "adr": "0022"})
+
             # ── ZK Proofs POST ────────────────────────────────────────────────
             elif path == "/zk/prove/knowledge":
                 zk = self.__class__.zk

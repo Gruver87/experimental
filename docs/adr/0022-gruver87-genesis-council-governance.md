@@ -128,5 +128,6 @@ Council proposals and execution **must refuse**:
 - [x] `guarantor_council_manifest_gen.py` → `docs/genesis/gruver87-council-manifest.json`
 - [x] Lab: `guarantor_council_lab.py` PASS on full manifest
 - [x] Staging genesis mint lab (`guarantor_council_staging_mint_lab.py`)
-- [ ] Live staging compose mint on `778889` (operator)
+- [x] Staging ceremony script + `POST /council/genesis-mint` (admin JWT; not prod)
+- [ ] Operator run on live `778889` compose
 - [ ] `EVIDENCE_MATRIX.md` row updated when lab PASS (not before)

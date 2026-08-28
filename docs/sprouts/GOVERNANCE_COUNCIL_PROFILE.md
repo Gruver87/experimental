@@ -51,7 +51,19 @@ python scripts/guarantor_council_lab.py
 python scripts/guarantor_council_staging_mint_lab.py
 ```
 
-API (staging, `feature_nft=true`): `GET /council/stats`, `GET /council/manifest?summary=1`
+Dry-run preflight (node optional if manifest checked locally):
+
+```powershell
+python scripts/guarantor_council_staging_ceremony.py --dry-run
+```
+
+Live staging ceremony (compose up on :19080, JWT_SECRET set):
+
+```powershell
+python scripts/guarantor_council_staging_ceremony.py --base-url http://127.0.0.1:19080
+```
+
+POST `/council/genesis-mint` — admin JWT, forbidden on prod / 778888.
 
 Expected: refuse-list PASS, cap 87 PASS, manifest schema PASS.
 

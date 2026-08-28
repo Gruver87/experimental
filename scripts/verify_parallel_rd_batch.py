@@ -28,6 +28,7 @@ LABS = [
     "scripts/guarantor_council_manifest_gen.py",
     "scripts/guarantor_council_lab.py",
     "scripts/guarantor_council_staging_mint_lab.py",
+    "scripts/guarantor_council_staging_ceremony.py",
     "scripts/long_range_lab_2h_harness.py",
 ]
 
