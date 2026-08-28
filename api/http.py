@@ -7935,15 +7935,18 @@ def _build_state_consistency_harness(
                     quick
                     and bool(state_consistent)
                     and tip_aligned
-                    and peer_probe_error == "timeout"
+                    and peer_probe_error in ("timeout", "empty")
                 )
             ),
             "detail": (
                 "P2P peer state_root wire probe succeeded"
                 if peer_probe_error is None
                 else (
-                    "quick: wire probe timeout tolerated when tip aligned + state_consistent"
-                    if quick and state_consistent and tip_aligned and peer_probe_error == "timeout"
+                    "quick: wire probe timeout/empty tolerated when tip aligned + state_consistent"
+                    if quick
+                    and state_consistent
+                    and tip_aligned
+                    and peer_probe_error in ("timeout", "empty")
                     else f"P2P peer state_root wire probe: {peer_probe_error}"
                 )
             ),

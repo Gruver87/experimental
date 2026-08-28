@@ -63,6 +63,12 @@ def _diagnose(fail_lines: list[str], report: dict) -> str:
         parts.append("See first_fail/last_fail. Do not relabel as PASS.")
     else:
         parts.append("No FAIL lines in the log; if report.passed is false, see health_watch_exit.")
+    mesh_warn = (report.get("counts") or {}).get("mesh_warn_lines")
+    if mesh_warn:
+        parts.append(
+            f"mesh_warn_lines={mesh_warn}: prior soak used sequential port polling "
+            "(health_watch_core now parallel-probes + delta<=2 + resnapshot)."
+        )
     if "status_slow" in joined:
         parts.append("status_slow also present on FAIL lines.")
     parts.append("This file remains FAIL evidence. Not Hybrid 375d14f. Not TCP+TLS 0a7932c4.")

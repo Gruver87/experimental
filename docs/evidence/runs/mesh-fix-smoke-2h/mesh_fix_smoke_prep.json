@@ -1,0 +1,19 @@
+{
+  "prepared_at": "2026-08-28T14:47:30+03:00",
+  "restarted_after": "Start-Job PSScriptRoot fix (health_watch_node ScriptDir arg)",
+  "kind": "mesh_fix_smoke_2h",
+  "hours": 2,
+  "interval_sec": 60,
+  "log_file": "logs/mesh_fix_smoke.log",
+  "start_command": ".\\scripts\\health_watch.ps1 -ProdMesh -DurationMin 120 -IntervalSec 60 -LogFile logs/mesh_fix_smoke.log",
+  "mesh_redeploy": "docker_prod_3node.ps1 -SkipBuild -KeepVolumes exit=0 heights=44089",
+  "probe_quick": "RESULT: OK",
+  "git_dirty": true,
+  "note": "2h smoke for parallel health_watch + mesh policy. Not 48h soak. Not a PASS claim.",
+  "fixes_under_test": [
+    "health_watch_core parallel probe",
+    "Test-MeshCycleAligned delta<=2 + resnapshot",
+    "SoftHarnessChecks peer_probe_ok"
+  ],
+  "48h_soak": "not_started_by_user_request"
+}

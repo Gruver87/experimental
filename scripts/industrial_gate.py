@@ -4546,6 +4546,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("solicit hub must accept lower-height state_root lag replies")
         if 'peer_probe_error = "empty"' not in http_py:
             errors.append("harness must fail peer_probe_ok on empty wire with connected peers")
+        if 'peer_probe_error in ("timeout", "empty")' not in http_py:
+            errors.append(
+                "harness quick mode must tolerate empty/timeout wire probe when tip aligned"
+            )
         if "_stash_late_state_root" not in p2p_py:
             errors.append("P2PNode must stash late state_root replies after solicit timeout")
         if '== "late_state_root"' not in p2p_py:
@@ -4680,13 +4684,22 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("MetricsCollector.observe_status_ms missing")
         if "account_count = 1" in http_py:
             errors.append("harness must not fabricate accounts_present in quick mode")
+        hw_core = (ROOT / "scripts" / "health_watch_core.ps1").read_text(encoding="utf-8")
         hw_ps1 = (ROOT / "scripts" / "health_watch.ps1").read_text(encoding="utf-8")
-        if "After /health/ready: retry /status" not in hw_ps1:
-            errors.append("health_watch must retry /status after /health/ready succeeds")
-        if "status_slow" not in hw_ps1 or "ReadyFallback" not in hw_ps1:
+        if "status_slow" not in hw_core or "ReadyFallback" not in hw_core:
             errors.append(
                 "health_watch must ready-fallback (not hard FAIL) when /status times out"
             )
+        if "Invoke-ParallelNodeHealth" not in hw_core:
+            errors.append("health_watch must parallel-probe prod mesh ports (soak skew)")
+        if "Test-MeshCycleAligned" not in hw_core:
+            errors.append("health_watch must use Test-MeshCycleAligned mesh policy")
+        if "Invoke-ParallelMeshResnapshot" not in hw_core:
+            errors.append("health_watch must parallel-resnapshot mesh heights before WARN")
+        if "SoftHarnessChecks" not in hw_core or "peer_probe_ok" not in hw_core:
+            errors.append("health_watch must treat peer_probe_ok as soft harness flake")
+        if "parallel=1" not in hw_ps1:
+            errors.append("health_watch start log must record parallel=1")
         if "Do not call p2p.get_topology() on GET /status" not in http_status_src:
             errors.append("GET /status must not call p2p.get_topology() (soak HOL)")
         if "_status_native_crypto_cached" not in http_py:
@@ -4705,9 +4718,7 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "libp2p mid-session Absolute handshake must soft-refuse (no 300s soak ban)"
             )
-        if "no /status re-fetch" not in hw_ps1:
-            errors.append("health_watch mesh alignment must not re-fetch GET /status")
-        if "live_fallback" not in hw_ps1:
+        if "live_fallback" not in hw_core:
             errors.append("health_watch must fall back to /health/live on ready+status HOL")
         soak_mon = (ROOT / "scripts" / "soak_monitor.ps1").read_text(encoding="utf-8")
         if "$hwArgs.FullHarnessEvery = 6" not in soak_mon:

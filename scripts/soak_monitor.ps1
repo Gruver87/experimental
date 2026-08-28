@@ -28,7 +28,7 @@ function Test-MeshWarnsAreTransient {
         # Malformed / incomplete probe lines (no heights) are not consensus forks.
         if ($heights.Count -lt 2) { continue }
         $delta = ($heights | Measure-Object -Maximum).Maximum - ($heights | Measure-Object -Minimum).Minimum
-        # ±2 covers sequential poll skew + one extra tip-v2 mine tick.
+        # ±2 covers parallel poll skew + one extra tip-v2 mine tick (health_watch_core).
         if ($delta -gt 2) { return $false }
     }
     return $true

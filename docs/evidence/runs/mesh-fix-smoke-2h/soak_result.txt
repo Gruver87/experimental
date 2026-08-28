@@ -1,0 +1,14 @@
+experimental_libp2p_mesh_fix_smoke_2h
+started=2026-08-28T14:47:30+03:00
+ended=2026-08-28T16:47:32+03:00
+hours_elapsed=2.0006
+status=FINISHED_PASS
+health_watch_exit=0
+hard_fail_lines=0
+mesh_warn_lines=0
+mesh_ok_lines=119
+cycles=119
+height_range=~44114→~44568
+fixes=parallel health_watch probe; mesh delta<=2; resnapshot; soft peer_probe_ok
+not_claimed=libp2p 48h PASS; only 2h smoke gate before 48h #3
+prior_libp2p_48h_fail=docs/evidence/runs/87f51b3e/

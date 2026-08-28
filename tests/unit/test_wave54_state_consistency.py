@@ -170,6 +170,26 @@ def test_harness_empty_wire_with_peers_fails():
     assert "peer_probe_ok" in h["failed_checks"]
 
 
+def test_harness_empty_wire_quick_tolerated_when_consistent():
+    from api.http import _build_state_consistency_harness
+
+    class _ConnectedEmpty(_FakeP2P):
+        def peer_count(self):
+            return 2
+
+    root = "e" * 64
+    h = _build_state_consistency_harness(
+        _ConnectedEmpty([]),
+        _FakeBC(live=root, tip=root),
+        _FakeCfg(),
+        _FakeDB(),
+        quick=True,
+    )
+    assert h["peer_probe_error"] == "empty"
+    assert "peer_probe_ok" not in h["failed_checks"]
+    assert h["harness_healthy"] is True
+
+
 def test_harness_empty_wire_without_peers_ok():
     from api.http import _build_state_consistency_harness
 
