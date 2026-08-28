@@ -82,6 +82,16 @@ _COMPAT_ROWS: List[Dict[str, str]] = [
         "status": "partial",
         "notes": "Missing block null; observed count hex",
     },
+    {
+        "area": "eth_blockNumber_accounts_mempoolSize",
+        "status": "partial",
+        "notes": "Tip hex; accounts empty when unset; mempool 0x0 empty",
+    },
+    {
+        "area": "eth_getTransactionByBlockNumberAndIndex",
+        "status": "partial",
+        "notes": "Missing block/index null",
+    },
     {"area": "eip_4844_blobs", "status": "not_claimed", "notes": "Out of scope"},
     {"area": "eof", "status": "not_claimed", "notes": "Out of scope"},
     {"area": "full_geth_json_rpc", "status": "not_claimed", "notes": "Wave-gated methods only"},

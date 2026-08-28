@@ -11,7 +11,7 @@ Last updated: 2026-08-28.
 
 | ID | Blocker | Evidence | Next action |
 |----|---------|----------|-------------|
-| B1 | **libp2p 48h soak** not PASS | `35104db0`, `87f51b3e` FAIL; 2h smoke PASS (`mesh-fix-smoke-2h-pre48h3`, `hard_fails=0`) | Rebuild → `probe_prod_mesh -Quick` → **48h #3 on operator command** (2h pre-flight done) |
+| B1 | **libp2p 48h soak** not PASS | `35104db0`, `87f51b3e` FAIL; 2h smoke PASS (`mesh-fix-smoke-2h-pre48h3`, `hard_fails=0`) | Prep: [LIBP2P_48H_PREP.md](sprouts/LIBP2P_48H_PREP.md) → **48h #3 on operator command** |
 | B2 | **Long-Range** not soak-proven | Lab waves 1–14 unit+labs only; `feature_long_range=false` prod | After B1 → LR lab 2h → LR lab 48h (separate JSON, not prod mesh) |
 | B3 | **Mempool/validation Rust** phases 1–3 blocked | ADR 0021; **phase 0 landed** (`blockchain/ports.py` `MempoolPort`) | After B1 (+ optional B2 lab soak) → phase 1 kernels |
 
@@ -135,7 +135,7 @@ Other optional depth:
 
 - EVM: waves 8–11 labs + estimateGas/feeHistory/`maxPriorityFee`/coinbase-mining-hashrate + gasPrice/tx lookup null-honesty in `evm_rpc_lab`
 - Long-Range: `scripts/long_range_lab_2h_harness.py` preflight (2h **not** started); BLS design-only in ADR 0017
-- libp2p: post-48h hardening from soak WARN patterns
+- libp2p: post-48h hardening from soak WARN patterns; operator prep [LIBP2P_48H_PREP.md](sprouts/LIBP2P_48H_PREP.md)
 - Parallel batch verify (no soak): `python scripts/verify_parallel_rd_batch.py`
 - Hybrid (audit pin): engagement prep only — see Hybrid `docs/AUDITS.md` § Safe Hybrid work
 

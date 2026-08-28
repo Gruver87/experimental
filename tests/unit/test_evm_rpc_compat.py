@@ -1115,6 +1115,18 @@ def test_eth_gas_price_tx_lookup_honesty() -> None:
     assert client.call("eth_getBlockTransactionCountByNumber", ["0x9999"]).get("result") is None
 
 
+def test_eth_block_accounts_mempool_honesty() -> None:
+    """Tip blockNumber, empty accounts, empty mempool, missing tx-by-index null."""
+    client = FakeRpcClient()
+    assert client.call("eth_blockNumber", []).get("result") == hex(client.query.tip_height())
+    assert client.call("eth_accounts", []).get("result") == []
+    assert client.call("eth_getMempoolSize", []).get("result") == "0x0"
+    assert (
+        client.call("eth_getTransactionByBlockNumberAndIndex", ["0x9999", "0x0"]).get("result")
+        is None
+    )
+
+
 def test_eth_get_code_balance_storage_missing_account() -> None:
     """Missing account: code 0x, balance 0x0, storage 0x0 (not invented bytecode)."""
     client = FakeRpcClient()

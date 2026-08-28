@@ -27,6 +27,8 @@ Scope: Absolute hybrid EVM subset on the single apply path.
 | `eth_getTransactionCount` | **Partial** | Observed account nonce; missing account → `0x0` (EOA default). Lab + unit |
 | `eth_getTransactionByHash` | **Partial** | Missing tx → JSON `null` (not empty object). Pending/inclusion fields null-honest via `format_tx`. Lab + unit |
 | `eth_getBlockTransactionCount*` | **Partial** | Observed listing length; **missing block → JSON `null`**, not `0x0`. Lab + unit |
+| `eth_blockNumber` / `eth_accounts` / `eth_getMempoolSize` | **Partial** | Tip height hex; accounts from wallet/miner only (empty list when unset); mempool size hex (0x0 when empty). Lab + unit |
+| `eth_getTransactionByBlockNumberAndIndex` | **Partial** | Missing block or OOR index → JSON `null`. Lab + unit |
 | Blob txs (EIP-4844) | **Not claimed** | Optional / out of scope |
 | EOF | **Not claimed** | Out of scope |
 | Full geth JSON-RPC surface | **Not claimed** | Wave-gated methods only |

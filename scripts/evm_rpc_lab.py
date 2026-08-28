@@ -202,6 +202,20 @@ def main() -> int:
     if miss_count.get("result") is not None:
         return _fail("getBlockTransactionCount missing block must be null")
 
+    # eth_blockNumber / eth_accounts / eth_getMempoolSize / tx by block index
+    tip = client.call("eth_blockNumber", [])
+    if tip.get("result") != hex(client.query.tip_height()):
+        return _fail("blockNumber must match query tip height")
+    accts = client.call("eth_accounts", [])
+    if accts.get("result") != []:
+        return _fail("accounts empty when no wallet/miner must be []")
+    mps = client.call("eth_getMempoolSize", [])
+    if mps.get("result") != "0x0":
+        return _fail("getMempoolSize empty pool must be 0x0")
+    miss_idx = client.call("eth_getTransactionByBlockNumberAndIndex", ["0x9999", "0x0"])
+    if miss_idx.get("result") is not None:
+        return _fail("getTransactionByBlockNumberAndIndex missing block must be null")
+
     # runtime snapshot reachable
     from execution.evm_runtime import evm_compat_honesty_snapshot
     from runtime.config import Config
@@ -212,7 +226,7 @@ def main() -> int:
 
     print(
         "OK: evm_rpc_lab PASS "
-        "(null-honesty + fees + coinbase/mining + getCode/balance/storage + protocolVersion + chain/net/sync + gasPrice/tx lookup)"
+        "(null-honesty + fees + coinbase/mining + getCode/balance/storage + protocolVersion + chain/net/sync + gasPrice/tx lookup + blockNumber/accounts/mempool)"
     )
     return 0
 
