@@ -34,7 +34,7 @@ The audit-freeze pin · public audited mainnet · listed ABS · Hybrid `v1.3.*-i
 | Identify observed confirm charges canonical key | Firm audit PDF |
 | Add/remove/expire match canonical charge key | NTFS replace = POSIX inode-atomic |
 | Long-Range WS lab (ADR 0017 waves 1–14 + lab compose `abs-lr-lab` + 2h preflight) | Long-Range **production** / BLS quorum / 48h soak armed |
-| EVM depth lab (waves 8–11 + RPC honesty incl. gasPrice/tx lookup/blockNumber; `GET /evm/status`) | Full geth parity / EIP-4844 / EVM-only 48h soak claim |
+| EVM depth lab (waves 8–11 + RPC honesty incl. gasPrice/tx lookup/blockNumber/filters; `GET /evm/status`) | Full geth parity / EIP-4844 / EVM-only 48h soak claim |
 | Oracle quorum + shard 2/3 labs (`oracle_lab`, `cross_shard_lab`; prod flags off) | Oracles/sharding on prod mesh 778888 |
 | Fail-closed identity/persist ACL labs (Windows) | Merging Dependabot major bumps |
 

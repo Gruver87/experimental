@@ -133,7 +133,7 @@ Detail: [adr/0021-mempool-validation-rust-phases.md](adr/0021-mempool-validation
 
 Other optional depth:
 
-- EVM: waves 8–11 labs + estimateGas/feeHistory/`maxPriorityFee`/coinbase-mining-hashrate + gasPrice/tx lookup null-honesty in `evm_rpc_lab`
+- EVM: waves 8–11 labs + `evm_rpc_lab` / `evm_logs_lab` / `evm_filters_lab` (polling filters; not WS)
 - Long-Range: `scripts/long_range_lab_2h_harness.py` preflight (2h **not** started); BLS design-only in ADR 0017
 - libp2p: post-48h hardening from soak WARN patterns; operator prep [LIBP2P_48H_PREP.md](sprouts/LIBP2P_48H_PREP.md)
 - Parallel batch verify (no soak): `python scripts/verify_parallel_rd_batch.py`

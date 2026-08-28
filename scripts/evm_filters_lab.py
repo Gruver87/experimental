@@ -41,10 +41,25 @@ class _FakeBC:
         return self.query_facade.get_block(BlockQuery(height=int(height)))
 
 
-def _client_with_filters(query: FakeQueryFacade | None = None) -> FakeRpcClient:
+class _MempoolWithRows(_FakeMempool):
+    """Mempool stub with get_sorted_transactions for pending filters."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._rows: list[dict] = []
+
+    def get_sorted_transactions(self) -> list[dict]:
+        return list(self._rows)
+
+
+def _client_with_filters(
+    query: FakeQueryFacade | None = None,
+    *,
+    mempool: _MempoolWithRows | None = None,
+) -> FakeRpcClient:
     q = query or FakeQueryFacade(tip=5)
     bc = _FakeBC(q)
-    mp = _FakeMempool()
+    mp = mempool or _MempoolWithRows()
     store = EthFilterStore()
     cfg = type("C", (), {"jsonrpc_max_batch": 32, "chain_id": 77777, "node_version": "test"})()
     rpc = RpcService(
@@ -99,6 +114,10 @@ def main() -> int:
     if rows[0].get("address") != "0x" + "aa" * 20:
         return _fail("filter log address from observed contract_address")
 
+    all_logs = client.call("eth_getFilterLogs", [filt_id])
+    if len(all_logs.get("result") or []) != 1:
+        return _fail("getFilterLogs must return indexed logs for filter")
+
     # Unknown filter id → [] (not invented logs)
     ghost = client.call("eth_getFilterChanges", ["0xdead"])
     if ghost.get("result") != []:
@@ -125,7 +144,24 @@ def main() -> int:
     if len(hashes) != 1 or hashes[0] != "0x" + "dd" * 32:
         return _fail("block filter must emit observed block hash")
 
-    print("OK: evm_filters_lab PASS (newFilter/changes/uninstall honesty; not WS subs)")
+    # eth_newPendingTransactionFilter — new mempool tx once, then []
+    mp = _MempoolWithRows()
+    pending_client = _client_with_filters(q, mempool=mp)
+    pending_id = pending_client.call("eth_newPendingTransactionFilter", [])
+    if pending_id.get("error") is not None:
+        return _fail(f"newPendingTransactionFilter: {pending_id}")
+    pid = pending_id.get("result")
+    mp._rows.append({"hash": "0x" + "ee" * 32})
+    first = pending_client.call("eth_getFilterChanges", [pid])
+    if (first.get("result") or []) != ["0x" + "ee" * 32]:
+        return _fail("pending filter must emit new tx hash once")
+    if pending_client.call("eth_getFilterChanges", [pid]).get("result") != []:
+        return _fail("pending filter second poll must be []")
+
+    print(
+        "OK: evm_filters_lab PASS "
+        "(log/block/pending filters + getFilterLogs; not WS subs)"
+    )
     return 0
 
 
