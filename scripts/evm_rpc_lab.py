@@ -243,6 +243,24 @@ def main() -> int:
     if rows[0].get("address") != "0x" + "aa" * 20:
         return _fail("getLogs address from observed contract_address")
 
+    # eth_getBlockByNumber / ByHash — missing block null; sparse header honesty
+    miss_blk_num = client.call("eth_getBlockByNumber", ["0x9999", False])
+    if miss_blk_num.get("result") is not None:
+        return _fail("getBlockByNumber missing block must be null")
+    miss_blk_hash = client.call("eth_getBlockByHash", ["0x" + "77" * 32, False])
+    if miss_blk_hash.get("result") is not None:
+        return _fail("getBlockByHash missing block must be null")
+    sparse_h = 42
+    client.query.blocks[sparse_h] = {"height": sparse_h, "transactions": []}
+    sparse = client.call("eth_getBlockByNumber", [hex(sparse_h), False])
+    sb = sparse.get("result")
+    if not isinstance(sb, dict):
+        return _fail("sparse block must return object when height exists")
+    if sb.get("hash") is not None or sb.get("stateRoot") is not None:
+        return _fail("sparse block must not invent hash/stateRoot")
+    if sb.get("gasUsed") != "0x0":
+        return _fail("empty tx list gasUsed must be 0x0")
+
     # runtime snapshot reachable
     from execution.evm_runtime import evm_compat_honesty_snapshot
     from runtime.config import Config
@@ -253,7 +271,7 @@ def main() -> int:
 
     print(
         "OK: evm_rpc_lab PASS "
-        "(null-honesty + fees + coinbase/mining + getCode/balance/storage + protocolVersion + chain/net/sync + gasPrice/tx lookup + blockNumber/accounts/mempool + receipt/logs RPC)"
+        "(null-honesty + fees + coinbase/mining + getCode/balance/storage + protocolVersion + chain/net/sync + gasPrice/tx lookup + blockNumber/accounts/mempool + receipt/logs/block RPC)"
     )
     return 0
 

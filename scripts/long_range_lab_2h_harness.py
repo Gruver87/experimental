@@ -35,6 +35,7 @@ PROD_MESH_JSON = [
 
 LAB_COMPOSE = ROOT / "docker-compose.long_range.lab.yml"
 LAB_NODE = ROOT / "node.long_range.lab.json"
+LR_PROFILE = ROOT / "docs" / "sprouts" / "LONG_RANGE_LAB_PROFILE.md"
 
 LR_LABS = [
     "scripts/long_range_lab.py",
@@ -83,6 +84,49 @@ def _check_lab_compose() -> int:
     if int(node.get("chain_id") or 0) == 778888:
         return _fail("LR lab must not reuse prod chain_id 778888")
     print("OK: LR lab compose + node.long_range.lab.json (dev, separate chain_id)")
+    return 0
+
+
+def _check_lr_profile_doc() -> int:
+    if not LR_PROFILE.is_file():
+        return _fail(f"missing {LR_PROFILE.relative_to(ROOT)}")
+    text = LR_PROFILE.read_text(encoding="utf-8")
+    for needle in ("abs-lr-lab", "29080", "ABS_WS_CHECKPOINT_PATH", "feature_long_range=false"):
+        if needle not in text:
+            return _fail(f"LONG_RANGE_LAB_PROFILE.md must mention {needle!r}")
+    print("OK: LONG_RANGE_LAB_PROFILE.md documents lab compose + WS env")
+    return 0
+
+
+def _check_compose_isolation() -> int:
+    text = LAB_COMPOSE.read_text(encoding="utf-8")
+    if "ABS_WS_CHECKPOINT_PATH" not in text:
+        return _fail("LR compose must set ABS_WS_CHECKPOINT_PATH")
+    for prod_port in ("18180", "18181", "18182", "778888"):
+        if prod_port in text:
+            return _fail(f"LR compose must not reference prod port/chain {prod_port}")
+    for lab_port in ("29080", "29545", "26000"):
+        if lab_port not in text:
+            return _fail(f"LR compose must expose lab port {lab_port}")
+    node = json.loads(LAB_NODE.read_text(encoding="utf-8"))
+    if node.get("feature_libp2p") is True:
+        return _fail("LR lab node must keep feature_libp2p=false (TCP lab path)")
+    print("OK: LR compose ports isolated + WS checkpoint env + libp2p off")
+    return 0
+
+
+def _run_long_range_unit_smoke() -> int:
+    py = sys.executable
+    proc = subprocess.run(
+        [py, "-m", "pytest", "tests/unit", "-k", "long_range", "-q"],
+        cwd=str(ROOT),
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if proc.returncode != 0:
+        return _fail(f"pytest -k long_range exit {proc.returncode}")
+    print("OK: pytest -k long_range")
     return 0
 
 
@@ -141,7 +185,16 @@ def main() -> int:
     rc = _check_lab_compose()
     if rc != 0:
         return rc
+    rc = _check_lr_profile_doc()
+    if rc != 0:
+        return rc
+    rc = _check_compose_isolation()
+    if rc != 0:
+        return rc
     rc = _run_labs()
+    if rc != 0:
+        return rc
+    rc = _run_long_range_unit_smoke()
     if rc != 0:
         return rc
 

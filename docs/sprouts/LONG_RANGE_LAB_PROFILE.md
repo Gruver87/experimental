@@ -18,6 +18,8 @@ python scripts/long_range_lab_2h_harness.py
 python -m pytest tests/unit -k "long_range" -q
 ```
 
+Preflight also checks: profile doc needles, compose port isolation (`29080`/`29545`/`26000`), `ABS_WS_CHECKPOINT_PATH`, `feature_libp2p=false` on lab node.
+
 ## Compose (operator)
 
 ```powershell

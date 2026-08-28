@@ -102,6 +102,11 @@ _COMPAT_ROWS: List[Dict[str, str]] = [
         "status": "partial",
         "notes": "Sparse fields null; empty filter []",
     },
+    {
+        "area": "eth_getBlockByNumber_rpc",
+        "status": "partial",
+        "notes": "Missing block null; sparse header null-honesty",
+    },
     {"area": "eip_4844_blobs", "status": "not_claimed", "notes": "Out of scope"},
     {"area": "eof", "status": "not_claimed", "notes": "Out of scope"},
     {"area": "full_geth_json_rpc", "status": "not_claimed", "notes": "Wave-gated methods only"},

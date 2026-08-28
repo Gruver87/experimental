@@ -1115,6 +1115,22 @@ def test_eth_gas_price_tx_lookup_honesty() -> None:
     assert client.call("eth_getBlockTransactionCountByNumber", ["0x9999"]).get("result") is None
 
 
+def test_eth_get_block_missing_and_sparse_header_honesty() -> None:
+    """Missing block null; sparse header fields not invented."""
+    client = FakeRpcClient()
+    assert client.call("eth_getBlockByNumber", ["0x9999", False]).get("result") is None
+    assert client.call("eth_getBlockByHash", ["0x" + "77" * 32, False]).get("result") is None
+    sparse_h = 42
+    client.query.blocks[sparse_h] = {"height": sparse_h, "transactions": []}
+    out = client.call("eth_getBlockByNumber", [hex(sparse_h), False])
+    blk = out.get("result")
+    assert isinstance(blk, dict)
+    assert blk.get("hash") is None
+    assert blk.get("stateRoot") is None
+    assert blk.get("miner") is None
+    assert blk.get("gasUsed") == "0x0"
+
+
 def test_eth_receipt_and_logs_rpc_honesty() -> None:
     """Missing receipt null; getLogs returns list; indexed row uses observed address."""
     client = FakeRpcClient()
