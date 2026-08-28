@@ -1115,6 +1115,33 @@ def test_eth_gas_price_tx_lookup_honesty() -> None:
     assert client.call("eth_getBlockTransactionCountByNumber", ["0x9999"]).get("result") is None
 
 
+def test_eth_receipt_and_logs_rpc_honesty() -> None:
+    """Missing receipt null; getLogs returns list; indexed row uses observed address."""
+    client = FakeRpcClient()
+    assert client.call("eth_getTransactionReceipt", ["0x" + "55" * 32]).get("result") is None
+    empty = client.call("eth_getLogs", [{"fromBlock": "0x0", "toBlock": "latest"}])
+    assert isinstance(empty.get("result"), list)
+    assert empty["result"] == []
+    client.query.logs.append(
+        {
+            "block_height": client.query.tip_height(),
+            "log_index": 1,
+            "tx_hash": "0xfeed",
+            "contract_address": "0x" + "cc" * 20,
+            "topics": ["0x" + "dd" * 32],
+            "data": "0x01",
+        }
+    )
+    out = client.call(
+        "eth_getLogs",
+        [{"fromBlock": hex(client.query.tip_height()), "toBlock": "latest"}],
+    )
+    rows = out.get("result") or []
+    assert len(rows) == 1
+    assert rows[0]["address"] == "0x" + "cc" * 20
+    assert rows[0]["logIndex"] == hex(1)
+
+
 def test_eth_block_accounts_mempool_honesty() -> None:
     """Tip blockNumber, empty accounts, empty mempool, missing tx-by-index null."""
     client = FakeRpcClient()

@@ -1,0 +1,6 @@
+{
+  "description": "Phase 3 golden: unsupported opcode refused at TxPipeline deploy admit",
+  "bytecode_hex": "0x5C",
+  "expected_pipeline_error": "unsupported_evm_bytecode:0x5C",
+  "phase": 3
+}

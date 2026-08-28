@@ -92,6 +92,16 @@ _COMPAT_ROWS: List[Dict[str, str]] = [
         "status": "partial",
         "notes": "Missing block/index null",
     },
+    {
+        "area": "eth_getTransactionReceipt_rpc",
+        "status": "partial",
+        "notes": "Missing tx null; format_receipt null-honesty",
+    },
+    {
+        "area": "eth_getLogs_rpc",
+        "status": "partial",
+        "notes": "Sparse fields null; empty filter []",
+    },
     {"area": "eip_4844_blobs", "status": "not_claimed", "notes": "Out of scope"},
     {"area": "eof", "status": "not_claimed", "notes": "Out of scope"},
     {"area": "full_geth_json_rpc", "status": "not_claimed", "notes": "Wave-gated methods only"},

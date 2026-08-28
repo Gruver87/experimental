@@ -37,6 +37,7 @@ UNIT = [
     "tests/unit/test_evm_rpc_compat.py::test_eth_chain_net_sync_client_honesty",
     "tests/unit/test_evm_rpc_compat.py::test_eth_gas_price_tx_lookup_honesty",
     "tests/unit/test_evm_rpc_compat.py::test_eth_block_accounts_mempool_honesty",
+    "tests/unit/test_evm_rpc_compat.py::test_eth_receipt_and_logs_rpc_honesty",
     "tests/unit/test_adr0021_phase1_fixtures.py",
 ]
 

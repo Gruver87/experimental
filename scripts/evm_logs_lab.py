@@ -69,7 +69,16 @@ def main() -> int:
     if format_block_tx_count(None) is not None:
         return _fail("missing block tx count must be null (not 0x0)")
 
-    print("OK: evm_logs_lab PASS (null-honesty logs + missing block count)")
+    from api.fake_rpc import FakeRpcClient
+
+    client = FakeRpcClient()
+    if client.call("eth_getTransactionReceipt", ["0x" + "55" * 32]).get("result") is not None:
+        return _fail("getTransactionReceipt missing must be null")
+    logs = client.call("eth_getLogs", [{"fromBlock": "0x0", "toBlock": "latest"}])
+    if not isinstance(logs.get("result"), list):
+        return _fail("getLogs must return JSON array")
+
+    print("OK: evm_logs_lab PASS (null-honesty logs + missing block count + receipt/logs RPC)")
     return 0
 
 

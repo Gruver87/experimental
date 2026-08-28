@@ -1,0 +1,6 @@
+{
+  "description": "Phase 3 golden: EOF container bytecode refused at TxPipeline deploy admit",
+  "bytecode_hex": "0xEF0000",
+  "expected_pipeline_error": "unsupported_evm_bytecode:eof_container_not_supported",
+  "phase": 3
+}

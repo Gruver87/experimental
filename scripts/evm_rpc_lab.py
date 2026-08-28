@@ -216,6 +216,33 @@ def main() -> int:
     if miss_idx.get("result") is not None:
         return _fail("getTransactionByBlockNumberAndIndex missing block must be null")
 
+    # eth_getTransactionReceipt / eth_getLogs RPC honesty
+    miss_rcpt = client.call("eth_getTransactionReceipt", ["0x" + "55" * 32])
+    if miss_rcpt.get("result") is not None:
+        return _fail("getTransactionReceipt missing tx must be null")
+    logs_empty = client.call("eth_getLogs", [{"fromBlock": "0x0", "toBlock": "latest"}])
+    if not isinstance(logs_empty.get("result"), list):
+        return _fail("getLogs must return list (empty when no rows)")
+    client.query.logs.append(
+        {
+            "block_height": client.query.tip_height(),
+            "log_index": 0,
+            "tx_hash": "0xabc",
+            "contract_address": "0x" + "aa" * 20,
+            "topics": [],
+            "data": "0x",
+        }
+    )
+    logs_one = client.call(
+        "eth_getLogs",
+        [{"fromBlock": hex(client.query.tip_height()), "toBlock": "latest"}],
+    )
+    rows = logs_one.get("result") or []
+    if len(rows) != 1:
+        return _fail("getLogs must return indexed row when facade has logs")
+    if rows[0].get("address") != "0x" + "aa" * 20:
+        return _fail("getLogs address from observed contract_address")
+
     # runtime snapshot reachable
     from execution.evm_runtime import evm_compat_honesty_snapshot
     from runtime.config import Config
@@ -226,7 +253,7 @@ def main() -> int:
 
     print(
         "OK: evm_rpc_lab PASS "
-        "(null-honesty + fees + coinbase/mining + getCode/balance/storage + protocolVersion + chain/net/sync + gasPrice/tx lookup + blockNumber/accounts/mempool)"
+        "(null-honesty + fees + coinbase/mining + getCode/balance/storage + protocolVersion + chain/net/sync + gasPrice/tx lookup + blockNumber/accounts/mempool + receipt/logs RPC)"
     )
     return 0
 

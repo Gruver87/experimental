@@ -1,0 +1,6 @@
+{
+  "description": "Phase 1 invariant: signature verification before read-only snapshot",
+  "invariant": "sig_before_snapshot",
+  "order": ["verify_signatures", "build_snapshot", "rust_kernel_validate"],
+  "snapshot_keys": ["nonce", "balance_sat"]
+}
