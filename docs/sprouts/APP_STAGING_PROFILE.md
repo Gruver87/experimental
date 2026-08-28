@@ -21,3 +21,7 @@ exposes it (`uow_atomic` in `/nft` stats). Staging compose:
 ## Forbidden
 
 - Enabling `FEATURE_NFT` on `docker/node.prod.mesh*.json` / `778888`
+
+## Governance council (extension)
+
+87 steward NFT + DAO design: [GOVERNANCE_COUNCIL_PROFILE.md](GOVERNANCE_COUNCIL_PROFILE.md) (ADR 0022). Same `chain_id=778889`; not prod mesh.

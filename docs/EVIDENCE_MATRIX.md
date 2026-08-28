@@ -45,6 +45,7 @@ Compared to documentation-only claims, **evidence level increased** in Jul 2026:
 | ADR 0017 Long-Range lab | **Unit + lab proven** (not prod) | waves 1–14 labs + `long_range_lab_2h_harness.py` preflight + compose `docker-compose.long_range.lab.yml` (`abs-lr-lab`). 2h **not** started. `feature_long_range=false` on prod mesh JSON. **not BLS / not 48h soak / not mainnet Long-Range proof.** |
 | EVM depth lab (Profile A) | **Unit + lab proven** (mesh separate) | waves 8–11 + RPC null-honesty (`evm_rpc_lab`, `evm_logs_lab`, `evm_filters_lab` polling filters). Batch: `verify_parallel_rd_batch.py`. `prod_evm_smoke.py` = live mesh. **not full geth / not EIP-4844 / not EVM-only 48h / not WS eth_subscribe.** |
 | Oracle / cross-shard lab | **Unit + lab proven** (aux / Profile E) | wave-2: quorum median + reporter dedupe (`oracle_lab`); 2/3 validator quorum (`cross_shard_lab`). Prod flags off. **Not prod 778888 sprout enable.** |
+| Gruver87 council (ADR 0022) | **Manifest + mint lab PASS** (not live staging compose) | `gruver87-council-manifest.json`; `guarantor_council_lab.py` + `guarantor_council_staging_mint_lab.py` PASS; `features/council_nft.py`. **Not live 778889 compose / not signed on-chain gov / not mainnet.** |
 | `bridge_decision_off` | **PASS** (2026-07-21) | Bridge stays OFF until audited L1 contracts — see [BRIDGE_L1_MAINNET](BRIDGE_L1_MAINNET.md) |
 | `testnet_readiness.ps1 -MinSoakHours 48` | **PASS** | After 48h soak report |
 

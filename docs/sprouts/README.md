@@ -8,6 +8,7 @@ Historical modules grow as **profiles**, not as a kitchen-sink on `778888` Rocks
 | **A — Industrial L1** | Live prod mesh | [`docker/node.prod.mesh*.json`](../../docker/node.prod.mesh1.json) |
 | **B — Bridge cutover** | ADR 0010 enablement | [BRIDGE_CUTOVER_PROFILE.md](BRIDGE_CUTOVER_PROFILE.md) |
 | **C — App staging** | NFT / app-layer | [APP_STAGING_PROFILE.md](APP_STAGING_PROFILE.md) |
+| **C′ — Governance council** | 87 steward NFT + DAO (staging) | [GOVERNANCE_COUNCIL_PROFILE.md](GOVERNANCE_COUNCIL_PROFILE.md) |
 | **D — L2 sandbox** | Plasma / Lightning / WASM aux | [L2_SANDBOX_PROFILE.md](L2_SANDBOX_PROFILE.md) |
 | **E — Shard lab** | Separate mesh + DB | [SHARD_LAB_PROFILE.md](SHARD_LAB_PROFILE.md) |
 | **F — Experimental R&D** | libp2p / Long-Range lab flags | [EXPERIMENTAL_RD_PROFILE.md](EXPERIMENTAL_RD_PROFILE.md) |

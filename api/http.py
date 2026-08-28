@@ -4033,6 +4033,46 @@ class RESTHandler(BaseHTTPRequestHandler):
                     return
                 self._json(nft.get_stats())
 
+            elif path == "/council/stats":
+                nft = self.__class__.nft
+                try:
+                    from features.council_nft import council_stats
+
+                    self._json(council_stats(nft))
+                except ImportError:
+                    self._json({"enabled": False, "error": "council_module_unavailable", "adr": "0022"})
+
+            elif path == "/council/manifest":
+                try:
+                    from features.council_nft import DEFAULT_MANIFEST, load_manifest
+
+                    if not DEFAULT_MANIFEST.is_file():
+                        self._json({
+                            "ok": False,
+                            "error": "manifest_missing",
+                            "path": str(DEFAULT_MANIFEST.name),
+                            "adr": "0022",
+                        })
+                        return
+                    data = load_manifest(DEFAULT_MANIFEST)
+                    summary = qs.get("summary", ["1"])[0].lower() in ("1", "true", "yes")
+                    if summary:
+                        self._json({
+                            "ok": True,
+                            "collection_id": data.get("collection_id"),
+                            "supply_cap": data.get("supply_cap"),
+                            "generated_at": data.get("generated_at"),
+                            "manifest_tokens_sha256": data.get("manifest_tokens_sha256"),
+                            "token_count": len(data.get("tokens") or []),
+                            "chain_id_staging": data.get("chain_id_staging"),
+                            "adr": "0022",
+                            "on_chain_standard": False,
+                        })
+                    else:
+                        self._json({"ok": True, **data})
+                except Exception as exc:
+                    self._json({"ok": False, "error": str(exc), "adr": "0022"})
+
             # ── Lightning Network ─────────────────────────────────────────────
             elif path == "/l2/status":
                 self._json(_build_l2_status(self.__class__))

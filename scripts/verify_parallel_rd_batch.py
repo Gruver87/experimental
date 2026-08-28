@@ -25,6 +25,9 @@ LABS = [
     "scripts/evm_reorg_lab.py",
     "scripts/evm_logs_lab.py",
     "scripts/evm_filters_lab.py",
+    "scripts/guarantor_council_manifest_gen.py",
+    "scripts/guarantor_council_lab.py",
+    "scripts/guarantor_council_staging_mint_lab.py",
     "scripts/long_range_lab_2h_harness.py",
 ]
 
@@ -42,6 +45,7 @@ UNIT = [
     "tests/unit/test_evm_rpc_compat.py::test_eth_get_block_missing_and_sparse_header_honesty",
     "tests/unit/test_evm_rpc_compat.py::test_eth_get_block_full_tx_and_logs_range_honesty",
     "tests/unit/test_adr0021_phase1_fixtures.py",
+    "tests/unit/test_council_nft.py",
 ]
 
 
