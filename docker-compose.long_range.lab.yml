@@ -1,0 +1,41 @@
+# ADR 0017 — Long-Range lab compose (separate project / volumes / ports).
+# Never bootstrap to abs-prod-mesh3 or reuse industrial prod Rocks volumes.
+# Do NOT mount docker prod mesh JSON. Timed 2h only after libp2p 48h PASS
+# (EXECUTION_ORDER Phase 2) + ABS_ALLOW_LR_LAB_2H=1.
+#
+#   docker compose -p abs-lr-lab -f docker-compose.long_range.lab.yml up -d --build
+#   docker compose -p abs-lr-lab -f docker-compose.long_range.lab.yml down -v
+#
+# Preflight (no soak):
+#   python scripts/long_range_lab_2h_harness.py
+
+services:
+  lr0:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    hostname: abs-lr-0
+    command: ["python", "main.py", "--config", "node.long_range.lab.json"]
+    ports:
+      - "29080:8080"
+      - "29545:8545"
+      - "26000:5000"
+    environment:
+      DEPLOYMENT_MODE: "dev"
+      FEATURE_LONG_RANGE: "true"
+      FEATURE_LIBP2P: "false"
+      FEATURE_ORACLES: "false"
+      FEATURE_SHARDING: "false"
+      BRIDGE_ENABLED: "false"
+      DATA_DIR: /app/data/long_range_lab0
+      ABS_WS_CHECKPOINT_PATH: /app/data/long_range_lab0/ws_checkpoint.json
+      # Optional one-shot seed when store empty (operator sets real digests):
+      # ABS_WS_ANCHOR_HEIGHT: "1"
+      # ABS_WS_ANCHOR_HASH: "0x..."
+    volumes:
+      - abs-lr0-data:/app/data/long_range_lab0
+    mem_limit: 1024m
+    restart: unless-stopped
+
+volumes:
+  abs-lr0-data:

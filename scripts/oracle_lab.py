@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Oracle feed lab (Profile aux — ADR 0016 sprout, lab-only).
 
-Exercises signed HMAC submit + persist + reject bad sig without live mesh.
+Wave-1: HMAC submit + persist + refuse bad/missing secret.
+Wave-2: quorum median + one-vote-per-reporter dedupe (no live mesh).
+
 Oracle feeds live in SQLite aux — not prod L1 trust path on 778888.
 
 Usage:
@@ -13,6 +15,7 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -81,9 +84,62 @@ def main() -> int:
         if nosig.get("ok") is not False:
             return _fail("missing secret must refuse signed submit")
 
+        # Wave-2: quorum median (unsigned reports when secret="")
+        quorum_reg = OracleFeedRegistry(db, secret="")
+        now = int(time.time())
+        for reporter, value in (("rep1", 100.0), ("rep2", 102.0), ("rep3", 101.0)):
+            out = quorum_reg.submit_report(
+                "btc",
+                value,
+                reporter,
+                payload={
+                    "symbol": "btc",
+                    "value": float(value),
+                    "reporter": reporter,
+                    "ts": now,
+                },
+            )
+            if out.get("ok") is not True:
+                return _fail(f"submit_report {reporter}: {out}")
+
+        # Same reporter twice — only latest vote counts (still 3 unique; keep tight band)
+        dup = quorum_reg.submit_report(
+            "btc",
+            100.5,
+            "rep1",
+            payload={
+                "symbol": "btc",
+                "value": 100.5,
+                "reporter": "rep1",
+                "ts": now + 1,
+            },
+        )
+        if dup.get("ok") is not True:
+            return _fail(f"dedupe resubmit: {dup}")
+
+        agg = quorum_reg.aggregate_symbol("btc", quorum=2, max_age_sec=3600)
+        if agg is None:
+            return _fail("aggregate_symbol must reach quorum")
+        if int(agg.get("unique_reporters") or 0) != 3:
+            return _fail(f"expected 3 unique reporters, got {agg}")
+        # Latest: rep1=100.5, rep2=102, rep3=101 → sorted [100.5, 101, 102], median=101
+        if float(agg["value"]) != 101.0:
+            return _fail(f"median after dedupe expected 101.0, got {agg['value']}")
+
+        # Below quorum must return None
+        alone = OracleFeedRegistry(db, secret="")
+        alone.submit_report(
+            "eth",
+            1.0,
+            "only-one",
+            payload={"symbol": "eth", "value": 1.0, "reporter": "only-one", "ts": now},
+        )
+        if alone.aggregate_symbol("eth", quorum=2, max_age_sec=3600) is not None:
+            return _fail("below quorum must not aggregate")
+
         db.close()
 
-    print("OK: oracle_lab PASS (HMAC submit + persist; aux DB only; not prod 778888)")
+    print("OK: oracle_lab PASS (HMAC + quorum median + reporter dedupe; not prod 778888)")
     return 0
 
 

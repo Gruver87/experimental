@@ -32,6 +32,26 @@ _COMPAT_ROWS: List[Dict[str, str]] = [
     {"area": "eth_getLogs", "status": "partial", "notes": "Log index; missing fields → null"},
     {"area": "eth_getBlockByNumber", "status": "partial", "notes": "Absolute merkle roots; not Ethereum MPT"},
     {"area": "eth_feeHistory", "status": "partial", "notes": "baseFeePerGas/reward null (not EIP-1559)"},
+    {
+        "area": "eth_maxPriorityFeePerGas",
+        "status": "partial",
+        "notes": "Unset/0 → JSON null (not EIP-1559 tip market)",
+    },
+    {
+        "area": "eth_coinbase_mining_hashrate",
+        "status": "partial",
+        "notes": "Empty coinbase null; mining mesh-honest; hashrate 0x0 (not ethash)",
+    },
+    {
+        "area": "eth_getCode_balance_storage",
+        "status": "partial",
+        "notes": "Missing account: code 0x, balance/storage 0x0",
+    },
+    {
+        "area": "eth_protocolVersion",
+        "status": "partial",
+        "notes": "Compat constant 0x41 — not eth/65 wire claim",
+    },
     {"area": "eip_4844_blobs", "status": "not_claimed", "notes": "Out of scope"},
     {"area": "eof", "status": "not_claimed", "notes": "Out of scope"},
     {"area": "full_geth_json_rpc", "status": "not_claimed", "notes": "Wave-gated methods only"},
@@ -89,6 +109,8 @@ def evm_compat_honesty_snapshot(config: Any | None = None) -> Dict[str, Any]:
             "scripts/evm_precompile_lab.py",
             "scripts/evm_rpc_lab.py",
             "scripts/evm_nested_lab.py",
+            "scripts/evm_reorg_lab.py",
+            "scripts/evm_logs_lab.py",
         ],
         "mesh_evidence_script": "scripts/prod_evm_smoke.py",
         "mesh_evidence_note": (

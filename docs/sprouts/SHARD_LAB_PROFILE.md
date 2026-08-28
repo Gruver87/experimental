@@ -14,6 +14,6 @@ budgets as sync — **never** toggle onto `778888` prod Rocks.
 1. Dedicated peer set (do not bootstrap to prod mesh).
 2. Separate chainstore volumes.
 3. Research only until single-chain L1 is audited and stable.
-4. Local lab (no Docker): `python scripts/cross_shard_lab.py`
+4. Local lab (no Docker): `python scripts/cross_shard_lab.py` — simple ACK + 2/3 validator quorum.
 
 See ADR 0016 Decision §3 Profile E · oracles: [ORACLE_LAB_PROFILE.md](ORACLE_LAB_PROFILE.md).

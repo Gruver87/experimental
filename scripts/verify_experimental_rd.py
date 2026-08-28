@@ -40,16 +40,17 @@ UNIT_TESTS = [
     "tests/unit/test_dual_stack.py",
     "tests/unit/test_wave39_oracle_bridge.py",
     "tests/unit/test_distributed_sharding.py",
+    "tests/unit/test_mempool_port.py",
     "tests/unit/test_cargo_test_abs_native.py",
 ]
 
 LABS = [
-    "scripts/long_range_lab.py",
-    "scripts/long_range_p2p_lab.py",
-    "scripts/long_range_gossip_lab.py",
+    "scripts/long_range_lab_2h_harness.py",
     "scripts/evm_precompile_lab.py",
     "scripts/evm_rpc_lab.py",
     "scripts/evm_nested_lab.py",
+    "scripts/evm_reorg_lab.py",
+    "scripts/evm_logs_lab.py",
     "scripts/oracle_lab.py",
     "scripts/cross_shard_lab.py",
     "scripts/libp2p_lab_smoke.py",

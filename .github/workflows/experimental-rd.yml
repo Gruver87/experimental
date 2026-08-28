@@ -33,17 +33,36 @@ jobs:
             tests/unit/test_evm_nested_staticcall.py \
             tests/unit/test_evm_nested_oog.py \
             tests/unit/test_evm_precompiles.py \
+            tests/unit/test_evm_runtime.py \
+            tests/unit/test_evm_precompile_apply.py \
             tests/unit/test_long_range_ws.py \
             tests/unit/test_long_range_wave2.py \
             tests/unit/test_long_range_wave3.py \
+            tests/unit/test_long_range_runtime.py \
+            tests/unit/test_long_range_gossip.py \
             tests/unit/test_libp2p_adapter.py \
             tests/unit/test_libp2p_wire_bridge.py \
             tests/unit/test_libp2p_swarm_lab.py \
             tests/unit/test_dual_stack.py \
             tests/unit/test_prod_mesh_feature_freeze.py \
+            tests/unit/test_wave39_oracle_bridge.py \
+            tests/unit/test_distributed_sharding.py \
+            tests/unit/test_mempool_port.py \
             tests/unit/test_cargo_test_abs_native.py
-      - name: Long-Range lab
-        run: python scripts/long_range_lab.py
+      - name: Long-Range lab 2h harness (preflight: labs + prod flags)
+        run: python scripts/long_range_lab_2h_harness.py
+      - name: EVM RPC lab
+        run: python scripts/evm_rpc_lab.py
+      - name: EVM nested lab
+        run: python scripts/evm_nested_lab.py
+      - name: EVM reorg lab
+        run: python scripts/evm_reorg_lab.py
+      - name: EVM logs lab
+        run: python scripts/evm_logs_lab.py
+      - name: Oracle lab
+        run: python scripts/oracle_lab.py
+      - name: Cross-shard lab
+        run: python scripts/cross_shard_lab.py
       - name: libp2p lab smoke
         run: python scripts/libp2p_lab_smoke.py
       - name: libp2p 2-node dual-stack lab

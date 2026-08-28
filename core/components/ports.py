@@ -47,6 +47,9 @@ class TxPipelinePort(Protocol):
     def verify_tx_signature(self, tx: Any) -> TxValidationResult:
         ...
 
+    # ADR 0021: semantic validation stays behind this port. Phase-1 Rust kernels
+    # consume a {nonce, balance_sat} snapshot built here — not a StoragePort from Rust.
+
 
 @runtime_checkable
 class StateServicePort(Protocol):

@@ -4748,8 +4748,22 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("evm_runtime must expose evm_compat_honesty_snapshot")
         if not (ROOT / "scripts" / "evm_rpc_lab.py").is_file():
             errors.append("EVM depth evm_rpc_lab.py missing (wave-9 RPC lab)")
+        else:
+            rpc_lab = (ROOT / "scripts" / "evm_rpc_lab.py").read_text(encoding="utf-8")
+            if "format_fee_history" not in rpc_lab or "estimateGas" not in rpc_lab:
+                errors.append("evm_rpc_lab must cover estimateGas + feeHistory null-honesty")
+            if "maxPriorityFeePerGas" not in rpc_lab:
+                errors.append("evm_rpc_lab must cover maxPriorityFeePerGas null-honesty")
+            if "eth_coinbase" not in rpc_lab or "eth_hashrate" not in rpc_lab:
+                errors.append("evm_rpc_lab must cover coinbase/mining/hashrate honesty")
+            if "eth_getCode" not in rpc_lab or "eth_getStorageAt" not in rpc_lab:
+                errors.append("evm_rpc_lab must cover getCode/balance/storage honesty")
         if not (ROOT / "scripts" / "evm_nested_lab.py").is_file():
             errors.append("EVM depth evm_nested_lab.py missing (wave-10 nested lab)")
+        if not (ROOT / "scripts" / "evm_reorg_lab.py").is_file():
+            errors.append("EVM depth evm_reorg_lab.py missing (wave-11 reorg lab)")
+        if not (ROOT / "scripts" / "evm_logs_lab.py").is_file():
+            errors.append("EVM depth evm_logs_lab.py missing (wave-11 logs lab)")
         if "/evm/status" not in http_py:
             errors.append("GET /evm/status missing (EVM compat honesty endpoint)")
         if not (ROOT / "docs" / "EXECUTION_ORDER.md").is_file():
@@ -4757,6 +4771,32 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         exec_order = (ROOT / "docs" / "EXECUTION_ORDER.md").read_text(encoding="utf-8")
         if "feature_long_range=false" not in exec_order or "libp2p 48h" not in exec_order:
             errors.append("EXECUTION_ORDER must document libp2p 48h before Long-Range / mempool Rust")
+        if "verify_parallel_rd_batch.py" not in exec_order:
+            errors.append("EXECUTION_ORDER must point at verify_parallel_rd_batch.py")
+        if not (ROOT / "scripts" / "verify_parallel_rd_batch.py").is_file():
+            errors.append("verify_parallel_rd_batch.py missing (optional parallel R&D batch)")
+        if not (ROOT / "scripts" / "long_range_lab_2h_harness.py").is_file():
+            errors.append("long_range_lab_2h_harness.py missing (ADR 0017 lab 2h preflight)")
+        else:
+            lr_h = (ROOT / "scripts" / "long_range_lab_2h_harness.py").read_text(encoding="utf-8")
+            if "feature_long_range" not in lr_h or "ABS_ALLOW_LR_LAB_2H" not in lr_h:
+                errors.append("LR 2h harness must assert prod flags + refuse timed start without allow")
+            if "docker-compose.long_range.lab.yml" not in lr_h:
+                errors.append("LR 2h harness must validate long_range lab compose")
+        if not (ROOT / "docker-compose.long_range.lab.yml").is_file():
+            errors.append("docker-compose.long_range.lab.yml missing (ADR 0017 lab)")
+        if not (ROOT / "node.long_range.lab.json").is_file():
+            errors.append("node.long_range.lab.json missing (ADR 0017 lab)")
+        else:
+            lr_node = json.loads((ROOT / "node.long_range.lab.json").read_text(encoding="utf-8"))
+            if lr_node.get("feature_long_range") is not True:
+                errors.append("node.long_range.lab.json must set feature_long_range=true")
+            if lr_node.get("deployment_mode") != "dev":
+                errors.append("node.long_range.lab.json must be deployment_mode=dev")
+            if int(lr_node.get("chain_id") or 0) == 778888:
+                errors.append("node.long_range.lab.json must not use prod chain_id 778888")
+        if not (ROOT / "docs" / "sprouts" / "LONG_RANGE_LAB_PROFILE.md").is_file():
+            errors.append("LONG_RANGE_LAB_PROFILE.md missing")
         if not (ROOT / "docs" / "adr" / "0021-mempool-validation-rust-phases.md").is_file():
             errors.append("ADR 0021 mempool-validation-rust-phases missing")
         mempool_ports = ROOT / "blockchain" / "ports.py"
@@ -4764,10 +4804,21 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("blockchain/ports.py MempoolPort missing (ADR 0021 phase-0)")
         elif "class MempoolPort" not in mempool_ports.read_text(encoding="utf-8"):
             errors.append("blockchain/ports.py must define MempoolPort")
+        tx_ports = ROOT / "core" / "components" / "ports.py"
+        if not tx_ports.is_file() or "class TxPipelinePort" not in tx_ports.read_text(encoding="utf-8"):
+            errors.append("core/components/ports.py TxPipelinePort missing (ADR 0021)")
         if not (ROOT / "scripts" / "oracle_lab.py").is_file():
             errors.append("oracle_lab.py missing (aux sprout lab)")
+        else:
+            oracle_lab = (ROOT / "scripts" / "oracle_lab.py").read_text(encoding="utf-8")
+            if "quorum" not in oracle_lab.lower() and "median" not in oracle_lab.lower():
+                errors.append("oracle_lab must exercise quorum/median (wave-2)")
         if not (ROOT / "scripts" / "cross_shard_lab.py").is_file():
             errors.append("cross_shard_lab.py missing (Profile E lab)")
+        else:
+            shard_lab = (ROOT / "scripts" / "cross_shard_lab.py").read_text(encoding="utf-8")
+            if "2/3" not in shard_lab and "quorum" not in shard_lab.lower():
+                errors.append("cross_shard_lab must exercise 2/3 validator quorum (wave-2)")
         if not (ROOT / "docs" / "sprouts" / "ORACLE_LAB_PROFILE.md").is_file():
             errors.append("ORACLE_LAB_PROFILE.md missing")
         if "live_fallback" not in hw_core:

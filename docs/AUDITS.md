@@ -15,5 +15,10 @@ This sandbox ships rust-libp2p / Long-Range / EVM-depth labs. Lab PASS ≠ firm 
 | Security workflow (`security-audit.yml`) | Active | pip-audit + cargo-audit (scoped ignores) |
 | Independent external audit report | **Pending — Hybrid pin** | Do not claim “audited” from this repo |
 | Bug bounty | **Not configured** | Disclose via [SECURITY.md](../SECURITY.md) |
+| Parallel R&D while libp2p 48h deferred | **Active (lab/docs)** | [EXECUTION_ORDER.md](EXECUTION_ORDER.md) — no prod mesh flag flips |
 
-Related: [SECURITY.md](../SECURITY.md) · [EXPERIMENTAL_SANDBOX.md](../EXPERIMENTAL_SANDBOX.md) · Hybrid [AUDITS.md](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/AUDITS.md)
+**Operator note (2026-08-28):** libp2p 48h #3 not started. Safe work = labs/CI/docs only.
+LR lab compose (`abs-lr-lab`) is wired; timed 2h **not** started. Do not enable
+`feature_long_range` / `feature_oracles` / `feature_sharding` on `778888` JSON.
+
+Related: [SECURITY.md](../SECURITY.md) · [EXPERIMENTAL_SANDBOX.md](../EXPERIMENTAL_SANDBOX.md) · [EXECUTION_ORDER.md](EXECUTION_ORDER.md) · Hybrid [AUDITS.md](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/AUDITS.md)

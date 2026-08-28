@@ -1300,7 +1300,15 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
                 raise ValueError("unparseable gas_price_wei") from exc
 
         if method == "eth_maxPriorityFeePerGas":
-            return hex(int(getattr(cfg, "priority_fee_wei", 0) or 0))
+            # Absolute is not EIP-1559 tip market: unset/0 → JSON null (not 0x0).
+            raw = getattr(cfg, "priority_fee_wei", None)
+            if raw is None:
+                return None
+            try:
+                tip = int(raw)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("unparseable priority_fee_wei") from exc
+            return hex(tip) if tip > 0 else None
 
         if method == "eth_feeHistory":
             from api.eth_format import format_fee_history

@@ -33,11 +33,22 @@ mesh probe evidence after each sub-phase.
 
 ## Phases
 
-### Phase 0 — Ports (zero behavior change)
+### Phase 0 — Ports (zero behavior change) — **landed 2026-08-28**
 
 - `blockchain/ports.py`: `MempoolPort` documents the public mempool surface.
+- `core/components/ports.py`: `TxPipelinePort` remains the validation boundary (not duplicated on `MempoolPort`).
+- Gate: `industrial_gate.py` + `tests/unit/test_mempool_port.py` (incl. TxPipelinePort surface); **no mesh change**.
 - Call sites **may** keep importing `Mempool` directly until phase 1 adapters land.
-- Gate: `industrial_gate.py` + existing mempool unit tests; **no mesh change required**.
+
+### Phase 1 snapshot contract (not implemented)
+
+Python supplies a read-only dict at validation time:
+
+```python
+{"nonce": int, "balance_sat": int}
+```
+
+Rust kernels must not open StoragePort / Rocks. Snapshot is taken **after** signature verify (v1.3.143). Do not start this phase before libp2p 48h PASS.
 
 ### Phase 1 — Rust validation kernels
 

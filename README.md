@@ -11,13 +11,25 @@ Canonical docs language is **English**. If GitHub shows a translation, open **Vi
 [![Experimental R&D](https://github.com/Gruver87/experimental/actions/workflows/experimental-rd.yml/badge.svg?branch=main)](https://github.com/Gruver87/experimental/actions/workflows/experimental-rd.yml)
 [![Tests CI](https://github.com/Gruver87/experimental/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/Gruver87/experimental/actions/workflows/test.yml)
 [![Security checks](https://github.com/Gruver87/experimental/actions/workflows/security-audit.yml/badge.svg?branch=main)](https://github.com/Gruver87/experimental/actions/workflows/security-audit.yml)
+[![Community health](https://img.shields.io/badge/community%20health-100%25-brightgreen)](https://github.com/Gruver87/experimental#docs-map)
 
 > **Industrial pin lives next door:** [`Absolute_Blockchain_Ultimate_Hybrid`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · tag [`v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial)  
-> **This repo:** Profile F labs. Default industrial transport remains **TCP+TLS**. Do not port these kernels onto the Hybrid pin.
+> **This repo:** Profile F labs. Do not port these kernels onto the Hybrid pin.
 
-**Default mesh = TCP+TLS.** `FEATURE_LIBP2P` / Cargo `libp2p` are **opt-in labs** — PASS here ≠ prod mesh cutover ≠ public mainnet.
+**Skimmer (60s):** [AT_A_GLANCE](docs/AT_A_GLANCE.md) · **What runs when:** [EXECUTION_ORDER](docs/EXECUTION_ORDER.md) · **Evidence:** [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md)
 
-Sandbox rules: [EXPERIMENTAL_SANDBOX.md](EXPERIMENTAL_SANDBOX.md) · Profile F: [EXPERIMENTAL_RD_PROFILE](docs/sprouts/EXPERIMENTAL_RD_PROFILE.md) · one-screen card: [AT_A_GLANCE](docs/AT_A_GLANCE.md)
+---
+
+## Who this is for
+
+| Audience | Start here |
+|----------|------------|
+| **Architects / principals** | [AT_A_GLANCE](docs/AT_A_GLANCE.md) → [ARCHITECTURE](docs/ARCHITECTURE.md) → ADR [0017](docs/adr/0017-long-range-research.md) / [0019](docs/adr/0019-rust-libp2p-industrial.md) / [0020](docs/adr/0020-libp2p-industrial-mesh.md) |
+| **Grant officers / diligence** | Proven-vs-not table below · [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) · [EXECUTION_ORDER](docs/EXECUTION_ORDER.md) blockers (B1 open: libp2p 48h) |
+| **Operators** | [Start in 60 seconds](#start-in-60-seconds) · `python scripts/verify_experimental_rd.py` · optional `python scripts/verify_parallel_rd_batch.py` |
+| **Auditors (this tree)** | R&D sandbox only — firm engagement package lives on the [Hybrid pin](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/AUDIT_ENGAGEMENT_BRIEF.md) |
+
+Sandbox rules: [EXPERIMENTAL_SANDBOX.md](EXPERIMENTAL_SANDBOX.md) · Profile F: [EXPERIMENTAL_RD_PROFILE](docs/sprouts/EXPERIMENTAL_RD_PROFILE.md)
 
 ---
 
@@ -49,9 +61,9 @@ Explorer (solo): http://localhost:8080
 | Add/remove/expire match canonical charge key | **Lab PASS** | Slice DA |
 | Persist JSON load collapses `/p2p/<peer>` suffix | **Lab PASS** | Slice DB |
 | Experimental mesh transport | **ADR 0020 libp2p** | `feature_libp2p=true` on Experimental prod mesh JSON; Hybrid pin stays TCP+TLS |
-| Profile F Long-Range / EVM depth labs | **Lab only** | ADR 0017 · `EVM_COMPAT_MATRIX` |
+| Profile F Long-Range / EVM / oracle / shard labs | **Lab only** | ADR 0017 · `EVM_COMPAT_MATRIX` · `LONG_RANGE_LAB_PROFILE` · prod sprout flags **off** |
 | Hybrid 48h soak / firm audit / public mainnet | **No — other repo** | [Hybrid pin](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) |
-| Prod libp2p 48h soak | **Not yet** | 3-node libp2p mesh proven (probe/tx/harness); soak not started; do not relabel TCP+TLS `0a7932c4` |
+| Prod libp2p 48h soak | **Not PASS** (B1 open) | FAIL ×2 (`35104db0`, `87f51b3e`); **2h smoke PASS** (`mesh-fix-smoke-2h`); 48h #3 not started — [EXECUTION_ORDER](docs/EXECUTION_ORDER.md) |
 | 48h soak on this tree (TCP+TLS) | **PASS** | 2026-08-20→22 `hard_fails=0` — [evidence `0a7932c4`](docs/evidence/runs/0a7932c4/) — not libp2p cutover; not Hybrid `375d14f` |
 
 **Jump:** [Tracks](#what-is-active-here) · [Verify](#clone--verify) · [Docs](#docs-map) · [Contribute](CONTRIBUTING.md)
@@ -63,9 +75,10 @@ Explorer (solo): http://localhost:8080
 | Track | Status | Entry |
 |-------|--------|-------|
 | **ADR 0019 rust-libp2p** | Slices **A–DB** (phase 105) behind Cargo `libp2p` | [ADR 0019](docs/adr/0019-rust-libp2p-industrial.md) |
-| **ADR 0018 dual-stack / stubs** | Labs + adapter | `scripts/libp2p_*_lab.py` |
-| **ADR 0017 Long-Range** | Lab / WS tip gate | `python scripts/long_range_lab.py` |
-| **EVM depth / precompiles** | Profile F waves | [EVM_COMPAT_MATRIX](docs/sprouts/EVM_COMPAT_MATRIX.md) |
+| **ADR 0020 Experimental mesh** | libp2p on `778888` JSON; 48h **B1 open** | [EXECUTION_ORDER](docs/EXECUTION_ORDER.md) |
+| **ADR 0017 Long-Range** | Lab / WS tip gate + `abs-lr-lab` compose | `python scripts/long_range_lab_2h_harness.py` |
+| **EVM depth / RPC honesty** | Waves 8–11 + compat matrix | [EVM_COMPAT_MATRIX](docs/sprouts/EVM_COMPAT_MATRIX.md) |
+| **ADR 0021 mempool Rust** | Phase 0 ports only | [ADR 0021](docs/adr/0021-mempool-validation-rust-phases.md) |
 
 Latest ADR 0019 work lands on `main`. Historical slice PRs: [#16](https://github.com/Gruver87/experimental/pull/16).
 
@@ -127,12 +140,16 @@ Default Hybrid CI / prod mesh builds **without** the `libp2p` feature.
 | Need | Open |
 |------|------|
 | One-screen card | [AT_A_GLANCE](docs/AT_A_GLANCE.md) |
+| Execution order (blockers) | [EXECUTION_ORDER](docs/EXECUTION_ORDER.md) |
+| Evidence ledger | [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) |
 | Sandbox rules | [EXPERIMENTAL_SANDBOX.md](EXPERIMENTAL_SANDBOX.md) |
 | rust-libp2p industrial slices | [docs/adr/0019-rust-libp2p-industrial.md](docs/adr/0019-rust-libp2p-industrial.md) |
 | Architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Profile F flags | [docs/sprouts/EXPERIMENTAL_RD_PROFILE.md](docs/sprouts/EXPERIMENTAL_RD_PROFILE.md) |
+| Long-Range lab profile | [docs/sprouts/LONG_RANGE_LAB_PROFILE.md](docs/sprouts/LONG_RANGE_LAB_PROFILE.md) |
 | Releasing | [docs/RELEASING.md](docs/RELEASING.md) · [CHANGELOG](CHANGELOG.md) |
 | Security / contribute | [SECURITY](SECURITY.md) · [CONTRIBUTING](CONTRIBUTING.md) · [SUPPORT](SUPPORT.md) · [Code of Conduct](CODE_OF_CONDUCT.md) |
+| Cite this software | [CITATION.cff](CITATION.cff) |
 | GitHub About paste | [REPO_PROFILE](.github/REPO_PROFILE.md) |
 | Audit pin (other repo) | [Ultimate Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · [EVIDENCE_MATRIX](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/EVIDENCE_MATRIX.md) |
 
@@ -151,4 +168,4 @@ MIT — [LICENSE](LICENSE)
 ---
 
 *Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87) · Default branch: `main`*  
-*Last surface update: **2026-08-22** — Experimental 48h TCP+TLS soak **PASS** (`hard_fails=0`). ADR 0019 slices A–DB remain lab. Not libp2p cutover. Not a launched public mainnet.*
+*Last surface update: **2026-08-28** — parallel R&D labs + LR compose wired; TCP+TLS 48h PASS (`0a7932c4`); libp2p 48h **B1 open** (not PASS). Not a launched public mainnet.*

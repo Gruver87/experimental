@@ -13,8 +13,10 @@ Oracle feeds persist in **SQLite aux**, not prod L1 Rocks on `778888`.
 
 ```powershell
 python scripts/oracle_lab.py
-python -m pytest tests/unit/test_wave39_oracle_bridge.py -q
+python -m pytest tests/unit/test_wave39_oracle_bridge.py tests/unit/test_l2_advanced_features.py -k oracle -q
 ```
+
+Covers HMAC submit, quorum median, one-vote-per-reporter dedupe.
 
 ## Live mesh (optional, post libp2p 48h)
 

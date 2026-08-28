@@ -1001,3 +1001,100 @@ def test_tx_input_and_count_are_null_when_unobserved() -> None:
     stored = format_tx({"hash": "0xabc", "data": "0xdead"})
     assert stored is not None
     assert stored["input"] == "0xdead"
+
+
+def test_eth_estimate_gas_null_without_adapter() -> None:
+    """Missing adapter / adapter None → JSON null (never invent 21000)."""
+    client = FakeRpcClient()
+    resp = client.call("eth_estimateGas", [{"to": "0x" + "ab" * 20, "data": "0x"}])
+    assert resp.get("result") is None
+
+    class _NoneGas:
+        def estimate_gas(self, _to, _data):
+            return None
+
+    from api.rpc_service import RpcService
+
+    svc = RpcService(
+        query=client.query,
+        blockchain=None,
+        mempool=None,
+        config=client.config,
+        evm=_NoneGas(),
+    )
+    client2 = FakeRpcClient(rpc=svc)
+    resp2 = client2.call("eth_estimateGas", [{"to": "0x" + "cd" * 20}])
+    assert resp2.get("result") is None
+
+
+def test_eth_max_priority_fee_null_without_eip1559() -> None:
+    """Unset / zero priority_fee_wei → JSON null (not 0x0 tip market)."""
+    client = FakeRpcClient()
+    resp = client.call("eth_maxPriorityFeePerGas", [])
+    assert resp.get("result") is None
+
+    cfg = type(
+        "C",
+        (),
+        {
+            "jsonrpc_max_batch": 32,
+            "chain_id": 77777,
+            "node_version": "test",
+            "gas_price_wei": 0,
+            "mining_enabled": False,
+            "deployment_mode": "dev",
+            "miner_address": "",
+            "priority_fee_wei": 0,
+        },
+    )()
+    from api.rpc_service import RpcService
+
+    svc = RpcService(
+        query=client.query,
+        blockchain=None,
+        mempool=None,
+        config=cfg,
+    )
+    zero = FakeRpcClient(rpc=svc).call("eth_maxPriorityFeePerGas", [])
+    assert zero.get("result") is None
+
+    cfg2 = type(
+        "C",
+        (),
+        {
+            "jsonrpc_max_batch": 32,
+            "chain_id": 77777,
+            "node_version": "test",
+            "gas_price_wei": 0,
+            "mining_enabled": False,
+            "deployment_mode": "dev",
+            "miner_address": "",
+            "priority_fee_wei": 2,
+        },
+    )()
+    svc2 = RpcService(
+        query=client.query,
+        blockchain=None,
+        mempool=None,
+        config=cfg2,
+    )
+    tipped = FakeRpcClient(rpc=svc2).call("eth_maxPriorityFeePerGas", [])
+    assert tipped.get("result") == hex(2)
+
+
+def test_eth_coinbase_mining_hashrate_honesty() -> None:
+    """Empty coinbase → null; mining off → false; hashrate not ethash → 0x0."""
+    client = FakeRpcClient()
+    assert client.call("eth_coinbase", []).get("result") is None
+    assert client.call("eth_mining", []).get("result") is False
+    assert client.call("eth_hashrate", []).get("result") == "0x0"
+
+
+def test_eth_get_code_balance_storage_missing_account() -> None:
+    """Missing account: code 0x, balance 0x0, storage 0x0 (not invented bytecode)."""
+    client = FakeRpcClient()
+    addr = "0x" + "11" * 20
+    assert client.call("eth_getCode", [addr]).get("result") == "0x"
+    assert client.call("eth_getBalance", [addr]).get("result") == "0x0"
+    assert client.call("eth_getStorageAt", [addr, "0x0"]).get("result") == "0x0"
+    assert client.call("eth_protocolVersion", []).get("result") == hex(65)

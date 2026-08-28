@@ -23,12 +23,13 @@ Compatibility gaps: [EVM_COMPAT_MATRIX.md](EVM_COMPAT_MATRIX.md).
 ## Gates
 
 - `scripts/industrial_gate.py` requires Experimental mesh JSON `feature_libp2p=true` and `feature_long_range=false`.
-- Lab scripts: `scripts/long_range_lab.py`, `scripts/long_range_p2p_lab.py`, `scripts/long_range_gossip_lab.py`, `scripts/evm_precompile_lab.py`, `scripts/evm_rpc_lab.py`, `scripts/evm_nested_lab.py`, `scripts/oracle_lab.py`, `scripts/cross_shard_lab.py`, `scripts/libp2p_lab_smoke.py`,
+- Lab scripts: `scripts/long_range_lab.py`, `scripts/long_range_p2p_lab.py`, `scripts/long_range_gossip_lab.py`, `scripts/long_range_lab_2h_harness.py` (preflight; 2h not auto-started), `scripts/evm_precompile_lab.py`, `scripts/evm_rpc_lab.py`, `scripts/evm_nested_lab.py`, `scripts/evm_reorg_lab.py`, `scripts/evm_logs_lab.py`, `scripts/oracle_lab.py`, `scripts/cross_shard_lab.py`, `scripts/libp2p_lab_smoke.py`,
   `scripts/libp2p_two_node_lab.py`, `scripts/libp2p_swarm_lab.py`,
   `scripts/libp2p_three_node_lab.py`,   `scripts/libp2p_reqresp_lab.py`,
   `scripts/libp2p_relay_lab.py`, `scripts/libp2p_discovery_lab.py`,
-  `scripts/libp2p_identify_lab.py`, `scripts/evm_precompile_lab.py`,
-  `scripts/verify_experimental_rd.py`, `scripts/libp2p_rust_two_node_lab.py`,
+  `scripts/libp2p_identify_lab.py`,
+  `scripts/verify_experimental_rd.py`, `scripts/verify_parallel_rd_batch.py`,
+  `scripts/libp2p_rust_two_node_lab.py`,
   `scripts/libp2p_rust_wire_lab.py`, `scripts/libp2p_rust_gossip_lab.py`,
   `scripts/package_libp2p_evidence.py`
   (rust labs require `maturin build --features pyo3/extension-module,libp2p`).

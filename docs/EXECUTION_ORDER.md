@@ -13,7 +13,7 @@ Last updated: 2026-08-28.
 |----|---------|----------|-------------|
 | B1 | **libp2p 48h soak** not PASS | `35104db0`, `87f51b3e` FAIL; 2h smoke PASS (`mesh-fix-smoke-2h`) | Rebuild → `probe_prod_mesh -Quick` → optional 2h smoke → **48h #3 on operator command** |
 | B2 | **Long-Range** not soak-proven | Lab waves 1–14 unit+labs only; `feature_long_range=false` prod | After B1 → LR lab 2h → LR lab 48h (separate JSON, not prod mesh) |
-| B3 | **Mempool/validation Rust** not started | ADR 0021 planned; Python canonical | After B1 (+ optional B2 lab soak) → Phase 0 ports only |
+| B3 | **Mempool/validation Rust** phases 1–3 blocked | ADR 0021; **phase 0 landed** (`blockchain/ports.py` `MempoolPort`) | After B1 (+ optional B2 lab soak) → phase 1 kernels |
 
 **Not blockers:** EVM depth lab waves 8–10 (done for now); TCP+TLS 48h PASS (`0a7932c4`).
 
@@ -124,17 +124,20 @@ Detail: [adr/0021-mempool-validation-rust-phases.md](adr/0021-mempool-validation
 
 | Lab | Script | Profile |
 |-----|--------|---------|
-| Oracle HMAC + persist | `scripts/oracle_lab.py` | aux SQLite ([ORACLE_LAB_PROFILE.md](sprouts/ORACLE_LAB_PROFILE.md)) |
-| Cross-shard 2-DB credit | `scripts/cross_shard_lab.py` | E ([SHARD_LAB_PROFILE.md](sprouts/SHARD_LAB_PROFILE.md)) |
+| Oracle HMAC + persist + quorum | `scripts/oracle_lab.py` | aux SQLite ([ORACLE_LAB_PROFILE.md](sprouts/ORACLE_LAB_PROFILE.md)) |
+| Cross-shard ACK + 2/3 quorum | `scripts/cross_shard_lab.py` | E ([SHARD_LAB_PROFILE.md](sprouts/SHARD_LAB_PROFILE.md)) |
 | Shard docker mesh | `scripts/start_shard_devnet.ps1` | E — separate compose only |
+| Long-Range lab compose | `docker-compose.long_range.lab.yml` + `long_range_lab_2h_harness.py` | F companion ([LONG_RANGE_LAB_PROFILE.md](sprouts/LONG_RANGE_LAB_PROFILE.md)) — 2h **not** started |
 
 **Forbidden:** `feature_oracles=true` or `feature_sharding=true` on prod `778888` JSON during libp2p 48h.
 
 Other optional depth:
 
-- EVM: `evm_reorg_lab.py`, logs lab, expand `verify_experimental_rd.py`
-- Long-Range: BLS/quorum checkpoints (design only until ADR updated)
+- EVM: waves 8–11 labs + estimateGas/feeHistory/`maxPriorityFee`/coinbase-mining-hashrate null-honesty in `evm_rpc_lab`
+- Long-Range: `scripts/long_range_lab_2h_harness.py` preflight (2h **not** started); BLS design-only in ADR 0017
 - libp2p: post-48h hardening from soak WARN patterns
+- Parallel batch verify (no soak): `python scripts/verify_parallel_rd_batch.py`
+- Hybrid (audit pin): engagement prep only — see Hybrid `docs/AUDITS.md` § Safe Hybrid work
 
 ---
 
@@ -143,9 +146,9 @@ Other optional depth:
 | Area | Done (lab / unit) | Deferred |
 |------|-------------------|----------|
 | libp2p transport | Slices A–DB, 2h smoke | **48h PASS** |
-| Long-Range | Waves 1–14 labs | Lab soak, prod |
-| EVM | Waves 8–10, prod smoke (Jul) | Re-run after B1, waves 11+ |
-| Mempool Rust | P2P ingress gates in Rust | Store + semantic validation (ADR 0021) |
+| Long-Range | Waves 1–14 labs + 2h preflight harness | Lab soak, prod |
+| EVM | Waves 8–11 + maxPriorityFee null-honesty, prod smoke (Jul) | Re-run after B1, further COMPAT_MATRIX |
+| Mempool Rust | Phase 0 `MempoolPort` | Phases 1–3 after B1 |
 
 ---
 
