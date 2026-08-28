@@ -1,0 +1,19 @@
+{
+  "description": "value_sat + fee_sat exceeds snapshot balance_sat",
+  "snapshot": {
+    "nonce": 0,
+    "balance_sat": 100000
+  },
+  "tx": {
+    "from_addr": "0x1111111111111111111111111111111111111111",
+    "to_addr": "0x2222222222222222222222222222222222222222",
+    "nonce": 0,
+    "value_sat": 90000,
+    "fee_sat": 50000,
+    "gas_limit": 21000
+  },
+  "expected": {
+    "accept": false,
+    "reason": "insufficient_balance"
+  }
+}

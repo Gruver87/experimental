@@ -184,6 +184,24 @@ def main() -> int:
     if peers.get("result") != "0x0":
         return _fail("net_peerCount without P2P must be 0x0")
 
+    # eth_gasPrice / getTransactionCount / getTransactionByHash / block tx count
+    from runtime.amount import abs_to_wei
+
+    gp = client.call("eth_gasPrice", [])
+    want_gp = hex(abs_to_wei(getattr(client.config, "gas_price_wei", 0) or 0))
+    if gp.get("result") != want_gp:
+        return _fail("gasPrice must match config gas_price_wei via abs_to_wei")
+    unknown = "0x" + "33" * 20
+    nonce = client.call("eth_getTransactionCount", [unknown, "latest"])
+    if nonce.get("result") != "0x0":
+        return _fail("getTransactionCount missing account must be 0x0")
+    missing_tx = client.call("eth_getTransactionByHash", ["0x" + "44" * 32])
+    if missing_tx.get("result") is not None:
+        return _fail("getTransactionByHash missing must be null")
+    miss_count = client.call("eth_getBlockTransactionCountByNumber", ["0x9999"])
+    if miss_count.get("result") is not None:
+        return _fail("getBlockTransactionCount missing block must be null")
+
     # runtime snapshot reachable
     from execution.evm_runtime import evm_compat_honesty_snapshot
     from runtime.config import Config
@@ -194,7 +212,7 @@ def main() -> int:
 
     print(
         "OK: evm_rpc_lab PASS "
-        "(null-honesty + fees + coinbase/mining + getCode/balance/storage + protocolVersion + chain/net/sync)"
+        "(null-honesty + fees + coinbase/mining + getCode/balance/storage + protocolVersion + chain/net/sync + gasPrice/tx lookup)"
     )
     return 0
 

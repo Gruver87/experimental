@@ -1101,6 +1101,20 @@ def test_eth_chain_net_sync_client_honesty() -> None:
     assert client.call("net_peerCount", []).get("result") == "0x0"
 
 
+def test_eth_gas_price_tx_lookup_honesty() -> None:
+    """Config gasPrice, missing tx null, default nonce, missing block tx count null."""
+    from runtime.amount import abs_to_wei
+
+    client = FakeRpcClient()
+    assert client.call("eth_gasPrice", []).get("result") == hex(
+        abs_to_wei(getattr(client.config, "gas_price_wei", 0) or 0)
+    )
+    addr = "0x" + "33" * 20
+    assert client.call("eth_getTransactionCount", [addr, "latest"]).get("result") == "0x0"
+    assert client.call("eth_getTransactionByHash", ["0x" + "44" * 32]).get("result") is None
+    assert client.call("eth_getBlockTransactionCountByNumber", ["0x9999"]).get("result") is None
+
+
 def test_eth_get_code_balance_storage_missing_account() -> None:
     """Missing account: code 0x, balance 0x0, storage 0x0 (not invented bytecode)."""
     client = FakeRpcClient()

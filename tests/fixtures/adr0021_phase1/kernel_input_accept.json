@@ -1,0 +1,19 @@
+{
+  "description": "Simple transfer within snapshot balance (post sig-verify)",
+  "snapshot": {
+    "nonce": 0,
+    "balance_sat": 5000000
+  },
+  "tx": {
+    "from_addr": "0x1111111111111111111111111111111111111111",
+    "to_addr": "0x2222222222222222222222222222222222222222",
+    "nonce": 0,
+    "value_sat": 1000000,
+    "fee_sat": 50000,
+    "gas_limit": 21000
+  },
+  "expected": {
+    "accept": true,
+    "reason": null
+  }
+}

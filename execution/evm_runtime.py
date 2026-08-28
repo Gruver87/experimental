@@ -62,6 +62,26 @@ _COMPAT_ROWS: List[Dict[str, str]] = [
         "status": "partial",
         "notes": "No adapter → false/0x0; mesh-bound when P2P wired",
     },
+    {
+        "area": "eth_gasPrice",
+        "status": "partial",
+        "notes": "Config gas_price_wei → wei hex via abs_to_wei",
+    },
+    {
+        "area": "eth_getTransactionCount",
+        "status": "partial",
+        "notes": "Observed nonce; missing account 0x0",
+    },
+    {
+        "area": "eth_getTransactionByHash",
+        "status": "partial",
+        "notes": "Missing tx null; format_tx null-honesty",
+    },
+    {
+        "area": "eth_getBlockTransactionCount",
+        "status": "partial",
+        "notes": "Missing block null; observed count hex",
+    },
     {"area": "eip_4844_blobs", "status": "not_claimed", "notes": "Out of scope"},
     {"area": "eof", "status": "not_claimed", "notes": "Out of scope"},
     {"area": "full_geth_json_rpc", "status": "not_claimed", "notes": "Wave-gated methods only"},

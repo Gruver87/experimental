@@ -50,6 +50,8 @@ Python supplies a read-only dict at validation time:
 
 Rust kernels must not open StoragePort / Rocks. Snapshot is taken **after** signature verify (v1.3.143). Do not start this phase before libp2p 48h PASS.
 
+Golden fixtures (schema only, no Rust yet): `tests/fixtures/adr0021_phase1/` · gate: `tests/unit/test_adr0021_phase1_fixtures.py`.
+
 ### Phase 1 — Rust validation kernels
 
 Move to Rust (PyO3, GIL released where batching):

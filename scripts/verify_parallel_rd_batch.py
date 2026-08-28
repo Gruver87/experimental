@@ -35,6 +35,8 @@ UNIT = [
     "tests/unit/test_evm_rpc_compat.py::test_eth_coinbase_mining_hashrate_honesty",
     "tests/unit/test_evm_rpc_compat.py::test_eth_get_code_balance_storage_missing_account",
     "tests/unit/test_evm_rpc_compat.py::test_eth_chain_net_sync_client_honesty",
+    "tests/unit/test_evm_rpc_compat.py::test_eth_gas_price_tx_lookup_honesty",
+    "tests/unit/test_adr0021_phase1_fixtures.py",
 ]
 
 
