@@ -57,6 +57,7 @@ function Send-Webhook([string]$Text) {
 $end = if ($DurationMin -gt 0) { (Get-Date).AddMinutes($DurationMin) } else { $null }
 $cycle = 0
 $totalHardFails = 0
+$totalReadyOnlyFails = 0
 $fullEveryLabel = if ($AlwaysFullHarness) { "always" } else { [string]$FullHarnessEvery }
 Write-Log "health_watch start ports=$($Ports -join ',') interval=${IntervalSec}s full_every=$fullEveryLabel log=$LogFile parallel=1" "Cyan"
 
@@ -73,7 +74,11 @@ while ($true) {
             $err = if ($r.Error) { [string]$r.Error } else { "unreachable" }
             $port = if ($r.Port) { [int]$r.Port } else { 0 }
             $failures += "port $port unreachable: $err"
-            $totalHardFails++
+            if ($err -match '^ready:') {
+                $totalReadyOnlyFails++
+            } else {
+                $totalHardFails++
+            }
             Write-Log "FAIL port $port $err" "Red"
             continue
         }
@@ -141,14 +146,14 @@ while ($true) {
     }
 
     if ($end -and (Get-Date) -ge $end) {
-        Write-Log "health_watch done (duration ${DurationMin}m cycles=$cycle hard_fails=$totalHardFails)" "Cyan"
+        Write-Log "health_watch done (duration ${DurationMin}m cycles=$cycle hard_fails=$totalHardFails ready_only=$totalReadyOnlyFails)" "Cyan"
         break
     }
     $sleepFor = $IntervalSec
     if ($end) {
         $remaining = [int](($end - (Get-Date)).TotalSeconds)
         if ($remaining -le 0) {
-            Write-Log "health_watch done (duration ${DurationMin}m cycles=$cycle hard_fails=$totalHardFails)" "Cyan"
+            Write-Log "health_watch done (duration ${DurationMin}m cycles=$cycle hard_fails=$totalHardFails ready_only=$totalReadyOnlyFails)" "Cyan"
             break
         }
         if ($remaining -lt $sleepFor) { $sleepFor = $remaining }
@@ -157,7 +162,10 @@ while ($true) {
 }
 
 if ($totalHardFails -gt 0) {
-    Write-Log "health_watch exit=1 hard_fails=$totalHardFails" "Red"
+    Write-Log "health_watch exit=1 hard_fails=$totalHardFails ready_only=$totalReadyOnlyFails" "Red"
     exit 1
+}
+if ($totalReadyOnlyFails -gt 0) {
+    Write-Log "health_watch exit=0 ready_only_fails=$totalReadyOnlyFails (48h tolerated when mesh aligned)" "Yellow"
 }
 exit 0

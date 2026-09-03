@@ -20,15 +20,15 @@ The audit-freeze pin · public audited mainnet · listed ABS · Hybrid `v1.3.*-i
 | Hard gate | **117** steps with `--rebuild` (operator-local, 2026-08-15) |
 | Default transport | **libp2p (ADR 0020)** on Experimental prod mesh JSON — Hybrid pin stays TCP+TLS |
 | Industrial pin | [Hybrid `v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial) |
-| 48h soak here | TCP+TLS **PASS** (2026-08-20→22, `0a7932c4`). libp2p 48h **FAIL** ×2: `35104db0` · `87f51b3e`. libp2p **2h smoke PASS** (2026-08-28, `mesh-fix-smoke-2h-pre48h3`, mesh_warn=0) — not 48h. |
+| 48h soak here | TCP+TLS **PASS** (`0a7932c4`). **libp2p 48h PASS** (2026-09-01→03, [`3c801b87`](evidence/runs/3c801b87/), `hard_fails=0`, `mesh_warn=0`). Prior FAIL ×2: `35104db0` · `87f51b3e`. Not Long-Range / not mainnet. |
 | Self-check | `.\scripts\verify_hard_all.ps1` (fail-closed, no soak start) · `python scripts/verify_experimental_rd.py` · `.\scripts\verify_adr0019_libp2p_hard.ps1 -Rebuild` |
 
 ## Proven vs not (honest)
 
 | Proven (lab) | Not claimed |
 |--------------|-------------|
-| rust-libp2p swarm A–DB behind Cargo `libp2p` | libp2p 48h soak PASS (3-node mesh proven; 48h `35104db0` + `87f51b3e` FAIL) |
-| Experimental 48h TCP+TLS soak (`hard_fails=0`) | Long-Range production / firm audit PDF |
+| rust-libp2p swarm A–DB + **libp2p 48h PASS** (`3c801b87`) | Long-Range production / firm audit PDF |
+| Experimental 48h TCP+TLS soak (`0a7932c4`) + libp2p soak (`3c801b87`) | Public mainnet / Hybrid pin relabel |
 | Advertised unique cap 20; circuit out of crate book | Public IPFS DHT / Noise = mTLS |
 | AutoNAT/UPnP confirm admit-canonical-or-omit | Tip proof / public mainnet |
 | Identify observed confirm charges canonical key | Firm audit PDF |

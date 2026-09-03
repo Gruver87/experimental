@@ -1,6 +1,6 @@
 # ADR 0021 — Mempool / validation Rust phases (planned)
 
-- **Status:** Accepted (plan only — **no implementation until Phase 1 libp2p 48h PASS**)
+- **Status:** Accepted — Phase 0 landed; Phases 1–3 **unblocked** after libp2p 48h PASS [`3c801b87`](../evidence/runs/3c801b87/) (still not started)
 - **Date:** 2026-08-28
 - **Deciders:** Absolute Blockchain experimental maintainers
 - **Execution order:** [EXECUTION_ORDER.md](../EXECUTION_ORDER.md)
@@ -29,6 +29,7 @@ mesh probe evidence after each sub-phase.
 4. Register future native family **`mempool_kernel`** in ADR 0009 registry **only when**
    phase 1 ships with Python fallback story.
 5. **Start ADR 0021 implementation only after** libp2p 48h soak PASS on Experimental mesh
+   (**met 2026-09-03:** [`3c801b87`](../evidence/runs/3c801b87/))
    ([EXECUTION_ORDER.md](../EXECUTION_ORDER.md) Phase 1).
 
 ## Phases

@@ -15,9 +15,9 @@ This sandbox ships rust-libp2p / Long-Range / EVM-depth labs. Lab PASS ≠ firm 
 | Security workflow (`security-audit.yml`) | Active | pip-audit + cargo-audit (scoped ignores) |
 | Independent external audit report | **Pending — Hybrid pin** | Do not claim “audited” from this repo |
 | Bug bounty | **Not configured** | Disclose via [SECURITY.md](../SECURITY.md) |
-| Parallel R&D while libp2p 48h deferred | **Active (lab/docs)** | [EXECUTION_ORDER.md](EXECUTION_ORDER.md) — no prod mesh flag flips |
+| Parallel R&D after libp2p 48h PASS | **Active (lab/docs)** | B1 closed [`3c801b87`](evidence/runs/3c801b87/); next = LR lab soak (B2) |
 
-**Operator note (2026-08-28):** libp2p 48h #3 not started. Safe work = labs/CI/docs only.
+**Operator note (2026-09-03):** libp2p 48h **PASS** — evidence [`3c801b87`](evidence/runs/3c801b87/).
 LR lab compose (`abs-lr-lab`) is wired; timed 2h **not** started. Do not enable
 `feature_long_range` / `feature_oracles` / `feature_sharding` on `778888` JSON.
 

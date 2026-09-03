@@ -3,7 +3,7 @@
 **Purpose:** single source of truth for *what runs when*. No step claims PASS unless evidence exists.
 **Rule:** do not start a later phase while an earlier **blocker** is open.
 
-Last updated: 2026-08-28.
+Last updated: 2026-09-03.
 
 ---
 
@@ -11,11 +11,11 @@ Last updated: 2026-08-28.
 
 | ID | Blocker | Evidence | Next action |
 |----|---------|----------|-------------|
-| B1 | **libp2p 48h soak** not PASS | `35104db0`, `87f51b3e` FAIL; 2h smoke PASS (`mesh-fix-smoke-2h-pre48h3`, `hard_fails=0`) | Prep: [LIBP2P_48H_PREP.md](sprouts/LIBP2P_48H_PREP.md) → **48h #3 on operator command** |
-| B2 | **Long-Range** not soak-proven | Lab waves 1–14 unit+labs only; `feature_long_range=false` prod | After B1 → LR lab 2h → LR lab 48h (separate JSON, not prod mesh) |
-| B3 | **Mempool/validation Rust** phases 1–3 blocked | ADR 0021; **phase 0 landed** (`blockchain/ports.py` `MempoolPort`) | After B1 (+ optional B2 lab soak) → phase 1 kernels |
+| ~~B1~~ | **libp2p 48h soak** | **PASS** [`3c801b87`](evidence/runs/3c801b87/) (`passed=true`, `hard_fails=0`, `mesh_warn=0`, 2026-09-01→03). Prior FAIL `35104db0` · `87f51b3e` stay on record | **Closed.** Next: Phase 2 LR lab soak |
+| B2 | **Long-Range** not soak-proven | Lab waves 1–14 unit+labs only; `feature_long_range=false` prod | LR lab 2h → LR lab 48h (separate JSON, not prod mesh) |
+| B3 | **Mempool/validation Rust** phases 1–3 blocked | ADR 0021; **phase 0 landed** (`blockchain/ports.py` `MempoolPort`) | After optional B2 lab soak → phase 1 kernels |
 
-**Not blockers:** EVM depth lab waves 8–10 (done for now); TCP+TLS 48h PASS (`0a7932c4`).
+**Not blockers:** EVM depth lab waves 8–10 (done for now); TCP+TLS 48h PASS (`0a7932c4`); **libp2p 48h PASS (`3c801b87`)**.
 
 ---
 
@@ -41,26 +41,15 @@ Phase 6   External audit / mainnet gap (out of repo scope until scheduled)
 
 ---
 
-## Phase 1 — libp2p 48h (current priority)
+## Phase 1 — libp2p 48h (**DONE**)
 
-**Goal:** `passed=true`, `hard_fails=0`, acceptable `mesh_warn` on 3-node Experimental mesh.
+**Goal met:** `passed=true`, `hard_fails=0`, `mesh_warn=0` on 3-node Experimental libp2p mesh.
 
-**Pre-flight (Windows, in order):**
+**Evidence:** [`docs/evidence/runs/3c801b87/`](evidence/runs/3c801b87/) — window 2026-09-01→03, image `sha256:3c801b87…`, height_end=8902, `status_slow=0`, soft `peer_probe_ok` WARNs only (20).
 
-```powershell
-.\scripts\build_native.ps1
-.\scripts\docker_prod_3node.ps1 -SkipBuild -KeepVolumes
-.\scripts\probe_prod_mesh.ps1 -Quick
-python scripts/industrial_gate.py
-```
+**Prod JSON invariants (unchanged):** `feature_libp2p=true`, `feature_long_range=false`.
 
-**Optional before 48h:** 2h smoke (`health_watch` harness, `mesh_warn=0`).
-
-**48h start:** operator-only — `start_soak_prod_mesh_48h.ps1` (or project soak script). **Do not claim PASS without 48h log + `passed=true`.**
-
-**Prod JSON invariants:** `feature_libp2p=true`, `feature_long_range=false`.
-
-**Evidence pack:** `docs/evidence/runs/<image-id>/`
+**Honesty:** not Long-Range · not Hybrid `375d14f` · not public mainnet · TCP+TLS `0a7932c4` remains a separate historical PASS.
 
 ---
 
@@ -145,10 +134,10 @@ Other optional depth:
 
 | Area | Done (lab / unit) | Deferred |
 |------|-------------------|----------|
-| libp2p transport | Slices A–DB, 2h smoke | **48h PASS** |
-| Long-Range | Waves 1–14 labs + 2h preflight harness | Lab soak, prod |
+| libp2p transport | Slices A–DB, 2h smoke, **48h PASS `3c801b87`** | Post-soak WARN hardening (optional) |
+| Long-Range | Waves 1–14 labs + 2h preflight harness | Lab soak, prod (**current priority**) |
 | EVM | Waves 8–11 + maxPriorityFee null-honesty, prod smoke (Jul) | Re-run after B1, further COMPAT_MATRIX |
-| Mempool Rust | Phase 0 `MempoolPort` | Phases 1–3 after B1 |
+| Mempool Rust | Phase 0 `MempoolPort` | Phases 1–3 (B1 closed) |
 | Council ADR 0022 | Lab + live staging 778889 genesis 87/87 (2026-08-28) | On-chain signed gov, mainnet, 48h council soak |
 
 ---

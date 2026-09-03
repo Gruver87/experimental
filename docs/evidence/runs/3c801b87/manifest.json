@@ -1,0 +1,54 @@
+{
+  "schema": "abs.mesh_evidence.v1",
+  "created_unix": 1788455017,
+  "commit_host": "00b1bf865b1d5fc1a5866df9d6540e3af00dc1ad",
+  "host_dirty": true,
+  "image_id": "sha256:3c801b87c7279f00a283cdcada42514987c88f3e39fc4ce6071ad66d2bd7d2af",
+  "run_id": "3c801b87",
+  "honesty": "Experimental ADR 0020 libp2p Noise 3-node prod-profile mesh 48h PASS. Not Long-Range. Not Hybrid 375d14f. Not public mainnet. Do not relabel TCP+TLS 0a7932c4 as this run.",
+  "claims": {
+    "transport": "libp2p Noise (feature_libp2p=true)",
+    "48h_soak": "passed=true hard_fails=0 ready_only=0 mesh_warn=0 hours_elapsed=48.007 health_watch_exit=0",
+    "window": "2026-09-01T18:17:13+02:00 \u2192 2026-09-03T18:17:38+02:00",
+    "height_end": 8902
+  },
+  "files": {
+    "soak_report": {
+      "status": "present",
+      "path": "docs/evidence/runs/3c801b87/soak_report_48h_experimental.json",
+      "sha256": "d02e153e5f602aaafed1f70272e93771788d0ab55a90731799c97cd059dc1edd",
+      "bytes": 879
+    },
+    "soak_log": {
+      "status": "present",
+      "path": "docs/evidence/runs/3c801b87/soak_48h_experimental.log",
+      "sha256": "4d751c880f318b13a4fbf974111c71bc576599e5d40c19335326ea0a8d2ebb4a",
+      "bytes": 211502
+    },
+    "soak_prep": {
+      "status": "present",
+      "path": "docs/evidence/runs/3c801b87/soak_48h_prep.json",
+      "sha256": "3746ec4087d9f30498b9b299e1b8c528e1bf3ac5ba6081051e2b54b5351ddbb1",
+      "bytes": 499
+    },
+    "soak_preflight": {
+      "status": "present",
+      "path": "docs/evidence/runs/3c801b87/soak_preflight.json",
+      "sha256": "ca491ac8c4650e1088ecc1ce910f1dd17bfd6e5fab187c1871a28b0546c2f559",
+      "bytes": 2545
+    },
+    "prod_mesh_probe": {
+      "status": "present",
+      "path": "docs/evidence/runs/3c801b87/prod_mesh_probe.json",
+      "sha256": "27821f04acaf986d56486872476138dfd61980b4ce99f85117806d542c352880",
+      "bytes": 1079
+    },
+    "soak_result": {
+      "status": "present",
+      "path": "docs/evidence/runs/3c801b87/soak_result.txt",
+      "sha256": "5e8fe10b7252a62a2c0b1b607f275500392a393cc1afa45c7f648e1c37530c19",
+      "bytes": 889
+    }
+  },
+  "manifest_sha256": "8d18903ec83722ea7989512ff02eec0fffc11483ca76923961675bc4ba961347"
+}

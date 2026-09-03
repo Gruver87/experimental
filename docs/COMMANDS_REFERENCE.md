@@ -19,7 +19,7 @@
 - Gate green ≠ public mainnet
 - Prod mesh `778888` = industrial profile, не публичный mainnet
 - Bridge на live mesh: **OFF**
-- libp2p 48h — только с evidence в [`EVIDENCE_MATRIX.md`](EVIDENCE_MATRIX.md)
+- libp2p 48h — **PASS** evidence: [`evidence/runs/3c801b87/`](evidence/runs/3c801b87/) · [`EVIDENCE_MATRIX.md`](EVIDENCE_MATRIX.md)
 - Council 87 NFT — staging `778889`, **не** L1 security guarantee
 
 Доказательства: [`EVIDENCE_MATRIX.md`](EVIDENCE_MATRIX.md) · [`EXECUTION_ORDER.md`](EXECUTION_ORDER.md) · [`MAINNET_GAP_ANALYSIS.md`](MAINNET_GAP_ANALYSIS.md)

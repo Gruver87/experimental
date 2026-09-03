@@ -31,6 +31,9 @@ Labs A–DB and `verify_adr0019_libp2p_hard` are not a live L1 mesh.
 3. Soak bar is unchanged: a libp2p industrial PASS needs a **new** 48h after
    this cutover (`passed=true`, `hard_fails=0`, `hours_elapsed>=48`), packaged
    under `docs/evidence/runs/<image>/` **separate from** `0a7932c4`.
+   **Met (2026-09-03):** [`docs/evidence/runs/3c801b87/`](../evidence/runs/3c801b87/)
+   (`passed=true`, `hard_fails=0`, `mesh_warn=0`, window 2026-09-01→03).
+   Prior FAIL packs `35104db0` / `87f51b3e` remain on the ledger.
 4. Session crypto is **Noise**. Native mTLS overlay
    (`docker-compose.prod.3node.p2ptls.yml`) is not the default for this mesh.
 5. `feature_long_range` and `bridge_enabled` stay **false**.
@@ -57,3 +60,5 @@ When `feature_libp2p=true`:
   `libp2p` and asserts `libp2p_available()`.
 - Industrial gate on this tree requires mesh JSON `feature_libp2p=true`.
 - TCP+TLS soak `0a7932c4` remains historical PASS for native mTLS only.
+- libp2p soak `3c801b87` is the ADR 0020 industrial mesh 48h PASS (Experimental
+  only; not Hybrid pin; not public mainnet).

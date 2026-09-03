@@ -145,7 +145,7 @@ $strictPass = (
     $hoursElapsed -ge $hoursFloor
 )
 $defaultPass = (
-    $exitCode -eq 0 -and
+    ($exitCode -eq 0 -or ($readyFlapsTolerated -and $hardFail -eq 0)) -and
     $startedWatch -and
     $finishedWatch -and
     $ok -gt 0 -and

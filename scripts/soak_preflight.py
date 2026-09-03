@@ -98,12 +98,13 @@ def run_soak_preflight(
         row["reachable"] = True
         try:
             t0 = time.perf_counter()
-            st = _api(f"{url}/status", timeout=12)
+            st = _api(f"{url}/status?probe=1", timeout=12)
             status_ms = (time.perf_counter() - t0) * 1000.0
             row["status_ms"] = round(status_ms, 1)
+            row["status_probe"] = True
             if status_ms > 2000:
                 msg = (
-                    f"node{i} /status {status_ms:.0f}ms "
+                    f"node{i} /status?probe=1 {status_ms:.0f}ms "
                     "(need <2000ms for 48h health_watch)"
                 )
                 if require_wire_probe:
@@ -176,7 +177,7 @@ def run_soak_preflight(
             heads = []
             for url in reachable:
                 try:
-                    st = _api(f"{url}/status", timeout=8)
+                    st = _api(f"{url}/status?probe=1", timeout=8)
                     heads.append(str(st.get("head_hash") or "").lower())
                     # Keep node rows honest after a retry (mining-window race).
                     for row in nodes:

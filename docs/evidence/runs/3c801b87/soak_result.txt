@@ -1,0 +1,26 @@
+﻿experimental_libp2p_48h
+host_commit=00b1bf865b1d5fc1a5866df9d6540e3af00dc1ad
+host_dirty=true
+image_id=sha256:3c801b87c7279f00a283cdcada42514987c88f3e39fc4ce6071ad66d2bd7d2af
+started=2026-09-01T18:17:13+02:00
+ended=2026-09-03T18:17:38+02:00
+soak_hours=48
+hours_elapsed=48.007
+status=FINISHED_PASS
+passed=true
+health_watch_exit=0
+hard_fail_lines=0
+ready_only_fail_lines=0
+fail_lines=0
+mesh_ok_lines=567
+mesh_warn_lines=0
+warn_lines=20
+status_slow_warns=0
+peer_probe_ok_warns=20
+cycles=567
+height_end=8902
+pass_notes=strict mesh_warn=0; hours_elapsed=48.01 ok
+transport=libp2p Noise (feature_libp2p=true); feature_long_range=false; bridge_enabled=false
+honesty=Experimental ADR 0020 libp2p 3-node prod-profile mesh 48h PASS. Not Long-Range. Not Hybrid 375d14f. Not public mainnet. Not TCP+TLS 0a7932c4 relabel.
+prior_fail=35104db0,87f51b3e
+prior_tcp_tls_pass=docs/evidence/runs/0a7932c4/

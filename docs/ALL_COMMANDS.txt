@@ -22,7 +22,7 @@
 #   · Gate green ≠ public mainnet
 #   · Prod mesh 778888 = industrial PROFILE, не публичный mainnet
 #   · Bridge на live mesh: OFF (ADR 0010 cutover отдельно)
-#   · libp2p 48h — PASS только с evidence в docs/EVIDENCE_MATRIX.md
+#   · libp2p 48h — PASS evidence: docs/evidence/runs/3c801b87/ (EVIDENCE_MATRIX)
 #   · Council NFT (87) — lab/staging 778889, НЕ security guarantee L1
 #   · External audit — org blocker (см. MAINNET_GAP_ANALYSIS.md)
 #
@@ -526,7 +526,7 @@ python scripts/guarantor_council_staging_ceremony.py --base-url http://127.0.0.1
 # | feature_nft=true на 778888        | industrial_gate FAIL                |
 # | feature_long_range=true prod JSON | ADR 0017 lab only                   |
 # | «87 NFT гаранты L1»               | council governance only (ADR 0022)  |
-# | Claim libp2p 48h без evidence     | см. EVIDENCE_MATRIX (35104db0 FAIL) |
+# | Claim libp2p 48h без evidence     | PASS pack: docs/evidence/runs/3c801b87/ |
 # | Extended API :8081 отдельный      | :8081 = node2 REST                  |
 #
 
@@ -598,7 +598,7 @@ python scripts/package_libp2p_evidence.py
 
 # Execution order / blockers:
 #   docs/EXECUTION_ORDER.md
-#   B1 libp2p 48h · B2 LR soak · B3 mempool Rust phases
+#   B1 CLOSED (libp2p 48h PASS 3c801b87) · B2 LR soak · B3 mempool Rust phases
 
 
 # =============================================================================

@@ -1,21 +1,24 @@
-# libp2p 48h #3 — operator prep (not a soak claim)
+# libp2p 48h — operator prep + PASS ledger
 
-**Purpose:** checklist before starting Experimental libp2p **48h** soak (B1).  
-**Honesty:** 2h smoke PASS (`mesh-fix-smoke-2h-pre48h3`) is **not** 48h. Prior libp2p 48h runs **FAIL**.
+**Purpose:** checklist / history for Experimental libp2p **48h** soak (B1).  
+**Status (2026-09-03):** **B1 CLOSED** — PASS [`3c801b87`](../evidence/runs/3c801b87/).
 
 Related: [EXECUTION_ORDER.md](../EXECUTION_ORDER.md) · [EVIDENCE_MATRIX.md](../EVIDENCE_MATRIX.md)
 
 ---
 
-## Prior evidence (read first)
+## Evidence (read first)
 
 | Run | Result | Notes |
 |-----|--------|-------|
+| [`3c801b87`](../evidence/runs/3c801b87/) | **48h PASS** | 2026-09-01→03 · `passed=true` · `hard_fails=0` · `mesh_warn=0` · `status_slow=0` · height_end=8902 |
 | [`35104db0`](../evidence/runs/35104db0/) | **FAIL** | `health_watch_exit=1`, ready 503 on :18181 |
 | [`87f51b3e`](../evidence/runs/87f51b3e/) | **FAIL** | `hard_fails=0`, **`mesh_warn=46`** (one gap=4) |
-| [`mesh-fix-smoke-2h-pre48h3`](../evidence/runs/mesh-fix-smoke-2h-pre48h3/) | **2h PASS** | `mesh_warn=0` — pre-flight only |
+| [`mesh-fix-smoke-2h-pre48h3`](../evidence/runs/mesh-fix-smoke-2h-pre48h3/) | **2h PASS** | Pre-flight only |
 
 TCP+TLS 48h PASS [`0a7932c4`](../evidence/runs/0a7932c4/) — **do not relabel as libp2p**.
+
+**Not claimed by PASS:** Long-Range production · Hybrid `375d14f` · public mainnet · external audit PDF.
 
 ---
 
@@ -23,14 +26,12 @@ TCP+TLS 48h PASS [`0a7932c4`](../evidence/runs/0a7932c4/) — **do not relabel a
 
 ```powershell
 .\scripts\build_native.ps1
-.\scripts\docker_prod_3node.ps1 -SkipBuild -KeepVolumes
+.\scripts\docker_prod_3node.ps1
 .\scripts\probe_prod_mesh.ps1 -Quick
 python scripts/industrial_gate.py
 ```
 
 Pass criteria for probe: **RESULT: OK**, heights aligned, peers=2.
-
-Optional (already PASS): 2h smoke — `health_watch.ps1 -ProdMesh -DurationMin 120`.
 
 ---
 
@@ -43,20 +44,7 @@ Optional (already PASS): 2h smoke — `health_watch.ps1 -ProdMesh -DurationMin 1
 
 ---
 
-## What to watch during 48h
-
-From `87f51b3e` failure pattern:
-
-- **`mesh_warn`** — scorer must stay **0** (transient ±1 may not be acceptable for libp2p claim)
-- **ready 503** — any sustained ready failure is hard FAIL
-- **height gaps** — gap ≥4 triggered FAIL notes in #2
-- **peer_probe** / **ready_fallback** WARN volume — investigate if rising
-
-Log review: `docker logs` on node that diverges first; extract stack before restart.
-
----
-
-## Start 48h (operator command only)
+## Re-run 48h (optional)
 
 ```powershell
 .\scripts\start_soak_prod_mesh_48h.ps1

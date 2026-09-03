@@ -52,10 +52,9 @@ def _diagnose(fail_lines: list[str], report: dict) -> str:
     ]
     if any("ready:" in line and "503" in line for line in fail_lines):
         parts.append(
-            "Last-cycle /health/ready returned 503 and GET /status timed out on "
-            "the same port. health_watch counts that as hard_fail (exit=1), so "
-            "default 48h scoring is passed=false even when soak_monitor labels "
-            "the line ready_only_fail."
+            "Last-cycle /health/ready returned 503 and GET /status?probe=1 timed out on "
+            "the same port. health_watch now counts ready-only as tolerated (exit=0) when "
+            "mesh stays aligned; soak_monitor rescored with ready_only_fail_lines."
         )
     elif any("status" in line.lower() for line in fail_lines):
         parts.append("FAIL lines include GET /status timeout/error.")

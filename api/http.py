@@ -667,6 +667,92 @@ def _derive_p2p_sync_status(
     return "aligned"
 
 
+def _qs_truthy(qs: dict, key: str) -> bool:
+    """True when query param is 1/true/yes (health_watch soak probe)."""
+    raw = qs.get(key)
+    if not raw:
+        return False
+    val = str(raw[0] if isinstance(raw, (list, tuple)) else raw).strip().lower()
+    return val in ("1", "true", "yes", "on")
+
+
+def _build_status_probe_payload(
+    *,
+    bc,
+    mp,
+    cfg,
+    p2p,
+    db,
+) -> Dict[str, Any]:
+    """Slim GET /status?probe=1 for 48h health_watch — no bridge subprocess, no scans."""
+    local_h = int(bc.get_height() if bc else 0)
+    head_hash = _status_tip_hash(db, bc)
+    peer_count = int(p2p.peer_count() if p2p else 0)
+    mesh_min_peers = int(getattr(cfg, "mesh_min_peers_before_mine", 0) or 0)
+    state_consistent = bool(getattr(p2p, "_state_consistent", False)) if p2p else False
+    peer_gap = 0
+    if p2p and hasattr(p2p, "get_peers_info"):
+        try:
+            local_h = int(bc.get_height() if bc else 0)
+            for peer in p2p.get_peers_info():
+                ph = int(peer.get("height", 0) or 0)
+                peer_gap = max(peer_gap, abs(ph - local_h))
+        except Exception as exc:
+            logger.warning("/status probe peer_gap failed: %s", exc)
+    wire_probe_probed = False
+    wire_probe_ok = False
+    se_status = getattr(RESTHandler, "sync_engine", None) or (
+        getattr(p2p, "sync_engine", None) if p2p else None
+    )
+    if se_status is not None and hasattr(se_status, "get_status"):
+        try:
+            _st = se_status.get_status() or {}
+            wire_probe_probed = bool(_st.get("wire_probe_probed"))
+            wire_probe_ok = bool(_st.get("wire_probe_ok"))
+        except Exception as exc:
+            logger.warning("/status probe sync_engine status failed: %s", exc)
+    p2p_sync_status = _derive_p2p_sync_status(
+        peer_count=peer_count,
+        peer_gap=peer_gap,
+        state_consistent=state_consistent,
+        deployment_mode=getattr(cfg, "deployment_mode", "dev"),
+        mesh_min_peers=mesh_min_peers,
+    )
+    sec_raw: Dict[str, Any] = {}
+    if p2p and hasattr(p2p, "get_p2p_security_status"):
+        try:
+            sec_raw = dict(p2p.get_p2p_security_status() or {})
+        except Exception as exc:
+            logger.warning("/status probe p2p security failed: %s", exc)
+    p2p_hard = _status_p2p_hardening_snapshot(cfg, p2p, sec=sec_raw)
+    degraded = (
+        (peer_count > 0 and not state_consistent)
+        or (peer_count > 0 and not wire_probe_probed)
+        or (peer_count > 0 and wire_probe_probed and not wire_probe_ok)
+        or (p2p is not None and not bool(getattr(p2p, "_running", False)))
+        or (peer_count > 0 and se_status is None)
+    )
+    return {
+        "status": "degraded" if degraded else "running",
+        "probe": True,
+        "height": local_h,
+        "head_hash": head_hash,
+        "peers": peer_count,
+        "peer_count": peer_count,
+        "peer_sync_gap": peer_gap,
+        "p2p_sync_status": p2p_sync_status,
+        "state_consistent": state_consistent,
+        "wire_probe_probed": wire_probe_probed,
+        "wire_probe_ok": wire_probe_ok,
+        "deployment_mode": getattr(cfg, "deployment_mode", "dev"),
+        "chain_id": getattr(cfg, "chain_id", 0),
+        "node_id": getattr(cfg, "node_id", "node-1"),
+        "mempool_size": mp.get_size() if mp else 0,
+        "libp2p": dict(p2p_hard.get("libp2p") or {}),
+        "p2p_running": bool(getattr(p2p, "_running", False)) if p2p else False,
+    }
+
+
 # ── ADR 0014 — request drain + deep readiness ────────────────────────────────
 
 _ACCEPTING_REQUESTS = True
@@ -2131,6 +2217,17 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             if path == "/status":
                 _status_t0 = time.perf_counter()
+                if _qs_truthy(qs, "probe") or _qs_truthy(qs, "quick"):
+                    payload = _build_status_probe_payload(
+                        bc=bc, mp=mp, cfg=cfg, p2p=p2p, db=db
+                    )
+                    status_ms = (time.perf_counter() - _status_t0) * 1000.0
+                    payload["status_handler_ms"] = round(status_ms, 1)
+                    mc_status = self.__class__.metrics_collector
+                    if mc_status is not None and hasattr(mc_status, "observe_status_ms"):
+                        mc_status.observe_status_ms(status_ms)
+                    self._json(payload)
+                    return
                 validators = db.get_validators() if db else []
                 total_burned = _status_cached_metric(db, "get_cached_total_burned")
                 total_supply = _status_cached_metric(db, "get_cached_total_supply")

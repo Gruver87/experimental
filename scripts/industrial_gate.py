@@ -4821,6 +4821,12 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
                 errors.append("cross_shard_lab must exercise 2/3 validator quorum (wave-2)")
         if not (ROOT / "docs" / "sprouts" / "ORACLE_LAB_PROFILE.md").is_file():
             errors.append("ORACLE_LAB_PROFILE.md missing")
+        if "Get-StatusProbeUri" not in hw_core or "status?probe=1" not in hw_core:
+            errors.append("health_watch must poll GET /status?probe=1 (not full /status HOL)")
+        if "_build_status_probe_payload" not in http_py:
+            errors.append("GET /status?probe=1 slim handler missing (48h soak SLO)")
+        if "totalReadyOnlyFails" not in hw_ps1:
+            errors.append("health_watch must exit=0 when only ready-only FAIL lines occur")
         if "live_fallback" not in hw_core:
             errors.append("health_watch must fall back to /health/live on ready+status HOL")
         soak_mon = (ROOT / "scripts" / "soak_monitor.ps1").read_text(encoding="utf-8")

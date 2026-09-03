@@ -10,6 +10,70 @@ $Script:SoftHarnessChecks = @(
     "harness_timeout"
 )
 
+function Get-StatusProbeUri {
+    param([int]$Port)
+    return "http://127.0.0.1:$Port/status?probe=1"
+}
+
+function Invoke-Ready503Recovery {
+    param(
+        [int]$Port,
+        [bool]$ProdMesh,
+        $ReadyBody
+    )
+    $probeSec = if ($ProdMesh) { 18 } else { 10 }
+    Start-Sleep -Seconds 4
+    try {
+        $stProbe = Invoke-RestMethod -Uri (Get-StatusProbeUri -Port $Port) -TimeoutSec $probeSec
+        if ($null -ne $stProbe) {
+            return @{
+                Ok = $true
+                Port = $Port
+                Height = [int]$stProbe.height
+                Head = $stProbe.head_hash
+                Peers = [int]$stProbe.peers
+                P2P = $stProbe.p2p_sync_status
+                Aligned = $true
+                HarnessHealthy = $false
+                Failed = @("ready_flap")
+                FullHarness = $false
+                ReadyFlap = $true
+                ReadyError = "ready_503_recovered"
+            }
+        }
+    } catch { }
+    if ($null -ne $ReadyBody) {
+        $h503 = 0
+        $peers503 = 0
+        if ($null -ne $ReadyBody.height) { $h503 = [int]$ReadyBody.height }
+        if ($null -ne $ReadyBody.peer_count) { $peers503 = [int]$ReadyBody.peer_count }
+        $deepOk = $false
+        if ($null -ne $ReadyBody.deep_ready) { $deepOk = [bool]$ReadyBody.deep_ready }
+        if ($h503 -ge 0 -and ($deepOk -or $h503 -gt 0)) {
+            try {
+                $live = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health/live" -TimeoutSec 8
+                if ($live -and $live.status -eq "alive") {
+                    return @{
+                        Ok = $true
+                        Port = $Port
+                        Height = $h503
+                        Head = ""
+                        Peers = $peers503
+                        P2P = "ready_503_body"
+                        Aligned = $true
+                        HarnessHealthy = $false
+                        Failed = @("ready_flap")
+                        FullHarness = $false
+                        ReadyFlap = $true
+                        ReadyError = "ready_503_body"
+                    }
+                }
+            } catch { }
+        }
+    }
+    return $null
+}
+
 function Test-NodeHealth {
     param(
         [int]$Port,
@@ -52,9 +116,10 @@ function Test-NodeHealth {
     if (-not $readyOk) {
         $stProbe = $null
         $statusErr = ""
+        $statusUri = Get-StatusProbeUri -Port $Port
         for ($sAttempt = 1; $sAttempt -le 3; $sAttempt++) {
             try {
-                $stProbe = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status" -TimeoutSec $statusSec
+                $stProbe = Invoke-RestMethod -Uri $statusUri -TimeoutSec $statusSec
                 break
             } catch {
                 $statusErr = $_.Exception.Message
@@ -80,8 +145,15 @@ function Test-NodeHealth {
                 ReadyError = $readyErr
             }
         }
+        if (-not $Strict) {
+            $recovered = Invoke-Ready503Recovery -Port $Port -ProdMesh:$ProdMesh -ReadyBody $readyBody
+            if ($null -ne $recovered) {
+                $recovered.FullHarness = $FullHarness
+                return $recovered
+            }
+        }
         try {
-            $live = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health/live" -TimeoutSec 5
+            $live = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health/live" -TimeoutSec 8
             if ($live -and $live.status -eq "alive" -and -not $Strict) {
                 $h = 0
                 $peers = 0
@@ -111,9 +183,10 @@ function Test-NodeHealth {
 
     $st = $null
     $statusErr = ""
+    $statusUri = Get-StatusProbeUri -Port $Port
     for ($sAttempt = 1; $sAttempt -le 3; $sAttempt++) {
         try {
-            $st = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status" -TimeoutSec $statusSec
+            $st = Invoke-RestMethod -Uri $statusUri -TimeoutSec $statusSec
             break
         } catch {
             $statusErr = $_.Exception.Message
@@ -184,7 +257,7 @@ function Invoke-ParallelMeshResnapshot {
             param($Port, $TimeoutSec)
             $ErrorActionPreference = "SilentlyContinue"
             try {
-                $st = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status" -TimeoutSec $TimeoutSec
+                $st = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status?probe=1" -TimeoutSec $TimeoutSec
                 return @{
                     Port = [int]$Port
                     Height = [int]$st.height
