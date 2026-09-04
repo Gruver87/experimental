@@ -3,7 +3,7 @@
 Apply with:
 
 ```powershell
-gh repo edit Gruver87/experimental --description "Absolute Blockchain Experimental — evidence-first R&D (libp2p ADR 0019, Long-Range, EVM). Not the audit pin. libp2p 48h not PASS (B1)."
+gh repo edit Gruver87/experimental --description "Absolute Blockchain Experimental — R&D (libp2p 48h PASS 3c801b87, Long-Range lab mesh, EVM). Not the audit pin. B2: LR lab 48h open."
 gh repo edit Gruver87/experimental --homepage "https://github.com/Gruver87/experimental/blob/main/docs/AT_A_GLANCE.md"
 gh repo edit Gruver87/experimental --enable-wiki=false
 @(
@@ -17,7 +17,7 @@ Or paste into **Settings → General → About**.
 
 | Field | Value |
 |-------|-------|
-| **Description** | Absolute Blockchain Experimental — evidence-first R&D (libp2p ADR 0019, Long-Range, EVM). Not the audit pin. libp2p 48h not PASS (B1). |
+| **Description** | Absolute Blockchain Experimental — R&D (libp2p 48h PASS 3c801b87, Long-Range lab mesh, EVM). Not the audit pin. B2: LR lab 48h open. |
 | **Website** | https://github.com/Gruver87/experimental/blob/main/docs/AT_A_GLANCE.md |
 | **Social preview** | Upload evergreen `docs/assets/repo-banner.svg` (export PNG 1280×640) in **Settings → General · Social preview** |
 | **Skimmer card** | [docs/AT_A_GLANCE.md](../docs/AT_A_GLANCE.md) |
@@ -66,7 +66,8 @@ noise-protocol
 | **Tag** | `rd-1.0.0` — first R&D GitHub Release; `main` through Slice DB phase 105 |
 | **ADR stack** | Hybrid 0001–0016 inherited · **0017–0021** Experimental |
 | **Hard gate** | 117 steps with `--rebuild` |
-| **Blocker** | libp2p 48h **B1 open** (FAIL ×2; 2h smoke PASS) — see EXECUTION_ORDER |
+| **Closed** | libp2p 48h **B1 PASS** [`3c801b87`](../docs/evidence/runs/3c801b87/) · LR lab mesh 2h [`lr2hmesh`](../docs/evidence/runs/lr2hmesh/) |
+| **Open** | Long-Range lab **48h** (B2) — see EXECUTION_ORDER |
 | **Notes** | [CHANGELOG](../CHANGELOG.md) · [RELEASING](../docs/RELEASING.md) |
 | **Industrial sibling** | [`Absolute_Blockchain_Ultimate_Hybrid`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) — **not** this freeze |
 | **Self-check** | `python scripts/verify_experimental_rd.py` · `python scripts/verify_parallel_rd_batch.py` · `.\scripts\verify_adr0019_libp2p_hard.ps1 -Rebuild` |
@@ -76,13 +77,13 @@ noise-protocol
 ### Not yet proven (do not claim in About)
 
 - External security audit
-- Prod libp2p 48h soak PASS
+- Long-Range lab 48h PASS / prod `feature_long_range` / BLS
 - Public VPS testnet / launched mainnet / listed ABS
 - GPG-signed release tags (annotated tags in use when signing key absent)
 
 ## Honest positioning (release / About)
 
-- **Is:** R&D sandbox; rust-libp2p labs through Slice DB; fail-closed labs; evidence-first blockers
-- **Is not:** Hybrid audit pin; live public mainnet; prod libp2p 48h PASS
+- **Is:** R&D sandbox; rust-libp2p industrial mesh **48h PASS**; Long-Range lab mesh 2h PASS; fail-closed labs; evidence-first blockers
+- **Is not:** Hybrid audit pin; live public mainnet; Long-Range production / BLS
 - **Banner:** evergreen `docs/assets/repo-banner.svg` (no Hybrid version chip)
 - **Profile README source:** [PROFILE_README.md](PROFILE_README.md) → publish as `Gruver87/Gruver87`

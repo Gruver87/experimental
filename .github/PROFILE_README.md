@@ -7,7 +7,7 @@ Evidence-first **hybrid Python + Rust L1** R&D — local prod-profile mesh, fail
 | Repository | Role | Start |
 |------------|------|-------|
 | [**Absolute_Blockchain_Ultimate_Hybrid**](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) | **Industrial audit pin** · tip-v2 48h soak **PASS** · Phase 4 binder **READY** · external firm audit **pending** | [VISION](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/VISION.md) · [AT_A_GLANCE](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/AT_A_GLANCE.md) · [AUDIT_ENGAGEMENT_BRIEF](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/AUDIT_ENGAGEMENT_BRIEF.md) |
-| [**experimental**](https://github.com/Gruver87/experimental) | **R&D sandbox** · rust-libp2p / Long-Range / EVM depth · libp2p 48h **not PASS** (B1 open) | [AT_A_GLANCE](https://github.com/Gruver87/experimental/blob/main/docs/AT_A_GLANCE.md) · [EXECUTION_ORDER](https://github.com/Gruver87/experimental/blob/main/docs/EXECUTION_ORDER.md) |
+| [**experimental**](https://github.com/Gruver87/experimental) | **R&D sandbox** · rust-libp2p **48h PASS** (`3c801b87`) · Long-Range lab mesh 2h PASS · B2 lab 48h open | [AT_A_GLANCE](https://github.com/Gruver87/experimental/blob/main/docs/AT_A_GLANCE.md) · [EXECUTION_ORDER](https://github.com/Gruver87/experimental/blob/main/docs/EXECUTION_ORDER.md) |
 
 ## Positioning (honest)
 

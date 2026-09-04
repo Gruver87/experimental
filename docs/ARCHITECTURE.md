@@ -1,7 +1,7 @@
 # Architecture (honest overview)
 
-**Updated:** 2026-08-15  
-**Scope:** [Gruver87/experimental](https://github.com/Gruver87/experimental) — R&D sandbox. Domain ports match Hybrid (ADR **0001–0016**); this tree also carries **0017–0019** labs.  
+**Updated:** 2026-09-04  
+**Scope:** [Gruver87/experimental](https://github.com/Gruver87/experimental) — R&D sandbox. Domain ports match Hybrid (ADR **0001–0016**); this tree also carries **0017–0021** labs.  
 **Not** a launched public mainnet. **Not** the audit-freeze pin.  
 **Industrial pin (sibling):** [`Absolute_Blockchain_Ultimate_Hybrid`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) tag [`v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial).
 
@@ -9,9 +9,54 @@
 
 ## One-line summary
 
-**Python** owns orchestration (API, P2P TCP, consensus policy, secrets, metrics export). **Domain services** (`sync/`, `storage/`, `core/components/`) own catch-up, fork reconcile, state apply, and persistence behind ports. **Rust/PyO3** (`abs_native`) accelerates crypto, satoshi-integer state roots, RocksDB engine, and EVM kernels. **Prod** hot path = RocksDB; SQLite remains aux / dev.
+**Python** owns orchestration (API, consensus policy, secrets, metrics export). **Domain services** (`sync/`, `storage/`, `core/components/`) own catch-up, fork reconcile, state apply, and persistence behind ports. **Rust/PyO3** (`abs_native`) accelerates crypto, satoshi-integer state roots, RocksDB, EVM kernels, and **rust-libp2p** (ADR 0019/0020). **Experimental prod mesh** (`778888`) transport = **libp2p Noise** (`feature_libp2p=true`) with **48h PASS** [`3c801b87`](evidence/runs/3c801b87/). Hybrid pin stays TCP+TLS.
 
-**Honesty (mesh):** shared genesis + Path A catch-up are proven on chain ID **778888**. Tip encoding v2 + satoshi apply is Wave C proven (fresh mesh + tip-v2 48h soak PASS Aug 5–7). Stable `/health/ready` (alive peers under TLS reconnect) is **partial** — soft-refuse stops bans; session churn can still leave `peer_count=0`.
+**Honesty:** Long-Range is lab-only (`feature_long_range=false` on prod JSON). Lab mesh 2h PASS [`lr2hmesh`](evidence/runs/lr2hmesh/) ≠ BLS ≠ mainnet.
+
+---
+
+## R&D execution chain
+
+Honest progress columns for this sandbox (not Hybrid). Detail: [EXECUTION_ORDER](EXECUTION_ORDER.md) · [EVIDENCE_MATRIX](EVIDENCE_MATRIX.md).
+
+| | Phase 1 | Phase 2a | Phase 2b | Phase 2c | Phase 3 | Phase 4 |
+|--|:-------:|:--------:|:--------:|:--------:|:-------:|:-------:|
+| **Track** | libp2p mesh 48h | LR solo 2h | LR 3-node mesh 2h | LR lab 48h | EVM smoke | Mempool Rust |
+| **ADR** | 0020 | 0017 | 0017 + Ed25519 | 0017 | — | 0021 |
+| **Status** | **PASS** | **PASS** | **PASS** | **OPEN** (B2) | next | phase 0 ready |
+| **Pack** | [`3c801b87`](evidence/runs/3c801b87/) | [`lr2h9f3a`](evidence/runs/lr2h9f3a/) | [`lr2hmesh`](evidence/runs/lr2hmesh/) | — | — | ports only |
+
+```mermaid
+flowchart TB
+  subgraph done ["Closed on Experimental"]
+    L1["libp2p 48h\n3c801b87"]
+    L2a["LR solo 2h\nlr2h9f3a"]
+    L2b["LR mesh 2h\nlr2hmesh"]
+  end
+  subgraph open ["Open / next"]
+    L2c["LR lab 48h\nB2"]
+    EVM["EVM mesh smoke"]
+    MP["Mempool Rust 1-3"]
+  end
+  subgraph neverHere ["Never claimed here"]
+    HY["Hybrid audit pin"]
+    MN["Public mainnet"]
+    BLS["BLS quorum"]
+  end
+  L1 --> L2a --> L2b --> L2c --> EVM --> MP
+  L2b -.->|not| BLS
+  MP -.->|separate cutover| HY
+  HY -.-> MN
+```
+
+| Layer | Experimental default | Lab / opt-in | Frozen off on prod JSON |
+|-------|----------------------|--------------|-------------------------|
+| Transport | **libp2p** ADR 0020 | TCP+TLS historical PASS `0a7932c4` | — |
+| Tip safety | AncestryWindow | Long-Range WS + tip gate (ADR 0017) | `feature_long_range=false` |
+| Execution | EVM waves 8–11 | filters / logs labs | — |
+| Mempool | Python orchestration | Rust phases 1–3 (ADR 0021) | — |
+| Oracles / shard | — | Profile E labs | `feature_oracles/sharding=false` |
+| Bridge | OFF | audit track | `bridge_enabled=false` |
 
 ---
 
@@ -44,12 +89,13 @@ flowchart TB
   end
 
   subgraph net ["Network plane"]
-    P2P["P2PNode TCP+TLS · default mesh"]
+    P2P["P2PNode · Experimental mesh"]
     DISP["p2p_dispatch handlers"]
     CA["catchup_adapters"]
     FA["fork_adapters"]
     NIO["abs_native P2P IO · short poll"]
-    LP["rust-libp2p · ADR 0019 A–DB · FEATURE_LIBP2P opt-in"]
+    LP["rust-libp2p Noise · ADR 0019/0020 · default mesh"]
+    TCPH["TCP+TLS · historical PASS 0a7932c4"]
   end
 
   subgraph domain ["Domain — ports, no sockets"]
@@ -98,7 +144,8 @@ flowchart TB
   P2P --> CA
   P2P --> FA
   P2P --> NIO
-  P2P -.->|lab dual-stack only| LP
+  P2P --> LP
+  P2P -.->|historical TCP+TLS| TCPH
   LP --> NIO
   CA --> CAP
   FA --> FORK
@@ -118,7 +165,7 @@ flowchart TB
   TIP --> BC
 ```
 
-Solid = **prod-relevant hot path**. Dotted = **aux / cold / optional**.
+Solid = **Experimental prod-relevant hot path** (libp2p mesh). Dotted = **aux / historical / optional**.
 
 ADR index: [docs/adr/](adr/) (**0001–0019**, 0013 unused; [README](adr/README.md)). Feature sprouts: [docs/sprouts/](sprouts/). Disaster runbooks: [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md).
 
@@ -174,9 +221,12 @@ flowchart LR
 | [0014](adr/0014-graceful-shutdown-deep-health.md) | Shutdown / ready | SIGTERM · deep `/health/ready` |
 | [0015](adr/0015-observability-secret-management.md) | Metrics / secrets | Exporter + SecretManager ports |
 | [0016](adr/0016-feature-sprouts-profiles.md) | Sprouts | Profiles instead of kitchen-sink FEATURE_* |
-| [0017](adr/0017-long-range-research.md) | Long-Range | Lab / weak-subjectivity — **not** prod |
-| [0018](adr/0018-libp2p-transport.md) | Dual-stack stubs | Python labs; TCP+TLS remains default |
-| [0019](adr/0019-rust-libp2p-industrial.md) | rust-libp2p | Slices **A–DB** (phase 105) behind Cargo `libp2p`; advertised unique cap 20 |
+| [0017](adr/0017-long-range-research.md) | Long-Range | Lab WS + Ed25519 committee · mesh 2h PASS · **not** prod |
+| [0018](adr/0018-libp2p-transport.md) | Dual-stack stubs | Python labs (superseded for Experimental mesh by 0020) |
+| [0019](adr/0019-rust-libp2p-industrial.md) | rust-libp2p | Slices **A–DB** (phase 105) behind Cargo `libp2p` |
+| [0020](adr/0020-libp2p-industrial-mesh.md) | Experimental mesh | libp2p default on `778888` · **48h PASS** `3c801b87` |
+| [0021](adr/0021-mempool-validation-rust-phases.md) | Mempool Rust | Phase 0 landed · 1–3 unblocked after B1 |
+
 
 ---
 

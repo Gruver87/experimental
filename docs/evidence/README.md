@@ -25,7 +25,9 @@ python scripts/package_mesh_evidence.py \
 
 | Path | Claim |
 |------|--------|
-| [`runs/3c801b87/`](runs/3c801b87/) | **libp2p 48h PASS** (ADR 0020 Experimental mesh) |
+| [`runs/3c801b87/`](runs/3c801b87/) | **libp2p 48h PASS** (ADR 0020 Experimental mesh) — B1 closed |
+| [`runs/lr2hmesh/`](runs/lr2hmesh/) | **Long-Range lab 3-node mesh 2h PASS** (ADR 0017) |
+| [`runs/lr2h9f3a/`](runs/lr2h9f3a/) | Long-Range lab solo 2h PASS (prior / superseded for mesh claims) |
 | [`runs/0a7932c4/`](runs/0a7932c4/) | TCP+TLS 48h PASS (do not relabel as libp2p) |
 | [`runs/35104db0/`](runs/35104db0/), [`runs/87f51b3e/`](runs/87f51b3e/) | libp2p 48h FAIL (historical) |
 

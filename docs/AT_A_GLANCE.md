@@ -23,6 +23,14 @@ The audit-freeze pin · public audited mainnet · listed ABS · Hybrid `v1.3.*-i
 | 48h soak here | TCP+TLS **PASS** (`0a7932c4`). **libp2p 48h PASS** (2026-09-01→03, [`3c801b87`](evidence/runs/3c801b87/), `hard_fails=0`, `mesh_warn=0`). Prior FAIL ×2: `35104db0` · `87f51b3e`. Not Long-Range / not mainnet. |
 | Self-check | `.\scripts\verify_hard_all.ps1` (fail-closed, no soak start) · `python scripts/verify_experimental_rd.py` · `.\scripts\verify_adr0019_libp2p_hard.ps1 -Rebuild` |
 
+## Pipeline (columns)
+
+| 1 libp2p 48h | 2a LR solo 2h | 2b LR mesh 2h | 2c LR lab 48h | 3 EVM | 4 Mempool Rust |
+|:------------:|:-------------:|:-------------:|:-------------:|:-----:|:--------------:|
+| **PASS** [`3c801b87`](evidence/runs/3c801b87/) | **PASS** [`lr2h9f3a`](evidence/runs/lr2h9f3a/) | **PASS** [`lr2hmesh`](evidence/runs/lr2hmesh/) | **OPEN** (B2) | next | phase 0 ready |
+
+Full map: [ARCHITECTURE § R&D execution chain](ARCHITECTURE.md#rd-execution-chain) · [EXECUTION_ORDER](EXECUTION_ORDER.md).
+
 ## Proven vs not (honest)
 
 | Proven (lab) | Not claimed |
