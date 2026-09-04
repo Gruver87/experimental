@@ -167,7 +167,7 @@ flowchart TB
 
 Solid = **Experimental prod-relevant hot path** (libp2p mesh). Dotted = **aux / historical / optional**.
 
-ADR index: [docs/adr/](adr/) (**0001–0019**, 0013 unused; [README](adr/README.md)). Feature sprouts: [docs/sprouts/](sprouts/). Disaster runbooks: [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md).
+ADR index: [docs/adr/](adr/) (**0001–0021**, 0013 unused; [README](adr/README.md)). Feature sprouts: [docs/sprouts/](sprouts/). Disaster runbooks: [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md).
 
 ---
 
