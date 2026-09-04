@@ -38,12 +38,14 @@ Compared to documentation-only claims, **evidence level increased** in Jul 2026:
 | [`mesh-fix-smoke-2h`](evidence/runs/mesh-fix-smoke-2h/) | libp2p | **2h PASS** | Superseded by pre48h3 |
 | [`mesh-fix-smoke-2h-pre48h3`](evidence/runs/mesh-fix-smoke-2h-pre48h3/) | libp2p | **2h PASS** (2026-08-28) | Pre-flight before 48h #4 |
 | [`3c801b87`](evidence/runs/3c801b87/) | libp2p #4 | **48h PASS** (`passed=true`, `hard_fails=0`, `mesh_warn=0`) | B1 closed — not Long-Range / not mainnet |
+| [`lr2h9f3a`](evidence/runs/lr2h9f3a/) | Long-Range lab solo 2h | **2h PASS** (`passed=true`, `hard_fails=0`, ok_lines=121) | Lab-only digest WS; height=0 solo; **not** BLS / not prod 778888 / not mesh-industrial / not mainnet |
+| [`lr2hmesh`](evidence/runs/lr2hmesh/) | Long-Range lab 3-node mesh 2h | **2h PASS** (`passed=true`, `hard_fails=0`, mesh_ok=115) | Tip growth + peers=2 + Ed25519 committee; **not** BLS / not prod 778888 / not mainnet; lab 48h separate |
 
 ### Lab evidence (not soak)
 
 | Claim | Status | Artifact |
 |-------|--------|----------|
-| ADR 0017 Long-Range lab | **Unit + lab proven** (not prod) | waves 1–14 labs + `long_range_lab_2h_harness.py` preflight + compose `docker-compose.long_range.lab.yml` (`abs-lr-lab`). 2h **not** started. `feature_long_range=false` on prod mesh JSON. **not BLS / not 48h soak / not mainnet Long-Range proof.** |
+| ADR 0017 Long-Range lab | **Lab mesh 2h PASS** [`lr2hmesh`](evidence/runs/lr2hmesh/) (solo prior [`lr2h9f3a`](evidence/runs/lr2h9f3a/)); lab 48h may be in progress | 3-node compose + committee + outbound WS gossip. Prod mesh keeps `feature_long_range=false`. **not BLS / not prod arm / not mainnet Long-Range proof.** |
 | EVM depth lab (Profile A) | **Unit + lab proven** (mesh separate) | waves 8–11 + RPC null-honesty (`evm_rpc_lab`, `evm_logs_lab`, `evm_filters_lab` polling filters). Batch: `verify_parallel_rd_batch.py`. `prod_evm_smoke.py` = live mesh. **not full geth / not EIP-4844 / not EVM-only 48h / not WS eth_subscribe.** |
 | Oracle / cross-shard lab | **Unit + lab proven** (aux / Profile E) | wave-2: quorum median + reporter dedupe (`oracle_lab`); 2/3 validator quorum (`cross_shard_lab`). Prod flags off. **Not prod 778888 sprout enable.** |
 | Gruver87 council (ADR 0022) | **Lab + live staging compose PASS** (not mainnet / not on-chain gov) | Manifest `gruver87-council-manifest.json` (sha prefix `4487b29a…`); labs `guarantor_council_lab.py`, `guarantor_council_staging_mint_lab.py` PASS; live Profile C `:19080` / `778889` genesis mint **87/87** ([`council-staging-genesis-20260828`](evidence/runs/council-staging-genesis-20260828/)). **Not signed on-chain gov / not 48h soak / not L1 security guarantee.** |

@@ -43,20 +43,40 @@ if ($active) {
 
 if (-not $log) {
     $preferred = @(
+        (Join-Path $Root "logs\soak_48h_long_range_lab.log"),
+        (Join-Path $Root "logs\soak_2h_long_range_lab.log"),
         (Join-Path $Root "logs\soak_48h_experimental.log"),
         (Join-Path $Root "logs\soak_5h_strict.log")
     )
     $logs = @(Get-ChildItem -Path (Join-Path $Root "logs\soak_*h*.log") -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -notmatch '\.bak' } |
         Sort-Object LastWriteTime -Descending)
     if ($logs) { $log = $logs[0].FullName }
-    elseif (Test-Path $preferred[0]) { $log = $preferred[0] }
+    else {
+        foreach ($p in $preferred) {
+            if (Test-Path $p) { $log = $p; break }
+        }
+    }
 }
 
 if (-not $reportFile) {
     if ($log -and ($log -match '5h_strict')) {
         $reportFile = "logs/soak_report_5h_strict.json"
+    } elseif ($log -and ($log -match '48h_long_range_lab')) {
+        $reportFile = "logs/soak_report_48h_long_range_lab.json"
+    } elseif ($log -and ($log -match '2h_long_range_lab')) {
+        $reportFile = "logs/soak_report_2h_long_range_lab.json"
     } elseif ($log -and ($log -match '48h_experimental')) {
         $reportFile = "logs/soak_report_48h_experimental.json"
+    } elseif ($log -and ([System.IO.Path]::GetFileName($log) -match '^soak_(.+)\.log$')) {
+        # Derive report from log stem when active.json is gone (e.g. LR lab).
+        $stem = $Matches[1]
+        $candidate = "logs/soak_report_$stem.json"
+        if (Test-Path (Join-Path $Root ($candidate -replace '/', '\'))) {
+            $reportFile = $candidate
+        } else {
+            $reportFile = "logs/soak_report_48h.json"
+        }
     } else {
         $reportFile = "logs/soak_report_48h.json"
     }

@@ -1,0 +1,5 @@
+﻿PASS: Long-Range LAB solo 2h soak
+passed=true hard_fails=0 ok_lines=121 hours_elapsed=2
+window=2026-09-03T19:45:01+02:00 -> 2026-09-03T21:45:01+02:00
+port=29080 height=0 solo digest-only WS
+NOT: BLS / prod 778888 / mainnet / mesh-industrial

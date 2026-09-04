@@ -1,0 +1,463 @@
+﻿
+2026-09-03 22:44:58 health_watch start ports=29080,29081,29082 interval=60s full_every=6 log=logs/soak_2h_long_range_lab.log parallel=1
+2026-09-03 22:45:01 OK port 29080 [quick] height=8 peers=2 p2p=aligned aligned=True failed=
+2026-09-03 22:45:01 OK port 29081 [quick] height=8 peers=2 p2p=aligned aligned=True failed=
+2026-09-03 22:45:01 OK port 29082 [quick] height=8 peers=2 p2p=aligned aligned=True failed=
+2026-09-03 22:45:01 OK mesh aligned 29080:h8/p2 29081:h8/p2 29082:h8/p2
+2026-09-03 22:46:02 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:46:02 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:46:02 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:46:02 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 22:47:03 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:47:03 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:47:03 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:47:03 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 22:48:05 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:48:05 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:48:05 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:48:05 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 22:49:07 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:49:07 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:49:07 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:49:07 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 22:50:09 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:50:09 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:50:09 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:50:09 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 22:51:12 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:51:12 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:51:12 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:51:12 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 22:52:14 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:52:14 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:52:14 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:52:14 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 22:53:18 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 22:53:18 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:53:18 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:53:18 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 22:54:21 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:54:21 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:54:21 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:54:21 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 22:55:24 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 22:55:24 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:55:24 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:55:24 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 22:56:29 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:56:29 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:56:29 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:56:29 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 22:57:31 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:57:31 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:57:31 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:57:31 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 22:58:35 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 22:58:35 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:58:35 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:58:35 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 22:59:39 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 22:59:39 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:59:39 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 22:59:39 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:00:42 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:00:42 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:00:42 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:00:42 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:01:46 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:01:46 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:01:46 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:01:46 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:02:51 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:02:51 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:02:51 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:02:51 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:03:54 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:03:54 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:03:54 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:03:54 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:04:58 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:04:58 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:04:58 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:04:58 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:06:02 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:06:02 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:06:02 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:06:02 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:07:05 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:07:05 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:07:05 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:07:05 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:08:08 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:08:08 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:08:08 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:08:08 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:09:13 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:09:13 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:09:13 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:09:13 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:10:17 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:10:17 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:10:17 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:10:17 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:11:20 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:11:20 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:11:20 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:11:20 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:12:24 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:12:24 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:12:24 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:12:24 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:13:27 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:13:27 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:13:27 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:13:27 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:14:30 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:14:30 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:14:30 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:14:30 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:15:33 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:15:33 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:15:33 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:15:33 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:16:37 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:16:37 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:16:37 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:16:37 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:17:41 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:17:41 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:17:41 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:17:41 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:18:44 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:18:44 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:18:44 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:18:44 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:19:48 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:19:48 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:19:48 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:19:48 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:20:51 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:20:51 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:20:51 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:20:51 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:21:57 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:21:57 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:21:57 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:21:57 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:23:00 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:23:00 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:23:00 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:23:00 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:24:04 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:24:04 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:24:04 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:24:04 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:25:07 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:25:07 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:25:07 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:25:07 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:26:10 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:26:10 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:26:10 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:26:10 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:27:13 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:27:13 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:27:13 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:27:13 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:28:16 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:28:16 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:28:16 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:28:16 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:29:19 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:29:19 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:29:19 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:29:19 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:30:23 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:30:23 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:30:23 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:30:23 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:31:27 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:31:27 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:31:27 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:31:27 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:32:29 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:32:29 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:32:29 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:32:29 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:33:33 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:33:33 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:33:33 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:33:33 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:34:41 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:34:41 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:34:41 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:34:41 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:35:44 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:35:44 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:35:44 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:35:44 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:36:47 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:36:47 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:36:47 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:36:47 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:37:51 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:37:51 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:37:51 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:37:51 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:38:54 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:38:54 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:38:54 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:38:54 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:39:58 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:39:58 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:39:58 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:39:58 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:41:00 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:41:00 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:41:00 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:41:00 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:42:03 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:42:03 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:42:03 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:42:03 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:43:06 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:43:06 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:43:06 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:43:06 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:44:10 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:44:10 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:44:10 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:44:10 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:45:13 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:45:13 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:45:13 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:45:13 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:46:17 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:46:17 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:46:17 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:46:17 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:47:23 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:47:23 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:47:23 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:47:23 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:48:27 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:48:27 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:48:27 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:48:27 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:49:31 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:49:31 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:49:31 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:49:31 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:50:33 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:50:33 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:50:33 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:50:33 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:51:36 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:51:36 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:51:36 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:51:36 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:52:40 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:52:40 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:52:40 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:52:40 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:53:45 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:53:45 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:53:45 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:53:45 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:54:48 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:54:48 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:54:48 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:54:48 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:55:52 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:55:52 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:55:52 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:55:52 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:56:55 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:56:55 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:56:55 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:56:55 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:57:59 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:57:59 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:57:59 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:57:59 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-03 23:59:03 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-03 23:59:03 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:59:03 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-03 23:59:03 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:00:11 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:00:11 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:00:11 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:00:11 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:01:15 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:01:15 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:01:15 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:01:15 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:02:17 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:02:17 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:02:17 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:02:17 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:03:21 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:03:21 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:03:21 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:03:21 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:04:24 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:04:24 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:04:24 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:04:24 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:05:28 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:05:28 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:05:28 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:05:28 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:06:32 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:06:32 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:06:32 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:06:32 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:07:36 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:07:36 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:07:36 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:07:36 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:08:39 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:08:39 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:08:39 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:08:39 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:09:43 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:09:43 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:09:43 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:09:43 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:10:46 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:10:46 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:10:46 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:10:46 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:11:48 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:11:48 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:11:48 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:11:48 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:12:54 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:12:54 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:12:54 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:12:54 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:13:57 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:13:57 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:13:57 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:13:57 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:15:01 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:15:01 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:15:01 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:15:01 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:16:04 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:16:04 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:16:04 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:16:04 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:17:07 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:17:07 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:17:07 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:17:07 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:18:11 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:18:11 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:18:11 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:18:11 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:19:17 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:19:17 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:19:17 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:19:17 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:20:20 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:20:20 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:20:20 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:20:20 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:21:24 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:21:24 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:21:24 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:21:24 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:22:27 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:22:27 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:22:27 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:22:27 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:23:31 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:23:31 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:23:31 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:23:31 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:24:34 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:24:34 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:24:34 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:24:34 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:25:40 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:25:40 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:25:40 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:25:40 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:26:44 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:26:44 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:26:44 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:26:44 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:27:47 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:27:47 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:27:47 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:27:47 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:28:51 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:28:51 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:28:51 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:28:51 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:29:54 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:29:54 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:29:54 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:29:54 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:30:58 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:30:58 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:30:58 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:30:58 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:32:00 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:32:00 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:32:00 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:32:00 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:33:04 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:33:04 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:33:04 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:33:04 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:34:07 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:34:07 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:34:07 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:34:07 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:35:11 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:35:11 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:35:11 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:35:11 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:36:14 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:36:14 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:36:14 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:36:14 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:37:18 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:37:18 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:37:18 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:37:18 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:38:22 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:38:22 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:38:22 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:38:22 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:39:26 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:39:26 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:39:26 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:39:26 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:40:29 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:40:29 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:40:29 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:40:29 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:41:31 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:41:31 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:41:31 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:41:31 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:42:34 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:42:34 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:42:34 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:42:34 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:43:38 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:43:38 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:43:38 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:43:38 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:44:44 OK port 29080 [full] height=10 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:44:44 OK port 29081 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:44:44 OK port 29082 [full] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:44:44 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:45:01 OK port 29080 [quick] height=10 peers=2 p2p=inconsistent aligned=True failed=peer_probe_ok,p2p_state_consistent
+2026-09-04 00:45:01 OK port 29081 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:45:01 OK port 29082 [quick] height=9 peers=2 p2p=inconsistent aligned=True failed=
+2026-09-04 00:45:01 OK mesh aligned 29080:h10/p2 29081:h9/p2 29082:h9/p2 transient_delta=1
+2026-09-04 00:45:01 health_watch done (duration 120m cycles=115 hard_fails=0 ready_only=0)

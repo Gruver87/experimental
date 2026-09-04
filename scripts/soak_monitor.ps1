@@ -1,8 +1,10 @@
-# Long-running prod mesh soak: polls health_watch logic and writes a summary report.
+# Long-running mesh soak: polls health_watch logic and writes a summary report.
 param(
     [int]$Hours = 24,
     [int]$IntervalSec = 300,
     [switch]$ProdMesh,
+    # Non-prod meshes (e.g. Long-Range lab :29080). Ignored when -ProdMesh.
+    [int[]]$Ports = @(),
     [string]$LogFile = "logs/soak_monitor.log",
     [string]$ReportFile = "logs/soak_report.json",
     # Rebuild report from an existing soak log (no health_watch run).
@@ -56,6 +58,7 @@ if (-not $RescoreOnly) {
         LogFile     = $LogFile
     }
     if ($ProdMesh) { $hwArgs.ProdMesh = $true }
+    elseif ($Ports -and $Ports.Count -gt 0) { $hwArgs.Ports = $Ports }
     if ($Strict) {
         $hwArgs.Strict = $true
         $hwArgs.AlwaysFullHarness = $true
@@ -155,6 +158,7 @@ $defaultPass = (
     $hoursElapsed -ge $hoursFloor
 )
 
+$portDivisor = if ($ProdMesh) { 3 } elseif ($Ports -and $Ports.Count -gt 0) { [Math]::Max(1, $Ports.Count) } else { 1 }
 $report = @{
     started_at = $started
     ended_at = $ended
@@ -162,6 +166,7 @@ $report = @{
     hours_elapsed = [Math]::Round($hoursElapsed, 4)
     interval_sec = $IntervalSec
     log_file = $LogFile
+    ports = $(if ($ProdMesh) { @(18180, 18181, 18182) } elseif ($Ports) { @($Ports) } else { @() })
     counts = @{
         ok_lines = $ok
         warn_lines = $warn
@@ -175,7 +180,7 @@ $report = @{
     mesh_warns_transient_ok = $meshWarnsTransient
     mesh_acceptable = $meshAcceptable
     ready_flaps_tolerated = $readyFlapsTolerated
-    cycles_observed = [double](($lines | Select-String -Pattern "$ts OK port").Count) / [Math]::Max(1, $(if ($ProdMesh) { 3 } else { 1 }))
+    cycles_observed = [double](($lines | Select-String -Pattern "$ts OK port").Count) / $portDivisor
     strict = [bool]$Strict
     passed = $(if ($Strict) { $strictPass } else { $defaultPass })
     pass_notes = $(

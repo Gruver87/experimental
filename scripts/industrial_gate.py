@@ -4698,6 +4698,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("health_watch must parallel-resnapshot mesh heights before WARN")
         if "SoftHarnessChecks" not in hw_core or "peer_probe_ok" not in hw_core:
             errors.append("health_watch must treat peer_probe_ok as soft harness flake")
+        if "accounts_present" not in hw_core:
+            errors.append("health_watch must treat accounts_present as soft (lab solo genesis)")
+        if "soloExpected" not in hw_ps1:
+            errors.append("health_watch must tolerate solo on single-port lab soaks")
         if "parallel=1" not in hw_ps1:
             errors.append("health_watch start log must record parallel=1")
         if "Do not call p2p.get_topology() on GET /status" not in http_status_src:
@@ -4791,10 +4795,41 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             lr_node = json.loads((ROOT / "node.long_range.lab.json").read_text(encoding="utf-8"))
             if lr_node.get("feature_long_range") is not True:
                 errors.append("node.long_range.lab.json must set feature_long_range=true")
+            if lr_node.get("tip_safety_enforce") is not True:
+                errors.append("node.long_range.lab.json must set tip_safety_enforce=true")
             if lr_node.get("deployment_mode") != "dev":
                 errors.append("node.long_range.lab.json must be deployment_mode=dev")
             if int(lr_node.get("chain_id") or 0) == 778888:
                 errors.append("node.long_range.lab.json must not use prod chain_id 778888")
+            if lr_node.get("mining_enabled") is not True:
+                errors.append("node.long_range.lab.json must enable mining for tip growth")
+            if "lr1:5000" not in str(lr_node.get("bootstrap_peers") or []):
+                errors.append("lr0 lab node must bootstrap to lr1")
+        if not (ROOT / "scripts" / "start_soak_long_range_lab.ps1").is_file():
+            errors.append("start_soak_long_range_lab.ps1 missing (ADR 0017 lab soak)")
+        if not (ROOT / "scripts" / "seed_long_range_lab_ws.py").is_file():
+            errors.append("seed_long_range_lab_ws.py missing (ADR 0017 WS seed)")
+        if not (ROOT / "scripts" / "long_range_lab_live_probe.py").is_file():
+            errors.append("long_range_lab_live_probe.py missing (ADR 0017 live probe)")
+        lr_compose = (ROOT / "docker-compose.long_range.lab.yml").read_text(encoding="utf-8")
+        if "TIP_SAFETY_ENFORCE" not in lr_compose:
+            errors.append("LR lab compose must set TIP_SAFETY_ENFORCE")
+        if "./data/long_range_lab0" not in lr_compose:
+            errors.append("LR lab compose must bind-mount ./data/long_range_lab0")
+        if "lr1:" not in lr_compose or "29081" not in lr_compose:
+            errors.append("LR lab compose must include 3-node mesh (lr1 + 29081)")
+        p2p_src = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+        if "broadcast_ws_checkpoint" not in p2p_src:
+            errors.append("P2P must expose broadcast_ws_checkpoint (ADR 0017 outbound WS)")
+        if not (ROOT / "consensus" / "long_range" / "committee.py").is_file():
+            errors.append("ADR 0017 committee.py missing (Ed25519 lab quorum)")
+        if not (ROOT / "scripts" / "gen_long_range_lab_committee.py").is_file():
+            errors.append("gen_long_range_lab_committee.py missing")
+        if not (ROOT / "node.long_range.lab1.json").is_file():
+            errors.append("node.long_range.lab1.json missing (LR mesh)")
+        soak_mon = (ROOT / "scripts" / "soak_monitor.ps1").read_text(encoding="utf-8")
+        if "[int[]]$Ports" not in soak_mon:
+            errors.append("soak_monitor.ps1 must accept -Ports for Long-Range lab :29080")
         if not (ROOT / "docs" / "sprouts" / "LONG_RANGE_LAB_PROFILE.md").is_file():
             errors.append("LONG_RANGE_LAB_PROFILE.md missing")
         if not (ROOT / "docs" / "adr" / "0021-mempool-validation-rust-phases.md").is_file():

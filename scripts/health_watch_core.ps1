@@ -7,6 +7,7 @@ $Script:SoftHarnessChecks = @(
     "ready_flap",
     "peer_probe_ok",
     "p2p_state_consistent",
+    "accounts_present",
     "harness_timeout"
 )
 

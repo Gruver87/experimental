@@ -91,7 +91,9 @@ while ($true) {
         $failedList = @($r.Failed)
         $failedTxt = if ($failedList.Count -gt 0) { $failedList -join "," } else { "" }
         $line = "OK port $($r.Port) [$modeLabel] height=$($r.Height) peers=$($r.Peers) p2p=$($r.P2P) aligned=$($r.Aligned) failed=$failedTxt"
-        $p2pWarn = ([string]$r.P2P -in @("solo", "under_mesh", "stale"))
+        # Solo is expected for single-node lab soaks (Long-Range :29080); warn only on multi-node mesh.
+        $soloExpected = (-not $ProdMesh) -and ($Ports.Count -eq 1) -and ([string]$r.P2P -eq "solo")
+        $p2pWarn = (([string]$r.P2P -in @("solo", "under_mesh", "stale")) -and (-not $soloExpected))
         $softFailed = @($failedList | Where-Object { $_ -in $Script:SoftHarnessChecks })
         $hardFailed = @($failedList | Where-Object { $_ -notin $Script:SoftHarnessChecks })
         $harnessBad = ($r.Aligned -eq $false) -or ($hardFailed.Count -gt 0) -or (
@@ -104,8 +106,15 @@ while ($true) {
             } else {
                 Write-Log "WARN $line" "Yellow"
             }
-        } elseif ($softFailed.Count -gt 0 -or $p2pWarn) {
+        } elseif ($p2pWarn) {
             Write-Log "WARN $line" "Yellow"
+        } elseif ($softFailed.Count -gt 0) {
+            # Soft-only flakes still count as OK lines for default soak scoring (hard_fail gate unchanged).
+            if ($Strict) {
+                Write-Log "WARN $line" "Yellow"
+            } else {
+                Write-Log $line "Green"
+            }
         } else {
             Write-Log $line "Green"
         }

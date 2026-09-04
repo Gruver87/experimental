@@ -7169,7 +7169,7 @@ class P2PNode:
         if outcome == OUTCOME_UNARMED:
             self._strike_peer_sync(peer, "ws_checkpoint_unarmed")
             return
-        if outcome in (OUTCOME_PARSE_ERROR, OUTCOME_DIGEST_INVALID):
+        if outcome in (OUTCOME_PARSE_ERROR, OUTCOME_DIGEST_INVALID, "committee_invalid"):
             self._strike_peer_sync(peer, "bad_ws_checkpoint")
             return
         if result.get("adopted"):
@@ -7182,8 +7182,37 @@ class P2PNode:
                     logger.warning(
                         "[P2P] ws_checkpoint adopt: shadow resync failed: %s", exc
                     )
+            # Outbound republish (validate ≠ tip-import); best-effort.
+            try:
+                await self.broadcast_ws_checkpoint(data if isinstance(data, dict) else None)
+            except Exception as exc:
+                logger.debug("[P2P] ws_checkpoint outbound after adopt: %s", exc)
         else:
             self.bump_counter("ws_checkpoint_ignore_total")
+
+    async def broadcast_ws_checkpoint(self, payload: Dict | None = None):
+        """Outbound WS checkpoint gossip (ADR 0017). Validate ≠ tip-import."""
+        from consensus.long_range.gossip import (
+            latest_ws_checkpoint_payload,
+            validate_ws_checkpoint_payload,
+        )
+        from consensus.long_range.runtime import long_range_feature_armed
+
+        if not long_range_feature_armed(self.config):
+            return
+        data = payload if isinstance(payload, dict) else latest_ws_checkpoint_payload(
+            self.config
+        )
+        if not isinstance(data, dict):
+            return
+        if validate_ws_checkpoint_payload(data) is None:
+            self.bump_counter("ws_checkpoint_outbound_refuse_total")
+            return
+        tasks = [peer.send(MSG_WS_CHECKPOINT, data) for peer in self.peers.values()]
+        if tasks:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            self._record_broadcast_results(results, kind="ws_checkpoint")
+            self.bump_counter("ws_checkpoint_outbound_total")
 
     async def broadcast_shard_migration(self, payload: Dict):
         if not isinstance(payload, dict):

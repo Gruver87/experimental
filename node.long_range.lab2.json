@@ -1,5 +1,5 @@
 {
-  "node_id": "lr-lab-0",
+  "node_id": "lr-lab-2",
   "network_name": "Absolute Long-Range Lab",
   "chain_id": 77779,
   "deployment_mode": "dev",
@@ -9,10 +9,10 @@
   "p2p_port": 5000,
   "http_port": 8080,
   "rpc_port": 8545,
-  "bootstrap_peers": ["lr1:5000", "lr2:5000"],
+  "bootstrap_peers": ["lr0:5000", "lr1:5000"],
   "testnet_expected_peers": 2,
-  "mining_enabled": true,
-  "mesh_min_peers_before_mine": 1,
+  "mining_enabled": false,
+  "mesh_min_peers_before_mine": 0,
   "require_signatures": true,
   "require_native_crypto": true,
   "bridge_enabled": false,
@@ -29,6 +29,6 @@
   "feature_oracles": false,
   "feature_libp2p": false,
   "feature_long_range": true,
-  "db_path": "data/long_range_lab0.db",
-  "log_file": "data/long_range_lab0.log"
+  "db_path": "data/long_range_lab2.db",
+  "log_file": "data/long_range_lab2.log"
 }

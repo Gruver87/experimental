@@ -5,8 +5,17 @@ from consensus.long_range.checkpoint import CheckpointCertificate
 from consensus.long_range.checkpoint_store import CheckpointStore, bind_persisted_ws
 from consensus.long_range.gossip import (
     ingest_peer_ws_checkpoint,
+    latest_ws_checkpoint_payload,
     merge_peer_certificate_dict,
     validate_ws_checkpoint_payload,
+)
+from consensus.long_range.committee import (
+    CommitteeConfig,
+    CommitteeSignature,
+    generate_keypair,
+    sign_with_keys,
+    threshold_for,
+    verify_committee_quorum,
 )
 from consensus.long_range.ports import WeakSubjectivityPort, StaleForkDecision
 from consensus.long_range.runtime import (
@@ -33,4 +42,11 @@ __all__ = [
     "validate_ws_checkpoint_payload",
     "merge_peer_certificate_dict",
     "ingest_peer_ws_checkpoint",
+    "latest_ws_checkpoint_payload",
+    "CommitteeConfig",
+    "CommitteeSignature",
+    "generate_keypair",
+    "sign_with_keys",
+    "threshold_for",
+    "verify_committee_quorum",
 ]

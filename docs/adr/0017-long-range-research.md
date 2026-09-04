@@ -34,28 +34,34 @@ need an explicit weak-subjectivity (WS) story before claiming Long-Range safety.
 - New config keys `feature_long_range` / `FEATURE_LONG_RANGE` (default false).
 - Industrial gate freezes the flag off on prod mesh JSON.
 
-## Lab 2h harness spec (not a 48h soak)
+## Lab 2h harness spec
 
-**Not started.** Separate from industrial prod mesh `778888`. Do **not** use
-`docker/node.prod.json`. Operator-only after libp2p 48h PASS (EXECUTION_ORDER Phase 2).
+Separate from industrial prod mesh `778888`. Do **not** use `docker/node.prod.json`.
+Operator-only after libp2p 48h PASS (EXECUTION_ORDER Phase 2).
 
 | Item | Value |
 |------|--------|
 | Profile | `deployment_mode=dev`, `feature_long_range=true` |
-| Persist | `ABS_WS_CHECKPOINT_PATH` (digest-only JSON) |
-| Seed (empty store once) | `ABS_WS_ANCHOR_HEIGHT` + `ABS_WS_ANCHOR_HASH` |
-| Compose | `docker-compose.long_range.lab.yml` (`-p abs-lr-lab`) + `node.long_range.lab.json` — never `docker/node.prod*.json` |
-| Pre-flight | `python scripts/long_range_lab_2h_harness.py` (prod flags + lab compose + LR labs) |
-| Duration | 2h health watch on **lab** nodes (`hard_fails=0`, `mesh_warn` documented) |
-| 48h | Only after 2h PASS, operator command, separate evidence pack |
-| Start gate | `ABS_ALLOW_LR_LAB_2H=1` + `--start-2h` (harness currently **refuses** auto-launch; compose is wired for operator) |
+| Persist | `ABS_WS_CHECKPOINT_PATH` (digest + optional Ed25519 committee) |
+| Seed (empty store once) | `ABS_WS_ANCHOR_HEIGHT` + `ABS_WS_ANCHOR_HASH` or `seed_long_range_lab_ws.py` |
+| Compose | `docker-compose.long_range.lab.yml` (`-p abs-lr-lab`) — never `docker/node.prod*.json` |
+| Pre-flight | `python scripts/long_range_lab_2h_harness.py` |
+| Duration | 2h health watch on **lab** nodes (`hard_fails=0`) |
+| 48h | Only after mesh 2h PASS, operator command, separate evidence pack |
+| Start | `.\scripts\start_soak_long_range_lab.ps1` |
 
-BLS / checkpoint quorum remains **design-only** until this ADR is updated with a signed-cert spec.
+**Solo 2h PASS recorded:** [`docs/evidence/runs/lr2h9f3a/`](../evidence/runs/lr2h9f3a/) (2026-09-03). Digest-only, height=0 — not mesh-industrial.
 
-### BLS / signed-cert (design-only — not implemented)
+### Decision addendum — lab Ed25519 committee (not BLS)
 
-Future WS certs would need: committee pubkey set, height+hash digest, threshold
-signatures, gossip validation separate from tip import. **Do not** implement or
-arm on prod mesh until this section becomes a Decision with tests.
+Lab WS certificates MAY carry an **Ed25519 multi-sig committee** (threshold 2/3 of
+configured pubkeys) over the digest payload. Verify before gossip adopt; tip-import
+still goes through TipSafety + WS anchor. Prod mesh keeps `feature_long_range=false`.
 
-Success criteria for 2h: tip-import still HARD REFUSE below anchor; persist file survives restart bind; no prod JSON flag flip.
+### BLS / aggregate (design-only — not implemented)
+
+BLS12-381 aggregate checkpoints remain **design-only**. Do **not** implement or arm
+on prod mesh until a future Decision with native/`blst` tests.
+
+Success criteria for lab 2h: tip-import HARD REFUSE below anchor; persist survives
+restart; no prod JSON flag flip.

@@ -1,0 +1,28 @@
+{
+  "schema": "abs.mesh_evidence.v1",
+  "created_unix": 1788462300,
+  "run_id": "lr2h9f3a",
+  "honesty": "ADR 0017 Long-Range LAB solo 2h PASS. Digest-only WS, port 29080, height=0, mining off. Not BLS. Not prod 778888. Not mainnet. Not libp2p 3c801b87. Superseded for industrial claims by later mesh soaks when present.",
+  "claims": {
+    "profile": "lab solo Long-Range (feature_long_range=true, chain_id=77779)",
+    "2h_soak": "passed=true hard_fails=0 ok_lines=121 hours_elapsed=2 health_watch_exit=0",
+    "window": "2026-09-03T19:45:01+02:00 -> 2026-09-03T21:45:01+02:00",
+    "port": 29080,
+    "height_end": 0
+  },
+  "files": {
+    "soak_report": {
+      "status": "present",
+      "path": "docs/evidence/runs/lr2h9f3a/soak_report_2h_long_range_lab.json",
+      "sha256": "565758e7159803310519b00f3213c2b26a4aaf0772f08a958b77c74fc73c1832"
+    },
+    "soak_log": {
+      "status": "present",
+      "path": "docs/evidence/runs/lr2h9f3a/soak_2h_long_range_lab.log"
+    },
+    "soak_result": {
+      "status": "present",
+      "path": "docs/evidence/runs/lr2h9f3a/soak_result.txt"
+    }
+  }
+}

@@ -1,0 +1,17 @@
+﻿{
+  "schema": "abs.mesh_evidence.v1",
+  "run_id": "lr2hmesh",
+  "honesty": "ADR 0017 Long-Range LAB 3-node mesh 2h PASS. Ed25519 committee + tip growth. Not BLS. Not prod 778888. Not mainnet. Not libp2p 3c801b87.",
+  "claims": {
+    "profile": "lab mesh Long-Range (feature_long_range=true, chain_id=77779)",
+    "2h_soak": "passed=true hard_fails=0 mesh_ok_lines=115 hours_elapsed=2.0009 health_watch_exit=0",
+    "window": "2026-09-03T22:44:58+02:00 -> 2026-09-04T00:45:01+02:00",
+    "ports": [29080, 29081, 29082],
+    "height_end_approx": 10
+  },
+  "files": {
+    "soak_report": {"status": "present", "path": "docs/evidence/runs/lr2hmesh/soak_report_2h_long_range_lab.json", "sha256": "fd5700c49402d8f18c2c07ed2810553b1efd7e71515c48840d4cead524aaa6fd"},
+    "soak_log": {"status": "present", "path": "docs/evidence/runs/lr2hmesh/soak_2h_long_range_lab.log"},
+    "soak_result": {"status": "present", "path": "docs/evidence/runs/lr2hmesh/soak_result.txt"}
+  }
+}

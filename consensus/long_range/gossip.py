@@ -1,4 +1,4 @@
-"""WS checkpoint gossip merge (ADR 0017 wave-14). Lab-only; digest-only certs."""
+"""WS checkpoint gossip merge (ADR 0017). Lab-only; digest + optional Ed25519 committee."""
 
 from __future__ import annotations
 
@@ -8,15 +8,16 @@ from typing import Any, Dict, Mapping, Optional
 
 from consensus.long_range.checkpoint import CheckpointCertificate
 from consensus.long_range.checkpoint_store import CheckpointStore
+from consensus.long_range.committee import CommitteeConfig, committee_required
 from consensus.long_range.runtime import long_range_feature_armed
 
 _LOG = logging.getLogger("abs.long_range.gossip")
 
-# Outcomes returned by merge helpers (honesty / metrics).
 OUTCOME_ADOPTED = "adopted"
 OUTCOME_DUPLICATE = "duplicate"
 OUTCOME_STALE_HEIGHT = "stale_height"
 OUTCOME_DIGEST_INVALID = "digest_invalid"
+OUTCOME_COMMITTEE_INVALID = "committee_invalid"
 OUTCOME_PARSE_ERROR = "parse_error"
 OUTCOME_UNARMED = "unarmed"
 OUTCOME_NO_PERSIST = "no_persist_path"
@@ -32,6 +33,13 @@ def validate_ws_checkpoint_payload(data: Any) -> Optional[CheckpointCertificate]
         return None
     if not cert.verify_digest():
         return None
+    try:
+        committee = CommitteeConfig.from_env()
+    except ValueError:
+        return None
+    if committee is not None or committee_required():
+        if not cert.verify_committee(committee):
+            return None
     return cert
 
 
@@ -42,6 +50,13 @@ def adopt_peer_certificate(
     """Merge ``cert`` when anchor is not regressive. Returns outcome token."""
     if not cert.verify_digest():
         return OUTCOME_DIGEST_INVALID
+    try:
+        committee = CommitteeConfig.from_env()
+    except ValueError:
+        return OUTCOME_COMMITTEE_INVALID
+    if committee is not None or committee_required():
+        if not cert.verify_committee(committee):
+            return OUTCOME_COMMITTEE_INVALID
     latest = store.latest()
     if latest is not None:
         if int(cert.anchor.height) < int(latest.anchor.height):
@@ -62,6 +77,12 @@ def merge_peer_certificate_dict(
     """Merge one peer certificate dict into ``store`` (fail-closed parse)."""
     cert = validate_ws_checkpoint_payload(data)
     if cert is None:
+        try:
+            probe = CheckpointCertificate.from_dict(data)
+            if probe.verify_digest():
+                return {"outcome": OUTCOME_COMMITTEE_INVALID, "adopted": False}
+        except (KeyError, TypeError, ValueError):
+            pass
         return {"outcome": OUTCOME_PARSE_ERROR, "adopted": False}
     outcome = adopt_peer_certificate(store, cert)
     return {
@@ -106,3 +127,17 @@ def ingest_peer_ws_checkpoint(
         result["outcome"] = OUTCOME_NO_PERSIST
     result["store_len"] = len(local)
     return result
+
+
+def latest_ws_checkpoint_payload(config: Any | None = None) -> Optional[Dict[str, Any]]:
+    """Serialize the local latest WS cert for outbound gossip (None if none)."""
+    if not long_range_feature_armed(config):
+        return None
+    path = ws_checkpoint_persist_path(config)
+    if not path:
+        return None
+    store = CheckpointStore.load_or_empty(path)
+    cert = store.latest()
+    if cert is None:
+        return None
+    return dict(cert.to_dict())

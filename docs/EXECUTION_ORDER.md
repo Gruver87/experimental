@@ -12,7 +12,7 @@ Last updated: 2026-09-03.
 | ID | Blocker | Evidence | Next action |
 |----|---------|----------|-------------|
 | ~~B1~~ | **libp2p 48h soak** | **PASS** [`3c801b87`](evidence/runs/3c801b87/) (`passed=true`, `hard_fails=0`, `mesh_warn=0`, 2026-09-01→03). Prior FAIL `35104db0` · `87f51b3e` stay on record | **Closed.** Next: Phase 2 LR lab soak |
-| B2 | **Long-Range** not soak-proven | Lab waves 1–14 unit+labs only; `feature_long_range=false` prod | LR lab 2h → LR lab 48h (separate JSON, not prod mesh) |
+| B2 | **Long-Range** lab 48h open | Mesh **2h PASS** [`lr2hmesh`](evidence/runs/lr2hmesh/); solo prior [`lr2h9f3a`](evidence/runs/lr2h9f3a/); `feature_long_range=false` prod | Lab 48h wall-clock → evidence pack; then Phase 3 EVM |
 | B3 | **Mempool/validation Rust** phases 1–3 blocked | ADR 0021; **phase 0 landed** (`blockchain/ports.py` `MempoolPort`) | After optional B2 lab soak → phase 1 kernels |
 
 **Not blockers:** EVM depth lab waves 8–10 (done for now); TCP+TLS 48h PASS (`0a7932c4`); **libp2p 48h PASS (`3c801b87`)**.
@@ -53,23 +53,28 @@ Phase 6   External audit / mainnet gap (out of repo scope until scheduled)
 
 ---
 
-## Phase 2 — Long-Range lab soak
+## Phase 2 — Long-Range lab soak (**current priority**)
 
 **Goal:** lab-only WS checkpoint + tip gate under time — **not** prod mesh, **not** mainnet Long-Range proof.
 
 **Arm (dev only):**
 
-- `feature_long_range=true`, `deployment_mode != prod`
-- `ABS_WS_CHECKPOINT_PATH`, anchor env as in `long_range_lab.py`
+- `feature_long_range=true`, `deployment_mode=dev`, `tip_safety_enforce=true`
+- Compose: `docker-compose.long_range.lab.yml` (`-p abs-lr-lab`, ports `29080`…)
+- Seed: `python scripts/seed_long_range_lab_ws.py --restart`
+- Probe: `python scripts/long_range_lab_live_probe.py`
 
 **Proof ladder:**
 
 1. `python -m pytest tests/unit -k "long_range" -q`
-2. `python scripts/long_range_gossip_lab.py` (+ p2p lab)
-3. Lab 2h smoke (define harness — not industrial prod mesh)
-4. Lab 48h only on operator command
+2. `python scripts/long_range_lab.py` (+ p2p + gossip labs)
+3. `python scripts/long_range_lab_2h_harness.py` (preflight)
+4. Lab 2h: `.\scripts\start_soak_long_range_lab.ps1` (or `ABS_ALLOW_LR_LAB_2H=1` + harness `--start-2h`)
+5. Lab 48h only after 2h PASS: `.\scripts\start_soak_long_range_lab.ps1 -Hours 48`
 
-**Honesty:** digest-only certs; no BLS quorum; no mixing into audit pin.
+**Honesty:** digest-only certs until Ed25519 committee Decision lands; no BLS quorum; no mixing into audit pin / prod `778888`.
+
+**Solo 2h evidence (2026-09-03):** [`docs/evidence/runs/lr2h9f3a/`](evidence/runs/lr2h9f3a/) — `passed=true`, `hard_fails=0`, port `29080`, height=0. **Not** mesh-industrial; **not** 48h; **not** BLS.
 
 ---
 
