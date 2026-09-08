@@ -3,7 +3,7 @@
 **Purpose:** single source of truth for *what runs when*. No step claims PASS unless evidence exists.
 **Rule:** do not start a later phase while an earlier **blocker** is open.
 
-Last updated: 2026-09-04.
+Last updated: 2026-09-08.
 
 ---
 
@@ -12,8 +12,8 @@ Last updated: 2026-09-04.
 | ID | Blocker | Evidence | Next action |
 |----|---------|----------|-------------|
 | ~~B1~~ | **libp2p 48h soak** | **PASS** [`3c801b87`](evidence/runs/3c801b87/) (`passed=true`, `hard_fails=0`, `mesh_warn=0`, 2026-09-01→03). Prior FAIL `35104db0` · `87f51b3e` stay on record | **Closed.** Next: Phase 2 LR lab soak |
-| B2 | **Long-Range** lab 48h open | Mesh **2h PASS** [`lr2hmesh`](evidence/runs/lr2hmesh/); solo prior [`lr2h9f3a`](evidence/runs/lr2h9f3a/); `feature_long_range=false` prod | Lab 48h wall-clock → evidence pack; then Phase 3 EVM |
-| B3 | **Mempool/validation Rust** phases 1–3 blocked | ADR 0021; **phase 0 landed** (`blockchain/ports.py` `MempoolPort`) | After optional B2 lab soak → phase 1 kernels |
+| B2 | **Long-Range** lab 48h **not PASS** | Mesh **2h PASS** [`lr2hmesh`](evidence/runs/lr2hmesh/); **48h FAIL** [`lr48fail1`](evidence/runs/lr48fail1/) (`mesh_warn=28`); **intensify 2h PASS** [`lr2hintensify`](evidence/runs/lr2hintensify/) (`passed=true`, `hard_fails=0`, `mesh_warn=0`, BLOCK_TIME=5 + chaos; **not** 48h) | Fixes + intensify preflight landed → rerun lab **48h**; then Phase 3 EVM |
+| B3 | **Mempool/validation Rust** phases 1–3 blocked | ADR 0021; **phase 0 landed** (`blockchain/ports.py` `MempoolPort`) | After B2 lab 48h PASS → phase 1 kernels |
 
 **Not blockers:** EVM depth lab waves 8–10 (done for now); TCP+TLS 48h PASS (`0a7932c4`); **libp2p 48h PASS (`3c801b87`)**.
 
@@ -70,11 +70,14 @@ Phase 6   External audit / mainnet gap (out of repo scope until scheduled)
 2. `python scripts/long_range_lab.py` (+ p2p + gossip labs)
 3. `python scripts/long_range_lab_2h_harness.py` (preflight)
 4. Lab 2h: `.\scripts\start_soak_long_range_lab.ps1` (or `ABS_ALLOW_LR_LAB_2H=1` + harness `--start-2h`)
+4b. Intensify 2h stress (optional pre-48h): `.\scripts\start_soak_long_range_lab.ps1 -Intensify` — denser probes + `BLOCK_TIME=5` + follower bounce; **PASS is not a 48h claim**
 5. Lab 48h only after 2h PASS: `.\scripts\start_soak_long_range_lab.ps1 -Hours 48`
 
 **Honesty:** digest-only certs until Ed25519 committee Decision lands; no BLS quorum; no mixing into audit pin / prod `778888`.
 
 **Solo 2h evidence (2026-09-03):** [`docs/evidence/runs/lr2h9f3a/`](evidence/runs/lr2h9f3a/) — `passed=true`, `hard_fails=0`, port `29080`, height=0. **Not** mesh-industrial; **not** 48h; **not** BLS.
+
+**Intensify 2h evidence (2026-09-08):** [`docs/evidence/runs/lr2hintensify/`](evidence/runs/lr2hintensify/) — `passed=true`, `hard_fails=0`, `mesh_warn=0`, tip ~6828→~7765. **Not** 48h; **not** B2 close.
 
 ---
 

@@ -1,4 +1,4 @@
-# Stop background soak_monitor.ps1 processes (duplicate 48h soaks).
+# Stop background soak_monitor / LR chaos_pulse processes (duplicate soaks).
 param(
     [switch]$Force
 )
@@ -8,17 +8,22 @@ $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $Root
 
 $procs = Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -and ($_.CommandLine -match 'soak_monitor\.ps1') }
+    Where-Object {
+        $_.CommandLine -and (
+            $_.CommandLine -match 'soak_monitor\.ps1' -or
+            $_.CommandLine -match 'long_range_lab_chaos_pulse\.ps1'
+        )
+    }
 
 if (-not $procs) {
-    Write-Host "OK: no soak_monitor.ps1 processes found" -ForegroundColor Green
+    Write-Host "OK: no soak_monitor/chaos_pulse processes found" -ForegroundColor Green
     if (Test-Path (Join-Path $Root "logs/soak_active.json")) {
         Remove-Item (Join-Path $Root "logs/soak_active.json") -Force
     }
     exit 0
 }
 
-Write-Host "Found $($procs.Count) soak_monitor process(es):" -ForegroundColor Yellow
+Write-Host "Found $($procs.Count) soak/chaos process(es):" -ForegroundColor Yellow
 foreach ($p in $procs) {
     $cmd = $p.CommandLine
     if ($cmd.Length -gt 120) { $cmd = $cmd.Substring(0, 120) + "..." }

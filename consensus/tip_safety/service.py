@@ -114,7 +114,13 @@ class TipSafetyService:
             try:
                 from consensus.long_range.ancestry_bridge import evaluate_block_ref
 
-                ws_dec = evaluate_block_ref(self._ws, self._ancestry, candidate)
+                snap = self._state.snapshot()
+                ws_dec = evaluate_block_ref(
+                    self._ws,
+                    self._ancestry,
+                    candidate,
+                    local_tip=snap.head,
+                )
                 # FEATURE_LONG_RANGE attached: refuse including no_anchor.
                 # Armed without a persisted checkpoint is not Long-Range protection.
                 if not ws_dec.accept:

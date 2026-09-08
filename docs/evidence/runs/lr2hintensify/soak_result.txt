@@ -1,0 +1,5 @@
+﻿PASS: Long-Range LAB intensify 2h (BLOCK_TIME=5, probe=15s, tip_stagnant=5m, follower chaos bounce)
+passed=true hard_fails=0 fail_lines=0 mesh_ok=397 mesh_warn=0 hours_elapsed=2.0003
+window=2026-09-08T19:53:55+02:00 -> 2026-09-08T21:53:56+02:00
+ports=29080,29081,29082 tip ~6828->~7765
+NOT: 48h claim / B2 close / BLS / prod 778888 / mainnet / Hybrid

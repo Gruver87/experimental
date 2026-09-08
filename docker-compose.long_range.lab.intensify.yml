@@ -1,0 +1,18 @@
+# ADR 0017 — Long-Range lab INTENSIFY overlay (2h stress preflight only).
+# Faster tip ticks surface tip-race / reconnect / mesh_min bugs sooner.
+# Does NOT prove 48h durability. Never use as a 48h PASS claim.
+#
+#   docker compose -p abs-lr-lab \
+#     -f docker-compose.long_range.lab.yml \
+#     -f docker-compose.long_range.lab.intensify.yml up -d
+
+services:
+  lr0:
+    environment:
+      BLOCK_TIME: "5"
+  lr1:
+    environment:
+      BLOCK_TIME: "5"
+  lr2:
+    environment:
+      BLOCK_TIME: "5"

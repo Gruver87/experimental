@@ -36,9 +36,13 @@ def shares_ancestor_with_anchor(
         parent = str(ref.parent_hash or "")
         if not parent:
             return False
-        if parent == target:
+        try:
+            parent_n = normalize_block_hash(parent)
+        except Exception:
+            parent_n = parent
+        if parent_n == target:
             return True
-        cur = parent
+        cur = parent_n
     return False
 
 
@@ -46,8 +50,14 @@ def evaluate_block_ref(
     svc: WeakSubjectivityService,
     window: AncestryWindow,
     candidate: BlockRef,
+    local_tip: Optional[BlockRef] = None,
 ) -> StaleForkDecision:
-    """Evaluate a tip candidate that may not yet be recorded in ``window``."""
+    """Evaluate a tip candidate that may not yet be recorded in ``window``.
+
+    ``local_tip`` (optional): current canonical tip. Contiguous ``tip+1`` past a
+    WS anchor must not false-refuse when the bounded ancestry window has LRU-
+    evicted the path tip→anchor (lab 48h stall after ~256 blocks).
+    """
     anchor = svc.get_anchor()
     if anchor is None:
         return svc.evaluate_stale_fork(
@@ -61,6 +71,7 @@ def evaluate_block_ref(
             window,
             candidate_hash=candidate.block_hash,
             candidate_height=candidate.height,
+            local_tip=local_tip,
         )
     parent = str(candidate.parent_hash or "")
     if not parent:
@@ -68,14 +79,33 @@ def evaluate_block_ref(
     else:
         try:
             ph = normalize_block_hash(parent)
+            ah = normalize_block_hash(anchor.block_hash)
         except Exception:
-            ph = ""
+            ph, ah = "", ""
         linked = bool(ph) and (
-            ph == normalize_block_hash(anchor.block_hash)
+            ph == ah
             or shares_ancestor_with_anchor(
                 window, candidate_hash=ph, anchor_hash=anchor.block_hash
             )
         )
+        # Contiguous extend on local tip already past WS floor.
+        if (
+            not linked
+            and local_tip is not None
+            and ph
+            and int(candidate.height) == int(local_tip.height) + 1
+        ):
+            try:
+                tip_hash = normalize_block_hash(local_tip.block_hash)
+                tip_h = int(local_tip.height)
+                anch_h = int(anchor.height)
+            except Exception:
+                tip_hash, tip_h, anch_h = "", -1, -1
+            if tip_hash and ph == tip_hash and tip_h >= anch_h:
+                if tip_h == anch_h:
+                    linked = tip_hash == ah
+                else:
+                    linked = True
     return svc.evaluate_stale_fork(
         candidate_height=int(candidate.height),
         candidate_hash=str(candidate.block_hash),
@@ -89,6 +119,7 @@ def evaluate_with_window(
     *,
     candidate_hash: str,
     candidate_height: int | None = None,
+    local_tip: Optional[BlockRef] = None,
 ) -> StaleForkDecision:
     """Policy decision using ancestry walk when an anchor is set."""
     anchor = svc.get_anchor()
@@ -112,6 +143,22 @@ def evaluate_with_window(
     linked = shares_ancestor_with_anchor(
         window, candidate_hash=cand, anchor_hash=anchor.block_hash
     )
+    if (
+        not linked
+        and local_tip is not None
+        and ref is not None
+        and int(height) == int(local_tip.height) + 1
+    ):
+        try:
+            tip_hash = normalize_block_hash(local_tip.block_hash)
+            parent = normalize_block_hash(str(ref.parent_hash or ""))
+            ah = normalize_block_hash(anchor.block_hash)
+            tip_h = int(local_tip.height)
+            anch_h = int(anchor.height)
+        except Exception:
+            tip_hash, parent, ah, tip_h, anch_h = "", "", "", -1, -1
+        if tip_hash and parent == tip_hash and tip_h >= anch_h:
+            linked = tip_hash == ah if tip_h == anch_h else True
     return svc.evaluate_stale_fork(
         candidate_height=height if height >= 0 else int(anchor.height),
         candidate_hash=cand,

@@ -127,6 +127,115 @@ def tip_state_from_chain(blockchain: Any) -> TipState:
     return TipState(head=block_ref_from_mapping(block), finalized=None)
 
 
+def backfill_ancestry_from_chain(
+    window: Any,
+    blockchain: Any,
+    *,
+    stop_hash: Optional[str] = None,
+    max_steps: Optional[int] = None,
+) -> int:
+    """Record tip→parent chain into ``window`` so WS walks survive tip-only sync.
+
+    ``sync_from_chain`` rebuilds ``TipSafetyService`` with only the live tip in
+    the ancestry window. Without this backfill, contiguous ``tip+1`` imports
+    false-refuse as ``ws_long_range_fork_below_anchor`` when the WS anchor sits
+    a few blocks below tip (lab mesh stall: miner ahead, followers refuse).
+
+    Walks via ``get_block`` / ``get_block_by_hash``. Stops at genesis, missing
+    parent, ``stop_hash`` (WS anchor), or ``max_steps`` (default window cap).
+
+    Returns:
+        Number of distinct blocks recorded.
+    """
+    from consensus.tip_safety.ancestry_window import AncestryWindow
+
+    if window is None or blockchain is None:
+        return 0
+    if not isinstance(window, AncestryWindow):
+        return 0
+    try:
+        raw_h = blockchain.get_height()
+        height = int(raw_h) if raw_h is not None else -1
+    except Exception:
+        return 0
+    if height < 0 or not hasattr(blockchain, "get_block"):
+        return 0
+
+    steps = int(max_steps) if max_steps is not None else int(window.max_blocks)
+    if steps < 1:
+        return 0
+    want_stop = ""
+    if stop_hash:
+        try:
+            from consensus.tip_safety.types import normalize_block_hash
+
+            want_stop = normalize_block_hash(str(stop_hash))
+        except Exception:
+            want_stop = str(stop_hash).strip().lower()
+
+    recorded = 0
+    seen: set[str] = set()
+    cur_h = height
+    cur_map: Optional[Mapping[str, Any]] = None
+    try:
+        cur_map = blockchain.get_block(cur_h)
+    except Exception:
+        cur_map = None
+
+    for _ in range(steps):
+        if not isinstance(cur_map, Mapping):
+            break
+        try:
+            ref = block_ref_from_mapping(cur_map)
+        except TipValidationError:
+            break
+        key = str(ref.block_hash)
+        if not key or key in seen:
+            break
+        seen.add(key)
+        window.record(ref)
+        recorded += 1
+        if want_stop and key == want_stop:
+            break
+        if int(ref.height) <= 0:
+            break
+        parent = str(ref.parent_hash or "").strip()
+        if not parent:
+            break
+        nxt: Optional[Mapping[str, Any]] = None
+        if hasattr(blockchain, "get_block_by_hash"):
+            try:
+                cand = blockchain.get_block_by_hash(parent)
+                if isinstance(cand, Mapping):
+                    nxt = cand
+            except Exception:
+                nxt = None
+        if nxt is None:
+            try:
+                from consensus.tip_safety.types import normalize_block_hash
+
+                cand = blockchain.get_block(int(ref.height) - 1)
+                if isinstance(cand, Mapping):
+                    cand_hash = str(
+                        cand.get("hash") or cand.get("block_hash") or ""
+                    ).strip()
+                    try:
+                        same = normalize_block_hash(cand_hash) == normalize_block_hash(
+                            parent
+                        )
+                    except Exception:
+                        same = cand_hash.lower() == parent.lower()
+                    if cand_hash and same:
+                        nxt = cand
+            except Exception:
+                nxt = None
+        if nxt is None:
+            break
+        cur_map = nxt
+
+    return recorded
+
+
 class TipSafetyShadowObserver:
     """Tip-safety observer / gate for import candidates.
 
@@ -251,12 +360,32 @@ class TipSafetyShadowObserver:
             except (TypeError, ValueError):
                 max_blocks = 256
             ws = _optional_ws_service(self._config)
+            stop_hash = None
+            if ws is not None:
+                try:
+                    anchor = ws.get_anchor()
+                    if anchor is not None:
+                        stop_hash = str(anchor.block_hash)
+                except Exception:
+                    stop_hash = None
             with self._lock:
                 self._service = TipSafetyService(
                     state,
                     ancestry_max_blocks=max(1, max_blocks),
                     ws_service=ws,
                 )
+                # Tip-only seed is not enough for FEATURE_LONG_RANGE WS walks.
+                n = backfill_ancestry_from_chain(
+                    self._service.ancestry,
+                    blockchain,
+                    stop_hash=stop_hash,
+                )
+                if n > 1:
+                    _LOG.debug(
+                        "tip_safety ancestry backfill recorded=%s stop=%s",
+                        n,
+                        (stop_hash or "")[:16],
+                    )
             return True
         except Exception as exc:
             with self._lock:
@@ -284,9 +413,10 @@ class TipSafetyShadowObserver:
             if self._service is None:
                 self.sync_from_chain(blockchain)
             else:
-                # Bind the window to live get_height() before evaluate. A stale
-                # head (341) while the chain is at 339 turns catch-up of #340
-                # into a false "deep reorg" and wedges /health/ready (503).
+                # Bind to live tip before evaluate. A stale head while the chain
+                # moved turns catch-up into a false deep-reorg / WS refuse.
+                # Resync only when height or tip hash drifted — full rebuild
+                # every observe wiped ancestry and stalled LR lab tip growth.
                 try:
                     raw_h = blockchain.get_height()
                     chain_h = int(raw_h) if raw_h is not None else -1
@@ -296,7 +426,30 @@ class TipSafetyShadowObserver:
                 except Exception as exc:
                     _LOG.warning("[TipSafety] get_height failed: %s", exc)
                     chain_h = -1
-                if chain_h >= 0:
+                need_sync = chain_h < 0
+                if chain_h >= 0 and self._service is not None:
+                    try:
+                        snap = self._service.state.snapshot()
+                        tip_h = int(snap.head.height)
+                        tip_hash = str(snap.head.block_hash or "")
+                    except Exception:
+                        tip_h, tip_hash = -1, ""
+                    chain_hash = ""
+                    if hasattr(blockchain, "get_block"):
+                        try:
+                            tip_blk = blockchain.get_block(chain_h)
+                            if isinstance(tip_blk, Mapping):
+                                chain_hash = str(
+                                    tip_blk.get("hash")
+                                    or tip_blk.get("block_hash")
+                                    or ""
+                                )
+                        except Exception:
+                            chain_hash = ""
+                    need_sync = tip_h != chain_h or (
+                        bool(chain_hash) and chain_hash != tip_hash
+                    )
+                if need_sync:
                     self.sync_from_chain(blockchain)
             if self._service is None:
                 with self._lock:

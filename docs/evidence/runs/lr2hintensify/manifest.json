@@ -1,0 +1,30 @@
+﻿{
+  "schema": "abs.mesh_evidence.v1",
+  "run_id": "lr2hintensify",
+  "result": "PASS",
+  "honesty": "ADR 0017 Long-Range LAB intensify 2h PASS (BLOCK_TIME=5 + chaos bounce). Preflight only — not 48h, not B2 close, not BLS, not prod 778888, not mainnet.",
+  "claims": {
+    "profile": "lab mesh Long-Range intensify (feature_long_range=true, chain_id=77779, BLOCK_TIME=5)",
+    "2h_intensify_soak": "passed=true hard_fails=0 mesh_ok=397 mesh_warn=0 hours_elapsed=2.0003 health_watch_exit=0",
+    "window": "2026-09-08T19:53:55+02:00 -> 2026-09-08T21:53:56+02:00",
+    "ports": [29080, 29081, 29082],
+    "height_start_approx": 6828,
+    "height_end_approx": 7765
+  },
+  "files": {
+    "soak_report": {
+      "status": "present",
+      "path": "docs/evidence/runs/lr2hintensify/soak_report_2h_long_range_lab.intensify.json",
+      "sha256": "d6430b7cc29d9fc001641a6cc6871a1691c19f5ccc627fdc307ab1f2a70f6429"
+    },
+    "soak_log": {
+      "status": "present",
+      "path": "docs/evidence/runs/lr2hintensify/soak_2h_long_range_lab.intensify.log",
+      "sha256": "c6097f9c77eb7b65b588b59f30c0249c73f2b1164ed3c49d6b241bf8980560df"
+    },
+    "soak_result": {
+      "status": "present",
+      "path": "docs/evidence/runs/lr2hintensify/soak_result.txt"
+    }
+  }
+}

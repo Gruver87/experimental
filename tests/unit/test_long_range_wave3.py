@@ -218,3 +218,106 @@ def test_optional_ws_empty_items_file_ignores_leftover_env(monkeypatch, tmp_path
     d = tip.evaluate_candidate(child)
     assert d.outcome == ApplyOutcome.REJECT
     assert d.reason_code == "ws_no_anchor"
+
+
+class _FakeChain:
+    """Minimal chain for ancestry backfill + shadow sync tests."""
+
+    def __init__(self, blocks: list[dict]) -> None:
+        self._by_h = {int(b["height"]): b for b in blocks}
+        self._by_hash = {str(b["hash"]): b for b in blocks}
+        self.GENESIS_HASH = "00" * 32
+
+    def get_height(self) -> int:
+        return max(self._by_h)
+
+    def get_block(self, height: int):
+        return self._by_h.get(int(height))
+
+    def get_block_by_hash(self, block_hash: str):
+        return self._by_hash.get(str(block_hash))
+
+
+def _lab_stall_chain() -> tuple[_FakeChain, str, BlockRef]:
+    """Reproduce LR lab stall: tip at 15, WS anchor at 13, child 16 contiguous."""
+    blocks = []
+    parent = "00" * 32
+    for h in range(0, 16):
+        bh = f"{h:02x}" * 32
+        blocks.append({"height": h, "hash": bh, "parent_hash": parent if h else ""})
+        parent = bh
+    chain = _FakeChain(blocks)
+    anchor_hash = blocks[13]["hash"]
+    tip15 = BlockRef(
+        height=15,
+        block_hash=blocks[15]["hash"],
+        parent_hash=blocks[14]["hash"],
+    )
+    return chain, anchor_hash, tip15
+
+
+def test_backfill_ancestry_reaches_ws_anchor() -> None:
+    from consensus.tip_safety.shadow import backfill_ancestry_from_chain
+
+    chain, anchor_hash, tip15 = _lab_stall_chain()
+    w = AncestryWindow(max_blocks=64)
+    w.record(tip15)  # tip-only, like TipSafetyService init
+    n = backfill_ancestry_from_chain(w, chain, stop_hash=anchor_hash)
+    assert n >= 3
+    assert w.contains(anchor_hash)
+    child = BlockRef(
+        height=16,
+        block_hash="ff" * 32,
+        parent_hash=tip15.block_hash,
+    )
+    ws = WeakSubjectivityService()
+    ws.set_anchor(
+        CheckpointCertificate.issue(height=13, block_hash=anchor_hash).anchor
+    )
+    d = evaluate_block_ref(ws, w, child)
+    assert d.accept is True
+    assert d.reason == "descendant_of_ws_anchor"
+
+
+def test_shadow_sync_backfill_allows_tip_plus_one(monkeypatch, tmp_path) -> None:
+    """After sync_from_chain (tip-only seed), contiguous tip+1 must pass WS."""
+    from consensus.tip_safety.shadow import TipSafetyShadowObserver
+
+    chain, anchor_hash, _tip15 = _lab_stall_chain()
+    path = tmp_path / "ws.json"
+    bind_persisted_ws(path=path, env_height="13", env_hash=anchor_hash)
+    monkeypatch.setenv("FEATURE_LONG_RANGE", "true")
+    monkeypatch.setenv("ABS_WS_CHECKPOINT_PATH", str(path))
+    monkeypatch.delenv("ABS_WS_ANCHOR_HEIGHT", raising=False)
+    monkeypatch.delenv("ABS_WS_ANCHOR_HASH", raising=False)
+
+    class _Cfg:
+        feature_long_range = True
+
+    obs = TipSafetyShadowObserver(enabled=True, enforce=True, config=_Cfg())
+    assert obs.sync_from_chain(chain) is True
+    child = {
+        "height": 16,
+        "hash": "ff" * 32,
+        "parent_hash": chain.get_block(15)["hash"],
+    }
+    d = obs.observe_before_import(child, chain)
+    assert d is not None
+    assert d.accepted is True
+
+
+def test_contiguous_tip_plus_one_survives_lru_eviction() -> None:
+    """Past-anchor tip+1 must accept even when window lost tip→anchor path."""
+    chain, anchor_hash, tip15 = _lab_stall_chain()
+    # Tiny window: only tip survives — simulates 48h LRU past 256 blocks.
+    w = AncestryWindow(max_blocks=2)
+    w.record(tip15)
+    assert not w.contains(anchor_hash)
+    child = BlockRef(height=16, block_hash="ff" * 32, parent_hash=tip15.block_hash)
+    ws = WeakSubjectivityService()
+    ws.set_anchor(
+        CheckpointCertificate.issue(height=13, block_hash=anchor_hash).anchor
+    )
+    d = evaluate_block_ref(ws, w, child, local_tip=tip15)
+    assert d.accept is True
+    assert d.reason == "descendant_of_ws_anchor"

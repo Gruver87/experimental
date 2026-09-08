@@ -13,7 +13,11 @@ param(
     # Strict: no mesh_warn / ready-flap / 1-height skew tolerance. 48h default scoring unchanged.
     [switch]$Strict,
     # Full harness every cycle without Strict FAIL-on-harness (48h: WARN, not soak FAIL).
-    [switch]$FullHarness
+    [switch]$FullHarness,
+    # Intensify 2h: full harness every cycle (still non-Strict mesh delta).
+    [switch]$AlwaysFullHarness,
+    # Pass-through to health_watch (Long-Range tip-growth honesty).
+    [int]$TipStagnantFailAfterSec = 0
 )
 
 $ErrorActionPreference = "Stop"
@@ -62,10 +66,15 @@ if (-not $RescoreOnly) {
     if ($Strict) {
         $hwArgs.Strict = $true
         $hwArgs.AlwaysFullHarness = $true
+    } elseif ($AlwaysFullHarness) {
+        $hwArgs.AlwaysFullHarness = $true
     } elseif ($FullHarness) {
         # 48h: full harness every 6th cycle (health_watch default). Always-on
         # full harness HOL-stalls GET /status and paints hard FAILs on a live mesh.
         $hwArgs.FullHarnessEvery = 6
+    }
+    if ($TipStagnantFailAfterSec -gt 0) {
+        $hwArgs.TipStagnantFailAfterSec = $TipStagnantFailAfterSec
     }
 
     try {

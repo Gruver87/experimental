@@ -8,7 +8,9 @@ param(
     [switch]$AlwaysFullHarness,
     [string]$LogFile = "logs/health_watch.log",
     [string]$WebhookUrl = $env:HEALTH_WEBHOOK_URL,
-    [switch]$Strict
+    [switch]$Strict,
+    # Long-Range lab: hard-FAIL if max tip height does not advance for this many seconds (0=off).
+    [int]$TipStagnantFailAfterSec = 0
 )
 
 $ErrorActionPreference = "Continue"
@@ -58,8 +60,11 @@ $end = if ($DurationMin -gt 0) { (Get-Date).AddMinutes($DurationMin) } else { $n
 $cycle = 0
 $totalHardFails = 0
 $totalReadyOnlyFails = 0
+$tipLastMax = -1
+$tipLastAdvanceAt = Get-Date
 $fullEveryLabel = if ($AlwaysFullHarness) { "always" } else { [string]$FullHarnessEvery }
-Write-Log "health_watch start ports=$($Ports -join ',') interval=${IntervalSec}s full_every=$fullEveryLabel log=$LogFile parallel=1" "Cyan"
+$tipStagLabel = if ($TipStagnantFailAfterSec -gt 0) { " tip_stagnant_fail_after=${TipStagnantFailAfterSec}s" } else { "" }
+Write-Log "health_watch start ports=$($Ports -join ',') interval=${IntervalSec}s full_every=$fullEveryLabel log=$LogFile parallel=1$tipStagLabel" "Cyan"
 
 while ($true) {
     $cycle++
@@ -146,6 +151,27 @@ while ($true) {
                 Write-Log "FAIL mesh misaligned $detail delta=$($mesh.Delta)" "Red"
             } else {
                 Write-Log "WARN mesh misaligned $detail delta=$($mesh.Delta)" "Yellow"
+            }
+        }
+    }
+
+    # Long-Range / lab mesh: tip-dead + health-green is a false PASS. Hard-FAIL
+    # when max observed height does not advance for TipStagnantFailAfterSec.
+    if ($TipStagnantFailAfterSec -gt 0 -and $cycleRows.Count -gt 0) {
+        $maxH = ($cycleRows | ForEach-Object { [int]$_.Height } | Measure-Object -Maximum).Maximum
+        if ($null -eq $maxH) { $maxH = -1 }
+        if ([int]$maxH -gt [int]$tipLastMax) {
+            $tipLastMax = [int]$maxH
+            $tipLastAdvanceAt = Get-Date
+        } else {
+            $staleSec = [int]((Get-Date) - $tipLastAdvanceAt).TotalSeconds
+            if ($staleSec -ge $TipStagnantFailAfterSec) {
+                $msg = "tip stagnant max_h=$tipLastMax for ${staleSec}s (limit=${TipStagnantFailAfterSec}s)"
+                $failures += $msg
+                $totalHardFails++
+                Write-Log "FAIL $msg" "Red"
+            } elseif (($cycle % 6) -eq 0) {
+                Write-Log "WARN tip stagnant max_h=$tipLastMax age=${staleSec}s" "Yellow"
             }
         }
     }

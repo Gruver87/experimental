@@ -4803,10 +4803,32 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
                 errors.append("node.long_range.lab.json must not use prod chain_id 778888")
             if lr_node.get("mining_enabled") is not True:
                 errors.append("node.long_range.lab.json must enable mining for tip growth")
+            if int(lr_node.get("mesh_min_peers_before_mine", 0) or 0) < 2:
+                errors.append(
+                    "node.long_range.lab.json mesh_min_peers_before_mine must be >= 2 "
+                    "(lr48fail1: mining with 1 peer while follower solo)"
+                )
+            if int(lr_node.get("testnet_expected_peers", 0) or 0) < 2:
+                errors.append("node.long_range.lab.json testnet_expected_peers must be >= 2")
             if "lr1:5000" not in str(lr_node.get("bootstrap_peers") or []):
                 errors.append("lr0 lab node must bootstrap to lr1")
         if not (ROOT / "scripts" / "start_soak_long_range_lab.ps1").is_file():
             errors.append("start_soak_long_range_lab.ps1 missing (ADR 0017 lab soak)")
+        start_lr = (ROOT / "scripts" / "start_soak_long_range_lab.ps1").read_text(
+            encoding="utf-8"
+        )
+        if "-Intensify" not in start_lr:
+            errors.append(
+                "start_soak_long_range_lab.ps1 must expose -Intensify (2h stress preflight)"
+            )
+        if not (ROOT / "scripts" / "long_range_lab_chaos_pulse.ps1").is_file():
+            errors.append("long_range_lab_chaos_pulse.ps1 missing (intensify bounce)")
+        if not (ROOT / "docker-compose.long_range.lab.intensify.yml").is_file():
+            errors.append(
+                "docker-compose.long_range.lab.intensify.yml missing (BLOCK_TIME=5)"
+            )
+        if 'BLOCK_TIME' not in (ROOT / "runtime" / "config.py").read_text(encoding="utf-8"):
+            errors.append("config must overlay BLOCK_TIME env for LR intensify")
         if not (ROOT / "scripts" / "seed_long_range_lab_ws.py").is_file():
             errors.append("seed_long_range_lab_ws.py missing (ADR 0017 WS seed)")
         if not (ROOT / "scripts" / "long_range_lab_live_probe.py").is_file():
@@ -4814,6 +4836,28 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         lr_compose = (ROOT / "docker-compose.long_range.lab.yml").read_text(encoding="utf-8")
         if "TIP_SAFETY_ENFORCE" not in lr_compose:
             errors.append("LR lab compose must set TIP_SAFETY_ENFORCE")
+        if "TIP_ANCESTRY_WINDOW_MAX" not in lr_compose:
+            errors.append("LR lab compose must raise TIP_ANCESTRY_WINDOW_MAX for 48h tip growth")
+        p2p_py = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+        if "Tip announces must not soft-drop under HOL" not in p2p_py:
+            errors.append(
+                "MSG_NEW_BLOCK must enqueue on ctrl (non-drop) send queue "
+                "(lr48fail1: droppable announces force PathA lag)"
+            )
+        if "Immediate bootstrap redial" not in p2p_py:
+            errors.append(
+                "p2p_node _remove_peer must immediate-redial bootstraps after disconnect"
+            )
+        if "Soft ownership bind races" not in p2p_py or "Counting recv_error toward 300s ban" not in p2p_py:
+            errors.append(
+                "P2P soft-refuse must include handshake_head_height_mismatch and recv_error "
+                "(mesh_min>=2 must not self-ban on tip/EOF races)"
+            )
+        if "bad_state_root_response_local_root" not in p2p_py or "Tip-race state_root solicit" not in p2p_py:
+            errors.append(
+                "P2P soft-refuse must include bad_state_root_response_local_root "
+                "(tip-race must not 300s-ban the miner)"
+            )
         if "./data/long_range_lab0" not in lr_compose:
             errors.append("LR lab compose must bind-mount ./data/long_range_lab0")
         if "lr1:" not in lr_compose or "29081" not in lr_compose:
@@ -4980,9 +5024,16 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         shadow_py = (ROOT / "consensus" / "tip_safety" / "shadow.py").read_text(
             encoding="utf-8"
         )
-        if "Bind the window to live get_height()" not in shadow_py:
+        if (
+            "Bind the window to live get_height()" not in shadow_py
+            and "Bind to live tip before evaluate" not in shadow_py
+        ):
             errors.append(
                 "tip-safety observe must rebind a stale window to get_height before evaluate"
+            )
+        if "backfill_ancestry_from_chain" not in shadow_py:
+            errors.append(
+                "tip-safety sync_from_chain must backfill ancestry for FEATURE_LONG_RANGE WS walks"
             )
         if "Canonical tip is get_height()" not in shadow_py:
             errors.append(

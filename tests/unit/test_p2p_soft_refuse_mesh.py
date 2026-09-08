@@ -47,10 +47,15 @@ def test_soft_refuse_does_not_ban():
         "bandwidth_exceeded",
         "rate_limited",
         "tip_unknown_parent",
+        "handshake_head_height_mismatch",
+        "status_head_height_mismatch",
+        "recv_error",
+        "bad_state_root_response_local_root",
+        "bad_state_root_response_head",
     ):
         assert node._strike_peer_sync(peer, reason) is False
     pm.strike.assert_not_called()
-    assert node._soft_refuse_total == 12
+    assert node._soft_refuse_total == 17
 
 
 def test_announce_validator_noop_in_prod():

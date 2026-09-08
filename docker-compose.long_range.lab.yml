@@ -17,6 +17,9 @@ x-lr-env: &lr-env
   TIP_SAFETY_ENFORCE: "true"
   TIP_SAFETY_SHADOW: "true"
   ABS_WS_COMMITTEE_REQUIRED: "true"
+  # 48h tip growth (~15s/block) exceeds default AncestryWindow=256 (~1h).
+  # Keep tip→WS walks possible; contiguous tip+1 also inherits past-anchor.
+  TIP_ANCESTRY_WINDOW_MAX: "16384"
 
 services:
   lr0:
@@ -37,7 +40,7 @@ services:
     volumes:
       - ./data/long_range_lab0:/app/data/long_range_lab0
       - ./data/long_range_lab_committee:/app/data/long_range_lab_committee:ro
-    mem_limit: 1024m
+    mem_limit: 2048m
     restart: unless-stopped
     networks: [abs-lr-lab]
 
@@ -59,7 +62,7 @@ services:
     volumes:
       - ./data/long_range_lab1:/app/data/long_range_lab1
       - ./data/long_range_lab_committee:/app/data/long_range_lab_committee:ro
-    mem_limit: 1024m
+    mem_limit: 2048m
     restart: unless-stopped
     networks: [abs-lr-lab]
     depends_on: [lr0]
@@ -82,7 +85,7 @@ services:
     volumes:
       - ./data/long_range_lab2:/app/data/long_range_lab2
       - ./data/long_range_lab_committee:/app/data/long_range_lab_committee:ro
-    mem_limit: 1024m
+    mem_limit: 2048m
     restart: unless-stopped
     networks: [abs-lr-lab]
     depends_on: [lr0]

@@ -755,6 +755,9 @@ class Config:
         self.log_level = env_str("LOG_LEVEL", self.log_level)
         self.log_json = env_bool("LOG_JSON", self.log_json)
         self.mining_enabled = env_bool("MINING_ENABLED", self.mining_enabled)
+        # Lab intensify / harness only — keep JSON default in prod overlays.
+        if "BLOCK_TIME" in os.environ:
+            self.block_time = max(1, env_int("BLOCK_TIME", self.block_time))
         self.mesh_min_peers_before_mine = env_int(
             "MESH_MIN_PEERS_BEFORE_MINE", self.mesh_min_peers_before_mine
         )

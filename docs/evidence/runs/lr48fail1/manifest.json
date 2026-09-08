@@ -1,0 +1,35 @@
+{
+  "schema": "abs.mesh_evidence.v1",
+  "run_id": "lr48fail1",
+  "result": "FAIL",
+  "honesty": "ADR 0017 Long-Range LAB 3-node mesh 48h. Tip grew h4->~6782, hard_fails=0, scored FAIL on non-transient mesh_warn (delta>2). Not PASS. Not BLS. Not prod 778888. Not mainnet.",
+  "claims": {
+    "profile": "lab mesh Long-Range (feature_long_range=true, chain_id=77779)",
+    "48h_soak": "passed=false hard_fails=0 mesh_ok=532 mesh_warn=28 hours_elapsed=48.0043 health_watch_exit=0",
+    "window": "2026-09-06T07:13:16+02:00 -> 2026-09-08T07:13:31+02:00",
+    "ports": [
+      29080,
+      29081,
+      29082
+    ],
+    "height_start_approx": 4,
+    "height_end_approx": 6782,
+    "fail_reason": "mesh_warn=28 not acceptable (non-transient height deltas up to ~22)"
+  },
+  "files": {
+    "soak_report": {
+      "status": "present",
+      "path": "docs/evidence/runs/lr48fail1/soak_report_48h_long_range_lab.json",
+      "sha256": "6956e7d5aeb12f8fc2355450749b363c1826ab2efc08ba26a6c72437a04b329a"
+    },
+    "soak_log": {
+      "status": "present",
+      "path": "docs/evidence/runs/lr48fail1/soak_48h_long_range_lab.log",
+      "sha256": "40bdb286c2c55fe70dd551a054f06c2438510883e53ab40b9a07db405e36b116"
+    },
+    "soak_result": {
+      "status": "present",
+      "path": "docs/evidence/runs/lr48fail1/soak_result.txt"
+    }
+  }
+}

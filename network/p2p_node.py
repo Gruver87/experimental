@@ -1015,6 +1015,8 @@ class PeerConnection:
             MSG_PEERS,
             MSG_BLOCK,
             MSG_BLOCKS,
+            # Tip announces must not soft-drop under HOL (lab soak lr48fail1).
+            MSG_NEW_BLOCK,
         }:
             q = self._send_ctrl_q
             drop_cb = False
@@ -1063,51 +1065,6 @@ class PeerConnection:
                 e or type(e).__name__,
             )
             return False
-        self._ensure_send_worker()
-        kind = str(msg_type or "")
-        if kind in (MSG_STATE_ROOT_REQUEST, MSG_STATE_ROOT_RESPONSE):
-            q = self._send_root_q
-            drop_cb = False
-        elif kind in {
-            MSG_STATUS,
-            MSG_PING,
-            MSG_PONG,
-            MSG_HANDSHAKE,
-            MSG_HANDSHAKE_ACK,
-            MSG_GET_BLOCK,
-            MSG_GET_BLOCK_BY_HASH,
-            MSG_GET_BLOCKS,
-            MSG_GET_PEERS,
-            MSG_PEERS,
-            MSG_BLOCK,
-            MSG_BLOCKS,
-        }:
-            q = self._send_ctrl_q
-            drop_cb = False
-        else:
-            q = self._send_q
-            drop_cb = True
-        try:
-            q.put_nowait((msg_type, data, None))
-        except asyncio.QueueFull:
-            self._send_drops += 1
-            if drop_cb:
-                self._invoke_peer_hook(self._on_send_drop, name="send_drop")
-            else:
-                logger.warning(
-                    "[P2P] send queue full to %s type=%s",
-                    self.peer_id or self.host,
-                    msg_type,
-                )
-            return False
-        except Exception as e:
-            logger.warning("[P2P] send enqueue error to %s: %s", self.peer_id or self.host, e)
-            return False
-        self._wake_send()
-        # state_root enqueue does not wait the write Future — the solicit
-        # waiter owns the RTT. Waiting 2s here aborted the waiter while the
-        # frame was still queued, so replies landed unsolicited/empty.
-        return True
 
     async def _read_wire_line(self, limit: int):
         """Read one NDJSON line via native framer when available (v1.3.86).
@@ -3569,12 +3526,25 @@ class P2PNode:
                     "rate_limited",
                     # Catch-up / tip races under partial mesh — drop tip, do not ban.
                     "tip_unknown_parent",
+                    # Soft ownership bind races (startup / catch-up): refuse the
+                    # claim, allow redial when tips align. Hard-ban here + mesh_min
+                    # stalls the hub (lr48fail1 recovery: peers=1 under mesh_min=2).
+                    "handshake_head_height_mismatch",
+                    "status_head_height_mismatch",
+                    # Tip-race state_root solicit: local tip advances between arm and
+                    # reply → false local_root/head mismatch. Drop reply, do not ban
+                    # (live lab: lr2 banned miner lr0 for 300s on this path).
+                    "bad_state_root_response_local_root",
+                    "bad_state_root_response_head",
                     # libp2p Noise reconnect can re-send Absolute handshake into a
                     # live Absolute epoch (session lifetime mismatch). Soft-refuse
                     # only — TCP+TLS still hard-bans mid_session_handshake.
                     "mid_session_handshake_libp2p",
                     # Long-Range WS gossip is lab-only (ADR 0017); prod drops without ban.
                     "ws_checkpoint_unarmed",
+                    # Plain EOF / reset on reconnect — same policy as p2p_transport_io:.
+                    # Counting recv_error toward 300s ban self-isolates the mesh.
+                    "recv_error",
                 }
             )
             self._SOFT_REFUSE_STRIKE_REASONS = soft
@@ -7686,6 +7656,29 @@ class P2PNode:
             if lp and self._libp2p_sessions.get(lp) is peer:
                 self._libp2p_sessions.pop(lp, None)
             print(f"[P2P] Disconnected: {peer_id[:12]}")
+            # Immediate bootstrap redial — do not wait for the 30s ping loop.
+            # Lab soak FAIL lr48fail1: follower peers=0 for many minutes while
+            # miner kept forging under mesh_min=1 → height delta up to ~22.
+            try:
+                target = max(
+                    1, int(getattr(self.config, "testnet_expected_peers", 1) or 1)
+                )
+            except (TypeError, ValueError):
+                target = 1
+            if self._running and self._loop and len(self.peers) < target:
+                for addr in list(self._known_addrs or []):
+                    parts = str(addr).rsplit(":", 1)
+                    if len(parts) != 2:
+                        continue
+                    try:
+                        self._schedule_connect(parts[0], int(parts[1]))
+                    except Exception as exc:
+                        self._peer_connect_task_fail = int(
+                            getattr(self, "_peer_connect_task_fail", 0) or 0
+                        ) + 1
+                        logger.warning(
+                            "[P2P] disconnect redial failed for %s: %s", addr, exc
+                        )
 
     # ── Статистика ───────────────────────────────────────────────────────────
 

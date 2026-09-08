@@ -1,0 +1,6 @@
+FAIL: Long-Range LAB 3-node mesh 48h soak
+passed=false hard_fails=0 fail_lines=0 mesh_ok=532 mesh_warn=28 hours_elapsed=48.0043
+window=2026-09-06T07:13:16+02:00 -> 2026-09-08T07:13:31+02:00
+ports=29080,29081,29082 height_start~4 height_end~6782 tip_growth=YES tip_stagnant_fail=0
+reason: mesh_warn=28 not transient (max delta~22); scorer mesh_acceptable=false
+NOT: BLS / prod 778888 / mainnet / Hybrid / PASS claim

@@ -96,6 +96,31 @@ def test_mesh_ready_peer_heights_when_consistent():
     )
 
 
+def test_mesh_ready_refuses_when_any_peer_behind():
+    """Do not forge while a connected follower reports lower STATUS height."""
+    assert not mesh_ready_for_mining(
+        min_mesh_peers=2,
+        connected_peers=2,
+        wire_roots=[],
+        local_height=10,
+        local_root="ab" * 32,
+        state_consistent=True,
+        peer_heights=[10, 8],
+    )
+
+
+def test_lab_json_requires_full_mesh_before_mine():
+    """LR lab miner must require both peers (lr48fail1 solo-window amplifier)."""
+    import json
+    from pathlib import Path
+
+    raw = json.loads(
+        (Path(ROOT) / "node.long_range.lab.json").read_text(encoding="utf-8")
+    )
+    assert int(raw.get("mesh_min_peers_before_mine") or 0) >= 2
+    assert int(raw.get("testnet_expected_peers") or 0) >= 2
+
+
 def test_mesh_ready_stale_peer_heights_wire_proves_alignment():
     """Stale P2P STATUS cache must not block when wire roots prove mesh alignment."""
     root = "ab" * 32
