@@ -1,0 +1,5 @@
+﻿PASS: Long-Range LAB 3-node mesh 48h soak
+passed=true hard_fails=0 fail_lines=13 (ready_only tolerated) mesh_ok=549 mesh_warn=0 hours_elapsed=48.0033
+window=2026-09-09T06:16:36+02:00 -> 2026-09-11T06:16:48+02:00
+ports=29080,29081,29082 tip ~7929->~14770
+NOT: BLS / prod 778888 / mainnet / Hybrid / intensify claim

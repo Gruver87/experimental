@@ -1,0 +1,31 @@
+﻿{
+  "schema": "abs.mesh_evidence.v1",
+  "run_id": "lr48pass1",
+  "result": "PASS",
+  "honesty": "ADR 0017 Long-Range LAB 3-node mesh 48h PASS. hard_fails=0 mesh_warn=0; ready_only_fail=13 tolerated (mesh aligned). Not BLS. Not prod 778888. Not mainnet. Not Hybrid. Prior FAIL lr48fail1 stays on record.",
+  "claims": {
+    "profile": "lab mesh Long-Range (feature_long_range=true, chain_id=77779)",
+    "48h_soak": "passed=true hard_fails=0 mesh_ok=549 mesh_warn=0 ready_only_fail=13 hours_elapsed=48.0033 health_watch_exit=0",
+    "window": "2026-09-09T06:16:36+02:00 -> 2026-09-11T06:16:48+02:00",
+    "ports": [29080, 29081, 29082],
+    "height_start_approx": 7929,
+    "height_end_approx": 14770,
+    "git_sha": "18c85dbbcdb6afaffa1772e789f79496c3b94c55"
+  },
+  "files": {
+    "soak_report": {
+      "status": "present",
+      "path": "docs/evidence/runs/lr48pass1/soak_report_48h_long_range_lab.json",
+      "sha256": "6a23da952591a7046dfeb146be26ba4a87cc45e119d104ca4df49a4427239a09"
+    },
+    "soak_log": {
+      "status": "present",
+      "path": "docs/evidence/runs/lr48pass1/soak_48h_long_range_lab.log",
+      "sha256": "c9370583a8677b82071e82ef1d80d0159a8d61450966e04ff65206c5af91f7d8"
+    },
+    "soak_result": {
+      "status": "present",
+      "path": "docs/evidence/runs/lr48pass1/soak_result.txt"
+    }
+  }
+}
