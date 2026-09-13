@@ -109,7 +109,8 @@ def test_sphincs_rest_verify_fails_closed_without_backend(sphincs_server):
     assert "backend not available" in body["error"]
 
 
-def test_pq_keygen_returns_real_result_or_backend_error(sphincs_server):
+def test_pq_keygen_returns_backend_error_for_all_algorithms(sphincs_server):
+    """Wave I: Dilithium educational hash-demo removed — all PQ keygen → 501."""
     status, body = _post(
         f"{sphincs_server}/pq/keygen",
         {"algorithm": "kyber"},
@@ -121,9 +122,8 @@ def test_pq_keygen_returns_real_result_or_backend_error(sphincs_server):
         f"{sphincs_server}/pq/keygen",
         {"algorithm": "dilithium"},
     )
-    assert status == 200
-    assert body["keys"]["public_key"]
-    assert body["keys"]["private_key"]
+    assert status == 501
+    assert "Dilithium" in body["error"] and "not available" in body["error"]
 
 
 def test_pq_hybrid_encrypt_fails_closed_without_backend(sphincs_server):
