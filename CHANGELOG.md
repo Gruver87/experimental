@@ -15,6 +15,7 @@ Canonical language for this repository is **English**. Older inherited entries b
 
 ### Experimental R&D
 
+- **Wave B honesty DX (2026-09-13):** `/status` exposes `mempool_store` (backend/demoted/demote_count); prod+require_native demote → `degraded`. COMPAT_MATRIX RPC null-honesty rows relabeled **Supported (Absolute honesty)**. `verify_long_range_lab.ps1` + pack `lrlab1`. Stale Profile F “next Phase 4” fixed. Not soak / not prod LR arm.
 - **Wave A money/admit honesty (2026-09-13):** P2P max-fee + default fee via satoshi; HTTP RPC admit uses `plan_transfer_fees_sat` (no `ImportError` skip of TxValidator); canonical serializer prefers `fee_satoshi`; unparseable wire fields refuse (no `except: pass` fallthrough). Not soak / not wire float cutover.
 - **EVM depth lab verify pack (2026-09-13):** `verify_evm_depth_lab.ps1` → [`evmlab1`](docs/evidence/runs/evmlab1/). Host labs+unit+gate; mesh optional `-WithMesh`. Not soak / not EVM-only 48h.
 - **Mempool fee_satoshi dual-write (2026-09-13):** store/sort/evict/min-fee use integer `fee_satoshi`; wire ABS `fee` float retained. Rust `MempoolStore` API takes `min_fee_satoshi`. Not full wire/config cutover; not soak.

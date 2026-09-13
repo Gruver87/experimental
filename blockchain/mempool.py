@@ -243,6 +243,9 @@ class Mempool:
         self.min_fee_satoshi = int(to_satoshi(min_fee))
         self.lock = threading.RLock()
         self._rejected_count = 0
+        self._demote_count = 0
+        self._demote_reason = ""
+        self._store_demoted = False
         self.blockchain = None
         self.chain_id = 1
         self.require_signatures = False
@@ -282,6 +285,9 @@ class Mempool:
         if store is None and self._store_backend == "python":
             return
         logger.warning("mempool demote rust store → python (%s)", reason)
+        self._demote_count = int(getattr(self, "_demote_count", 0) or 0) + 1
+        self._demote_reason = str(reason or "demoted")
+        self._store_demoted = True
         migrated = 0
         if store is not None:
             try:
@@ -570,6 +576,10 @@ class Mempool:
                         "validators_available": _VALIDATORS_AVAILABLE,
                         "ecdsa_available": _ECDSA_AVAILABLE,
                         "store_backend": self._store_backend,
+                        "store_demoted": bool(self._store_demoted),
+                        "demote_count": int(self._demote_count),
+                        "demote_reason": str(self._demote_reason or ""),
+                        "min_fee_satoshi": int(self.min_fee_satoshi),
                     }
                 except Exception as exc:
                     self._demote_store(f"fee_stats:{exc}")
@@ -580,6 +590,10 @@ class Mempool:
                     "avg_fee": 0,
                     "rejected": self._rejected_count,
                     "store_backend": self._store_backend,
+                    "store_demoted": bool(self._store_demoted),
+                    "demote_count": int(self._demote_count),
+                    "demote_reason": str(self._demote_reason or ""),
+                    "min_fee_satoshi": int(self.min_fee_satoshi),
                 }
             fees = [tx.fee for tx in self._py_txs.values()]
             return {
@@ -590,6 +604,10 @@ class Mempool:
                 "validators_available": _VALIDATORS_AVAILABLE,
                 "ecdsa_available": _ECDSA_AVAILABLE,
                 "store_backend": self._store_backend,
+                "store_demoted": bool(self._store_demoted),
+                "demote_count": int(self._demote_count),
+                "demote_reason": str(self._demote_reason or ""),
+                "min_fee_satoshi": int(self.min_fee_satoshi),
             }
 
     def _cleanup_python(self):

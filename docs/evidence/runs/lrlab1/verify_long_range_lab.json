@@ -1,0 +1,41 @@
+﻿{
+    "honesty":  [
+                    "NOT soak",
+                    "NOT feature_long_range on prod 778888",
+                    "script labs only (no 2h/48h harness start)"
+                ],
+    "total":  5,
+    "elapsed_sec":  0.7,
+    "passed":  5,
+    "started":  "2026-09-13T11:38:44.5338523+02:00",
+    "phase":  "pre-soak-long-range-lab",
+    "ok":  true,
+    "steps":  [
+                  {
+                      "ok":  true,
+                      "name":  "long_range_lab.py",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "long_range_p2p_lab.py",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "long_range_gossip_lab.py",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "prod_mesh_feature_long_range_false",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "industrial_gate_long_range_needles",
+                      "exit_code":  0
+                  }
+              ],
+    "fail_count":  0
+}

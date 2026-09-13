@@ -53,7 +53,9 @@ print('evm_labs', len(labs))"
 
 Invoke-Check "compat_matrix_honesty_needles" {
     python -c "from pathlib import Path; t=(Path('docs')/'sprouts'/'EVM_COMPAT_MATRIX.md').read_text(encoding='utf-8');
-assert 'eth_estimateGas' in t and 'Partial' in t;
+assert 'eth_estimateGas' in t;
+assert 'Supported (Absolute honesty)' in t;
+assert 'Partial' in t;  # CALL/precompiles remain Partial
 assert 'eth_subscribe' not in t or 'not WS' in t.lower() or 'polling' in t.lower();
 print('compat_matrix_needles_ok')"
 }

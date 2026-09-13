@@ -732,6 +732,23 @@ def _build_status_probe_payload(
         or (p2p is not None and not bool(getattr(p2p, "_running", False)))
         or (peer_count > 0 and se_status is None)
     )
+    mp_store = {}
+    if mp is not None and hasattr(mp, "get_stats"):
+        try:
+            st = mp.get_stats() or {}
+            mp_store = {
+                "store_backend": st.get("store_backend"),
+                "store_demoted": bool(st.get("store_demoted")),
+                "demote_count": int(st.get("demote_count") or 0),
+            }
+            if (
+                str(getattr(cfg, "deployment_mode", "") or "").lower() == "prod"
+                and bool(getattr(cfg, "require_native_crypto", False))
+                and bool(st.get("store_demoted"))
+            ):
+                degraded = True
+        except Exception as exc:
+            logger.warning("/status probe mempool stats failed: %s", exc)
     return {
         "status": "degraded" if degraded else "running",
         "probe": True,
@@ -748,6 +765,7 @@ def _build_status_probe_payload(
         "chain_id": getattr(cfg, "chain_id", 0),
         "node_id": getattr(cfg, "node_id", "node-1"),
         "mempool_size": mp.get_size() if mp else 0,
+        "mempool_store": mp_store,
         "libp2p": dict(p2p_hard.get("libp2p") or {}),
         "p2p_running": bool(getattr(p2p, "_running", False)) if p2p else False,
     }
@@ -2368,6 +2386,17 @@ class RESTHandler(BaseHTTPRequestHandler):
                 sync_engine_bound = se_status is not None
                 feat_errs = dict(getattr(self.__class__, "feature_init_errors", None) or {})
                 feature_degraded = bool(feat_errs)
+                mempool_store_demoted = bool(mp_stats.get("store_demoted"))
+                if (
+                    str(getattr(cfg, "deployment_mode", "") or "").lower() == "prod"
+                    and bool(getattr(cfg, "require_native_crypto", False))
+                    and mempool_store_demoted
+                ):
+                    feature_degraded = True
+                    feat_errs = dict(feat_errs)
+                    feat_errs["mempool_store"] = (
+                        f"demoted:{mp_stats.get('demote_reason') or 'unknown'}"
+                    )
                 payload = {
                     # Do not hard-code "running" while mesh is inconsistent, unprobed, or P2P is down.
                     "status": (
@@ -2441,6 +2470,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "monolith_summary": monolith_summary,
                     "mempool_size": mp.get_size(),
                     "mempool_stats": mp_stats,
+                    "mempool_store": {
+                        "store_backend": mp_stats.get("store_backend"),
+                        "store_demoted": bool(mp_stats.get("store_demoted")),
+                        "demote_count": int(mp_stats.get("demote_count") or 0),
+                        "demote_reason": str(mp_stats.get("demote_reason") or ""),
+                        "min_fee_satoshi": int(mp_stats.get("min_fee_satoshi") or 0),
+                    },
                     "sharding": sharding_info,
                     "coin": cfg.coin_symbol,
                     "coin_symbol": cfg.coin_symbol,

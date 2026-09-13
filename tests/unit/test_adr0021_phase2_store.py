@@ -109,6 +109,8 @@ def test_store_fault_demotes_to_python() -> None:
     assert pool.add(_mk_tx("after", 5.0), signature_preverified=True)
     assert pool._native_store is None
     assert pool.get_stats().get("store_backend") == "python"
+    assert pool.get_stats().get("store_demoted") is True
+    assert int(pool.get_stats().get("demote_count") or 0) >= 1
     assert pool.has_transaction("after")
     # prior tx may be lost if migrate failed on boom get_sorted — after must survive
     assert pool.get_size() >= 1
