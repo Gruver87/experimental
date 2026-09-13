@@ -5,6 +5,7 @@
 # Usage:
 #   .\scripts\open_ops_console.ps1
 #   .\scripts\open_ops_console.ps1 -OpenOnly
+#   .\scripts\open_ops_console.ps1 -UseMesh
 #   .\scripts\open_ops_console.ps1 -BaseUrl http://127.0.0.1:18180
 #   .\scripts\open_ops_console.ps1 -NoMarketJson
 #   .\scripts\open_ops_console.ps1 -NoExplorer
@@ -14,6 +15,7 @@
 param(
     [string]$BaseUrl = "",
     [switch]$OpenOnly,
+    [switch]$UseMesh,
     [switch]$NoBrowser,
     [switch]$NoMarketJson,
     [switch]$NoExplorer,
@@ -61,14 +63,20 @@ function Resolve-BaseUrl {
     if ($BaseUrl -and $BaseUrl.Trim()) {
         return $BaseUrl.Trim().TrimEnd("/")
     }
-    foreach ($u in @(
-            "http://127.0.0.1:$HttpPort",
-            "http://127.0.0.1:18180",
-            "http://127.0.0.1:18181",
-            "http://127.0.0.1:18182"
-        )) {
-        if (Test-UrlReady -Url "$u/health/live") {
-            return $u
+    # Prefer local solo (:8080) so the demo uses THIS checkout's console/markets code.
+    # Mesh images may lag behind main until rebuild.
+    if (Test-UrlReady -Url "http://127.0.0.1:$HttpPort/health/live") {
+        return "http://127.0.0.1:$HttpPort"
+    }
+    if ($UseMesh) {
+        foreach ($u in @(
+                "http://127.0.0.1:18180",
+                "http://127.0.0.1:18181",
+                "http://127.0.0.1:18182"
+            )) {
+            if (Test-UrlReady -Url "$u/health/live") {
+                return $u
+            }
         }
     }
     return "http://127.0.0.1:$HttpPort"
