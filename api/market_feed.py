@@ -56,6 +56,7 @@ _YAHOO_SYMBOLS: Tuple[Tuple[str, str, str], ...] = (
     ("NG=F", "Natural Gas", "commodity"),
     ("HG=F", "Copper", "commodity"),
     ("DX-Y.NYB", "US Dollar Index", "fx"),
+    ("BYN=X", "USD/BYN", "fx"),
     ("^GSPC", "S&P 500", "index"),
     ("^IXIC", "Nasdaq", "index"),
     ("^DJI", "Dow Jones", "index"),
@@ -140,6 +141,16 @@ _EXCHANGES: Tuple[Dict[str, Any], ...] = (
         "open": "10:00",
         "close": "18:50",
         "kind": "equity",
+    },
+    {
+        "id": "bcse",
+        "name": "BCSE (Belarus)",
+        "city": "Minsk",
+        "tz": "Europe/Minsk",
+        "open": "10:00",
+        "close": "17:00",
+        "kind": "equity",
+        "note": "Belarusian Currency and Stock Exchange",
     },
     {
         "id": "tse",
@@ -310,29 +321,101 @@ def _fetch_crypto() -> Dict[str, Any]:
     return {"ok": True, "items": out, "source": "coingecko"}
 
 
-def _fetch_fx() -> Dict[str, Any]:
-    to = ",".join(_FX_QUOTES)
-    url = f"https://api.frankfurter.app/latest?from=USD&to={urllib.parse.quote(to)}"
+def _usd_byn_from_yahoo() -> Optional[Dict[str, Any]]:
+    """BYN is not on ECB/Frankfurter — use Yahoo BYN=X (USD/BYN)."""
+    q = _yahoo_quote("BYN=X")
+    if not q or q.get("price") is None:
+        return None
+    return {
+        "pair": "USD/BYN",
+        "base": "USD",
+        "quote": "BYN",
+        "rate": float(q["price"]),
+        "change_pct": q.get("change_pct"),
+        "source": "yahoo",
+    }
+
+
+def _frankfurter_crosses(base: str) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    """Fetch USD or EUR crosses from Frankfurter (ECB)."""
+    base_u = base.strip().upper()
+    quotes = [c for c in _FX_QUOTES if c != base_u]
+    if base_u == "EUR" and "USD" not in quotes:
+        quotes = ["USD"] + quotes
+    to = ",".join(quotes)
+    url = (
+        "https://api.frankfurter.app/latest"
+        f"?from={urllib.parse.quote(base_u)}&to={urllib.parse.quote(to)}"
+    )
     data = _http_get_json(url)
     rates = data.get("rates") if isinstance(data, dict) else {}
-    items = []
+    items: List[Dict[str, Any]] = []
     if isinstance(rates, dict):
         for cur, rate in rates.items():
             items.append(
                 {
-                    "pair": f"USD/{cur}",
-                    "base": "USD",
+                    "pair": f"{base_u}/{cur}",
+                    "base": base_u,
                     "quote": cur,
                     "rate": rate,
                     "source": "frankfurter",
                 }
             )
+    as_of = (data or {}).get("date") if isinstance(data, dict) else None
+    return items, as_of
+
+
+def _fetch_fx() -> Dict[str, Any]:
+    usd_items, as_of = _frankfurter_crosses("USD")
+    eur_items: List[Dict[str, Any]] = []
+    try:
+        eur_items, eur_as_of = _frankfurter_crosses("EUR")
+        as_of = as_of or eur_as_of
+    except Exception as exc:
+        logger.info("market EUR crosses fetch failed: %s", exc)
+
+    byn = None
+    try:
+        byn = _usd_byn_from_yahoo()
+    except Exception as exc:
+        logger.info("market BYN fetch failed: %s", exc)
+
+    if byn is not None:
+        usd_items.insert(0, byn)
+        # EUR/BYN = (USD/BYN) / (USD/EUR) when USD/EUR present
+        usd_eur = next(
+            (float(r["rate"]) for r in usd_items if r.get("quote") == "EUR"),
+            None,
+        )
+        if usd_eur is None:
+            usd_eur = next(
+                (
+                    (1.0 / float(r["rate"]))
+                    for r in eur_items
+                    if r.get("quote") == "USD" and float(r["rate"])
+                ),
+                None,
+            )
+        if usd_eur and usd_eur > 0:
+            eur_items.insert(
+                0,
+                {
+                    "pair": "EUR/BYN",
+                    "base": "EUR",
+                    "quote": "BYN",
+                    "rate": float(byn["rate"]) / usd_eur,
+                    "source": "yahoo+frankfurter",
+                },
+            )
+
     return {
         "ok": True,
-        "as_of": (data or {}).get("date") if isinstance(data, dict) else None,
-        "base": "USD",
-        "items": items,
-        "source": "frankfurter",
+        "as_of": as_of,
+        "base": "USD+EUR",
+        "items": usd_items + eur_items,
+        "usd": usd_items,
+        "eur": eur_items,
+        "source": "frankfurter+yahoo-byn",
     }
 
 
@@ -389,6 +472,101 @@ def _fetch_yahoo_basket() -> Dict[str, Any]:
     }
 
 
+def _fx_via_usd(amount: float, frm_u: str, to_u: str) -> Dict[str, Any]:
+    """Triangle via USD when one leg is BYN (Yahoo) or Frankfurter misses a pair."""
+    amt = float(amount)
+    if frm_u == "USD":
+        usd_amt = amt
+        src_legs = []
+    elif to_u == "USD" and frm_u == "BYN":
+        byn = _usd_byn_from_yahoo()
+        if byn is None:
+            raise MarketFeedError("BYN rate unavailable")
+        rate = float(byn["rate"])
+        if rate <= 0:
+            raise MarketFeedError("BYN rate invalid")
+        result = amt / rate
+        return {
+            "ok": True,
+            "amount": amt,
+            "from": frm_u,
+            "to": to_u,
+            "rate": 1.0 / rate,
+            "result": result,
+            "source": "yahoo-byn",
+        }
+    else:
+        # frm -> USD via Frankfurter (or BYN->USD)
+        if frm_u == "BYN":
+            mid = _fx_via_usd(amt, "BYN", "USD")
+            usd_amt = float(mid["result"])
+            src_legs = ["yahoo-byn"]
+        else:
+            url = (
+                "https://api.frankfurter.app/latest"
+                f"?amount={urllib.parse.quote(str(amt))}"
+                f"&from={urllib.parse.quote(frm_u)}&to=USD"
+            )
+            data = _http_get_json(url)
+            rates = (data or {}).get("rates") if isinstance(data, dict) else {}
+            if not isinstance(rates, dict) or "USD" not in rates:
+                raise MarketFeedError("fx pair unavailable")
+            usd_amt = float(rates["USD"])
+            src_legs = ["frankfurter"]
+
+    if to_u == "USD":
+        return {
+            "ok": True,
+            "amount": amt,
+            "from": frm_u,
+            "to": to_u,
+            "rate": (usd_amt / amt) if amt else None,
+            "result": usd_amt,
+            "source": "+".join(src_legs) or "identity",
+        }
+
+    if to_u == "BYN":
+        byn = _usd_byn_from_yahoo()
+        if byn is None:
+            raise MarketFeedError("BYN rate unavailable")
+        rate = float(byn["rate"])
+        if rate <= 0:
+            raise MarketFeedError("BYN rate invalid")
+        result = usd_amt * rate
+        legs = (src_legs + ["yahoo-byn"]) if src_legs else ["yahoo-byn"]
+        return {
+            "ok": True,
+            "amount": amt,
+            "from": frm_u,
+            "to": to_u,
+            "rate": (result / amt) if amt else None,
+            "result": result,
+            "source": "+".join(legs),
+        }
+
+    url = (
+        "https://api.frankfurter.app/latest"
+        f"?amount={urllib.parse.quote(str(usd_amt))}"
+        f"&from=USD&to={urllib.parse.quote(to_u)}"
+    )
+    data = _http_get_json(url)
+    rates = (data or {}).get("rates") if isinstance(data, dict) else {}
+    if not isinstance(rates, dict) or to_u not in rates:
+        raise MarketFeedError("fx pair unavailable")
+    result = float(rates[to_u])
+    legs = (src_legs + ["frankfurter"]) if src_legs else ["frankfurter"]
+    return {
+        "ok": True,
+        "amount": amt,
+        "from": frm_u,
+        "to": to_u,
+        "rate": (result / amt) if amt else None,
+        "result": result,
+        "as_of": (data or {}).get("date"),
+        "source": "+".join(legs),
+    }
+
+
 def convert_fx(amount: float, frm: str, to: str) -> Dict[str, Any]:
     frm_u = (frm or "USD").strip().upper()
     to_u = (to or "EUR").strip().upper()
@@ -409,6 +587,11 @@ def convert_fx(amount: float, frm: str, to: str) -> Dict[str, Any]:
         hit = _cache_get(key)
         if hit is not None:
             return hit
+    if "BYN" in (frm_u, to_u):
+        out = _fx_via_usd(float(amount), frm_u, to_u)
+        with _lock:
+            _cache_set(key, out)
+        return out
     url = (
         "https://api.frankfurter.app/latest"
         f"?amount={urllib.parse.quote(str(amount))}"

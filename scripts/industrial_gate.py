@@ -160,6 +160,9 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "abs_p2p_under_mesh",
         "abs_p2p_sync_status",
         "abs_p2p_peer_sync_gap",
+        "abs_mempool_store_demoted",
+        "abs_mempool_store_demote_count",
+        "abs_mempool_store_backend",
     ):
         if needle not in dash_src:
             errors.append(f"grafana dashboard.json missing panel surface: {needle}")
@@ -5067,6 +5070,14 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("metrics must export abs_p2p_under_mesh (under_mesh honesty)")
         if "abs_p2p_sync_status" not in metrics_under:
             errors.append("metrics must export abs_p2p_sync_status one-hot gauge")
+        if "abs_mempool_store_demoted" not in metrics_under:
+            errors.append("metrics must export abs_mempool_store_demoted (Wave E demote scrape)")
+        if "abs_mempool_store_demote_count" not in metrics_under:
+            errors.append("metrics must export abs_mempool_store_demote_count (Wave E)")
+        if "mempool_store" not in (
+            ROOT / "observability" / "ports.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("MetricsSnapshot must carry mempool_store (Wave E ADR 0015)")
         if not (ROOT / "scripts" / "cross_shard_lab.py").is_file():
             errors.append("cross_shard_lab.py missing (Profile E lab)")
         else:

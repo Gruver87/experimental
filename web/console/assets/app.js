@@ -2,6 +2,9 @@
 (function () {
   "use strict";
 
+  const POLL_MS = 5 * 60 * 1000; // 5 minutes — browse without scroll reset
+  const POLL_LABEL = "Auto 5m";
+
   const META = {
     overview: ["Overview", "Live node strip · honesty badges · height sparkline"],
     mesh: ["Mesh & Sync", "under_mesh · topology · security · wire probe"],
@@ -302,6 +305,9 @@
       "abs_sync_wire_probe_ok",
       "abs_peers_connected",
       "abs_mempool_size",
+      "abs_mempool_store_demoted",
+      "abs_mempool_store_demote_count",
+      "abs_mempool_store_backend",
       "abs_chain_height",
       "abs_rocksdb_native_pack_fallbacks",
       "abs_p2p_shape_rejects_total",
@@ -768,10 +774,30 @@
     }
     const exchanges = (snap && snap.exchanges) || [];
     const crypto = ((snap && snap.crypto) || {}).items || [];
-    const fx = ((snap && snap.fx) || {}).items || [];
+    const fxBlock = (snap && snap.fx) || {};
+    const fxUsd =
+      fxBlock.usd ||
+      (fxBlock.items || []).filter((r) => (r.base || "").toUpperCase() === "USD");
+    const fxEur =
+      fxBlock.eur ||
+      (fxBlock.items || []).filter((r) => (r.base || "").toUpperCase() === "EUR");
     const tickers = ((snap && snap.tickers) || {}).items || [];
     const commodities = tickers.filter((t) => t.kind === "commodity" || t.kind === "index");
     const equities = tickers.filter((t) => t.kind === "equity");
+
+    function fxGrid(rows) {
+      return (
+        rows
+          .slice(0, 20)
+          .map(
+            (r) =>
+              `<div class="ticker"><div class="sym">${esc(
+                r.pair
+              )}</div><div class="px">${esc(fmtPx(r.rate))}</div></div>`
+          )
+          .join("") || '<p class="muted">FX unavailable</p>'
+      );
+    }
 
     root.innerHTML = `
       <div class="warn-box">
@@ -787,26 +813,23 @@
       </div>
       <div class="grid grid-2" style="margin-bottom:14px">
         <div class="card">
-          <h2>FX converter (ECB / Frankfurter)</h2>
+          <h2>FX converter (ECB / Frankfurter + BYN via Yahoo)</h2>
           <div class="row">
             <div class="form-row" style="flex:1"><label>Amount</label><input id="fx-amt" value="100" /></div>
-            <div class="form-row" style="width:100px"><label>From</label><input id="fx-from" value="USD" /></div>
-            <div class="form-row" style="width:100px"><label>To</label><input id="fx-to" value="EUR" /></div>
+            <div class="form-row" style="width:100px"><label>From</label><input id="fx-from" value="EUR" /></div>
+            <div class="form-row" style="width:100px"><label>To</label><input id="fx-to" value="BYN" /></div>
+          </div>
+          <div class="row" style="gap:8px;margin:8px 0">
+            <button type="button" class="btn ghost" id="fx-preset-eur">EUR→BYN</button>
+            <button type="button" class="btn ghost" id="fx-preset-usd">USD→BYN</button>
+            <button type="button" class="btn ghost" id="fx-preset-eurusd">EUR→USD</button>
           </div>
           <button type="button" class="btn" id="btn-fx">Convert</button>
           <div id="fx-out" class="mono" style="margin-top:10px"></div>
-          <h3>USD crosses</h3>
-          <div class="ticker-grid">
-            ${fx
-              .slice(0, 16)
-              .map(
-                (r) =>
-                  `<div class="ticker"><div class="sym">${esc(
-                    r.pair
-                  )}</div><div class="px">${esc(fmtPx(r.rate))}</div></div>`
-              )
-              .join("") || '<p class="muted">FX unavailable</p>'}
-          </div>
+          <h3>EUR crosses (BYN first when available)</h3>
+          <div class="ticker-grid">${fxGrid(fxEur)}</div>
+          <h3 style="margin-top:14px">USD crosses (BYN first when available)</h3>
+          <div class="ticker-grid">${fxGrid(fxUsd)}</div>
         </div>
         <div class="card">
           <h2>Exchanges board</h2>
@@ -916,6 +939,13 @@
         toast(String(e.message || e));
       }
     };
+    const setFxPair = (frm, to) => {
+      el("fx-from").value = frm;
+      el("fx-to").value = to;
+    };
+    el("fx-preset-eur").onclick = () => setFxPair("EUR", "BYN");
+    el("fx-preset-usd").onclick = () => setFxPair("USD", "BYN");
+    el("fx-preset-eurusd").onclick = () => setFxPair("EUR", "USD");
     el("btn-market-refresh").onclick = () => renderMarkets();
   }
 
@@ -980,7 +1010,8 @@
     }
   }
 
-  async function refreshAll() {
+  async function refreshAll(opts) {
+    const soft = !!(opts && opts.soft);
     const pill = el("live-pill");
     try {
       let st = null;
@@ -1022,7 +1053,8 @@
 
       pill.classList.remove("off");
       pill.innerHTML = '<span class="pulse"></span> live';
-      renderView();
+      // Soft poll updates strip/sparklines only — full re-render jumps scroll to top.
+      if (!soft) renderView();
     } catch (e) {
       pill.classList.add("off");
       pill.innerHTML = '<span class="pulse"></span> offline';
@@ -1033,7 +1065,7 @@
   function schedule() {
     if (state.timer) clearInterval(state.timer);
     state.timer = null;
-    if (state.poll) state.timer = setInterval(refreshAll, 5000);
+    if (state.poll) state.timer = setInterval(() => refreshAll({ soft: true }), POLL_MS);
   }
 
   function boot() {
@@ -1064,11 +1096,11 @@
     document.querySelectorAll(".nav-btn").forEach((btn) => {
       btn.addEventListener("click", () => setView(btn.dataset.view));
     });
-    el("btn-refresh").onclick = () => refreshAll();
+    el("btn-refresh").onclick = () => refreshAll({ soft: false });
     el("btn-poll").onclick = () => {
       state.poll = !state.poll;
       el("btn-poll").dataset.on = state.poll ? "1" : "0";
-      el("btn-poll").textContent = state.poll ? "Auto 5s" : "Paused";
+      el("btn-poll").textContent = state.poll ? POLL_LABEL : "Paused";
       schedule();
     };
     el("btn-theme").onclick = () => {

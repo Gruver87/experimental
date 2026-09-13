@@ -2240,6 +2240,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                     if compute_tps_from_chain_metrics
                     else 0.0
                 )
+                mempool_store: dict = {}
+                if mp is not None and hasattr(mp, "get_stats"):
+                    try:
+                        mempool_store = dict(mp.get_stats() or {})
+                    except Exception as exc:
+                        logger.warning("/metrics mempool_store snapshot failed: %s", exc)
                 # ADR 0015: snapshot on HTTP worker thread → MetricsExporterPort.render
                 if exporter is not None and MetricsSnapshot is not None:
                     snap = MetricsSnapshot(
@@ -2263,6 +2269,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                         },
                         ws_stats=ws_stats,
                         apply_isolation=self._apply_isolation_metrics(p2p),
+                        mempool_store=mempool_store,
                     )
                     text = exporter.render(snap)
                 else:
@@ -2285,6 +2292,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                         },
                         ws_stats=ws_stats,
                         apply_isolation=self._apply_isolation_metrics(p2p),
+                        mempool_store=mempool_store,
                         tps=tps,
                     )
                 body = text.encode()
@@ -2892,6 +2900,35 @@ class RESTHandler(BaseHTTPRequestHandler):
                             "tx_count": len(txs),
                             "transactions": txs[:20],
                         })
+
+            elif path == "/transactions/recent":
+                # Explorer compatibility alias — not a consensus surface.
+                limit = min(max(int((qs.get("limit") or ["25"])[0]), 1), 100)
+                txs_out: list[dict] = []
+                if db and hasattr(db, "get_latest_blocks"):
+                    for blk in db.get_latest_blocks(min(40, limit)):
+                        h = blk.get("height")
+                        for tx in blk.get("transactions") or []:
+                            if not isinstance(tx, dict):
+                                continue
+                            txs_out.append(
+                                {
+                                    "hash": tx.get("hash") or tx.get("tx_hash"),
+                                    "from": tx.get("from") or tx.get("from_addr"),
+                                    "to": tx.get("to") or tx.get("to_addr"),
+                                    "value": tx.get("value")
+                                    if tx.get("value") is not None
+                                    else tx.get("amount"),
+                                    "block_height": h,
+                                    "type": tx.get("type"),
+                                    "status": "confirmed",
+                                }
+                            )
+                            if len(txs_out) >= limit:
+                                break
+                        if len(txs_out) >= limit:
+                            break
+                self._json({"transactions": txs_out, "count": len(txs_out)})
 
             elif path == "/mempool":
                 txs = mp.get(limit=50)

@@ -262,6 +262,27 @@
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 76},
       "targets": [{"expr": "abs_rocksdb_native_pack_fallbacks", "legendFormat": "{{node_id}}"}]
+    },
+    {
+      "id": 35,
+      "title": "Mempool Store Demoted",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 76},
+      "targets": [{"expr": "abs_mempool_store_demoted"}]
+    },
+    {
+      "id": 36,
+      "title": "Mempool Demote Count",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 84},
+      "targets": [{"expr": "abs_mempool_store_demote_count", "legendFormat": "{{node_id}}"}]
+    },
+    {
+      "id": 37,
+      "title": "Mempool Store Backend (one-hot)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 76},
+      "targets": [{"expr": "abs_mempool_store_backend", "legendFormat": "{{backend}}"}]
     }
   ]
 }

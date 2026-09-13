@@ -27,6 +27,7 @@ class MetricsSnapshot:
     core_engines: Mapping[str, Any] = field(default_factory=dict)
     ws_stats: Mapping[str, Any] = field(default_factory=dict)
     apply_isolation: Mapping[str, Any] = field(default_factory=dict)
+    mempool_store: Mapping[str, Any] = field(default_factory=dict)
 
 
 @runtime_checkable
@@ -111,5 +112,6 @@ class PrometheusMetricsExporter:
             core_engines=dict(snapshot.core_engines or {}),
             ws_stats=dict(snapshot.ws_stats or {}),
             apply_isolation=dict(snapshot.apply_isolation or {}),
+            mempool_store=dict(snapshot.mempool_store or {}),
             tps=float(snapshot.tps or 0.0),
         )

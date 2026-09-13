@@ -1,14 +1,15 @@
-# Absolute Ops Console - start what is needed and open browser tabs.
+# Absolute Ops Console - start what is needed and open the main page.
 #
-# Default: Solo node on :8080 / :8545 (if not already up), then open console views.
+# Default: Solo node on :8080 / :8545 (if not already up), then open ONE tab: /
 #
 # Usage:
 #   .\scripts\open_ops_console.ps1
 #   .\scripts\open_ops_console.ps1 -OpenOnly
 #   .\scripts\open_ops_console.ps1 -UseMesh
 #   .\scripts\open_ops_console.ps1 -BaseUrl http://127.0.0.1:18180
+#   .\scripts\open_ops_console.ps1 -AllTabs          # old multi-tab tour
+#   .\scripts\open_ops_console.ps1 -WithExplorer
 #   .\scripts\open_ops_console.ps1 -NoMarketJson
-#   .\scripts\open_ops_console.ps1 -NoExplorer
 #
 # Honesty: local R&D demo - not soak / not mainnet.
 
@@ -18,8 +19,9 @@ param(
     [switch]$UseMesh,
     [switch]$NoBrowser,
     [switch]$NoMarketJson,
-    [switch]$NoExplorer,
+    [switch]$WithExplorer,
     [switch]$NoDocs,
+    [switch]$AllTabs,
     [int]$WaitSec = 120,
     [int]$HttpPort = 8080
 )
@@ -168,43 +170,45 @@ if (-not (Start-SoloIfNeeded -TargetBase $base)) {
 }
 
 # Soft probes (do not fail the tour if optional feeds are down)
-$marketOk = $false
 try {
     $ms = Invoke-RestMethod -Uri "$base/market/snapshot" -TimeoutSec 20
-    $marketOk = [bool]$ms.ok
     $cCount = @($ms.crypto.items).Count
     $fCount = @($ms.fx.items).Count
     $tCount = @($ms.tickers.items).Count
     $color = "Yellow"
-    if ($marketOk) { $color = "Green" }
+    if ($ms.ok) { $color = "Green" }
     Write-Host ("Market snapshot: ok={0} crypto={1} fx={2} tickers={3}" -f $ms.ok, $cCount, $fCount, $tCount) -ForegroundColor $color
 } catch {
     Write-Host ("Market snapshot not ready yet (UI still opens): {0}" -f $_.Exception.Message) -ForegroundColor Yellow
 }
 
-$paths = @(
-    "/#overview",
-    "/#markets",
-    "/#wallets",
-    "/#council",
-    "/#metrics",
-    "/#mesh",
-    "/#mempool",
-    "/#security"
-)
-if (-not $NoExplorer) { $paths += "/explorer" }
-if (-not $NoDocs) { $paths += "/docs" }
-if (-not $NoMarketJson) { $paths += "/market/snapshot" }
-$paths += "/status?probe=1"
-$paths += "/health/ready"
+# Default: one main console tab. -AllTabs restores the multi-tab tour.
+if ($AllTabs) {
+    $paths = @(
+        "/#overview",
+        "/#markets",
+        "/#wallets",
+        "/#council",
+        "/#metrics",
+        "/#mesh",
+        "/#security"
+    )
+    if ($WithExplorer) { $paths += "/explorer" }
+    if (-not $NoDocs) { $paths += "/docs" }
+    if (-not $NoMarketJson) { $paths += "/market/snapshot" }
+    $paths += "/status?probe=1"
+    $paths += "/health/ready"
+} else {
+    $paths = @("/")
+    if ($WithExplorer) { $paths += "/explorer" }
+}
 
 Open-Tabs -Base $base -Paths $paths
 
 Write-Host ""
-Write-Host "RESULT: browser tabs launched" -ForegroundColor Green
+Write-Host "RESULT: browser opened" -ForegroundColor Green
 Write-Host ("  Console   {0}/" -f $base) -ForegroundColor Gray
-Write-Host ("  Markets   {0}/#markets" -f $base) -ForegroundColor Gray
-Write-Host ("  Explorer  {0}/explorer" -f $base) -ForegroundColor Gray
 Write-Host "  Stop solo: .\scripts\stop_node.ps1" -ForegroundColor Gray
 Write-Host "  Reopen:    .\scripts\open_ops_console.ps1 -OpenOnly" -ForegroundColor Gray
+Write-Host "  All tabs:  .\scripts\open_ops_console.ps1 -OpenOnly -AllTabs" -ForegroundColor DarkGray
 exit 0

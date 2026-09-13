@@ -109,6 +109,7 @@ class MetricsCollector:
         core_engines: Optional[dict[str, Any]] = None,
         ws_stats: Optional[dict[str, Any]] = None,
         apply_isolation: Optional[dict[str, Any]] = None,
+        mempool_store: Optional[dict[str, Any]] = None,
         tps: float = 0.0,
     ) -> str:
         native_crypto = native_crypto or {}
@@ -119,6 +120,7 @@ class MetricsCollector:
         core_engines = core_engines or {}
         ws_stats = ws_stats or {}
         apply_isolation = apply_isolation or {}
+        mempool_store = mempool_store or {}
         try:
             tps_val = float(tps or 0.0)
             if tps_val != tps_val or tps_val in (float("inf"), float("-inf")):
@@ -157,6 +159,24 @@ class MetricsCollector:
             "# HELP abs_mempool_size Pending transactions",
             "# TYPE abs_mempool_size gauge",
             f"abs_mempool_size{{node_id=\"{node_id}\"}} {mempool}",
+            "# HELP abs_mempool_store_demoted Whether Rust mempool store was demoted to Python",
+            "# TYPE abs_mempool_store_demoted gauge",
+            (
+                f"abs_mempool_store_demoted{{node_id=\"{node_id}\"}} "
+                f"{1 if mempool_store.get('store_demoted') else 0}"
+            ),
+            "# HELP abs_mempool_store_demote_count Lifetime demote events for mempool store",
+            "# TYPE abs_mempool_store_demote_count counter",
+            (
+                f"abs_mempool_store_demote_count{{node_id=\"{node_id}\"}} "
+                f"{int(mempool_store.get('demote_count', 0) or 0)}"
+            ),
+            "# HELP abs_mempool_store_backend Active mempool store backend (one-hot)",
+            "# TYPE abs_mempool_store_backend gauge",
+            (
+                f"abs_mempool_store_backend{{node_id=\"{node_id}\","
+                f"backend=\"{self._prom_label(mempool_store.get('store_backend') or 'unknown')}\"}} 1"
+            ),
             "# HELP abs_validators_active Active validators",
             "# TYPE abs_validators_active gauge",
             f"abs_validators_active{{node_id=\"{node_id}\"}} {validators}",

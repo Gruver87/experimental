@@ -95,8 +95,10 @@
 <body>
 <div id="abs-console-banner" style="background:#12141a;border-bottom:1px solid #c4783a;padding:10px 16px;font:13px/1.4 Bahnschrift,Segoe UI,system-ui,sans-serif;color:#e8e4dc;position:sticky;top:0;z-index:1000">
   <strong style="color:#c4783a">Ops Console</strong>
-  — live metrics, mesh honesty, wallets:
-  <a href="/" style="color:#3dd6c6">open console</a>
+  — new UI (Markets / Wallets / Metrics):
+  <a href="/#overview" style="color:#3dd6c6">/#overview</a>
+  · <a href="/#markets" style="color:#3dd6c6">/#markets</a>
+  · <a href="/#wallets" style="color:#3dd6c6">/#wallets</a>
   <span style="color:#9a9488"> · this page is the legacy feature explorer</span>
 </div>
 <!-- Sidebar -->
@@ -1753,12 +1755,16 @@ async function configureEndpoints() {
   const probe = (location.protocol === 'http:' || location.protocol === 'https:')
     ? location.origin
     : 'http://localhost:8080';
+  // Same-origin only: never rewrite API to cfg.http_port (Docker internal 8080
+  // breaks host-mapped mesh :18180 and paints Status Offline while WS still moves).
+  API = probe;
   try {
-    const st = await fetch(probe + '/status').then(r => r.json());
+    const st = await fetch(probe + '/status?probe=1').then(r => r.json());
     const host = location.hostname || 'localhost';
-    if (st.http_port) API = `http://${host}:${st.http_port}`;
-    if (st.rpc_port) RPC = `http://${host}:${st.rpc_port}`;
-    if (st.ws_port) WS = `ws://${host}:${st.ws_port}`;
+    const proto = location.protocol === 'https:' ? 'https' : 'http';
+    const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
+    if (st.rpc_port) RPC = `${proto}://${host}:${st.rpc_port}`;
+    if (st.ws_port) WS = `${wsProto}://${host}:${st.ws_port}`;
     applyDeploymentMode(st);
   } catch (_) {}
 }
@@ -1868,9 +1874,16 @@ async function rpc(method, params=[]) {
 
 // ── Status bar ──────────────────────────────────────────────────────────────
 async function refreshStatus() {
-  const data = await get('/status');
-  if (!data) { document.getElementById('s-status').textContent = 'Offline'; return; }
-  document.getElementById('s-status').textContent = 'Online';
+  let data = await get('/status?probe=1');
+  if (!data || data.error) data = await get('/status');
+  if (!data || data.error) {
+    const h = document.getElementById('s-height')?.textContent;
+    document.getElementById('s-status').textContent =
+      (h && h !== '—' && h !== 'Loading...') ? 'WS-only' : 'Offline';
+    return;
+  }
+  document.getElementById('s-status').textContent =
+    data.status === 'degraded' ? 'Degraded' : 'Online';
   document.getElementById('s-height').textContent = data.height ?? '—';
   document.getElementById('s-chainid').textContent = data.chain_id ?? '—';
   document.getElementById('s-validators').textContent = data.validator_count ?? '—';
@@ -2006,9 +2019,31 @@ function addBlockToFeed(b) {
 }
 
 async function loadRecentActivity() {
+  // Prefer blocks (always present). /transactions/recent is a compatibility alias.
+  const data = await get('/blocks?limit=12');
+  if (data?.blocks?.length) {
+    feedBlocks = [];
+    const sorted = [...data.blocks].sort((a, b) => (b.height||0) - (a.height||0));
+    for (const b of sorted) {
+      addBlockToFeed({
+        height: b.height,
+        hash: b.hash,
+        txs: b.tx_count ?? (b.transactions?.length || 0),
+        burned: b.total_burned || 0,
+      });
+      for (const tx of b.transactions || []) {
+        addTxToFeed({
+          hash: tx.hash || tx.tx_hash,
+          from: tx.from_addr || tx.from,
+          to: tx.to_addr || tx.to,
+          value: tx.value ?? tx.amount,
+          block: b.height,
+        });
+      }
+    }
+  }
   const recent = await get('/transactions/recent?limit=25');
   if (recent?.transactions?.length) {
-    feedTxs = [];
     for (const tx of recent.transactions) {
       addTxToFeed({
         hash: tx.hash || tx.tx_hash,
@@ -2018,28 +2053,6 @@ async function loadRecentActivity() {
         block: tx.block_height ?? tx.height ?? '—',
         type: tx.type,
         status: tx.status,
-      });
-    }
-    return;
-  }
-  const data = await get('/blocks?limit=12');
-  if (!data?.blocks?.length) return;
-  feedBlocks = [];
-  const sorted = [...data.blocks].sort((a, b) => (b.height||0) - (a.height||0));
-  for (const b of sorted) {
-    addBlockToFeed({
-      height: b.height,
-      hash: b.hash,
-      txs: b.tx_count ?? (b.transactions?.length || 0),
-      burned: b.total_burned || 0,
-    });
-    for (const tx of b.transactions || []) {
-      addTxToFeed({
-        hash: tx.hash || tx.tx_hash,
-        from: tx.from_addr || tx.from,
-        to: tx.to_addr || tx.to,
-        value: tx.value ?? tx.amount,
-        block: b.height,
       });
     }
   }
@@ -3776,8 +3789,9 @@ async function loadMempoolDashboard() {
   const summary = document.getElementById('mempool-dashboard-summary');
   const list = document.getElementById('mempool-pending-list');
   if (!summary) return;
-  const [mp, sh] = await Promise.all([api('/mempool'), api('/sharding/stats')]);
-  if (!mp) {
+  const mp = await api('/mempool');
+  const sh = await api('/sharding/stats');
+  if (!mp || mp.error) {
     summary.textContent = 'Mempool unavailable';
     return;
   }

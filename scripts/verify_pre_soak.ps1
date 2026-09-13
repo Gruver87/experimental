@@ -65,6 +65,31 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "OK: demote/port unit tests" -ForegroundColor Green
 }
 
+Step "3b) Waves B-E honesty unit needles"
+python -m pytest -q tests/unit/test_wave_c_peer_probe_retry.py tests/unit/test_wave_c_rocks_pack_fallback.py tests/unit/test_wave_d_under_mesh_metric.py tests/unit/test_wave_e_mempool_demote_metric.py --tb=line
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "FAIL: Wave B-E honesty units" -ForegroundColor Red
+    $fail++
+} else {
+    Write-Host "OK: Wave B-E honesty units" -ForegroundColor Green
+}
+
+Step "3c) Prom demote + under_mesh present in metrics source"
+$metricsPy = Join-Path $Root "observability\metrics.py"
+$mTxt = Get-Content -Raw -Path $metricsPy
+if ($mTxt -notmatch "abs_mempool_store_demoted") {
+    Write-Host "FAIL: metrics missing abs_mempool_store_demoted (Wave E)" -ForegroundColor Red
+    $fail++
+} elseif ($mTxt -notmatch "abs_p2p_under_mesh") {
+    Write-Host "FAIL: metrics missing abs_p2p_under_mesh (Wave D)" -ForegroundColor Red
+    $fail++
+} elseif ($mTxt -notmatch "abs_rocksdb_native_pack_fallbacks") {
+    Write-Host "FAIL: metrics missing abs_rocksdb_native_pack_fallbacks (Wave C)" -ForegroundColor Red
+    $fail++
+} else {
+    Write-Host "OK: Prom honesty needles (C/D/E) in metrics.py" -ForegroundColor Green
+}
+
 if (-not $SkipMesh) {
     Step "4) container has demote + rust store"
     # Use only single quotes inside Python so PowerShell/docker do not strip them.
