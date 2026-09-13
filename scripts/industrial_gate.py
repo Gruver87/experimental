@@ -4907,6 +4907,86 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         tx_ports = ROOT / "core" / "components" / "ports.py"
         if not tx_ports.is_file() or "class TxPipelinePort" not in tx_ports.read_text(encoding="utf-8"):
             errors.append("core/components/ports.py TxPipelinePort missing (ADR 0021)")
+        mk_rs = ROOT / "native" / "abs_native" / "src" / "mempool_kernel.rs"
+        if not mk_rs.is_file():
+            errors.append("mempool_kernel.rs missing (ADR 0021 phase-1)")
+        else:
+            mk_txt = mk_rs.read_text(encoding="utf-8", errors="replace")
+            for needle in (
+                "fn mempool_validate_post_sig",
+                "fn mempool_admit_evm_deploy",
+                "insufficient_balance",
+                "nonce_mismatch",
+                "validate_post_sig_inner",
+                "admit_evm_deploy_inner",
+            ):
+                if needle not in mk_txt:
+                    errors.append(f"mempool_kernel.rs missing {needle}")
+        ms_rs = ROOT / "native" / "abs_native" / "src" / "mempool_store.rs"
+        if not ms_rs.is_file():
+            errors.append("mempool_store.rs missing (ADR 0021 phase-2)")
+        else:
+            ms_txt = ms_rs.read_text(encoding="utf-8", errors="replace")
+            for needle in ("struct MempoolStore", "fn insert", "fn get_sorted", "cleanup_cheapest_10pct"):
+                if needle not in ms_txt:
+                    errors.append(f"mempool_store.rs missing {needle}")
+        mempool_py = (ROOT / "blockchain" / "mempool.py").read_text(encoding="utf-8", errors="replace")
+        if "create_mempool_store" not in mempool_py:
+            errors.append("blockchain/mempool.py must wire create_mempool_store (ADR 0021 phase-2)")
+        if "store_backend" not in mempool_py:
+            errors.append("mempool get_stats must expose store_backend (ADR 0021 phase-2)")
+        native_py = (ROOT / "crypto" / "native.py").read_text(encoding="utf-8", errors="replace")
+        if "def mempool_validate_post_sig" not in native_py:
+            errors.append("crypto/native.py must export mempool_validate_post_sig (ADR 0021)")
+        if "def create_mempool_store" not in native_py:
+            errors.append("crypto/native.py must export create_mempool_store (ADR 0021 phase-2)")
+        if "def mempool_admit_evm_deploy" not in native_py:
+            errors.append("crypto/native.py must export mempool_admit_evm_deploy (ADR 0021 phase-3)")
+        caps_py = (ROOT / "runtime" / "native_capabilities.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if 'MEMPOOL_KERNEL = "mempool_kernel"' not in caps_py:
+            errors.append("NativeFamily.MEMPOOL_KERNEL missing (ADR 0021 / ADR 0009)")
+        if 'MEMPOOL_STORE = "mempool_store"' not in caps_py:
+            errors.append("NativeFamily.MEMPOOL_STORE missing (ADR 0021 phase-2 / ADR 0009)")
+        pipe_py = (ROOT / "core" / "components" / "tx_pipeline.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "_post_sig_kernel_check" not in pipe_py or "mempool_validate_post_sig" not in pipe_py:
+            errors.append("TxPipeline must wire mempool_validate_post_sig after sig (ADR 0021)")
+        if "mempool_admit_evm_deploy" not in pipe_py:
+            errors.append("TxPipeline must wire mempool_admit_evm_deploy (ADR 0021 phase-3)")
+        if "verify_tx_signature" not in pipe_py.split("_post_sig_kernel_check", 1)[0]:
+            # soft check: sig path still present in file before kernel helper usage in _validate
+            pass
+        if "get_nonce" not in pipe_py or "get_balance_satoshi" not in pipe_py:
+            errors.append("TxPipeline must build snapshot from StoragePort fields (ADR 0021)")
+        fixtures_dir = ROOT / "tests" / "fixtures" / "adr0021_phase1"
+        if not (fixtures_dir / "kernel_input_accept.json").is_file():
+            errors.append("ADR 0021 phase-1 golden fixtures missing")
+        if not (fixtures_dir / "pipeline_refuse_deploy_eof.json").is_file():
+            errors.append("ADR 0021 phase-3 deploy goldens missing")
+        if not (ROOT / "tests" / "unit" / "test_adr0021_phase1_fixtures.py").is_file():
+            errors.append("test_adr0021_phase1_fixtures.py missing")
+        else:
+            t0021 = (ROOT / "tests" / "unit" / "test_adr0021_phase1_fixtures.py").read_text(
+                encoding="utf-8", errors="replace"
+            )
+            if "mempool_validate_post_sig" not in t0021:
+                errors.append("phase-1 fixtures test must exercise mempool_validate_post_sig")
+            if "mempool_admit_evm_deploy" not in t0021:
+                errors.append("phase-3 fixtures test must exercise mempool_admit_evm_deploy")
+        if not (ROOT / "scripts" / "verify_adr0021_phase1.py").is_file():
+            errors.append("scripts/verify_adr0021_phase1.py missing (operator self-check)")
+        if not (ROOT / "tests" / "unit" / "test_adr0021_phase2_store.py").is_file():
+            errors.append("test_adr0021_phase2_store.py missing (ADR 0021 phase-2)")
+        lib_rs = (ROOT / "native" / "abs_native" / "src" / "lib.rs").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "mempool_kernel" not in lib_rs:
+            errors.append("lib.rs must register mempool_kernel module")
+        if "mempool_store" not in lib_rs:
+            errors.append("lib.rs must register mempool_store module (ADR 0021 phase-2)")
         if not (ROOT / "scripts" / "oracle_lab.py").is_file():
             errors.append("oracle_lab.py missing (aux sprout lab)")
         else:

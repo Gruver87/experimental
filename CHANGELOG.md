@@ -15,12 +15,15 @@ Canonical language for this repository is **English**. Older inherited entries b
 
 ### Experimental R&D
 
+- **Phase 4.2 landed (2026-09-13):** ADR 0021 Rust `MempoolStore` (fee-sorted) behind `Mempool` / family `mempool_store`; Python validation unchanged; dict fallback when native off.
+- **Phase 4.3 landed (2026-09-13):** ADR 0021 `mempool_admit_evm_deploy` (EOF/opcode) + TxPipeline wire; goldens parity.
+- **Phase 4.1 landed (2026-09-13):** ADR 0021 `mempool_validate_post_sig` Rust kernel + Python mirror; `TxPipeline` post-sig snapshot path; family `mempool_kernel` in ADR 0009 registry.
 - **Phase 3 closed (2026-09-11→13):** Experimental prod mesh 48h PASS after EVM preflight — pack [`docs/evidence/runs/evm48pass1/`](docs/evidence/runs/evm48pass1/) (`passed=true`, `hard_fails=0`, `mesh_warn=0`, tip ~10125→~19197). Preflight: `scripts/evm_pre_48h_harness.py` + prod `mem_limit` 2048m. **Not** EVM-only 48h / not mainnet / not BLS.
 - **B2 closed (2026-09-09→11):** Long-Range **lab** 48h PASS [`docs/evidence/runs/lr48pass1/`](docs/evidence/runs/lr48pass1/) (`hard_fails=0`, `mesh_warn=0`). Prior FAIL `lr48fail1`; intensify `lr2hintensify`. Prod JSON keeps `feature_long_range=false`.
 - **B1 closed (2026-09-01→03):** libp2p 48h PASS [`docs/evidence/runs/3c801b87/`](docs/evidence/runs/3c801b87/). ADR 0020 Experimental mesh. Hybrid pin untouched.
 - Experimental 48h prod-profile soak **PASS** (2026-08-20→22, TCP+TLS, `hard_fails=0`, image `0a7932c4` / bake `3c88632`). Packaged at `docs/evidence/runs/0a7932c4/`. Not libp2p cutover. Not Long-Range. Prior FAIL 2026-08-16→18 remains on record.
 - ADR 0020: Experimental industrial mesh cutover to rust-libp2p (Noise/Yamux + `/abs/wire`). Hybrid pin untouched. TCP+TLS soak `0a7932c4` is not relabeled. 3-node probe/tx/harness proven on libp2p; **libp2p 48h PASS** `3c801b87`.
-- Next blocker: Phase 4 / B3 ADR 0021 mempool Rust phase 1 (phase 0 ports landed).
+- Next: Docker rebuild for ADR 0021 mesh bake parity (host phases 0–3 landed). Not soak unless ordered.
 
 - Slice CZ: Identify observed confirm charges the canonical key (trailing `/p2p/<peer>` does not occupy a second unique slot); `confirm_observed_addr` still returns the raw observed string
 - Slice DA: operator add/remove and behaviour expire match the canonical charge key (suffix cannot occupy or miss the crate slot)

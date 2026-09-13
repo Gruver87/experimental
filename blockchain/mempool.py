@@ -7,12 +7,14 @@ Mempool — пул неподтверждённых транзакций с пр
   - Базовая сортировка по fee (System A)
   - Валидация адресов и сумм через middleware/validators.py
   - ECDSA проверка подписи через crypto/wallet.py
+  - ADR 0021 phase-2: fee-sorted store may live in Rust (Python validates)
 """
 
 import time
 import threading
 import logging
-from typing import List, Dict, Optional, Tuple
+from collections.abc import Mapping
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
@@ -125,11 +127,74 @@ def _mempool_tx_verify_dict(tx: MempoolTransaction, chain_id: int) -> Dict:
     }
 
 
+def _tx_to_store_dict(tx: MempoolTransaction) -> Dict[str, Any]:
+    return {
+        "tx_hash": str(tx.tx_hash),
+        "from_addr": str(tx.from_addr),
+        "to_addr": str(tx.to_addr),
+        "amount": float(tx.amount),
+        "fee": float(tx.fee),
+        "nonce": int(tx.nonce or 0),
+        "signature": str(tx.signature or ""),
+        "public_key": str(tx.public_key or ""),
+        "data": str(tx.data or ""),
+        "gas": int(tx.gas or 21_000),
+        "timestamp": float(tx.timestamp or 0.0),
+    }
+
+
+def _tx_from_store_dict(raw: Dict[str, Any]) -> MempoolTransaction:
+    return MempoolTransaction(
+        tx_hash=str(raw.get("tx_hash") or ""),
+        from_addr=str(raw.get("from_addr") or ""),
+        to_addr=str(raw.get("to_addr") or ""),
+        amount=float(raw.get("amount") or 0.0),
+        fee=float(raw.get("fee") or 0.0),
+        nonce=int(raw.get("nonce") or 0),
+        signature=str(raw.get("signature") or ""),
+        public_key=str(raw.get("public_key") or ""),
+        data=str(raw.get("data") or ""),
+        gas=int(raw.get("gas") or 21_000),
+        timestamp=float(raw.get("timestamp") or 0.0),
+    )
+
+
+class _NativeTxMap(Mapping):
+    """Read-only mapping over Rust store for ``mempool.transactions.get`` callers."""
+
+    def __init__(self, pool: "Mempool") -> None:
+        self._pool = pool
+
+    def __getitem__(self, key: str) -> MempoolTransaction:
+        tx = self._pool.get_transaction(str(key))
+        if tx is None:
+            raise KeyError(key)
+        return tx
+
+    def __iter__(self) -> Iterator[str]:
+        store = self._pool._native_store
+        if store is None:
+            return iter(())
+        return iter(list(store.hashes()))
+
+    def __len__(self) -> int:
+        return self._pool.get_size()
+
+    def get(self, key: str, default: Any = None) -> Any:  # type: ignore[override]
+        tx = self._pool.get_transaction(str(key))
+        return default if tx is None else tx
+
+
 class Mempool:
-    """Пул транзакций с сортировкой по комиссии и полной валидацией."""
+    """Пул транзакций с сортировкой по комиссии и полной валидацией.
+
+    ADR 0021 phase-2: pending set may be ``abs_native.MempoolStore`` (Rust).
+    Signature / chain validation stays in Python. Lock order: this ``RLock``
+    first, then Rust store Mutex — never reverse.
+    """
 
     def __init__(self, max_size: int = 10000, min_fee: float = 0.0001):
-        self.transactions: Dict[str, MempoolTransaction] = {}
+        self._py_txs: Dict[str, MempoolTransaction] = {}
         self.max_size = max_size
         self.min_fee = min_fee
         self.lock = threading.RLock()
@@ -137,6 +202,26 @@ class Mempool:
         self.blockchain = None
         self.chain_id = 1
         self.require_signatures = False
+        self._native_store = None
+        self._store_backend = "python"
+        try:
+            from crypto.native import create_mempool_store
+
+            store = create_mempool_store(max_size=max_size, min_fee=min_fee)
+            if store is not None:
+                self._native_store = store
+                self._store_backend = "rust"
+        except Exception as exc:
+            logger.warning("mempool native store unavailable: %s", exc)
+            self._native_store = None
+            self._store_backend = "python"
+
+    @property
+    def transactions(self) -> Mapping:
+        """Pending map. Rust backend exposes a Mapping view (get/contains)."""
+        if self._native_store is not None:
+            return _NativeTxMap(self)
+        return self._py_txs
 
     def set_blockchain(self, blockchain) -> None:
         """Attach live chain for nonce/balance/signature checks."""
@@ -146,6 +231,18 @@ class Mempool:
             self.require_signatures = getattr(
                 blockchain.config, "require_signatures", False
             )
+
+    def _store_put(self, tx: MempoolTransaction) -> bool:
+        if self._native_store is not None:
+            return bool(self._native_store.insert(_tx_to_store_dict(tx)))
+        if tx.tx_hash in self._py_txs:
+            return False
+        if len(self._py_txs) >= self.max_size:
+            self._cleanup_python()
+        if len(self._py_txs) >= self.max_size:
+            return False
+        self._py_txs[tx.tx_hash] = tx
+        return True
 
     def add(
         self,
@@ -159,7 +256,7 @@ class Mempool:
         when the P2P path already validated (sig-before-DB). Soft DoS honesty only.
         """
         with self.lock:
-            if tx.tx_hash in self.transactions:
+            if self.has_transaction(tx.tx_hash):
                 return False
 
             # Full validation
@@ -195,9 +292,9 @@ class Mempool:
                     self._rejected_count += 1
                     return False
 
-            if len(self.transactions) >= self.max_size:
-                self._cleanup()
-            self.transactions[tx.tx_hash] = tx
+            if not self._store_put(tx):
+                self._rejected_count += 1
+                return False
             return True
 
     def verify_signatures_batch(self, txs: List[MempoolTransaction]) -> List[bool]:
@@ -267,20 +364,20 @@ class Mempool:
     def add_raw(self, tx: MempoolTransaction) -> bool:
         """Добавить транзакцию без строгой валидации адресов (для internal/genesis txs)."""
         with self.lock:
-            if tx.tx_hash in self.transactions:
+            if self.has_transaction(tx.tx_hash):
                 return False
             if tx.fee < self.min_fee:
                 return False
-            if len(self.transactions) >= self.max_size:
-                self._cleanup()
-            self.transactions[tx.tx_hash] = tx
-            return True
+            return self._store_put(tx)
 
     def get(self, limit: int = 100, min_fee: float = 0) -> List[MempoolTransaction]:
         """Получить транзакции для майнинга (сортировка по комиссии)."""
         with self.lock:
+            if self._native_store is not None:
+                rows = list(self._native_store.get_sorted(int(limit), float(min_fee)))
+                return [_tx_from_store_dict(dict(r)) for r in rows]
             sorted_txs = sorted(
-                self.transactions.values(),
+                self._py_txs.values(),
                 key=lambda x: x.fee,
                 reverse=True
             )
@@ -289,8 +386,24 @@ class Mempool:
     def get_sorted_transactions(self) -> List[Dict]:
         """Возвращает транзакции в формате dict (для BlockBuilder System C)."""
         with self.lock:
+            if self._native_store is not None:
+                rows = list(self._native_store.get_sorted(self.max_size, 0.0))
+                return [
+                    {
+                        "hash": str(r.get("tx_hash") or ""),
+                        "from": str(r.get("from_addr") or ""),
+                        "to": str(r.get("to_addr") or ""),
+                        "value": float(r.get("amount") or 0.0),
+                        "gasPrice": float(r.get("fee") or 0.0),
+                        "gas": int(r.get("gas") or 21000),
+                        "nonce": int(r.get("nonce") or 0),
+                        "data": str(r.get("data") or ""),
+                        "timestamp": float(r.get("timestamp") or 0.0),
+                    }
+                    for r in rows
+                ]
             sorted_txs = sorted(
-                self.transactions.values(),
+                self._py_txs.values(),
                 key=lambda x: x.fee,
                 reverse=True
             )
@@ -312,39 +425,74 @@ class Mempool:
     def remove(self, tx_hash: str) -> bool:
         """Удалить транзакцию."""
         with self.lock:
-            return self.transactions.pop(tx_hash, None) is not None
+            if self._native_store is not None:
+                return bool(self._native_store.remove(str(tx_hash)))
+            return self._py_txs.pop(tx_hash, None) is not None
 
     def has_transaction(self, tx_hash: str) -> bool:
         with self.lock:
-            return tx_hash in self.transactions
+            if self._native_store is not None:
+                return bool(self._native_store.contains(str(tx_hash)))
+            return tx_hash in self._py_txs
 
     def get_transaction(self, tx_hash: str) -> Optional[MempoolTransaction]:
         with self.lock:
-            return self.transactions.get(tx_hash)
+            if self._native_store is not None:
+                raw = self._native_store.get(str(tx_hash))
+                if raw is None:
+                    return None
+                return _tx_from_store_dict(dict(raw))
+            return self._py_txs.get(tx_hash)
 
     def get_size(self) -> int:
         with self.lock:
-            return len(self.transactions)
+            if self._native_store is not None:
+                return int(self._native_store.size())
+            return len(self._py_txs)
 
     def get_stats(self) -> dict:
         with self.lock:
-            if not self.transactions:
-                return {"size": 0, "total_fees": 0, "avg_fee": 0, "rejected": self._rejected_count}
-            fees = [tx.fee for tx in self.transactions.values()]
+            if self._native_store is not None:
+                size = int(self._native_store.size())
+                total_fees, avg_fee = self._native_store.fee_stats()
+                return {
+                    "size": size,
+                    "total_fees": float(total_fees),
+                    "avg_fee": float(avg_fee) if size else 0,
+                    "rejected": self._rejected_count,
+                    "validators_available": _VALIDATORS_AVAILABLE,
+                    "ecdsa_available": _ECDSA_AVAILABLE,
+                    "store_backend": self._store_backend,
+                }
+            if not self._py_txs:
+                return {
+                    "size": 0,
+                    "total_fees": 0,
+                    "avg_fee": 0,
+                    "rejected": self._rejected_count,
+                    "store_backend": self._store_backend,
+                }
+            fees = [tx.fee for tx in self._py_txs.values()]
             return {
-                "size": len(self.transactions),
+                "size": len(self._py_txs),
                 "total_fees": sum(fees),
                 "avg_fee": sum(fees) / len(fees),
                 "rejected": self._rejected_count,
                 "validators_available": _VALIDATORS_AVAILABLE,
                 "ecdsa_available": _ECDSA_AVAILABLE,
+                "store_backend": self._store_backend,
             }
 
-    def _cleanup(self):
-        """Удалить 10% самых дешёвых транзакций."""
-        if len(self.transactions) < self.max_size * 0.8:
+    def _cleanup_python(self):
+        """Удалить 10% самых дешёвых транзакций (Python store)."""
+        if len(self._py_txs) < self.max_size * 0.8:
             return
-        sorted_txs = sorted(self.transactions.values(), key=lambda x: x.fee)
-        to_remove = int(len(self.transactions) * 0.1)
+        sorted_txs = sorted(self._py_txs.values(), key=lambda x: x.fee)
+        to_remove = int(len(self._py_txs) * 0.1)
         for tx in sorted_txs[:to_remove]:
-            del self.transactions[tx.tx_hash]
+            del self._py_txs[tx.tx_hash]
+
+    def _cleanup(self):
+        """Back-compat alias; Rust store cleans inside insert."""
+        if self._native_store is None:
+            self._cleanup_python()

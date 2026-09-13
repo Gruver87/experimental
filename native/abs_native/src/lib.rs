@@ -16,6 +16,8 @@ mod evm_writeback;
 mod fuzz_api;
 mod hotpath;
 mod libp2p_swarm;
+mod mempool_kernel;
+mod mempool_store;
 mod p2p_frame;
 mod p2p_ingress;
 mod p2p_rate_limit;
@@ -1465,7 +1467,7 @@ fn evm_stack_swap(stack: &Bound<'_, PyList>, depth: usize) -> PyResult<()> {
     Ok(())
 }
 
-fn evm_opcode_supported(op: u8) -> bool {
+pub(crate) fn evm_opcode_supported(op: u8) -> bool {
     matches!(
         op,
         0x00 | 0x01
@@ -1547,7 +1549,7 @@ fn evm_opcode_supported(op: u8) -> bool {
         || (0xA0..=0xA4).contains(&op)
 }
 
-fn evm_scan_bytecode_inner(bytecode: &[u8]) -> Vec<(usize, u8)> {
+pub(crate) fn evm_scan_bytecode_inner(bytecode: &[u8]) -> Vec<(usize, u8)> {
     let mut issues = Vec::new();
     let mut pc = 0usize;
     while pc < bytecode.len() {
@@ -1988,6 +1990,8 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     libp2p_swarm::register(m)?;
     hotpath::register(m)?;
     amount::register(m)?;
+    mempool_kernel::register(m)?;
+    mempool_store::register(m)?;
     Ok(())
 }
 

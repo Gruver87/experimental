@@ -25,6 +25,8 @@ class NativeFamily(str, Enum):
     BLOCK_APPLY = "block_apply"
     P2P_TRANSPORT = "p2p_transport"
     P2P_INGRESS = "p2p_ingress"
+    MEMPOOL_KERNEL = "mempool_kernel"
+    MEMPOOL_STORE = "mempool_store"
 
 
 # Symbols that must exist on abs_native for a family to pass probe.
@@ -38,6 +40,8 @@ _FAMILY_ATTRS: Dict[NativeFamily, List[str]] = {
     NativeFamily.BLOCK_APPLY: ["blockchain_apply_simple_block"],
     NativeFamily.P2P_TRANSPORT: ["P2PNativeConn"],
     NativeFamily.P2P_INGRESS: ["p2p_ingress_admit"],
+    NativeFamily.MEMPOOL_KERNEL: ["mempool_validate_post_sig", "mempool_admit_evm_deploy"],
+    NativeFamily.MEMPOOL_STORE: ["MempoolStore"],
 }
 
 
@@ -189,6 +193,83 @@ class NativeCapabilityRegistry:
                 root = str(mod.merkle_root(["a", "b"]))
                 if not root or len(root) < 32:
                     return False, "merkle_smoke_failed"
+            elif family == NativeFamily.MEMPOOL_KERNEL:
+                snap = {"nonce": 0, "balance_sat": 5_000_000}
+                tx = {
+                    "from_addr": "0x1111111111111111111111111111111111111111",
+                    "to_addr": "0x2222222222222222222222222222222222222222",
+                    "nonce": 0,
+                    "value_sat": 1_000_000,
+                    "fee_sat": 50_000,
+                    "gas_limit": 21_000,
+                }
+                out = mod.mempool_validate_post_sig(snap, tx)
+                if not isinstance(out, dict) or not out.get("accept"):
+                    return False, "mempool_kernel_accept_smoke_failed"
+                bad = dict(tx)
+                bad["nonce"] = 9
+                refuse = mod.mempool_validate_post_sig(snap, bad)
+                if not isinstance(refuse, dict) or refuse.get("accept"):
+                    return False, "mempool_kernel_refuse_smoke_failed"
+                if refuse.get("reason") != "nonce_mismatch":
+                    return False, "mempool_kernel_reason_mismatch"
+                eof = mod.mempool_admit_evm_deploy("0xEF0000")
+                if not isinstance(eof, dict) or eof.get("accept"):
+                    return False, "mempool_admit_eof_smoke_failed"
+                if eof.get("reason") != "unsupported_evm_bytecode:eof_container_not_supported":
+                    return False, "mempool_admit_eof_reason_mismatch"
+                bad_op = mod.mempool_admit_evm_deploy("0x5C")
+                if not isinstance(bad_op, dict) or bad_op.get("accept"):
+                    return False, "mempool_admit_opcode_smoke_failed"
+                if bad_op.get("reason") != "unsupported_evm_bytecode:0x5C":
+                    return False, "mempool_admit_opcode_reason_mismatch"
+            elif family == NativeFamily.MEMPOOL_STORE:
+                store = mod.MempoolStore(8, 0.0)
+                ok = bool(
+                    store.insert(
+                        {
+                            "tx_hash": "h_high",
+                            "from_addr": "0xa",
+                            "to_addr": "0xb",
+                            "amount": 1.0,
+                            "fee": 9.0,
+                            "nonce": 0,
+                            "signature": "",
+                            "public_key": "",
+                            "data": "",
+                            "gas": 21_000,
+                            "timestamp": 1.0,
+                        }
+                    )
+                )
+                if not ok:
+                    return False, "mempool_store_insert_failed"
+                ok2 = bool(
+                    store.insert(
+                        {
+                            "tx_hash": "h_low",
+                            "from_addr": "0xa",
+                            "to_addr": "0xb",
+                            "amount": 1.0,
+                            "fee": 1.0,
+                            "nonce": 1,
+                            "signature": "",
+                            "public_key": "",
+                            "data": "",
+                            "gas": 21_000,
+                            "timestamp": 1.0,
+                        }
+                    )
+                )
+                if not ok2:
+                    return False, "mempool_store_insert2_failed"
+                ranked = list(store.get_sorted(10, 0.0))
+                if len(ranked) != 2 or str(ranked[0].get("tx_hash")) != "h_high":
+                    return False, "mempool_store_sort_failed"
+                if not store.contains("h_high") or not store.remove("h_low"):
+                    return False, "mempool_store_remove_failed"
+                if int(store.size()) != 1:
+                    return False, "mempool_store_size_mismatch"
         except Exception as exc:
             return False, f"self_test:{exc}"
         return True, ""

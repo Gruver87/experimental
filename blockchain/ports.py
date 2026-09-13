@@ -1,7 +1,11 @@
-"""Mempool port (ADR 0021 phase-0).
+"""Mempool port (ADR 0021).
 
-Protocol only — ``blockchain.mempool.Mempool`` remains the canonical implementation.
-Do not wire a Rust adapter until libp2p 48h PASS and ADR 0021 phase 1 is approved.
+``blockchain.mempool.Mempool`` remains the orchestration adapter (sig/chain
+validation in Python). ADR 0021 phase-2 may back the pending set with Rust
+``MempoolStore`` when family ``mempool_store`` is rust; otherwise Python dict.
+
+Phase-1/3 kernels: ``crypto.native.mempool_validate_post_sig`` /
+``mempool_admit_evm_deploy`` (wired from ``TxPipeline``).
 
 Validation boundary: ``core.components.ports.TxPipelinePort`` (not duplicated here).
 """

@@ -1,7 +1,7 @@
 # ADR 0021 — Mempool / validation Rust phases (planned)
 
-- **Status:** Accepted — Phase 0 landed; Phase 3 mesh 48h PASS [`evm48pass1`](../evidence/runs/evm48pass1/) closed; **Phases 1–3 NEXT** (B3 — still not started)
-- **Date:** 2026-08-28 (status refresh 2026-09-13)
+- **Status:** Accepted — Phase 0+1+2+3 landed
+- **Date:** 2026-08-28 (phase-1/2/3 refresh 2026-09-13)
 - **Deciders:** Absolute Blockchain experimental maintainers
 - **Execution order:** [EXECUTION_ORDER.md](../EXECUTION_ORDER.md)
 
@@ -41,7 +41,7 @@ mesh probe evidence after each sub-phase.
 - Gate: `industrial_gate.py` + `tests/unit/test_mempool_port.py` (incl. TxPipelinePort surface); **no mesh change**.
 - Call sites **may** keep importing `Mempool` directly until phase 1 adapters land.
 
-### Phase 1 snapshot contract (not implemented)
+### Phase 1 snapshot contract — **landed**
 
 Python supplies a read-only dict at validation time:
 
@@ -49,33 +49,40 @@ Python supplies a read-only dict at validation time:
 {"nonce": int, "balance_sat": int}
 ```
 
-Rust kernels must not open StoragePort / Rocks. Snapshot is taken **after** signature verify (v1.3.143). Do not start this phase before libp2p 48h PASS.
+Rust kernels must not open StoragePort / Rocks. Snapshot is taken **after** signature verify (v1.3.143).
 
-Golden fixtures (schema only, no Rust yet): `tests/fixtures/adr0021_phase1/` · gate: `tests/unit/test_adr0021_phase1_fixtures.py` (incl. phase 3 deploy refuse goldens + sig-before-snapshot invariant).
+Golden fixtures: `tests/fixtures/adr0021_phase1/` · gate: `tests/unit/test_adr0021_phase1_fixtures.py`.
 
-### Phase 1 — Rust validation kernels
+### Phase 1 — Rust validation kernels — **landed 2026-09-13**
 
-Move to Rust (PyO3, GIL released where batching):
+Moved to Rust (PyO3) with Python mirror fallback (ADR 0009 family `mempool_kernel`):
 
-- Field/shape checks (consolidate cheap P2P refuses + field rules).
-- Batch secp256k1 (extend existing `verify_secp256k1_sha256_batch_nogil`).
+- Field/shape checks (`missing_address`, negative satoshi/gas).
 - Fee / balance / nonce check **given a read-only snapshot** `{nonce, balance_sat}` supplied
-  by Python from `StoragePort` at validation time.
+  by Python from storage at validation time (`mempool_validate_post_sig`).
+- Wired in `TxPipeline._validate` after sig verify; maps `insufficient_balance` → `insufficient_funds`.
 
-Python still builds snapshots and owns EVM deploy + ZK gates unless phase 3 closes them.
+Python still builds snapshots. EVM deploy admit closed in phase 3 (`mempool_admit_evm_deploy`).
+ZK gates remain Python unless a later ADR moves them.
+Batch secp remains on existing `verify_secp256k1_sha256_batch` path (not re-homed here).
 
 **Invariant:** signature verification **before** state DB reads (v1.3.143 / industrial_gate).
 
-### Phase 2 — Rust mempool store (optional)
+### Phase 2 — Rust mempool store — **landed 2026-09-13**
 
-- Priority queue (fee-sorted) behind `MempoolPort` Rust adapter.
-- Preserve: `chain_prevalidated` / `signature_preverified` semantics, `threading.RLock` or
-  documented Rust lock model compatible with asyncio P2P.
+- Priority queue (fee-sorted) in `abs_native.MempoolStore` behind `Mempool` /
+  `MempoolPort` (ADR 0009 family `mempool_store`).
+- Preserve: `chain_prevalidated` / `signature_preverified` in Python; Rust owns
+  pending set + sort only.
+- Lock order: Python `Mempool.lock` (RLock) **then** Rust `Mutex` — never reverse.
+- Python dict fallback when family demoted / native off.
 
-### Phase 3 — EVM deploy admit
+### Phase 3 — EVM deploy admit — **landed 2026-09-13**
 
-- Rust opcode scan **or** PyO3 callback to `execution/evm_bytecode_validator.py`.
-- Golden tests must match Python validator output.
+- Rust `mempool_admit_evm_deploy` (EOF + unsupported opcode) with Python callback to
+  `execution/evm_bytecode_validator.py` (ADR 0009 family `mempool_kernel`).
+- Wired in `TxPipeline._validate_evm_deploy_bytecode`.
+- Goldens: `pipeline_refuse_deploy_eof.json`, `pipeline_refuse_deploy_bad_opcode.json`.
 
 ## Invariants (non-negotiable)
 

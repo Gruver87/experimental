@@ -27,7 +27,7 @@ The audit-freeze pin · public audited mainnet · listed ABS · Hybrid `v1.3.*-i
 
 | 1 libp2p 48h | 2a LR solo 2h | 2b LR mesh 2h | 2c LR lab 48h | 3 EVM mesh 48h | 4 Mempool Rust |
 |:------------:|:-------------:|:-------------:|:-------------:|:--------------:|:--------------:|
-| **PASS** [`3c801b87`](evidence/runs/3c801b87/) | **PASS** [`lr2h9f3a`](evidence/runs/lr2h9f3a/) | **PASS** [`lr2hmesh`](evidence/runs/lr2hmesh/) | **PASS** [`lr48pass1`](evidence/runs/lr48pass1/) | **PASS** [`evm48pass1`](evidence/runs/evm48pass1/) | **NEXT** phase 1 (B3) |
+| **PASS** [`3c801b87`](evidence/runs/3c801b87/) | **PASS** [`lr2h9f3a`](evidence/runs/lr2h9f3a/) | **PASS** [`lr2hmesh`](evidence/runs/lr2hmesh/) | **PASS** [`lr48pass1`](evidence/runs/lr48pass1/) | **PASS** [`evm48pass1`](evidence/runs/evm48pass1/) | **4.0–4.3 landed (host)** · Docker bake next |
 
 Full map: [ARCHITECTURE § R&D execution chain](ARCHITECTURE.md#rd-execution-chain) · [EXECUTION_ORDER](EXECUTION_ORDER.md).
 
@@ -62,7 +62,7 @@ Full map: [ARCHITECTURE § R&D execution chain](ARCHITECTURE.md#rd-execution-cha
 
 ## Next click
 
-- **Execution order (what when):** [EXECUTION_ORDER.md](EXECUTION_ORDER.md) — next **Phase 4 / B3 ADR 0021**
+- **Execution order (what when):** [EXECUTION_ORDER.md](EXECUTION_ORDER.md) — Phase 4 ADR 0021 host landed; mesh bake next
 - Hybrid pin (do not break): [Ultimate Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid)
 - Contribute: [CONTRIBUTING](../CONTRIBUTING.md)
 - GitHub About: [REPO_PROFILE](../.github/REPO_PROFILE.md)

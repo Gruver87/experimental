@@ -1278,7 +1278,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 ## Priority 10 — Mempool / validation Rust (planned, ADR 0021)
 
-**Status:** **Phase 0 landed** (`MempoolPort` + `tests/unit/test_mempool_port.py`). Phases 1–3 are **NEXT** (B3) after Phase 3 mesh 48h PASS [`evm48pass1`](evidence/runs/evm48pass1/) — implementation not started. See [EXECUTION_ORDER.md](EXECUTION_ORDER.md).
+**Status:** **Phase 0+1 landed** (`MempoolPort` + `mempool_validate_post_sig`). Phases 2–3 **NEXT** — see [EXECUTION_ORDER.md](EXECUTION_ORDER.md).
 
 | Sub-phase | Deliverable | Behavior change |
 |-----------|-------------|-----------------|

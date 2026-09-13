@@ -3159,6 +3159,113 @@ def validate_p2p_mempool_batch(data: Any) -> Optional[int]:
     return len(txs)
 
 
+def _mempool_validate_post_sig_python(snapshot: dict, tx: dict) -> dict:
+    """ADR 0021 Python mirror of mempool_validate_post_sig (ADR 0009 fallback)."""
+    try:
+        snap_nonce = int(snapshot["nonce"])
+        balance_sat = int(snapshot["balance_sat"])
+        from_addr = str(tx.get("from_addr") or "")
+        to_addr = str(tx.get("to_addr") or "")
+        tx_nonce = int(tx["nonce"])
+        value_sat = int(tx["value_sat"])
+        fee_sat = int(tx["fee_sat"])
+        gas_limit = int(tx["gas_limit"])
+    except (KeyError, TypeError, ValueError):
+        return {"accept": False, "reason": "invalid_snapshot"}
+    if not from_addr.strip() or not to_addr.strip():
+        return {"accept": False, "reason": "missing_address"}
+    if value_sat < 0:
+        return {"accept": False, "reason": "negative_value"}
+    if fee_sat < 0:
+        return {"accept": False, "reason": "negative_fee"}
+    if gas_limit < 0:
+        return {"accept": False, "reason": "negative_gas"}
+    if snap_nonce < 0 or balance_sat < 0:
+        return {"accept": False, "reason": "invalid_snapshot"}
+    if tx_nonce != snap_nonce:
+        return {"accept": False, "reason": "nonce_mismatch"}
+    try:
+        need = value_sat + fee_sat
+    except Exception:
+        return {"accept": False, "reason": "cost_overflow"}
+    if balance_sat < need:
+        return {"accept": False, "reason": "insufficient_balance"}
+    return {"accept": True, "reason": None}
+
+
+def mempool_validate_post_sig(snapshot: dict, tx: dict) -> dict:
+    """ADR 0021 phase-1 post-sig kernel (Rust preferred, Python mirror fallback)."""
+    snap = dict(snapshot or {})
+    body = dict(tx or {})
+    reg = get_registry()
+    if (
+        reg.use_rust(NativeFamily.MEMPOOL_KERNEL)
+        and _native is not None
+        and hasattr(_native, "mempool_validate_post_sig")
+    ):
+        try:
+            out = _native.mempool_validate_post_sig(snap, body)
+            if isinstance(out, dict) and "accept" in out:
+                return {
+                    "accept": bool(out.get("accept")),
+                    "reason": out.get("reason"),
+                }
+            reg.demote(NativeFamily.MEMPOOL_KERNEL, "bad_kernel_shape")
+        except Exception as exc:
+            reg.demote(NativeFamily.MEMPOOL_KERNEL, str(exc))
+    return _mempool_validate_post_sig_python(snap, body)
+
+
+def _mempool_admit_evm_deploy_python(bytecode_hex: str) -> dict:
+    """ADR 0021 phase-3 Python callback — same strings as TxPipeline."""
+    from execution.evm_bytecode_validator import validate_bytecode_hex
+
+    v = validate_bytecode_hex(str(bytecode_hex or ""))
+    if v.get("valid"):
+        return {"accept": True, "reason": None}
+    bad = v.get("unsupported") or []
+    name = bad[0].get("name", "?") if bad else v.get("error", "invalid")
+    return {"accept": False, "reason": f"unsupported_evm_bytecode:{name}"}
+
+
+def mempool_admit_evm_deploy(bytecode_hex: str) -> dict:
+    """ADR 0021 phase-3 EVM deploy admit (Rust preferred, Python validator callback)."""
+    raw = str(bytecode_hex or "")
+    reg = get_registry()
+    if (
+        reg.use_rust(NativeFamily.MEMPOOL_KERNEL)
+        and _native is not None
+        and hasattr(_native, "mempool_admit_evm_deploy")
+    ):
+        try:
+            out = _native.mempool_admit_evm_deploy(raw)
+            if isinstance(out, dict) and "accept" in out:
+                return {
+                    "accept": bool(out.get("accept")),
+                    "reason": out.get("reason"),
+                }
+            reg.demote(NativeFamily.MEMPOOL_KERNEL, "bad_deploy_admit_shape")
+        except Exception as exc:
+            reg.demote(NativeFamily.MEMPOOL_KERNEL, str(exc))
+    return _mempool_admit_evm_deploy_python(raw)
+
+
+def create_mempool_store(max_size: int = 10000, min_fee: float = 0.0001):
+    """ADR 0021 phase-2 Rust fee-sorted store, or None → Python dict fallback."""
+    reg = get_registry()
+    if (
+        reg.use_rust(NativeFamily.MEMPOOL_STORE)
+        and _native is not None
+        and hasattr(_native, "MempoolStore")
+    ):
+        try:
+            return _native.MempoolStore(int(max_size), float(min_fee))
+        except Exception as exc:
+            reg.demote(NativeFamily.MEMPOOL_STORE, str(exc))
+    return None
+
+
+
 def validate_p2p_validator_register(data: Any) -> Optional[dict]:
     payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
     if _native is not None and hasattr(_native, "validate_p2p_validator_register"):

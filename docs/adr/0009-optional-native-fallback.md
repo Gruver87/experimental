@@ -18,7 +18,8 @@ per-family capability surface for `/health`.
    once, imports `abs_native` when allowed, runs per-family self-tests, and
    selects `rust` | `python` backends.
 2. **Families:** `crypto_hash`, `crypto_sig`, `merkle`, `wire_codec`, `ghost`,
-   `evm_kernel`, `block_apply`, `p2p_transport`, `p2p_ingress`.
+   `evm_kernel`, `block_apply`, `p2p_transport`, `p2p_ingress`, `mempool_kernel`
+   (ADR 0021 phase 1/3), `mempool_store` (ADR 0021 phase 2).
 3. **Policy env `ABS_NATIVE_MODE`:**
    - `auto` (default) — import + self-test; fail → Python, WARNING
    - `off` — force Python (`ABS_DISABLE_NATIVE_CRYPTO=1` alias)
