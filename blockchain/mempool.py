@@ -146,17 +146,22 @@ def _mempool_tx_verify_dict(tx: MempoolTransaction, chain_id: int) -> Dict:
 
 
 def _tx_to_store_dict(tx: MempoolTransaction) -> Dict[str, Any]:
+    from runtime.amount import to_satoshi
+
     fee_sat = int(getattr(tx, "fee_satoshi", -1))
     if fee_sat < 0:
-        from runtime.amount import to_satoshi
-
         fee_sat = int(to_satoshi(tx.fee))
         tx.fee_satoshi = fee_sat
+    amount_sat = int(getattr(tx, "amount_satoshi", -1)) if hasattr(tx, "amount_satoshi") else -1
+    if amount_sat < 0:
+        amount_sat = int(to_satoshi(tx.amount))
+    # Dual-write: wire float retained for peer ABS fee compat; satoshi authoritative.
     return {
         "tx_hash": str(tx.tx_hash),
         "from_addr": str(tx.from_addr),
         "to_addr": str(tx.to_addr),
         "amount": float(tx.amount),
+        "amount_satoshi": int(amount_sat),
         "fee": float(tx.fee),
         "fee_satoshi": int(fee_sat),
         "nonce": int(tx.nonce or 0),

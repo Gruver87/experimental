@@ -87,7 +87,9 @@ def build_p2p_client_ssl_context(config) -> Optional[ssl.SSLContext]:
     # Always CERT_REQUIRED when TLS is enabled (no CERT_NONE client path).
     ctx.load_verify_locations(cafile=ca)
     ctx.verify_mode = ssl.CERT_REQUIRED
-    ctx.check_hostname = False  # dial by IP; identity bound via CN/SAN ↔ node_id
+    # CA still CERT_REQUIRED. Hostname check off because peers dial by IP;
+    # identity is bound via CN/SAN ↔ node_id (not verify=False / CERT_NONE).
+    ctx.check_hostname = False
     return ctx
 
 

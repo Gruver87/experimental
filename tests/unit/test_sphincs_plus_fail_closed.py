@@ -78,7 +78,8 @@ def test_sphincs_backend_fails_closed_without_real_backend():
         sphincs.generate_keypair()
     with pytest.raises(NotImplementedError):
         sphincs.sign(b"message", b"private")
-    assert sphincs.verify(b"message", b"a" * 32, b"public") is False
+    with pytest.raises(NotImplementedError):
+        sphincs.verify(b"message", b"a" * 32, b"public")
 
 
 def test_quantum_wallet_does_not_create_fake_sphincs_keypair():
@@ -99,13 +100,13 @@ def test_sphincs_rest_keygen_and_sign_fail_closed(sphincs_server):
     assert "backend not available" in body["error"]
 
 
-def test_sphincs_rest_verify_rejects_without_backend(sphincs_server):
+def test_sphincs_rest_verify_fails_closed_without_backend(sphincs_server):
     status, body = _post(
         f"{sphincs_server}/pq/sphincs/verify",
         {"message": "hello", "signature": "00" * 32, "public_key": "11" * 32},
     )
-    assert status == 200
-    assert body["valid"] is False
+    assert status == 501
+    assert "backend not available" in body["error"]
 
 
 def test_pq_keygen_returns_real_result_or_backend_error(sphincs_server):

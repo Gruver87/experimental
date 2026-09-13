@@ -48,9 +48,16 @@ class CanonicalSerializer:
     @staticmethod
     def serialize_block(block: dict) -> str:
         """Сериализация блока для хэширования"""
+        height = block.get("height")
+        prev = block.get("previous_hash")
+        if prev is None or prev == "":
+            if height in (0, "0", None):
+                prev = "0" * 64
+            else:
+                raise ValueError("previous_hash required for non-genesis block serialize")
         canonical_block = {
-            "height": block.get("height"),
-            "previous_hash": block.get("previous_hash", "0" * 64),
+            "height": height,
+            "previous_hash": prev,
             "timestamp": block.get("timestamp", 0),
             "miner": block.get("miner", ""),
             "nonce": block.get("nonce", 0),

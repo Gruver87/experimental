@@ -1972,9 +1972,13 @@ class MetricsCollector:
                 append_libp2p_prometheus_lines(
                     lines, libp2p_block, node_id=node_id
                 )
-            except Exception:
-                # Fail-open for /metrics scrape — never break industrial series.
-                pass
+            except Exception as exc:
+                # Fail-open for industrial series, but never silent (Wave H).
+                import logging
+
+                logging.getLogger("observability.metrics").warning(
+                    "libp2p prometheus export skipped: %s", exc
+                )
         return "\n".join(lines) + "\n"
 
     @staticmethod

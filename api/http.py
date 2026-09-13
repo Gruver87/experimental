@@ -2035,9 +2035,9 @@ class RESTHandler(BaseHTTPRequestHandler):
                     checks["peers_alive"] = bool(deep["peers_alive"])
                     checks["quorum_height"] = bool(deep["quorum_height"])
 
-                # Wire/state consistency stay visible in checks, but tip-v2 forge
-                # load causes brief wire_probe flaps that must not 503 a mesh that
-                # already passes ADR 0014 deep_ready (peers_alive + quorum_height).
+                # Wave H: with peers/mesh expected, wire/state probes gate ready
+                # (no paint-green while wire_probe_ok=false). Solo keeps soft keys
+                # out so single-node labs are not 503'd by absent peer probes.
                 _soft_ready_keys = frozenset(
                     {
                         "state_consistent",
@@ -2045,11 +2045,16 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "wire_probe_ok",
                     }
                 )
-                ready = all(
-                    bool(v)
-                    for k, v in checks.items()
-                    if k not in _soft_ready_keys
-                )
+                peer_n = int(deep.get("peer_count") or 0)
+                if peer_n <= 0 and not mesh_expected:
+                    ready = all(
+                        bool(v)
+                        for k, v in checks.items()
+                        if k not in _soft_ready_keys
+                    )
+                else:
+                    ready = all(bool(v) for v in checks.values())
+
                 deep_ok = bool(deep["sync_not_stalled"]) and (
                     not mesh_expected
                     or (bool(deep["peers_alive"]) and bool(deep["quorum_height"]))
@@ -7331,8 +7336,15 @@ class RESTHandler(BaseHTTPRequestHandler):
                         pub_bytes = bytes.fromhex(public_key.replace("0x", ""))
                     except ValueError:
                         self._error(400, "signature and public_key must be hex"); return
-                    ok = sph.verify(message.encode() if isinstance(message,str) else message,
-                                    sig_bytes, pub_bytes)
+                    try:
+                        ok = sph.verify(
+                            message.encode() if isinstance(message, str) else message,
+                            sig_bytes,
+                            pub_bytes,
+                        )
+                    except NotImplementedError as e:
+                        self._error(501, str(e))
+                        return
                     self._json({"valid": ok is True, "algorithm": "SPHINCS+"})
                 else:
                     self._error(501, "verify not available")

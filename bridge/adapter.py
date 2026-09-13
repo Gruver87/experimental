@@ -29,8 +29,9 @@ class LiveL1Rpc:
         try:
             receipt = _rpc_call(url, "eth_getTransactionReceipt", [tx_hash])
             return dict(receipt) if receipt else None
-        except Exception:
-            return None
+        except Exception as exc:
+            # Wave H: transport/RPC failure is not "no receipt".
+            raise RuntimeError(f"L1 receipt fetch failed for {chain}: {exc}") from exc
 
     def get_confirmations(self, chain: str, tx_hash: str) -> int:
         from bridge.l1_rpc import chain_rpc_url, get_tx_confirmations

@@ -1,121 +1,14 @@
 ﻿<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Absolute Blockchain Explorer</title>
-    <meta charset="UTF-8">
-    <style>
-        body { font-family: monospace; background: #0a0e27; color: #00ff88; padding: 20px; }
-        .container { max-width: 900px; margin: 0 auto; }
-        .card { background: #1a1f3a; border-radius: 10px; padding: 20px; margin: 10px 0; border: 1px solid #00ff88; }
-        h1 { color: #00ff88; text-align: center; }
-        .stat { font-size: 24px; color: #ffaa00; }
-        button { background: #00ff88; color: #0a0e27; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 5px; }
-        input { background: #2a2f4a; border: 1px solid #00ff88; color: white; padding: 10px; margin: 5px; border-radius: 5px; width: 200px; }
-        .success { color: #00ff88; }
-        .error { color: #ff4444; }
-        .info { color: #ffaa00; }
-        pre { background: #0a0e27; padding: 10px; overflow-x: auto; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta http-equiv="refresh" content="0; url=/" />
+  <title>Moved — Absolute Ops Console</title>
+  <script>
+    location.replace("/");
+  </script>
 </head>
 <body>
-    <div class="container">
-        <h1>🔗 Absolute Blockchain Explorer</h1>
-        
-        <div class="card">
-            <h3>📊 Blockchain Status</h3>
-            <div id="status">Loading...</div>
-            <div id="stats"></div>
-            <button onclick="refresh()">🔄 Refresh</button>
-        </div>
-
-        <div class="card">
-            <h3>💰 Send Transaction</h3>
-            <input type="text" id="to" placeholder="Recipient Address (0x...)" style="width: 300px;">
-            <input type="text" id="value" placeholder="Amount (ETH)">
-            <button onclick="sendTransaction()">📤 Send</button>
-            <div id="txResult"></div>
-        </div>
-
-        <div class="card">
-            <h3>📋 Latest Block</h3>
-            <pre id="block">Loading...</pre>
-        </div>
-    </div>
-
-    <script>
-        async function callRPC(method, params=[]) {
-            try {
-                const res = await fetch('/rpc', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({jsonrpc:'2.0', method:method, params:params, id:1})
-                });
-                return await res.json();
-            } catch(e) {
-                return {error: e.message};
-            }
-        }
-
-        async function refresh() {
-            document.getElementById('status').innerHTML = '⏳ Connecting...';
-            
-            const blockNum = await callRPC('eth_blockNumber');
-            const chainId = await callRPC('eth_chainId');
-            const gasPrice = await callRPC('eth_gasPrice');
-            const peerCount = await callRPC('net_peerCount');
-            
-            if (blockNum.result) {
-                document.getElementById('status').innerHTML = '<span class="success">✅ Connected to node</span>';
-                document.getElementById('stats').innerHTML = `
-                    <div><strong>Block Number:</strong> <span class="stat">${parseInt(blockNum.result, 16)}</span></div>
-                    <div><strong>Chain ID:</strong> ${parseInt(chainId.result, 16)}</div>
-                    <div><strong>Gas Price:</strong> ${parseInt(gasPrice.result, 16)} Gwei</div>
-                    <div><strong>Peers:</strong> ${parseInt(peerCount.result, 16)}</div>
-                `;
-                
-                const block = await callRPC('eth_getBlockByNumber', ['latest', true]);
-                if (block.result) {
-                    document.getElementById('block').innerHTML = JSON.stringify(block.result, null, 2);
-                }
-            } else {
-                document.getElementById('status').innerHTML = '<span class="error">❌ Offline - Make sure node is running</span>';
-                document.getElementById('stats').innerHTML = 'No connection';
-            }
-        }
-
-        async function sendTransaction() {
-            const to = document.getElementById('to').value;
-            const value = document.getElementById('value').value;
-            
-            if (!to || !value) {
-                document.getElementById('txResult').innerHTML = '<span class="error">❌ Fill all fields</span>';
-                return;
-            }
-            
-            const wallet = '0x' + Math.random().toString(36).substring(2, 42);
-            const tx = {
-                from: wallet,
-                to: to,
-                value: '0x' + (parseFloat(value) * 1e18).toString(16),
-                gas: '0x5208',
-                gasPrice: '0x3b9aca00'
-            };
-            
-            document.getElementById('txResult').innerHTML = '<span class="info">⏳ Sending...</span>';
-            const result = await callRPC('eth_sendTransaction', [tx]);
-            
-            if (result.result) {
-                document.getElementById('txResult').innerHTML = `<span class="success">✅ Sent! Hash: ${result.result.substring(0, 20)}...</span>`;
-                document.getElementById('to').value = '';
-                document.getElementById('value').value = '';
-                setTimeout(refresh, 2000);
-            } else {
-                document.getElementById('txResult').innerHTML = `<span class="error">❌ Failed: ${JSON.stringify(result.error)}</span>`;
-            }
-        }
-
-        refresh();
-        setInterval(refresh, 10000);
-    </script>
+  <p>This legacy demo page was removed (Wave H). Use the <a href="/">Ops Console</a>.</p>
 </body>
 </html>

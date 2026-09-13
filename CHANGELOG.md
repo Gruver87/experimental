@@ -15,6 +15,7 @@ Canonical language for this repository is **English**. Older inherited entries b
 
 ### Experimental R&D
 
+- **Wave H audit honesty fixes (2026-09-13):** `/health/ready` gates wire/state when peers/mesh expected; `demote()` fatal under `ABS_NATIVE_MODE=require`; SPHINCS verify → 501/NotImplemented; validators/bridge fees satoshi/BPS; L1 receipt transport errors raise; consistency callback logs; serializer requires parent; fake `web/index.html`+`simple.html` redirect; explorer R&D behind `?lab=1`; release/full-check honesty labels; `verify_wave_h.ps1`. Not soak.
 - **Wave G rocks pack-fallback alert + ready/watch honesty (2026-09-13):** `AbsoluteRocksNativePackFallbacks`; `/health/ready` informational `mempool_store` + `rocks_native_pack_fallbacks` (not ready gates); `health_watch` soft-WARN on demote; `verify_wave_g.ps1`; docs lag fixed (Phase 4 closed). Not soak.
 - **Wave F middleware + alert DX (2026-09-13):** HTTP/JSON-RPC refuse identity `sanitize_input` stub (503 / -32000 when validators missing); prod boot `require_input_validators`. Prometheus alerts `AbsoluteMempoolStoreDemoted`, `AbsoluteMempoolStoreDemoteBurst`, `AbsoluteP2PUnderMesh`. Gate pins `verify_wave_e.ps1` / `verify_wave_f.ps1`. Not soak.
 - **Wave E mempool demote Prom + console DX (2026-09-13):** `abs_mempool_store_demoted` / `demote_count` / `backend` on `/metrics` + Grafana; Markets EUR/BYN; Auto 5m soft poll; launcher one-tab `/`; `verify_wave_e.ps1`. Not soak.

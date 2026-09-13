@@ -236,7 +236,8 @@ if ($Docker) {
     }
 }
 
-Write-Host "`nOK: FULL BLOCKCHAIN CHECK PASSED" -ForegroundColor Green
-Write-Host "Reports:"
+Write-Host "`nRESULT: PASS static/full-check (NOT mesh probe / NOT soak)" -ForegroundColor Green
+Write-Host "  Reports:"
 Write-Host "  data/full_audit_report.json"
 Write-Host "  data/final_audit_report.json"
+Write-Host "  Live mesh: .\scripts\probe_prod_mesh.ps1 -Quick" -ForegroundColor DarkGray

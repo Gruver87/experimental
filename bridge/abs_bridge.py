@@ -77,12 +77,19 @@ class RustBridge:
         key = (chain or "").strip().lower()
         return self.CHAIN_ALIASES.get(key, key)
 
-    # Тарифы моста (% от суммы)
+    # Bridge fees in basis points (10000 = 100%). Integer satoshi math — Wave H.
+    BRIDGE_FEE_BPS = {
+        "ethereum": 100,   # 1%
+        "bsc": 20,         # 0.2%
+        "solana": 10,      # 0.1%
+        "absolute": 50,    # 0.5%
+    }
+    # Legacy float map for status/docs display only (not used for fee math).
     BRIDGE_FEES = {
-        "ethereum": 0.01,   # 1%
-        "bsc":      0.002,  # 0.2%
-        "solana":   0.001,  # 0.1%
-        "absolute": 0.005,  # 0.5%
+        "ethereum": 0.01,
+        "bsc": 0.002,
+        "solana": 0.001,
+        "absolute": 0.005,
     }
 
     def __init__(self, config: Config, db: Database, bus: Optional[EventBus] = None):
@@ -171,11 +178,16 @@ class RustBridge:
             return {"error": f"Unsupported chain: {to_chain}. "
                              f"Supported: {', '.join(self.SUPPORTED_CHAINS)}"}
 
-        fee_rate = self.BRIDGE_FEES.get(to_chain, 0.01)
-        fee = amount * fee_rate
-        net_amount = amount - fee
+        from runtime.amount import from_satoshi_float, to_satoshi
 
-        if net_amount <= 0:
+        amount_sats = int(to_satoshi(amount))
+        bps = int(self.BRIDGE_FEE_BPS.get(to_chain, 100))
+        fee_sats = (amount_sats * bps) // 10_000
+        net_sats = amount_sats - fee_sats
+        fee = float(from_satoshi_float(fee_sats))
+        net_amount = float(from_satoshi_float(net_sats))
+
+        if net_sats <= 0:
             return {"error": "Amount too small after fee"}
 
         # Проверяем баланс отправителя (TOCTOU still possible until debit; debit fails closed)
@@ -469,14 +481,23 @@ class RustBridge:
         }
 
     def estimate_fee(self, to_chain: str, amount: float) -> Dict:
-        fee_rate = self.BRIDGE_FEES.get(to_chain.lower(), 0.01)
-        fee = amount * fee_rate
+        from runtime.amount import from_satoshi_float, to_satoshi
+
+        chain = to_chain.lower()
+        amount_sats = int(to_satoshi(amount))
+        bps = int(self.BRIDGE_FEE_BPS.get(chain, 100))
+        fee_sats = (amount_sats * bps) // 10_000
+        net_sats = amount_sats - fee_sats
         return {
             "chain": to_chain,
             "amount": amount,
-            "fee": fee,
-            "fee_pct": fee_rate * 100,
-            "net_amount": amount - fee,
+            "amount_satoshi": amount_sats,
+            "fee": float(from_satoshi_float(fee_sats)),
+            "fee_satoshi": fee_sats,
+            "fee_bps": bps,
+            "fee_pct": bps / 100.0,
+            "net_amount": float(from_satoshi_float(net_sats)),
+            "net_amount_satoshi": net_sats,
         }
 
     # ── Служебные методы ─────────────────────────────────────────────────────

@@ -5077,7 +5077,17 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("verify_wave_f.ps1 missing (Wave F validators/alerts self-check)")
         if not (ROOT / "scripts" / "verify_wave_g.ps1").is_file():
             errors.append("verify_wave_g.ps1 missing (Wave G pack-fallback/ready honesty)")
+        if not (ROOT / "scripts" / "verify_wave_h.ps1").is_file():
+            errors.append("verify_wave_h.ps1 missing (Wave H audit honesty fixes)")
         http_src = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
+        if "Wave H: with peers/mesh expected" not in http_src:
+            errors.append("/health/ready must gate wire/state when peers present (Wave H)")
+        nat_src = (ROOT / "runtime" / "native_capabilities.py").read_text(encoding="utf-8")
+        if "forbids demote" not in nat_src:
+            errors.append("native demote must refuse under ABS_NATIVE_MODE=require (Wave H)")
+        sph_src = (ROOT / "crypto" / "sphincs_plus.py").read_text(encoding="utf-8")
+        if "verify backend not available" not in sph_src:
+            errors.append("SPHINCS verify must NotImplemented (Wave H)")
         if "rocks_native_pack_fallbacks" not in http_src:
             errors.append("/health/ready must expose rocks_native_pack_fallbacks (Wave G)")
         if 'payload["mempool_store"]' not in http_src:

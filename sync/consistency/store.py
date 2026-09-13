@@ -37,5 +37,9 @@ class InMemoryConsistencyStore:
         if cb is not None:
             try:
                 cb(snapshot)
-            except Exception:
-                pass
+            except Exception as exc:
+                import logging
+
+                logging.getLogger("consistency.store").warning(
+                    "consistency on_change callback failed: %s", exc
+                )

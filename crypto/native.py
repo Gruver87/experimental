@@ -2143,8 +2143,18 @@ def _account_blob_to_row(blob: bytes) -> dict:
             row = json.loads(_native.account_blob_to_json(raw))
             if isinstance(row, dict):
                 return row
-        except Exception:
-            pass
+        except Exception as exc:
+            from runtime.native_capabilities import resolve_native_mode
+
+            if resolve_native_mode() == "require":
+                raise RuntimeError(
+                    f"native account_blob_to_json failed under require: {exc}"
+                ) from exc
+            import logging
+
+            logging.getLogger("crypto.native").warning(
+                "native account_blob_to_json failed; JSON fallback: %s", exc
+            )
     return json.loads(raw.decode("utf-8"))
 
 

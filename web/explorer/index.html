@@ -113,23 +113,23 @@
   <div class="nav-item" onclick="show('oracles')" data-feature="oracles"><span class="icon">🌐</span> Oracles</div>
   <div class="nav-item" onclick="show('consensus')" data-feature="core"><span class="icon">⚖️</span> Consensus</div>
   <div class="nav-item" onclick="show('zk')" data-feature="zk"><span class="icon">🔐</span> ZK Proofs</div>
-  <div class="nav-item" onclick="show('minivm')" data-feature="core"><span class="icon">📟</span> MiniVM</div>
+  <div class="nav-item" onclick="show('minivm')" data-feature="lab"><span class="icon">📟</span> MiniVM</div>
   <div class="nav-item" onclick="show('evm')" data-feature="evm"><span class="icon">⛽</span> EVM</div>
-  <div class="nav-item" onclick="show('pq')" data-feature="core"><span class="icon">🛡️</span> Post-Quantum</div>
-  <div class="nav-item" onclick="show('smartacc')" data-feature="core"><span class="icon">🤖</span> Smart Accounts</div>
-  <div class="nav-item" onclick="show('cryptotools')" data-feature="core"><span class="icon">🔑</span> Crypto Tools</div>
-  <div class="nav-item" onclick="show('ai')" data-feature="core"><span class="icon">🧠</span> AI Validator</div>
-  <div class="nav-item" onclick="show('mev')" data-feature="core"><span class="icon">💣</span> MEV Analysis</div>
-  <div class="nav-item" onclick="show('reorg')" data-feature="core"><span class="icon">🔀</span> Reorg Risk</div>
-  <div class="nav-item" onclick="show('merkle')" data-feature="core"><span class="icon">🌳</span> Merkle Proofs</div>
-  <div class="nav-item" onclick="show('bot')" data-feature="core"><span class="icon">🤖</span> Telegram Bot</div>
+  <div class="nav-item" onclick="show('pq')" data-feature="lab"><span class="icon">🛡️</span> Post-Quantum</div>
+  <div class="nav-item" onclick="show('smartacc')" data-feature="lab"><span class="icon">🤖</span> Smart Accounts</div>
+  <div class="nav-item" onclick="show('cryptotools')" data-feature="lab"><span class="icon">🔑</span> Crypto Tools</div>
+  <div class="nav-item" onclick="show('ai')" data-feature="lab"><span class="icon">🧠</span> AI Validator</div>
+  <div class="nav-item" onclick="show('mev')" data-feature="lab"><span class="icon">💣</span> MEV Analysis</div>
+  <div class="nav-item" onclick="show('reorg')" data-feature="lab"><span class="icon">🔀</span> Reorg Risk</div>
+  <div class="nav-item" onclick="show('merkle')" data-feature="lab"><span class="icon">🌳</span> Merkle Proofs</div>
+  <div class="nav-item" onclick="show('bot')" data-feature="lab"><span class="icon">🤖</span> Telegram Bot</div>
   <div class="nav-item" onclick="show('satoshi')" data-feature="core"><span class="icon">⚡</span> Satoshi State</div>
-  <div class="nav-item" onclick="show('beacon')" data-feature="core"><span class="icon">🏮</span> Beacon Chain</div>
+  <div class="nav-item" onclick="show('beacon')" data-feature="lab"><span class="icon">🏮</span> Beacon Chain</div>
   <div class="nav-item" onclick="show('lightning')" data-feature="lightning"><span class="icon">⚡</span> Lightning</div>
   <div class="nav-item" onclick="show('plasma')" data-feature="plasma"><span class="icon">🌊</span> Plasma L2</div>
-  <div class="nav-item" onclick="show('will')" data-feature="core"><span class="icon">📜</span> Crypto Will</div>
+  <div class="nav-item" onclick="show('will')" data-feature="lab"><span class="icon">📜</span> Crypto Will</div>
   <div class="nav-item" onclick="show('wasmvm')" data-feature="wasm"><span class="icon">🦀</span> WASM VM</div>
-  <div class="nav-item" onclick="show('aiagents')" data-feature="core"><span class="icon">🤖</span> AI Agents</div>
+  <div class="nav-item" onclick="show('aiagents')" data-feature="lab"><span class="icon">🤖</span> AI Agents</div>
   <div class="nav-item" onclick="show('bridge2')" data-feature="bridge"><span class="icon">🌉</span> Cross-Chain</div>
   <div class="nav-item" onclick="show('finality')" data-feature="core"><span class="icon">🔒</span> Finality</div>
   <div class="nav-item" onclick="show('synceng')" data-feature="core"><span class="icon">🔄</span> Sync Engine</div>
@@ -2613,9 +2613,18 @@ async function staticEVMCall() {
 async function applyFeatureGates() {
   const feats = await api('/features');
   if (!feats) return;
+  const showLab = new URLSearchParams(location.search).has('lab')
+    || localStorage.getItem('abs_show_lab') === '1';
   document.querySelectorAll('.nav-item[data-feature]').forEach(item => {
     const key = item.getAttribute('data-feature');
     if (key === 'core') return;
+    if (key === 'lab') {
+      if (!showLab) {
+        item.style.display = 'none';
+        item.title = 'R&D panel — open /explorer?lab=1 to show';
+      }
+      return;
+    }
     const f = feats[key];
     if (!f) return;
     if (!f.enabled) {

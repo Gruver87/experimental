@@ -293,9 +293,16 @@ class NativeCapabilityRegistry:
         return self.backend(family) == "rust" and self._module is not None
 
     def demote(self, family: NativeFamily, reason: str) -> None:
+        """Demote a family to Python. Forbidden under ABS_NATIVE_MODE=require (Wave H)."""
         self.ensure_bootstrapped()
         with self._lock:
             prev = self._backends.get(family, "python")
+            mode = self._mode
+            if prev == "rust" and mode == "require":
+                raise RuntimeError(
+                    f"ABS_NATIVE_MODE=require forbids demote of {family.value}: "
+                    f"{reason or 'demoted'}"
+                )
             self._backends[family] = "python"
             self._errors[family] = str(reason or "demoted")
             self._self_test[family] = False
