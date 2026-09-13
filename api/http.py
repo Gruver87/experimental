@@ -2099,10 +2099,27 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "wire_probe_ok": False,
                     "wire_probe_probed": False,
                 }
+                peer_count_metrics = int(p2p.peer_count() if p2p else 0)
+                peer_gap_metrics = 0
+                mesh_min_metrics = int(
+                    getattr(cfg, "mesh_min_peers_before_mine", 0) or 0
+                )
                 if p2p is not None:
                     sync_status["state_consistent"] = bool(
                         getattr(p2p, "_state_consistent", False)
                     )
+                    if hasattr(p2p, "get_peers_info"):
+                        try:
+                            local_h_m = int(bc.get_height() if bc else 0)
+                            for peer in p2p.get_peers_info():
+                                ph = int(peer.get("height", 0) or 0)
+                                peer_gap_metrics = max(
+                                    peer_gap_metrics, abs(ph - local_h_m)
+                                )
+                        except Exception as exc:
+                            logger.warning(
+                                "/metrics peer_sync_gap snapshot failed: %s", exc
+                            )
                     se = getattr(p2p, "sync_engine", None)
                     if se is not None and hasattr(se, "get_status"):
                         try:
@@ -2119,6 +2136,20 @@ class RESTHandler(BaseHTTPRequestHandler):
                             )
                         except Exception as exc:
                             logger.warning("/metrics sync status snapshot failed: %s", exc)
+                p2p_sync_label = _derive_p2p_sync_status(
+                    peer_count=peer_count_metrics,
+                    peer_gap=peer_gap_metrics,
+                    state_consistent=bool(sync_status.get("state_consistent")),
+                    deployment_mode=getattr(cfg, "deployment_mode", "dev"),
+                    mesh_min_peers=mesh_min_metrics,
+                )
+                sync_status["p2p_sync_status"] = p2p_sync_label
+                sync_status["under_mesh"] = p2p_sync_label in (
+                    "under_mesh",
+                    "under_mesh_lagging",
+                )
+                sync_status["peer_sync_gap"] = peer_gap_metrics
+                sync_status["mesh_min_peers"] = mesh_min_metrics
                 chain_metrics = {}
                 if db is not None and hasattr(db, "get_chain_metrics"):
                     try:

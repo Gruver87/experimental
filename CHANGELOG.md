@@ -15,6 +15,7 @@ Canonical language for this repository is **English**. Older inherited entries b
 
 ### Experimental R&D
 
+- **Wave D council + under_mesh DX (2026-09-13):** `verify_council_lab.ps1` (ADR 0022 / Profile C) + pack `councillab1`. Prometheus: `abs_p2p_under_mesh`, `abs_p2p_sync_status`, `abs_p2p_mesh_min_peers`, `abs_p2p_peer_sync_gap` from `/metrics` sync snapshot. Not soak / not prod council mint.
 - **Wave C soft-WARN / Rocks honesty (2026-09-13):** consistency harness retries peer state_root probe once on timeout/empty (`peer_probe_attempts`); Rocks `pack_*` JSON fallback counted + refused when `ABS_REQUIRE_NATIVE_CRYPTO`; metric `abs_rocksdb_native_pack_fallbacks`. Not soak.
 - **Wave B honesty DX (2026-09-13):** `/status` exposes `mempool_store` (backend/demoted/demote_count); prod+require_native demote → `degraded`. COMPAT_MATRIX RPC null-honesty rows relabeled **Supported (Absolute honesty)**. `verify_long_range_lab.ps1` + pack `lrlab1`. Stale Profile F “next Phase 4” fixed. Not soak / not prod LR arm.
 - **Wave A money/admit honesty (2026-09-13):** P2P max-fee + default fee via satoshi; HTTP RPC admit uses `plan_transfer_fees_sat` (no `ImportError` skip of TxValidator); canonical serializer prefers `fee_satoshi`; unparseable wire fields refuse (no `except: pass` fallthrough). Not soak / not wire float cutover.

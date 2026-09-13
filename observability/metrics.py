@@ -404,6 +404,31 @@ class MetricsCollector:
                     f"abs_state_consistent{{node_id=\"{node_id}\"}} "
                     f"{1 if sync_status.get('state_consistent') else 0}"
                 ),
+                "# HELP abs_p2p_under_mesh Prod mesh peer count below mesh_min "
+                "(under_mesh / under_mesh_lagging)",
+                "# TYPE abs_p2p_under_mesh gauge",
+                (
+                    f"abs_p2p_under_mesh{{node_id=\"{node_id}\"}} "
+                    f"{1 if sync_status.get('under_mesh') else 0}"
+                ),
+                "# HELP abs_p2p_sync_status Derived GET /status p2p_sync_status (one-hot)",
+                "# TYPE abs_p2p_sync_status gauge",
+                (
+                    f"abs_p2p_sync_status{{node_id=\"{node_id}\","
+                    f"status=\"{self._prom_label(sync_status.get('p2p_sync_status') or 'unknown')}\"}} 1"
+                ),
+                "# HELP abs_p2p_mesh_min_peers Configured mesh_min_peers_before_mine",
+                "# TYPE abs_p2p_mesh_min_peers gauge",
+                (
+                    f"abs_p2p_mesh_min_peers{{node_id=\"{node_id}\"}} "
+                    f"{int(sync_status.get('mesh_min_peers', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_peer_sync_gap Max abs height gap vs connected peers",
+                "# TYPE abs_p2p_peer_sync_gap gauge",
+                (
+                    f"abs_p2p_peer_sync_gap{{node_id=\"{node_id}\"}} "
+                    f"{int(sync_status.get('peer_sync_gap', 0) or 0)}"
+                ),
                 "# HELP abs_sync_wire_probe_ok Last peer state_root wire probe "
                 "# (-1=never probed, 0=failed, 1=ok)",
                 "# TYPE abs_sync_wire_probe_ok gauge",
@@ -1931,6 +1956,16 @@ class MetricsCollector:
                 # Fail-open for /metrics scrape — never break industrial series.
                 pass
         return "\n".join(lines) + "\n"
+
+    @staticmethod
+    def _prom_label(value: Any) -> str:
+        """Escape a Prometheus label value (no newlines / quotes / backslashes)."""
+        return (
+            str(value)
+            .replace("\\", "\\\\")
+            .replace('"', '\\"')
+            .replace("\n", " ")
+        )
 
     @staticmethod
     def _wire_probe_ok_gauge(sync_status: Optional[dict[str, Any]]) -> int:

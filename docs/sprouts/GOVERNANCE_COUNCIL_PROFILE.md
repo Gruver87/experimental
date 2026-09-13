@@ -43,9 +43,11 @@ validators + soak           council mint + grants lab
 - NFT remint above 87
 - Claiming council = L1 security guarantee
 
-## Lab gate (planned)
+## Lab gate
 
 ```powershell
+.\scripts\verify_council_lab.ps1
+# or stepwise:
 python scripts/guarantor_council_manifest_gen.py
 python scripts/guarantor_council_lab.py
 python scripts/guarantor_council_staging_mint_lab.py

@@ -5027,6 +5027,17 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             oracle_lab = (ROOT / "scripts" / "oracle_lab.py").read_text(encoding="utf-8")
             if "quorum" not in oracle_lab.lower() and "median" not in oracle_lab.lower():
                 errors.append("oracle_lab must exercise quorum/median (wave-2)")
+        if not (ROOT / "scripts" / "guarantor_council_lab.py").is_file():
+            errors.append("guarantor_council_lab.py missing (ADR 0022)")
+        if not (ROOT / "scripts" / "guarantor_council_staging_mint_lab.py").is_file():
+            errors.append("guarantor_council_staging_mint_lab.py missing (ADR 0022)")
+        if not (ROOT / "scripts" / "verify_council_lab.ps1").is_file():
+            errors.append("verify_council_lab.ps1 missing (council operator self-check)")
+        metrics_under = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
+        if "abs_p2p_under_mesh" not in metrics_under:
+            errors.append("metrics must export abs_p2p_under_mesh (under_mesh honesty)")
+        if "abs_p2p_sync_status" not in metrics_under:
+            errors.append("metrics must export abs_p2p_sync_status one-hot gauge")
         if not (ROOT / "scripts" / "cross_shard_lab.py").is_file():
             errors.append("cross_shard_lab.py missing (Profile E lab)")
         else:

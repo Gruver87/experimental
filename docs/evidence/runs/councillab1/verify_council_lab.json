@@ -1,0 +1,46 @@
+﻿{
+    "honesty":  [
+                    "NOT soak",
+                    "NOT council mint on prod 778888",
+                    "Profile C staging 778889 / ADR 0022 labs only"
+                ],
+    "total":  6,
+    "elapsed_sec":  5.5,
+    "passed":  6,
+    "started":  "2026-09-13T11:51:59.1861023+02:00",
+    "phase":  "pre-soak-council-lab",
+    "ok":  true,
+    "steps":  [
+                  {
+                      "ok":  true,
+                      "name":  "guarantor_council_lab.py",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "guarantor_council_staging_mint_lab.py",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "pytest_council_nft",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "staging_chain_id_not_prod",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "prod_mesh_no_council_arm",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "industrial_gate_council_needles",
+                      "exit_code":  0
+                  }
+              ],
+    "fail_count":  0
+}
