@@ -953,7 +953,14 @@ _RATE_LIMIT_EXEMPT_PATHS = frozenset({
 
 def _is_rate_limit_exempt(path: str) -> bool:
     p = (path or "").rstrip("/")
-    return p in _RATE_LIMIT_EXEMPT_PATHS or p.startswith("/health/")
+    if p in _RATE_LIMIT_EXEMPT_PATHS or p.startswith("/health/"):
+        return True
+    # Same-origin ops UI assets (low volume; avoid first-paint 429).
+    if p in ("", "/", "/index.html", "/console", "/explorer"):
+        return True
+    if p.startswith("/console/") or p.startswith("/explorer/"):
+        return True
+    return False
 
 
 # Ключевые маршруты для /openapi.json и /docs
@@ -1614,6 +1621,72 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
 #  REST API  (порт 8080)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# Secure same-origin UI assets under web/{console,explorer}/ only.
+_WEB_STATIC_EXTS = frozenset({".html", ".css", ".js", ".svg", ".woff2", ".map"})
+_WEB_STATIC_CT = {
+    ".html": "text/html; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".woff2": "font/woff2",
+    ".map": "application/json",
+}
+_WEB_CSP = (
+    "default-src 'self'; "
+    "script-src 'self'; "
+    "style-src 'self'; "
+    "img-src 'self' data:; "
+    "font-src 'self'; "
+    "connect-src 'self' ws: wss:; "
+    "base-uri 'self'; "
+    "form-action 'self'; "
+    "frame-ancestors 'none'; "
+    "object-src 'none'"
+)
+
+
+def _resolve_web_static(project_root: str, url_path: str) -> Optional[tuple[str, str]]:
+    """Map URL path → (filesystem path, content-type). Refuse path traversal."""
+    raw = (url_path or "/").split("?", 1)[0]
+    # Match RESTHandler: strip trailing slash except root.
+    path = raw if raw == "/" else raw.rstrip("/")
+    if path in ("", "/", "/index.html", "/console"):
+        rel = os.path.join("web", "console", "index.html")
+    elif path == "/explorer":
+        rel = os.path.join("web", "explorer", "index.html")
+    elif path.startswith("/console/"):
+        rel = os.path.join("web", "console", path[len("/console/") :])
+    elif path.startswith("/explorer/"):
+        # Legacy monolith: only index.html is published under explorer/.
+        leaf = path[len("/explorer/") :]
+        if leaf in ("", "index.html"):
+            rel = os.path.join("web", "explorer", "index.html")
+        else:
+            return None
+    elif path.endswith(".html"):
+        # Back-compat: any other *.html shell → console (ops UI is default).
+        rel = os.path.join("web", "console", "index.html")
+    else:
+        return None
+
+    root = os.path.realpath(project_root)
+    full = os.path.realpath(os.path.join(root, rel))
+    allowed_roots = (
+        os.path.realpath(os.path.join(root, "web", "console")),
+        os.path.realpath(os.path.join(root, "web", "explorer")),
+    )
+    if not any(
+        full == ar or full.startswith(ar + os.sep) for ar in allowed_roots
+    ):
+        return None
+    ext = os.path.splitext(full)[1].lower()
+    if ext not in _WEB_STATIC_EXTS:
+        return None
+    if not os.path.isfile(full):
+        return None
+    return full, _WEB_STATIC_CT.get(ext, "application/octet-stream")
+
+
 class RESTHandler(BaseHTTPRequestHandler):
     """HTTP-обработчик для REST API запросов."""
 
@@ -2239,27 +2312,37 @@ class RESTHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 return
 
-            # ── Static HTML serving ──────────────────────────────────────────
-            if path in ("", "/", "/index.html") or path.endswith(".html"):
-                root = self.__class__.project_root
-                html_path = os.path.join(root, "web", "explorer", "index.html")
-                if not os.path.exists(html_path):
-                    # fallback: serve a simple redirect page
-                    body = b"<html><body><h2>Absolute Blockchain</h2><p>index.html not found at: " + html_path.encode() + b"</p></body></html>"
-                    self.send_response(200)
-                    self.send_header("Content-Type", "text/html; charset=utf-8")
-                    self.send_header("Content-Length", len(body))
-                    self.end_headers()
-                    self.wfile.write(body)
+            # ── Secure UI static (console + explorer; path-traversal refuse) ─
+            if (
+                path in ("", "/", "/index.html", "/console", "/explorer")
+                or path.startswith("/console/")
+                or path.startswith("/explorer/")
+                or path.endswith(".html")
+            ):
+                resolved = _resolve_web_static(self.__class__.project_root, path)
+                if resolved is None:
+                    self._error(404, "UI asset not found")
                     return
-                with open(html_path, "rb") as f:
-                    body = f.read()
+                html_path, content_type = resolved
+                try:
+                    with open(html_path, "rb") as f:
+                        body = f.read()
+                except OSError as exc:
+                    logger.warning("UI static read failed: %s", exc)
+                    self._error(404, "UI asset unreadable")
+                    return
                 self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", len(body))
                 self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
                 self.send_header("Pragma", "no-cache")
-                _send_acao_header(self, self._cors_origin(self.headers.get("Origin", "")))
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("X-Frame-Options", "DENY")
+                self.send_header("Referrer-Policy", "no-referrer")
+                self.send_header("Content-Security-Policy", _WEB_CSP)
+                _send_acao_header(
+                    self, self._cors_origin(self.headers.get("Origin", ""))
+                )
                 self.end_headers()
                 self.wfile.write(body)
                 return
@@ -4471,7 +4554,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "<title>Absolute Blockchain API</title></head><body>"
                     "<h1>Absolute Blockchain REST API</h1>"
                     f"<p>OpenAPI: <a href='/openapi.json'>/openapi.json</a> | "
-                    f"Explorer: <a href='/'>/</a></p><ul>{routes_html}</ul></body></html>"
+                    f"Console: <a href='/'>/</a> | Explorer: <a href='/explorer'>/explorer</a></p><ul>{routes_html}</ul></body></html>"
                 ).encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")

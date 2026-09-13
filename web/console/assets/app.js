@@ -1,0 +1,706 @@
+/* Absolute Ops Console — read-heavy, fail-closed honesty UI. */
+(function () {
+  "use strict";
+
+  const META = {
+    overview: ["Overview", "Live node strip · honesty badges · height sparkline"],
+    mesh: ["Mesh & Sync", "under_mesh · topology · security · wire probe"],
+    metrics: ["Live Metrics", "All scrapeable abs_* series from GET /metrics"],
+    mempool: ["Mempool", "Store backend honesty · pending · fee surface"],
+    chain: ["Chain", "Recent blocks · tip · state consistency"],
+    wallets: ["Wallets", "EIP-1193 + watchlist — keys never leave the browser"],
+    security: ["Security", "CSP · CORS posture · what this console will not do"],
+  };
+
+  const state = {
+    view: "overview",
+    poll: true,
+    timer: null,
+    status: null,
+    metrics: [],
+    heightSpark: null,
+    peersSpark: null,
+    mempoolSpark: null,
+    metricHistory: new Map(),
+  };
+
+  function el(id) {
+    return document.getElementById(id);
+  }
+
+  function toast(msg) {
+    const t = el("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 2600);
+  }
+
+  function esc(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function badgeForSync(sync) {
+    const s = String(sync || "");
+    if (s === "aligned") return '<span class="badge ok">aligned</span>';
+    if (s === "under_mesh" || s === "under_mesh_lagging")
+      return '<span class="badge warn">' + esc(s) + "</span>";
+    if (s === "solo") return '<span class="badge">solo</span>';
+    if (s.includes("stale") || s === "catching_up" || s === "inconsistent")
+      return '<span class="badge warn">' + esc(s || "—") + "</span>";
+    return '<span class="badge signal">' + esc(s || "—") + "</span>";
+  }
+
+  function clsForSync(sync) {
+    const s = String(sync || "");
+    if (s === "aligned") return "ok";
+    if (s === "under_mesh" || s === "under_mesh_lagging" || s === "inconsistent")
+      return "warn";
+    if (s === "solo") return "";
+    return "";
+  }
+
+  function setView(name) {
+    state.view = name;
+    document.querySelectorAll(".nav-btn").forEach((b) => {
+      b.classList.toggle("active", b.dataset.view === name);
+    });
+    document.querySelectorAll(".view").forEach((v) => {
+      v.classList.toggle("active", v.id === "view-" + name);
+    });
+    const m = META[name] || ["", ""];
+    el("view-title").textContent = m[0];
+    el("view-lede").textContent = m[1];
+    renderView();
+  }
+
+  function renderStrip(st) {
+    const sync = st.p2p_sync_status || "—";
+    const mp = st.mempool_store || {};
+    const demoted = !!mp.store_demoted;
+    const ready = st.status || "—";
+    const items = [
+      ["Status", ready, ready === "degraded" ? "warn" : "ok"],
+      ["Height", st.height ?? "—", ""],
+      ["Chain", st.chain_id ?? "—", ""],
+      ["Peers", st.peers_connected ?? st.peers ?? "—", ""],
+      ["Sync", sync, clsForSync(sync)],
+      ["Mempool", st.mempool_size ?? "—", ""],
+      [
+        "Store",
+        demoted ? "demoted" : mp.store_backend || "—",
+        demoted ? "bad" : "ok",
+      ],
+      ["Mode", st.deployment_mode || "—", ""],
+    ];
+    el("status-strip").innerHTML = items
+      .map(
+        ([k, v, c]) =>
+          `<div class="stat"><div class="k">${esc(k)}</div><div class="v ${c}">${esc(
+            v
+          )}</div></div>`
+      )
+      .join("");
+  }
+
+  function renderOverview() {
+    const st = state.status || {};
+    const mp = st.mempool_store || {};
+    const root = el("view-overview");
+    root.innerHTML = `
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>Tip velocity</h2>
+          <div class="chart-wrap"><canvas id="chart-height"></canvas></div>
+          <div class="honesty">
+            ${badgeForSync(st.p2p_sync_status)}
+            <span class="badge ${st.state_consistent ? "ok" : "warn"}">state_consistent=${esc(
+              String(!!st.state_consistent)
+            )}</span>
+            <span class="badge ${st.wire_probe_ok ? "ok" : "warn"}">wire_probe=${esc(
+              st.wire_probe_probed ? (st.wire_probe_ok ? "ok" : "fail") : "never"
+            )}</span>
+            <span class="badge">gap=${esc(st.peer_sync_gap ?? 0)}</span>
+            <span class="badge">mesh_min=${esc(st.mesh_min_peers ?? "—")}</span>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Honesty snapshot</h2>
+          <table>
+            <tbody>
+              <tr><th>Node</th><td>${esc(st.node_id || "—")}</td></tr>
+              <tr><th>Head</th><td class="mono">${esc((st.head_hash || "").slice(0, 18) || "—")}</td></tr>
+              <tr><th>P2P sync</th><td>${badgeForSync(st.p2p_sync_status)}</td></tr>
+              <tr><th>Mempool store</th><td class="mono">${esc(
+                JSON.stringify(mp || {})
+              )}</td></tr>
+              <tr><th>Bridge</th><td>${
+                st.bridge_enabled
+                  ? '<span class="badge warn">ON</span>'
+                  : '<span class="badge ok">OFF</span>'
+              } <span class="muted mono">${esc(
+                st.bridge_disabled_reason || st.bridge_mode || ""
+              )}</span></td></tr>
+              <tr><th>Probe ms</th><td class="mono">${esc(
+                st.status_handler_ms ?? "—"
+              )}</td></tr>
+            </tbody>
+          </table>
+          <p class="muted" style="margin-top:12px;font-size:12px">
+            Read-only ops surface. Mutations stay in
+            <a href="/explorer">legacy explorer</a> (dev) or signed RPC.
+          </p>
+        </div>
+      </div>
+      <div class="grid grid-3" style="margin-top:14px">
+        <div class="card">
+          <h2>Peers spark</h2>
+          <div class="chart-wrap"><canvas id="chart-peers"></canvas></div>
+        </div>
+        <div class="card">
+          <h2>Mempool spark</h2>
+          <div class="chart-wrap"><canvas id="chart-mempool"></canvas></div>
+        </div>
+        <div class="card">
+          <h2>Quick links</h2>
+          <div class="row" style="margin-top:8px">
+            <a class="btn ghost" href="/metrics" target="_blank" rel="noopener">/metrics</a>
+            <a class="btn ghost" href="/health/ready" target="_blank" rel="noopener">/health/ready</a>
+            <a class="btn ghost" href="/status?probe=1" target="_blank" rel="noopener">/status?probe=1</a>
+            <a class="btn ghost" href="/openapi.json" target="_blank" rel="noopener">openapi</a>
+          </div>
+        </div>
+      </div>`;
+    const h = el("chart-height");
+    const p = el("chart-peers");
+    const m = el("chart-mempool");
+    if (h) {
+      state.heightSpark = new AbsCharts.Sparkline(h, {
+        color: "#c4783a",
+        fill: "rgba(196,120,58,0.14)",
+      });
+      (state._heightHist || []).forEach((v) => state.heightSpark.push(v));
+    }
+    if (p) {
+      state.peersSpark = new AbsCharts.Sparkline(p, { color: "#3dd6c6" });
+      (state._peersHist || []).forEach((v) => state.peersSpark.push(v));
+    }
+    if (m) {
+      state.mempoolSpark = new AbsCharts.Sparkline(m, {
+        color: "#6ecf8e",
+        fill: "rgba(110,207,142,0.12)",
+      });
+      (state._mpHist || []).forEach((v) => state.mempoolSpark.push(v));
+    }
+  }
+
+  async function renderMesh() {
+    const root = el("view-mesh");
+    root.innerHTML = `<div class="card"><h2>Loading mesh…</h2></div>`;
+    let topo = null;
+    let sec = null;
+    let sync = null;
+    try {
+      topo = await AbsApi.getJson("/p2p/topology");
+    } catch (_) {}
+    try {
+      sec = await AbsApi.getJson("/p2p/security");
+    } catch (_) {}
+    try {
+      sync = await AbsApi.getJson("/sync/status");
+    } catch (_) {}
+    const st = state.status || {};
+    const under =
+      st.p2p_sync_status === "under_mesh" ||
+      st.p2p_sync_status === "under_mesh_lagging";
+    root.innerHTML = `
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>Sync honesty</h2>
+          ${
+            under
+              ? `<div class="warn-box">Node is under_mesh — peer count below mesh_min_peers_before_mine. Forging may be gated.</div>`
+              : `<div class="ok-box">Not under_mesh (or non-prod single-peer labels).</div>`
+          }
+          <table>
+            <tr><th>p2p_sync_status</th><td>${badgeForSync(st.p2p_sync_status)}</td></tr>
+            <tr><th>peers</th><td class="mono">${esc(
+              st.peers_connected ?? st.peers ?? "—"
+            )} / min ${esc(st.mesh_min_peers ?? "—")}</td></tr>
+            <tr><th>peer_sync_gap</th><td class="mono">${esc(
+              st.peer_sync_gap ?? 0
+            )}</td></tr>
+            <tr><th>state_consistent</th><td>${
+              st.state_consistent
+                ? '<span class="badge ok">true</span>'
+                : '<span class="badge warn">false</span>'
+            }</td></tr>
+            <tr><th>wire probe</th><td class="mono">${esc(
+              JSON.stringify({
+                probed: st.wire_probe_probed,
+                ok: st.wire_probe_ok,
+              })
+            )}</td></tr>
+          </table>
+          <h3>sync/status</h3>
+          <pre class="mono muted" style="white-space:pre-wrap;max-height:180px;overflow:auto">${esc(
+            JSON.stringify(sync || { error: "unavailable" }, null, 2)
+          )}</pre>
+        </div>
+        <div class="card">
+          <h2>P2P security</h2>
+          <pre class="mono muted" style="white-space:pre-wrap;max-height:360px;overflow:auto">${esc(
+            JSON.stringify(
+              sec
+                ? {
+                    active_bans: sec.active_bans,
+                    rate_limit_drops: sec.rate_limit_drops,
+                    handshake_rejects: sec.handshake_rejects,
+                    shape_rejects_total: sec.shape_rejects_total,
+                    eclipse_at_risk: sec.eclipse_at_risk,
+                    native_p2p_tls: sec.native_p2p_tls,
+                    native_p2p_transport: sec.native_p2p_transport,
+                  }
+                : { error: "unavailable" },
+              null,
+              2
+            )
+          )}</pre>
+          <h3>Topology</h3>
+          <pre class="mono muted" style="white-space:pre-wrap;max-height:200px;overflow:auto">${esc(
+            JSON.stringify(topo || { error: "unavailable" }, null, 2)
+          )}</pre>
+        </div>
+      </div>`;
+  }
+
+  function metricKey(m) {
+    const labs = Object.keys(m.labels || {})
+      .sort()
+      .map((k) => k + "=" + m.labels[k])
+      .join(",");
+    return m.name + "{" + labs + "}";
+  }
+
+  function renderMetrics() {
+    const root = el("view-metrics");
+    const rows = state.metrics || [];
+    const focus = [
+      "abs_p2p_under_mesh",
+      "abs_p2p_sync_status",
+      "abs_state_consistent",
+      "abs_sync_wire_probe_ok",
+      "abs_peers_connected",
+      "abs_mempool_size",
+      "abs_chain_height",
+      "abs_rocksdb_native_pack_fallbacks",
+      "abs_p2p_shape_rejects_total",
+      "abs_native_crypto_self_test",
+    ];
+    const focusRows = focus
+      .map((name) => rows.filter((r) => r.name === name))
+      .flat();
+    const maxAbs = Math.max(
+      1,
+      ...rows.map((r) => Math.abs(Number(r.value) || 0))
+    );
+    root.innerHTML = `
+      <div class="card" style="margin-bottom:14px">
+        <h2>Priority gauges</h2>
+        <div class="metric-grid">
+          ${
+            focusRows.length
+              ? focusRows
+                  .map((r) => {
+                    const pct = Math.min(
+                      100,
+                      (Math.abs(Number(r.value) || 0) / maxAbs) * 100
+                    );
+                    return `<div class="metric-tile"><div class="name">${esc(
+                      metricKey(r)
+                    )}</div><div class="val">${esc(
+                      r.value
+                    )}</div><div class="bar"><i style="width:${pct}%"></i></div></div>`;
+                  })
+                  .join("")
+              : '<p class="muted">No /metrics yet — check scrape or metrics_enabled.</p>'
+          }
+        </div>
+      </div>
+      <div class="card">
+        <h2>Full scrape (${rows.length} series)</h2>
+        <div class="form-row"><input id="metric-filter" placeholder="filter abs_…" /></div>
+        <div class="metric-grid" id="metric-all"></div>
+      </div>`;
+    const all = el("metric-all");
+    const paint = (q) => {
+      const qq = String(q || "")
+        .trim()
+        .toLowerCase();
+      const list = rows.filter((r) => !qq || metricKey(r).toLowerCase().includes(qq));
+      all.innerHTML = list
+        .slice(0, 240)
+        .map((r) => {
+          const pct = Math.min(100, (Math.abs(Number(r.value) || 0) / maxAbs) * 100);
+          return `<div class="metric-tile"><div class="name">${esc(
+            metricKey(r)
+          )}</div><div class="val">${esc(r.value)}</div><div class="bar"><i style="width:${pct}%"></i></div></div>`;
+        })
+        .join("");
+    };
+    paint("");
+    el("metric-filter").addEventListener("input", (e) => paint(e.target.value));
+  }
+
+  async function renderMempool() {
+    const root = el("view-mempool");
+    let mp = null;
+    try {
+      mp = await AbsApi.getJson("/mempool");
+    } catch (_) {}
+    const store = (state.status && state.status.mempool_store) || {};
+    root.innerHTML = `
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>Store honesty</h2>
+          ${
+            store.store_demoted
+              ? `<div class="warn-box">Mempool store demoted — native path fell back. Prod+require_native should surface degraded.</div>`
+              : `<div class="ok-box">Store not demoted (or field absent on older nodes).</div>`
+          }
+          <pre class="mono muted">${esc(JSON.stringify(store, null, 2))}</pre>
+        </div>
+        <div class="card">
+          <h2>/mempool</h2>
+          <pre class="mono muted" style="white-space:pre-wrap;max-height:420px;overflow:auto">${esc(
+            JSON.stringify(mp || { error: "unavailable" }, null, 2)
+          )}</pre>
+        </div>
+      </div>`;
+  }
+
+  async function renderChain() {
+    const root = el("view-chain");
+    let blocks = null;
+    try {
+      blocks = await AbsApi.getJson("/blocks?limit=12");
+    } catch (_) {
+      try {
+        blocks = await AbsApi.getJson("/blocks");
+      } catch (__) {}
+    }
+    const list = Array.isArray(blocks)
+      ? blocks
+      : blocks && Array.isArray(blocks.blocks)
+        ? blocks.blocks
+        : [];
+    root.innerHTML = `
+      <div class="card">
+        <h2>Recent blocks</h2>
+        <table>
+          <thead><tr><th>#</th><th>Hash</th><th>Txs</th><th>Time</th></tr></thead>
+          <tbody>
+            ${
+              list.length
+                ? list
+                    .slice(0, 16)
+                    .map((b) => {
+                      const h = b.height ?? b.number ?? "—";
+                      const hash = (b.hash || b.block_hash || "").toString();
+                      const txs = Array.isArray(b.transactions)
+                        ? b.transactions.length
+                        : b.tx_count ?? "—";
+                      const ts = b.timestamp || b.time || "";
+                      return `<tr><td>${esc(h)}</td><td class="mono">${esc(
+                        hash.slice(0, 18)
+                      )}</td><td>${esc(txs)}</td><td class="mono">${esc(
+                        ts
+                      )}</td></tr>`;
+                    })
+                    .join("")
+                : `<tr><td colspan="4" class="muted">No blocks payload</td></tr>`
+            }
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  async function renderWallets() {
+    const root = el("view-wallets");
+    let nodeW = null;
+    try {
+      nodeW = await AbsApi.getJson("/wallet/status");
+    } catch (_) {}
+    const injected = AbsWallets.hasInjected();
+    const watch = AbsWallets.watchlist.slice();
+    // Seed node operational addresses into watch (read-only labels).
+    if (nodeW) {
+      ["address", "signing_address", "founder_address", "miner_address"].forEach(
+        (k) => {
+          const a = nodeW[k];
+          if (a && /^0x[0-9a-fA-F]{40}$/.test(a)) {
+            try {
+              AbsWallets.addWatch(a, k);
+            } catch (_) {}
+          }
+        }
+      );
+    }
+    const balances = [];
+    for (const entry of AbsWallets.watchlist.slice(0, 12)) {
+      const addr = entry.split(" #")[0];
+      let bal = null;
+      try {
+        bal = await AbsApi.getJson("/address/" + encodeURIComponent(addr));
+      } catch (_) {
+        try {
+          bal = await AbsApi.getJson(
+            "/wallet/balance?address=" + encodeURIComponent(addr)
+          );
+        } catch (__) {}
+      }
+      balances.push({ entry, addr, bal });
+    }
+    root.innerHTML = `
+      <div class="warn-box">
+        Security posture: this console never asks you to paste a private key into a form that POSTs to the node.
+        Sign with an injected wallet (EIP-1193) or keep keys offline. Session watchlist is sessionStorage only.
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>Connect</h2>
+          <p class="muted" style="margin-bottom:10px">${
+            injected
+              ? "Injected provider detected."
+              : "No browser wallet detected — watch-only mode still works."
+          }</p>
+          <div class="row">
+            <button type="button" class="btn" id="btn-connect">Connect wallet</button>
+            <button type="button" class="btn ghost" id="btn-sign-ping">Sign ping</button>
+          </div>
+          <div id="wallet-connect-out" class="mono" style="margin-top:12px"></div>
+          <h3>Node operational (read-only)</h3>
+          <pre class="mono muted">${esc(
+            JSON.stringify(nodeW || { error: "unavailable" }, null, 2)
+          )}</pre>
+        </div>
+        <div class="card">
+          <h2>Watchlist</h2>
+          <div class="form-row"><label>Address</label><input id="watch-addr" placeholder="0x…" spellcheck="false" /></div>
+          <div class="row">
+            <button type="button" class="btn ghost" id="btn-watch-add">Add watch</button>
+            <button type="button" class="btn ghost" id="btn-watch-refresh">Refresh balances</button>
+          </div>
+          <div class="grid" style="margin-top:12px;gap:8px" id="watch-cards">
+            ${balances
+              .map((b) => {
+                const bal =
+                  b.bal && (b.bal.balance ?? b.bal.balance_formatted ?? b.bal.abs);
+                return `<div class="wallet-card"><div class="muted" style="font-size:11px">${esc(
+                  b.entry.includes("#") ? b.entry.split("#")[1] : "watch"
+                )}</div><div class="addr mono">${esc(
+                  b.addr
+                )}</div><div style="margin-top:8px;font-size:18px;color:var(--copper)">${esc(
+                  bal ?? "—"
+                )} ABS</div>
+                <button type="button" class="btn ghost" data-rm="${esc(
+                  b.addr
+                )}" style="margin-top:8px">Remove</button></div>`;
+              })
+              .join("") || '<p class="muted">Empty watchlist</p>'}
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h2>Future interaction surface</h2>
+        <p class="muted">Prepared for Absolute EVM JSON-RPC + council / multisig flows without server-side keys:
+        connect → select account → personal_sign / eth_sendTransaction against allowlisted chain_id.
+        Profile C council (778889) stays off prod 778888.</p>
+      </div>`;
+
+    el("btn-connect").onclick = async () => {
+      try {
+        const accs = await AbsWallets.connectInjected();
+        const cid = await AbsWallets.chainId();
+        el("wallet-connect-out").textContent = JSON.stringify(
+          { accounts: accs, chainId: cid },
+          null,
+          2
+        );
+        toast("Wallet connected");
+        renderWallets();
+      } catch (e) {
+        toast(String(e.message || e));
+      }
+    };
+    el("btn-sign-ping").onclick = async () => {
+      try {
+        const msg =
+          "Absolute Ops Console ping " + new Date().toISOString();
+        const sig = await AbsWallets.personalSign(msg);
+        el("wallet-connect-out").textContent = JSON.stringify(
+          { message: msg, signature: sig },
+          null,
+          2
+        );
+        toast("Signed locally");
+      } catch (e) {
+        toast(String(e.message || e));
+      }
+    };
+    el("btn-watch-add").onclick = () => {
+      try {
+        AbsWallets.addWatch(el("watch-addr").value.trim(), "watch");
+        toast("Watch added");
+        renderWallets();
+      } catch (e) {
+        toast(String(e.message || e));
+      }
+    };
+    el("btn-watch-refresh").onclick = () => renderWallets();
+    root.querySelectorAll("[data-rm]").forEach((btn) => {
+      btn.onclick = () => {
+        AbsWallets.removeWatch(btn.getAttribute("data-rm"));
+        renderWallets();
+      };
+    });
+  }
+
+  function renderSecurity() {
+    el("view-security").innerHTML = `
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>Browser hardening</h2>
+          <ul class="muted" style="padding-left:18px;line-height:1.8">
+            <li>UI served with Content-Security-Policy (no CDN scripts)</li>
+            <li>X-Frame-Options: DENY · nosniff · referrer no-referrer</li>
+            <li>Static paths confined to web/console and web/explorer</li>
+            <li>Path traversal refused by realpath allowlist</li>
+            <li>CORS remain allow-list only (never *)</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h2>Explicit non-goals</h2>
+          <ul class="muted" style="padding-left:18px;line-height:1.8">
+            <li>No private key paste → POST /tx/sign</li>
+            <li>No JWT / API keys stored by default</li>
+            <li>No admin mutations in this console</li>
+            <li>Not a mainnet readiness claim · not soak evidence</li>
+          </ul>
+        </div>
+      </div>`;
+  }
+
+  function renderView() {
+    switch (state.view) {
+      case "overview":
+        renderOverview();
+        break;
+      case "mesh":
+        renderMesh();
+        break;
+      case "metrics":
+        renderMetrics();
+        break;
+      case "mempool":
+        renderMempool();
+        break;
+      case "chain":
+        renderChain();
+        break;
+      case "wallets":
+        renderWallets();
+        break;
+      case "security":
+        renderSecurity();
+        break;
+      default:
+        break;
+    }
+  }
+
+  async function refreshAll() {
+    const pill = el("live-pill");
+    try {
+      let st = null;
+      try {
+        st = await AbsApi.getJson("/status?probe=1");
+      } catch (_) {
+        st = await AbsApi.getJson("/status");
+      }
+      state.status = st || {};
+      renderStrip(state.status);
+
+      state._heightHist = state._heightHist || [];
+      state._peersHist = state._peersHist || [];
+      state._mpHist = state._mpHist || [];
+      state._heightHist.push(Number(st.height) || 0);
+      state._peersHist.push(Number(st.peers_connected ?? st.peers) || 0);
+      state._mpHist.push(Number(st.mempool_size) || 0);
+      if (state._heightHist.length > 48) state._heightHist.shift();
+      if (state._peersHist.length > 48) state._peersHist.shift();
+      if (state._mpHist.length > 48) state._mpHist.shift();
+      if (state.heightSpark) state.heightSpark.push(Number(st.height) || 0);
+      if (state.peersSpark)
+        state.peersSpark.push(Number(st.peers_connected ?? st.peers) || 0);
+      if (state.mempoolSpark)
+        state.mempoolSpark.push(Number(st.mempool_size) || 0);
+
+      try {
+        const text = await AbsApi.getText("/metrics");
+        state.metrics = AbsCharts.parsePrometheus(text);
+      } catch (_) {
+        state.metrics = state.metrics || [];
+      }
+
+      pill.classList.remove("off");
+      pill.innerHTML = '<span class="pulse"></span> live';
+      renderView();
+    } catch (e) {
+      pill.classList.add("off");
+      pill.innerHTML = '<span class="pulse"></span> offline';
+      toast("Refresh failed: " + (e.message || e));
+    }
+  }
+
+  function schedule() {
+    if (state.timer) clearInterval(state.timer);
+    state.timer = null;
+    if (state.poll) state.timer = setInterval(refreshAll, 5000);
+  }
+
+  function boot() {
+    const baseInput = el("rpc-base");
+    baseInput.value = AbsApi.base || window.location.origin;
+    AbsApi.setBase(baseInput.value);
+    baseInput.addEventListener("change", () => {
+      AbsApi.setBase(baseInput.value);
+      toast("RPC base updated");
+      refreshAll();
+    });
+
+    document.querySelectorAll(".nav-btn").forEach((btn) => {
+      btn.addEventListener("click", () => setView(btn.dataset.view));
+    });
+    el("btn-refresh").onclick = () => refreshAll();
+    el("btn-poll").onclick = () => {
+      state.poll = !state.poll;
+      el("btn-poll").dataset.on = state.poll ? "1" : "0";
+      el("btn-poll").textContent = state.poll ? "Auto 5s" : "Paused";
+      schedule();
+    };
+
+    setView("overview");
+    refreshAll();
+    schedule();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+})();

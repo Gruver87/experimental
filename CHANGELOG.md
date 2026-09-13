@@ -15,6 +15,7 @@ Canonical language for this repository is **English**. Older inherited entries b
 
 ### Experimental R&D
 
+- **Ops Console UI (2026-09-13):** same-origin `web/console/` (CSP, path-traversal refuse) — live `/metrics` tiles + sparklines, under_mesh/mesh honesty, mempool_store, EIP-1193 + watchlist wallets (no private-key POST). `/` → console; `/explorer` → legacy. Grafana panels for `abs_p2p_under_mesh` / sync gap. Not soak / not mainnet.
 - **Wave D council + under_mesh DX (2026-09-13):** `verify_council_lab.ps1` (ADR 0022 / Profile C) + pack `councillab1`. Prometheus: `abs_p2p_under_mesh`, `abs_p2p_sync_status`, `abs_p2p_mesh_min_peers`, `abs_p2p_peer_sync_gap` from `/metrics` sync snapshot. Not soak / not prod council mint.
 - **Wave C soft-WARN / Rocks honesty (2026-09-13):** consistency harness retries peer state_root probe once on timeout/empty (`peer_probe_attempts`); Rocks `pack_*` JSON fallback counted + refused when `ABS_REQUIRE_NATIVE_CRYPTO`; metric `abs_rocksdb_native_pack_fallbacks`. Not soak.
 - **Wave B honesty DX (2026-09-13):** `/status` exposes `mempool_store` (backend/demoted/demote_count); prod+require_native demote → `degraded`. COMPAT_MATRIX RPC null-honesty rows relabeled **Supported (Absolute honesty)**. `verify_long_range_lab.ps1` + pack `lrlab1`. Stale Profile F “next Phase 4” fixed. Not soak / not prod LR arm.

@@ -227,6 +227,41 @@
       "type": "stat",
       "gridPos": {"h": 4, "w": 6, "x": 12, "y": 64},
       "targets": [{"expr": "abs_rocksdb_estimate_num_keys"}]
+    },
+    {
+      "id": 30,
+      "title": "P2P Under Mesh",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 64},
+      "targets": [{"expr": "abs_p2p_under_mesh"}]
+    },
+    {
+      "id": 31,
+      "title": "P2P Sync Status (one-hot)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 68},
+      "targets": [{"expr": "abs_p2p_sync_status", "legendFormat": "{{status}}"}]
+    },
+    {
+      "id": 32,
+      "title": "Peer Sync Gap",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 6, "y": 68},
+      "targets": [{"expr": "abs_p2p_peer_sync_gap", "legendFormat": "{{node_id}}"}]
+    },
+    {
+      "id": 33,
+      "title": "Mesh Min Peers",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 68},
+      "targets": [{"expr": "abs_p2p_mesh_min_peers"}]
+    },
+    {
+      "id": 34,
+      "title": "RocksDB Native Pack Fallbacks",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 76},
+      "targets": [{"expr": "abs_rocksdb_native_pack_fallbacks", "legendFormat": "{{node_id}}"}]
     }
   ]
 }

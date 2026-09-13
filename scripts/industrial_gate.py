@@ -157,9 +157,21 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "abs_p2p_peer_tx_reject_total",
         "abs_state_consistent",
         "abs_sync_wire_probe_ok",
+        "abs_p2p_under_mesh",
+        "abs_p2p_sync_status",
+        "abs_p2p_peer_sync_gap",
     ):
         if needle not in dash_src:
             errors.append(f"grafana dashboard.json missing panel surface: {needle}")
+    if not (ROOT / "web" / "console" / "index.html").is_file():
+        errors.append("web/console/index.html missing (ops console)")
+    if not (ROOT / "web" / "console" / "assets" / "app.js").is_file():
+        errors.append("web/console/assets/app.js missing")
+    http_static = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
+    if "_resolve_web_static" not in http_static:
+        errors.append("http.py must resolve web/console static safely")
+    if "Content-Security-Policy" not in http_static or "_WEB_CSP" not in http_static:
+        errors.append("http.py must emit CSP for UI static")
     try:
         from network import p2p_tls  # noqa: F401
     except ImportError as exc:

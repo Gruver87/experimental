@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Absolute — Ops Console</title>
+  <link rel="stylesheet" href="/console/assets/console.css" />
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <aside class="rail" id="rail">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"></div>
+      <div>
+        <div class="brand-name">ABSOLUTE</div>
+        <div class="brand-sub">ops console</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <button type="button" class="nav-btn active" data-view="overview">Overview</button>
+      <button type="button" class="nav-btn" data-view="mesh">Mesh &amp; Sync</button>
+      <button type="button" class="nav-btn" data-view="metrics">Live Metrics</button>
+      <button type="button" class="nav-btn" data-view="mempool">Mempool</button>
+      <button type="button" class="nav-btn" data-view="chain">Chain</button>
+      <button type="button" class="nav-btn" data-view="wallets">Wallets</button>
+      <button type="button" class="nav-btn" data-view="security">Security</button>
+    </nav>
+    <div class="rail-foot">
+      <div class="pill" id="live-pill"><span class="pulse"></span> live</div>
+      <a class="rail-link" href="/explorer">Legacy explorer</a>
+      <a class="rail-link" href="/docs">API docs</a>
+    </div>
+  </aside>
+
+  <main class="stage">
+    <header class="top">
+      <div>
+        <h1 id="view-title">Overview</h1>
+        <p class="lede" id="view-lede">Node honesty · mesh · satoshi-aware ops</p>
+      </div>
+      <div class="top-actions">
+        <label class="endpoint">
+          <span>RPC base</span>
+          <input id="rpc-base" type="text" spellcheck="false" autocomplete="off" value="" />
+        </label>
+        <button type="button" class="btn ghost" id="btn-refresh">Refresh</button>
+        <button type="button" class="btn" id="btn-poll" data-on="1">Auto 5s</button>
+      </div>
+    </header>
+
+    <section class="strip" id="status-strip" aria-live="polite"></section>
+
+    <section class="view active" id="view-overview"></section>
+    <section class="view" id="view-mesh"></section>
+    <section class="view" id="view-metrics"></section>
+    <section class="view" id="view-mempool"></section>
+    <section class="view" id="view-chain"></section>
+    <section class="view" id="view-wallets"></section>
+    <section class="view" id="view-security"></section>
+  </main>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="/console/assets/charts.js" defer></script>
+  <script src="/console/assets/api.js" defer></script>
+  <script src="/console/assets/wallets.js" defer></script>
+  <script src="/console/assets/app.js" defer></script>
+</body>
+</html>
