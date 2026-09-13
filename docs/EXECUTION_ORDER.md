@@ -13,7 +13,7 @@ Last updated: 2026-09-13.
 |----|---------|----------|-------------|
 | ~~B1~~ | **libp2p 48h soak** | **PASS** [`3c801b87`](evidence/runs/3c801b87/) (`passed=true`, `hard_fails=0`, `mesh_warn=0`, 2026-09-01→03). Prior FAIL `35104db0` · `87f51b3e` stay on record | **Closed.** |
 | ~~B2~~ | **Long-Range** lab 48h | **PASS** [`lr48pass1`](evidence/runs/lr48pass1/) (`passed=true`, `hard_fails=0`, `mesh_warn=0`, ready_only=13 tolerated, tip ~7929→~14770, 2026-09-09→11). Prior FAIL [`lr48fail1`](evidence/runs/lr48fail1/); intensify [`lr2hintensify`](evidence/runs/lr2hintensify/) | **Closed.** |
-| B3 | **Mempool/validation Rust** phases 0–3 landed on host | ADR 0021 | Docker rebuild for mesh bake |
+| B3 | **Mempool/validation Rust** phases 0–3 + mesh bake | ADR 0021 | Phase 5+ optional / soak only if ordered |
 
 **Not blockers:** EVM depth lab waves 8–10 (done for now); TCP+TLS 48h PASS (`0a7932c4`); **libp2p 48h PASS (`3c801b87`)**; **Long-Range lab 48h PASS (`lr48pass1`)**; **Phase 3 post-EVM-prep mesh 48h PASS (`evm48pass1`)**.
 
@@ -106,7 +106,9 @@ Phase 6   External audit / mainnet gap (out of repo scope until scheduled)
 | **4.2** | Rust priority store behind port | Perf only if parity proven | + `evm_mempool_load_harness.py` |
 | **4.3** | EVM deploy admit (`mempool_admit_evm_deploy`) | Golden tests vs Python | full L1 gate |
 
-**4.0 / 4.1 / 4.2 / 4.3 status:** landed (host). Docker bake still required for mesh parity.
+**4.0 / 4.1 / 4.2 / 4.3 status:** landed on host **and** prod mesh bake (2026-09-13):
+`docker_prod_3node.ps1 -KeepVolumes` → probe OK; container `mempool_store`/`mempool_kernel` = rust;
+`prod_evm_smoke.py` PASS; `evm_mempool_load_harness.py` PASS. **Not** a new 48h soak.
 
 **Invariants (never skip):** sig before DB reads · single mempool (ADR 0016) · remove from pool only after successful import · satoshi integers · solicit-only `MSG_MEMPOOL`.
 

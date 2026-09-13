@@ -203,8 +203,8 @@ def main() -> int:
             ):
                 fails += 1
             print(
-                "NOTE: mesh containers may still run pre-4.2 bake (-SkipBuild). "
-                "Host kernel/store PASS != baked image yet."
+                "NOTE: if mesh was started with -SkipBuild, containers may lack "
+                "latest kernels. Full rebuild: .\\scripts\\docker_prod_3node.ps1 -KeepVolumes"
             )
 
     if fails:
