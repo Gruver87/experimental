@@ -40,6 +40,22 @@ if ($txt -notmatch "_demote_store") {
     Write-Host "OK: demote harden in mempool.py" -ForegroundColor Green
 }
 
+Step "2b) fee_satoshi dual-write (store/sort key)"
+$storeRs = Join-Path $Root "native\abs_native\src\mempool_store.rs"
+$storeTxt = Get-Content -Raw -Path $storeRs
+if ($txt -notmatch "fee_satoshi" -or $txt -notmatch "min_fee_satoshi") {
+    Write-Host "FAIL: mempool.py missing fee_satoshi / min_fee_satoshi dual-write" -ForegroundColor Red
+    $fail++
+} elseif ($storeTxt -notmatch "fee_satoshi" -or $storeTxt -notmatch "min_fee_satoshi") {
+    Write-Host "FAIL: mempool_store.rs missing fee_satoshi sort key" -ForegroundColor Red
+    $fail++
+} elseif ($storeTxt -match "partial_cmp\(&a\.fee\)") {
+    Write-Host "FAIL: mempool_store.rs still sorts on float fee" -ForegroundColor Red
+    $fail++
+} else {
+    Write-Host "OK: fee_satoshi dual-write in Python + Rust store" -ForegroundColor Green
+}
+
 Step "3) unit: demote + port shape"
 python -m pytest -q tests/unit/test_adr0021_phase2_store.py tests/unit/test_mempool_port.py --tb=line
 if ($LASTEXITCODE -ne 0) {

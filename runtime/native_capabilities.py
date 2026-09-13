@@ -224,7 +224,7 @@ class NativeCapabilityRegistry:
                 if bad_op.get("reason") != "unsupported_evm_bytecode:0x5C":
                     return False, "mempool_admit_opcode_reason_mismatch"
             elif family == NativeFamily.MEMPOOL_STORE:
-                store = mod.MempoolStore(8, 0.0)
+                store = mod.MempoolStore(8, 0)
                 ok = bool(
                     store.insert(
                         {
@@ -233,6 +233,7 @@ class NativeCapabilityRegistry:
                             "to_addr": "0xb",
                             "amount": 1.0,
                             "fee": 9.0,
+                            "fee_satoshi": 9_000_000,
                             "nonce": 0,
                             "signature": "",
                             "public_key": "",
@@ -252,6 +253,7 @@ class NativeCapabilityRegistry:
                             "to_addr": "0xb",
                             "amount": 1.0,
                             "fee": 1.0,
+                            "fee_satoshi": 1_000_000,
                             "nonce": 1,
                             "signature": "",
                             "public_key": "",
@@ -263,7 +265,7 @@ class NativeCapabilityRegistry:
                 )
                 if not ok2:
                     return False, "mempool_store_insert2_failed"
-                ranked = list(store.get_sorted(10, 0.0))
+                ranked = list(store.get_sorted(10, 0))
                 if len(ranked) != 2 or str(ranked[0].get("tx_hash")) != "h_high":
                     return False, "mempool_store_sort_failed"
                 if not store.contains("h_high") or not store.remove("h_low"):

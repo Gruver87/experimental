@@ -135,7 +135,7 @@ Detail: [adr/0021-mempool-validation-rust-phases.md](adr/0021-mempool-validation
 
 Other optional depth:
 
-- EVM: waves 8–11 labs + `evm_rpc_lab` / `evm_logs_lab` / `evm_filters_lab` (polling filters; not WS)
+- EVM: waves 8–11 labs + `verify_evm_depth_lab.ps1` ([`evmlab1`](evidence/runs/evmlab1/)); `evm_rpc_lab` / `evm_logs_lab` / `evm_filters_lab` (polling filters; not WS)
 - Long-Range: `scripts/long_range_lab_2h_harness.py` preflight (2h **not** started); BLS design-only in ADR 0017
 - libp2p: post-48h hardening from soak WARN patterns; operator prep [LIBP2P_48H_PREP.md](sprouts/LIBP2P_48H_PREP.md)
 - Parallel batch verify (no soak): `python scripts/verify_parallel_rd_batch.py`
@@ -149,8 +149,8 @@ Other optional depth:
 |------|-------------------|----------|
 | libp2p transport | Slices A–DB, 2h smoke, **48h PASS `3c801b87`** | Post-soak WARN hardening (optional) |
 | Long-Range | Waves 1–14 labs + 2h/intensify + **lab 48h PASS `lr48pass1`** | Prod arm / BLS / mainnet Long-Range |
-| EVM | Waves 8–11 + preflight harness; **Phase 3 mesh 48h PASS** [`evm48pass1`](evidence/runs/evm48pass1/) | Further COMPAT_MATRIX; EVM-only 48h still optional/not claimed |
-| Mempool Rust | **Phases 0–3 + mesh bake** (ADR 0021, 2026-09-13) | Post-bake soak only if ordered; satoshi fee migration |
+| EVM | Waves 8–11 + preflight harness; **Phase 3 mesh 48h PASS** [`evm48pass1`](evidence/runs/evm48pass1/); host depth pack [`evmlab1`](evidence/runs/evmlab1/) | Further COMPAT_MATRIX; EVM-only 48h still optional/not claimed |
+| Mempool Rust | **Phases 0–3 + mesh bake** (ADR 0021, 2026-09-13); **fee_satoshi dual-write** store/sort | Post-bake soak only if ordered; wire/config fee float cutover still deferred |
 | Oracles / shard / bridge OFF | Lab verify packs [`oraclelab1`](evidence/runs/oraclelab1/) · [`shardlab1`](evidence/runs/shardlab1/) · [`bridgeoff1`](evidence/runs/bridgeoff1/) | Prod arm / L1 bridge cutover / docker shard mesh (optional) |
 | Council ADR 0022 | Lab + live staging 778889 genesis 87/87 (2026-08-28) | On-chain signed gov, mainnet, 48h council soak |
 

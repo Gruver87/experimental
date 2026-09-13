@@ -4696,18 +4696,35 @@ class P2PNode:
             ) + 1
             return None
         if bool(getattr(self.config, "p2p_mempool_min_fee_refuse", True)):
-            min_fee = 0.0
+            min_fee_sat = 0
             if self.mempool is not None:
                 try:
-                    min_fee = float(getattr(self.mempool, "min_fee", 0) or 0)
+                    min_fee_sat = int(getattr(self.mempool, "min_fee_satoshi", 0) or 0)
+                    if min_fee_sat <= 0:
+                        from runtime.amount import to_satoshi
+
+                        min_fee_sat = int(
+                            to_satoshi(float(getattr(self.mempool, "min_fee", 0) or 0))
+                        )
                 except (TypeError, ValueError):
-                    min_fee = 0.0
-            if min_fee > 0 and fee < min_fee:
-                self._last_tx_wire_reject = "fee_too_low"
-                self._mempool_fee_refuse_total = int(
-                    getattr(self, "_mempool_fee_refuse_total", 0) or 0
-                ) + 1
-                return None
+                    min_fee_sat = 0
+            if min_fee_sat > 0:
+                from runtime.amount import to_satoshi
+
+                try:
+                    fee_sat = int(to_satoshi(fee))
+                except (TypeError, ValueError):
+                    self._last_tx_wire_reject = "fee_unparseable"
+                    self._mempool_fee_unparseable_refuse_total = int(
+                        getattr(self, "_mempool_fee_unparseable_refuse_total", 0) or 0
+                    ) + 1
+                    return None
+                if fee_sat < min_fee_sat:
+                    self._last_tx_wire_reject = "fee_too_low"
+                    self._mempool_fee_refuse_total = int(
+                        getattr(self, "_mempool_fee_refuse_total", 0) or 0
+                    ) + 1
+                    return None
 
         # v1.3.179: cheap gas ceiling refuse before validate_transaction.
         # Soft DoS honesty — not Rust gas priority queue / EIP-1559 lanes.

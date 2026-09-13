@@ -21,7 +21,7 @@ The audit-freeze pin · public audited mainnet · listed ABS · Hybrid `v1.3.*-i
 | Default transport | **libp2p (ADR 0020)** on Experimental prod mesh JSON — Hybrid pin stays TCP+TLS |
 | Industrial pin | [Hybrid `v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial) |
 | 48h soaks here | TCP+TLS **PASS** (`0a7932c4`) · **libp2p** [`3c801b87`](evidence/runs/3c801b87/) · **LR lab** [`lr48pass1`](evidence/runs/lr48pass1/) · **Phase 3 post-EVM** [`evm48pass1`](evidence/runs/evm48pass1/). Not BLS / not mainnet / not EVM-only. |
-| Self-check | `.\scripts\verify_global_rd_audit.ps1` (FullLaunch/Live) · `.\scripts\verify_pre_soak.ps1` · `.\scripts\verify_hard_all.ps1` · `python scripts/verify_experimental_rd.py` |
+| Self-check | `.\scripts\verify_global_rd_audit.ps1` (FullLaunch/Live) · `.\scripts\verify_pre_soak.ps1` · `.\scripts\verify_evm_depth_lab.ps1` · `.\scripts\verify_hard_all.ps1` · `python scripts/verify_experimental_rd.py` |
 
 ## Pipeline (columns)
 
@@ -56,13 +56,14 @@ Full map: [ARCHITECTURE § R&D execution chain](ARCHITECTURE.md#rd-execution-cha
 | `scripts/libp2p_rust_*_lab.py` | Slice labs |
 | `scripts/verify_adr0019_libp2p_hard.py` | Hard gate |
 | `scripts/evm_pre_48h_harness.py` | Phase 3 pre-soak (labs+gate+probe+smoke; no soak start) |
+| `scripts/verify_evm_depth_lab.ps1` | EVM depth operator pack ([`evmlab1`](evidence/runs/evmlab1/); host default, `-WithMesh` optional) |
 | `docs/adr/0019-rust-libp2p-industrial.md` | Slice ledger |
 | `docs/sprouts/` | Profile F / Long-Range / EVM matrix |
 | `docs/sprouts/GOVERNANCE_COUNCIL_PROFILE.md` | Profile C council NFT (778889) |
 
 ## Next click
 
-- **Execution order (what when):** [EXECUTION_ORDER.md](EXECUTION_ORDER.md) — Phase 4 closed; Phase 5 labs `oraclelab1` / `shardlab1` / `bridgeoff1`; soak only if ordered
+- **Execution order (what when):** [EXECUTION_ORDER.md](EXECUTION_ORDER.md) — Phase 4 closed; Phase 5 labs `oraclelab1` / `shardlab1` / `bridgeoff1`; EVM depth `evmlab1`; soak only if ordered
 - Hybrid pin (do not break): [Ultimate Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid)
 - Contribute: [CONTRIBUTING](../CONTRIBUTING.md)
 - GitHub About: [REPO_PROFILE](../.github/REPO_PROFILE.md)

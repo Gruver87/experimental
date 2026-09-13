@@ -1,0 +1,38 @@
+﻿{
+    "honesty":  [
+                    "NOT soak",
+                    "NOT EVM-only 48h claim",
+                    "NOT mainnet / NOT BLS",
+                    "host labs via evm_pre_48h_harness (mesh optional -WithMesh)"
+                ],
+    "total":  4,
+    "elapsed_sec":  12.3,
+    "with_mesh":  false,
+    "passed":  4,
+    "started":  "2026-09-13T11:04:38.9359055+02:00",
+    "phase":  "pre-soak-evm-depth-lab",
+    "ok":  true,
+    "steps":  [
+                  {
+                      "ok":  true,
+                      "name":  "evm_pre_48h_harness.py --skip-mesh",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "evm_lab_scripts_present",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "compat_matrix_honesty_needles",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "industrial_gate_evm_depth_needles",
+                      "exit_code":  0
+                  }
+              ],
+    "fail_count":  0
+}

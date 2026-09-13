@@ -36,7 +36,11 @@ except ImportError:
 
 @dataclass
 class MempoolTransaction:
-    """Транзакция в мемпуле."""
+    """Транзакция в мемпуле.
+
+    Dual-write: ``fee`` ABS float for wire/display; ``fee_satoshi`` integer is
+    the canonical sort / min-fee / eviction key (ADR 0021 fee migration).
+    """
     tx_hash: str
     from_addr: str
     to_addr: str
@@ -48,6 +52,13 @@ class MempoolTransaction:
     data: str = ""
     gas: int = 21_000
     timestamp: float = field(default_factory=time.time)
+    fee_satoshi: int = -1
+
+    def __post_init__(self) -> None:
+        if int(self.fee_satoshi) < 0:
+            from runtime.amount import to_satoshi
+
+            self.fee_satoshi = int(to_satoshi(self.fee))
 
     def has_valid_signature(self) -> bool:
         """ECDSA check; when require_signatures is on, empty signature fails."""
@@ -76,15 +87,22 @@ class MempoolTransaction:
             return False
 
 
-def _validate_mempool_tx(tx: MempoolTransaction, min_fee: float) -> Tuple[bool, str]:
+def _validate_mempool_tx(tx: MempoolTransaction, min_fee_satoshi: int) -> Tuple[bool, str]:
     """
     Полная валидация транзакции перед добавлением в мемпул.
     Использует middleware/validators.py если доступен.
+    Min-fee gate is satoshi-integer (not float ABS).
     """
     if not tx.tx_hash:
         return False, "missing_hash"
-    if tx.fee < min_fee:
-        return False, f"fee_too_low (min={min_fee:.8f})"
+    fee_sat = int(getattr(tx, "fee_satoshi", -1))
+    if fee_sat < 0:
+        from runtime.amount import to_satoshi
+
+        fee_sat = int(to_satoshi(tx.fee))
+        tx.fee_satoshi = fee_sat
+    if fee_sat < int(min_fee_satoshi):
+        return False, f"fee_too_low (min_satoshi={int(min_fee_satoshi)})"
 
     if _VALIDATORS_AVAILABLE:
         # Validate addresses
@@ -128,12 +146,19 @@ def _mempool_tx_verify_dict(tx: MempoolTransaction, chain_id: int) -> Dict:
 
 
 def _tx_to_store_dict(tx: MempoolTransaction) -> Dict[str, Any]:
+    fee_sat = int(getattr(tx, "fee_satoshi", -1))
+    if fee_sat < 0:
+        from runtime.amount import to_satoshi
+
+        fee_sat = int(to_satoshi(tx.fee))
+        tx.fee_satoshi = fee_sat
     return {
         "tx_hash": str(tx.tx_hash),
         "from_addr": str(tx.from_addr),
         "to_addr": str(tx.to_addr),
         "amount": float(tx.amount),
         "fee": float(tx.fee),
+        "fee_satoshi": int(fee_sat),
         "nonce": int(tx.nonce or 0),
         "signature": str(tx.signature or ""),
         "public_key": str(tx.public_key or ""),
@@ -144,18 +169,27 @@ def _tx_to_store_dict(tx: MempoolTransaction) -> Dict[str, Any]:
 
 
 def _tx_from_store_dict(raw: Dict[str, Any]) -> MempoolTransaction:
+    fee = float(raw.get("fee") or 0.0)
+    raw_sat = raw.get("fee_satoshi")
+    if raw_sat is None:
+        from runtime.amount import to_satoshi
+
+        fee_sat = int(to_satoshi(fee))
+    else:
+        fee_sat = int(raw_sat)
     return MempoolTransaction(
         tx_hash=str(raw.get("tx_hash") or ""),
         from_addr=str(raw.get("from_addr") or ""),
         to_addr=str(raw.get("to_addr") or ""),
         amount=float(raw.get("amount") or 0.0),
-        fee=float(raw.get("fee") or 0.0),
+        fee=fee,
         nonce=int(raw.get("nonce") or 0),
         signature=str(raw.get("signature") or ""),
         public_key=str(raw.get("public_key") or ""),
         data=str(raw.get("data") or ""),
         gas=int(raw.get("gas") or 21_000),
         timestamp=float(raw.get("timestamp") or 0.0),
+        fee_satoshi=fee_sat,
     )
 
 
@@ -201,9 +235,12 @@ class Mempool:
     """
 
     def __init__(self, max_size: int = 10000, min_fee: float = 0.0001):
+        from runtime.amount import to_satoshi
+
         self._py_txs: Dict[str, MempoolTransaction] = {}
         self.max_size = max_size
         self.min_fee = min_fee
+        self.min_fee_satoshi = int(to_satoshi(min_fee))
         self.lock = threading.RLock()
         self._rejected_count = 0
         self.blockchain = None
@@ -248,7 +285,7 @@ class Mempool:
         migrated = 0
         if store is not None:
             try:
-                rows = list(store.get_sorted(int(self.max_size), 0.0))
+                rows = list(store.get_sorted(int(self.max_size), 0))
                 for raw in rows:
                     tx = _tx_from_store_dict(dict(raw))
                     if tx.tx_hash and tx.tx_hash not in self._py_txs:
@@ -296,8 +333,8 @@ class Mempool:
             if self.has_transaction(tx.tx_hash):
                 return False
 
-            # Full validation
-            valid, reason = _validate_mempool_tx(tx, self.min_fee)
+            # Full validation (min-fee in satoshi)
+            valid, reason = _validate_mempool_tx(tx, self.min_fee_satoshi)
             if not valid:
                 self._rejected_count += 1
                 return False
@@ -403,32 +440,44 @@ class Mempool:
         with self.lock:
             if self.has_transaction(tx.tx_hash):
                 return False
-            if tx.fee < self.min_fee:
+            fee_sat = int(getattr(tx, "fee_satoshi", -1))
+            if fee_sat < 0:
+                from runtime.amount import to_satoshi
+
+                fee_sat = int(to_satoshi(tx.fee))
+                tx.fee_satoshi = fee_sat
+            if fee_sat < int(self.min_fee_satoshi):
                 return False
             return self._store_put(tx)
 
     def get(self, limit: int = 100, min_fee: float = 0) -> List[MempoolTransaction]:
-        """Получить транзакции для майнинга (сортировка по комиссии)."""
+        """Получить транзакции для майнинга (сортировка по fee_satoshi)."""
+        from runtime.amount import to_satoshi
+
+        min_fee_sat = int(to_satoshi(min_fee)) if min_fee else 0
         with self.lock:
             if self._native_store is not None:
                 try:
-                    rows = list(self._native_store.get_sorted(int(limit), float(min_fee)))
+                    rows = list(self._native_store.get_sorted(int(limit), int(min_fee_sat)))
                     return [_tx_from_store_dict(dict(r)) for r in rows]
                 except Exception as exc:
                     self._demote_store(f"get_sorted:{exc}")
             sorted_txs = sorted(
                 self._py_txs.values(),
-                key=lambda x: x.fee,
+                key=lambda x: int(getattr(x, "fee_satoshi", 0) or 0),
                 reverse=True
             )
-            return [tx for tx in sorted_txs if tx.fee >= min_fee][:limit]
+            return [
+                tx for tx in sorted_txs
+                if int(getattr(tx, "fee_satoshi", 0) or 0) >= min_fee_sat
+            ][:limit]
 
     def get_sorted_transactions(self) -> List[Dict]:
         """Возвращает транзакции в формате dict (для BlockBuilder System C)."""
         with self.lock:
             if self._native_store is not None:
                 try:
-                    rows = list(self._native_store.get_sorted(self.max_size, 0.0))
+                    rows = list(self._native_store.get_sorted(self.max_size, 0))
                     return [
                         {
                             "hash": str(r.get("tx_hash") or ""),
@@ -440,6 +489,7 @@ class Mempool:
                             "nonce": int(r.get("nonce") or 0),
                             "data": str(r.get("data") or ""),
                             "timestamp": float(r.get("timestamp") or 0.0),
+                            "fee_satoshi": int(r.get("fee_satoshi") or 0),
                         }
                         for r in rows
                     ]
@@ -447,7 +497,7 @@ class Mempool:
                     self._demote_store(f"get_sorted_tx:{exc}")
             sorted_txs = sorted(
                 self._py_txs.values(),
-                key=lambda x: x.fee,
+                key=lambda x: int(getattr(x, "fee_satoshi", 0) or 0),
                 reverse=True
             )
             return [
@@ -461,6 +511,7 @@ class Mempool:
                     "nonce": tx.nonce,
                     "data": tx.data or "",
                     "timestamp": tx.timestamp,
+                    "fee_satoshi": int(getattr(tx, "fee_satoshi", 0) or 0),
                 }
                 for tx in sorted_txs
             ]
@@ -542,10 +593,13 @@ class Mempool:
             }
 
     def _cleanup_python(self):
-        """Удалить 10% самых дешёвых транзакций (Python store)."""
+        """Удалить 10% самых дешёвых транзакций (Python store, by fee_satoshi)."""
         if len(self._py_txs) < self.max_size * 0.8:
             return
-        sorted_txs = sorted(self._py_txs.values(), key=lambda x: x.fee)
+        sorted_txs = sorted(
+            self._py_txs.values(),
+            key=lambda x: int(getattr(x, "fee_satoshi", 0) or 0),
+        )
         to_remove = int(len(self._py_txs) * 0.1)
         for tx in sorted_txs[:to_remove]:
             del self._py_txs[tx.tx_hash]

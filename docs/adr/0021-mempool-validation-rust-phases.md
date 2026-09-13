@@ -70,7 +70,8 @@ Batch secp remains on existing `verify_secp256k1_sha256_batch` path (not re-home
 
 ### Phase 2 — Rust mempool store — **landed 2026-09-13**
 
-- Priority queue (fee-sorted) in `abs_native.MempoolStore` behind `Mempool` /
+- Priority queue (`fee_satoshi`-sorted; ABS `fee` dual-write for wire) in
+  `abs_native.MempoolStore` behind `Mempool` /
   `MempoolPort` (ADR 0009 family `mempool_store`).
 - Preserve: `chain_prevalidated` / `signature_preverified` in Python; Rust owns
   pending set + sort only.

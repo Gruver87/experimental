@@ -39,6 +39,7 @@ def test_mempool_port_and_fee_sort() -> None:
     assert pool.get_size() == 3
     ordered = [t.tx_hash for t in pool.get(limit=10)]
     assert ordered == ["high", "mid", "low"]
+    assert all(int(t.fee_satoshi) > 0 for t in pool.get(limit=10))
     assert pool.transactions.get("high") is not None
     assert pool.remove("mid")
     assert not pool.has_transaction("mid")
@@ -46,6 +47,18 @@ def test_mempool_port_and_fee_sort() -> None:
     stats = pool.get_stats()
     assert stats["size"] == 2
     assert stats.get("store_backend") in {"rust", "python"}
+
+
+def test_fee_satoshi_sort_beats_float_ambiguity() -> None:
+    """Canonical order is fee_satoshi, not ABS float."""
+    pool = Mempool(max_size=16, min_fee=0.0)
+    a = _mk_tx("a", 0.000001)  # 1 sat
+    b = _mk_tx("b", 0.000002)  # 2 sat
+    assert a.fee_satoshi == 1
+    assert b.fee_satoshi == 2
+    assert pool.add(a, signature_preverified=True)
+    assert pool.add(b, signature_preverified=True)
+    assert [t.tx_hash for t in pool.get(limit=10)] == ["b", "a"]
 
 
 def test_rust_store_preferred_when_native_on() -> None:

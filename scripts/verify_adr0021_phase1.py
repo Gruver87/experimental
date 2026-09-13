@@ -118,6 +118,7 @@ def _kernel_goldens(*, require_rust: bool) -> bool:
                 "to_addr": "0xb",
                 "amount": 1.0,
                 "fee": 9.0,
+                "fee_satoshi": 9_000_000,
                 "nonce": 0,
                 "signature": "",
                 "public_key": "",
@@ -133,6 +134,7 @@ def _kernel_goldens(*, require_rust: bool) -> bool:
                 "to_addr": "0xb",
                 "amount": 1.0,
                 "fee": 1.0,
+                "fee_satoshi": 1_000_000,
                 "nonce": 1,
                 "signature": "",
                 "public_key": "",
@@ -141,11 +143,14 @@ def _kernel_goldens(*, require_rust: bool) -> bool:
                 "timestamp": 1.0,
             }
         )
-        ranked = list(store.get_sorted(10, 0.0))
+        ranked = list(store.get_sorted(10, 0))
         if not ranked or str(ranked[0].get("tx_hash")) != "v_high":
             print(f"FAIL: store sort want v_high first, got {ranked}")
             return False
-        print("  OK mempool_store fee sort")
+        if int(ranked[0].get("fee_satoshi") or 0) != 9_000_000:
+            print(f"FAIL: store fee_satoshi dual-write missing: {ranked[0]}")
+            return False
+        print("  OK mempool_store fee_satoshi sort")
     else:
         print("  OK mempool_store python fallback (no native store)")
     return True

@@ -3251,7 +3251,11 @@ def mempool_admit_evm_deploy(bytecode_hex: str) -> dict:
 
 
 def create_mempool_store(max_size: int = 10000, min_fee: float = 0.0001):
-    """ADR 0021 phase-2 Rust fee-sorted store, or None → Python dict fallback."""
+    """ADR 0021 phase-2 Rust fee-sorted store, or None → Python dict fallback.
+
+    ``min_fee`` is ABS float at the Python boundary; store receives satoshi i64
+    so sort/evict never ranks on IEEE float.
+    """
     reg = get_registry()
     if (
         reg.use_rust(NativeFamily.MEMPOOL_STORE)
@@ -3259,7 +3263,10 @@ def create_mempool_store(max_size: int = 10000, min_fee: float = 0.0001):
         and hasattr(_native, "MempoolStore")
     ):
         try:
-            return _native.MempoolStore(int(max_size), float(min_fee))
+            from runtime.amount import to_satoshi
+
+            min_fee_satoshi = int(to_satoshi(min_fee))
+            return _native.MempoolStore(int(max_size), int(min_fee_satoshi))
         except Exception as exc:
             reg.demote(NativeFamily.MEMPOOL_STORE, str(exc))
     return None
