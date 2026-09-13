@@ -68,12 +68,16 @@ class ValidatorKeys:
 
         try:
             derived = KeyGenerator.derive_address(public_key).strip().lower()
-        except Exception:
-            return False
+        except Exception as exc:
+            # Wave Q: key derive failure is unavailable, not attestation invalid.
+            raise RuntimeError(f"attestation verify unavailable: {exc}") from exc
         if derived != claimed:
             return False
 
-        return bool(native.verify_attestation_secp256k1(attestation, signature, public_key))
+        try:
+            return bool(native.verify_attestation_secp256k1(attestation, signature, public_key))
+        except Exception as exc:
+            raise RuntimeError(f"attestation verify unavailable: {exc}") from exc
     
     def get_public_key(self) -> str:
         return self.wallet.public_key if self.wallet else ""

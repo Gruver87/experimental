@@ -5095,6 +5095,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("verify_wave_o.ps1 missing (Wave O P2P satoshi/DAO/gas honesty)")
         if not (ROOT / "scripts" / "verify_wave_p.ps1").is_file():
             errors.append("verify_wave_p.ps1 missing (Wave P stake/pool/sig honesty)")
+        if not (ROOT / "scripts" / "verify_wave_q.ps1").is_file():
+            errors.append("verify_wave_q.ps1 missing (Wave Q http/wallet/attestation honesty)")
         if "stake: int" not in (ROOT / "consensus_engine.py").read_text(encoding="utf-8"):
             errors.append("consensus_engine stake must be int satoshi (Wave N)")
         if "Corrupt stored roots return None" not in (
@@ -5126,6 +5128,16 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "blockchain" / "tx_validator.py"
         ).read_text(encoding="utf-8"):
             errors.append("tx_validator must distinguish unavailable sig verify (Wave P)")
+        if "fee or fee_satoshi required" not in http_wave:
+            errors.append("/tx/sign must require fee (Wave Q)")
+        if "ECDSA backend missing" not in (
+            ROOT / "crypto" / "wallet.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("wallet must raise when ECDSA missing (Wave Q)")
+        if "attestation verify unavailable" not in (
+            ROOT / "crypto" / "validator_keys.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("validator_keys must raise on derive/probe fail (Wave Q)")
         if "* 3 >= total * 2" not in (
             ROOT / "consensus" / "bft" / "quorum.py"
         ).read_text(encoding="utf-8"):

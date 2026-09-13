@@ -3945,7 +3945,17 @@ class P2PNode:
             )
             self._strike_peer_sync(peer, "attestation_verifier_unavailable")
             return
-        if not vkeys.verify_attestation(data):
+        try:
+            ok = bool(vkeys.verify_attestation(data))
+        except RuntimeError as exc:
+            logger.warning(
+                "[P2P] attestation verify unavailable from %s: %s",
+                (peer.peer_id or "?")[:12],
+                exc,
+            )
+            self._strike_peer_sync(peer, "attestation_verify_unavailable")
+            return
+        if not ok:
             logger.warning(
                 "[P2P] Invalid attestation sig/identity from %s",
                 (peer.peer_id or "?")[:12],

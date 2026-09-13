@@ -210,12 +210,15 @@ class Wallet:
 # ========== SIGNATURE VERIFICATION ==========
 
 def verify_transaction_signature(tx: dict) -> bool:
-    """Verify transaction signature"""
+    """Verify transaction signature.
+
+    Wave Q: missing ECDSA backend is unavailable (RuntimeError), not invalid False.
+    """
     material = _transaction_signature_material(tx)
     if material is None:
         return False
     if not ECDSA_AVAILABLE:
-        return False
+        raise RuntimeError("signature verify unavailable: ECDSA backend missing")
     message, signature, public_key = material
     return verify(message, signature, public_key, hashfunc=hashlib.sha256)
 
@@ -223,7 +226,7 @@ def verify_transaction_signature(tx: dict) -> bool:
 def verify_transaction_signatures_batch(txs: List[dict]) -> List[bool]:
     """Batch verify canonical transaction signatures."""
     if not ECDSA_AVAILABLE:
-        return [False for _ in txs]
+        raise RuntimeError("signature verify unavailable: ECDSA backend missing")
 
     batch: List[Tuple[bytes, bytes, bytes]] = []
     positions: List[int] = []

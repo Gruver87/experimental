@@ -15,6 +15,7 @@ Canonical language for this repository is **English**. Older inherited entries b
 
 ### Experimental R&D
 
+- **Wave Q audit honesty fixes (2026-09-13):** `/sharding/balance` satoshi; `/tx/sign` requires fee (no `0.001` invent); MEV value via money_abs (no `fee*1e9`); wallet ECDSA-missing → RuntimeError; attestation derive/probe → unavailable (P2P strike distinct); `verify_wave_q.ps1`. Not soak.
 - **Wave P audit honesty fixes (2026-09-13):** `/consensus/stake` labels satoshi unit + ABS display; pool_locks totals/spend in satoshi; tx_validator/eth_tx distinguish verify-unavailable vs invalid; `/bridge2/fee` via money_abs + satoshi fields; `verify_wave_p.ps1`. Not soak.
 - **Wave O audit honesty fixes (2026-09-13):** P2P `validator_register`/`cross_shard`/`shard_migration` emit satoshi fields; pool DAO integer BPS quorum + no invented denom=1; P2P refuse unset `gas_price` invent (`or 0.001`); `verify_wave_o.ps1`. Not soak.
 - **Wave N audit honesty fixes (2026-09-13):** native canonicalize/`_sat` via `to_satoshi` (no float×1e6); PoS `consensus_engine` stake int satoshi + finality empty-set no invented denom; multisig `amount_satoshi` + `execution_failed`→`success:false`; secp verify exception→`None` (not False); eth_format corrupt stored roots→null; `verify_wave_n.ps1`. Not soak.

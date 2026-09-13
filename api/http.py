@@ -5115,20 +5115,29 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             # ── Sharding: balance and state ───────────────────────────────────
             elif path.startswith("/sharding/balance/"):
+                from runtime.amount import from_satoshi_float, money_abs, to_satoshi
+
                 addr = path.split("/sharding/balance/")[-1]
                 sh = self.__class__.sharding
                 bc = self.__class__.blockchain
                 shard_id = sh.get_shard_for_address(addr) if sh and hasattr(sh, "get_shard_for_address") else None
-                if bc and hasattr(bc, "get_balance"):
-                    balance = float(bc.get_balance(addr))
-                elif sh and hasattr(sh, "get_shard_balance"):
-                    balance = float(sh.get_shard_balance(addr))
-                else:
-                    balance = 0.0
+                balance_sat = 0
+                try:
+                    if bc and hasattr(bc, "get_balance"):
+                        balance_sat = int(to_satoshi(money_abs(bc.get_balance(addr), field="balance")))
+                    elif sh and hasattr(sh, "get_shard_balance"):
+                        balance_sat = int(
+                            to_satoshi(money_abs(sh.get_shard_balance(addr), field="balance"))
+                        )
+                except (TypeError, ValueError) as exc:
+                    self._error(502, f"balance unparseable: {exc}")
+                    return
                 self._json({
                     "address": addr,
                     "shard_id": shard_id,
-                    "balance": balance,
+                    "balance": from_satoshi_float(balance_sat),
+                    "balance_satoshi": balance_sat,
+                    "unit": "satoshi",
                     "source": "chain_state",
                 })
 
@@ -5483,12 +5492,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                     for tx in mp.get(limit=500):
                         if tx.tx_hash == tx_hash:
                             from features.mev_analyzer import Transaction as MevTx
+                            from runtime.amount import money_abs, to_satoshi
+                            fee_abs = money_abs(getattr(tx, "fee", 0) or 0, field="fee")
                             target = MevTx(
                                 hash=tx.tx_hash,
                                 from_addr=tx.from_addr,
                                 to_addr=tx.to_addr,
-                                value=float(tx.amount),
-                                gas_price=int(tx.fee * 1e9) if tx.fee else 1,
+                                value=money_abs(tx.amount, field="value"),
+                                gas_price=max(0, int(to_satoshi(fee_abs))),
                                 timestamp=0,
                             )
                             break
@@ -6281,8 +6292,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                         hash=t.get("hash", "0x0"),
                         from_addr=t.get("from", ""),
                         to_addr=t.get("to", ""),
-                        value=float(t.get("value", 0)),
-                        gas_price=int(t.get("gas_price", 1)),
+                        value=_http_abs(t.get("value", 0), field="value"),
+                        gas_price=int(t.get("gas_price", 0) or 0),
                         timestamp=int(t.get("timestamp", 0)),
                     ) for t in txs_raw]
                     sandwich = mev.detect_sandwich_opportunity(txs)
@@ -6506,12 +6517,29 @@ class RESTHandler(BaseHTTPRequestHandler):
                 private_key = body.get("private_key", "")
                 if not private_key:
                     self._error(400, "private_key required"); return
+                # Wave Q: do not invent fee=0.001 when omitted.
+                if body.get("fee") is None and body.get("fee_satoshi") is None:
+                    self._error(400, "fee or fee_satoshi required")
+                    return
                 try:
+                    from runtime.amount import from_satoshi_float, to_satoshi
                     from crypto.tx_signer import TransactionSigner
                     from crypto.keys import KeyGenerator
-                    tx_data = {"from": from_addr, "to": to_addr,
-                               "amount": amount, "nonce": nonce,
-                               "fee": _http_abs(body.get("fee", 0.001), field="fee")}
+                    if body.get("fee_satoshi") is not None:
+                        fee_sat = int(body["fee_satoshi"])
+                        fee = from_satoshi_float(fee_sat)
+                    else:
+                        fee = _http_abs(body.get("fee"), field="fee")
+                        fee_sat = int(to_satoshi(fee))
+                    tx_data = {
+                        "from": from_addr,
+                        "to": to_addr,
+                        "amount": amount,
+                        "amount_satoshi": int(to_satoshi(amount)),
+                        "nonce": nonce,
+                        "fee": fee,
+                        "fee_satoshi": fee_sat,
+                    }
                     keypair = KeyGenerator.from_private_key(private_key)
                     tx_data["public_key"] = keypair.public_key.hex()
                     tx_hash = TransactionSigner.hash_transaction(tx_data)
@@ -8066,20 +8094,25 @@ class RESTHandler(BaseHTTPRequestHandler):
                         hash=tx_data.get("hash", tx_hash or "0x0"),
                         from_addr=tx_data.get("from", ""),
                         to_addr=tx_data.get("to", ""),
-                        value=float(tx_data.get("value", tx_data.get("amount", 0))),
-                        gas_price=int(tx_data.get("gas_price", 1)),
+                        value=_http_abs(
+                            tx_data.get("value", tx_data.get("amount", 0)),
+                            field="value",
+                        ),
+                        gas_price=int(tx_data.get("gas_price", 0) or 0),
                         timestamp=0,
                     )
                 elif mp and tx_hash:
                     for tx in mp.get(limit=500):
                         if tx.tx_hash == tx_hash:
                             from features.mev_analyzer import Transaction as MevTx
+                            from runtime.amount import money_abs, to_satoshi
+                            fee_abs = money_abs(getattr(tx, "fee", 0) or 0, field="fee")
                             target = MevTx(
                                 hash=tx.tx_hash,
                                 from_addr=tx.from_addr,
                                 to_addr=tx.to_addr,
-                                value=float(tx.amount),
-                                gas_price=int(tx.fee * 1e9) if tx.fee else 1,
+                                value=money_abs(tx.amount, field="value"),
+                                gas_price=max(0, int(to_satoshi(fee_abs))),
                                 timestamp=0,
                             )
                             break
