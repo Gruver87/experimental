@@ -29,6 +29,24 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
+
+def _load_dotenv(path: Path) -> None:
+    """Load KEY=VALUE from .env into os.environ if not already set (no logging of values)."""
+    if not path.is_file():
+        return
+    for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key = key.strip()
+        val = val.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = val
+
+
+_load_dotenv(ROOT / ".env")
+
 from verify_p2p_ci import _api, _post_json  # noqa: E402
 
 
@@ -66,7 +84,8 @@ def _refuse_empty_tx(http: str) -> tuple[bool, str]:
     """POST a structurally empty /tx/send — expect refuse (4xx/5xx or success:false)."""
     try:
         resp = _post_json(
-            f"{http.rstrip('/')}/tx/send",
+            http.rstrip("/"),
+            "/tx/send",
             {
                 "from": "0x" + "0" * 40,
                 "to": "0x" + "1" * 40,

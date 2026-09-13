@@ -51,7 +51,23 @@ function Invoke-Check {
 Write-Host ""
 Write-Host "MEMPOOL+VALIDATION STRICT soak prep (Experimental)" -ForegroundColor Cyan
 Write-Host "  hours=$Hours interval=${IntervalSec}s sidecar=${SidecarIntervalSec}s" -ForegroundColor DarkGray
-Write-Host "  NOT 48h / NOT mainnet / NOT Hybrid / NOT wire float cutover" -ForegroundColor DarkGray
+Write-Host "  NOT 48h claim until report passed=true / NOT mainnet / NOT Hybrid" -ForegroundColor DarkGray
+
+# Load .env into process (needed for sidecar JWT mint) without printing secrets.
+$envPath = Join-Path $Root ".env"
+if (Test-Path $envPath) {
+    Get-Content $envPath | ForEach-Object {
+        $line = $_.Trim()
+        if (-not $line -or $line.StartsWith("#") -or ($line -notmatch "=")) { return }
+        $i = $line.IndexOf("=")
+        $k = $line.Substring(0, $i).Trim()
+        $v = $line.Substring($i + 1).Trim().Trim('"').Trim("'")
+        if ($k -and -not [Environment]::GetEnvironmentVariable($k)) {
+            [Environment]::SetEnvironmentVariable($k, $v, "Process")
+        }
+    }
+    Write-Host "  .env loaded for sidecar/smoke (values not printed)" -ForegroundColor DarkGray
+}
 
 & (Join-Path $ScriptDir "stop_soak_monitors.ps1") -Force
 
