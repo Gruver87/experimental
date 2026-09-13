@@ -21,13 +21,13 @@ The audit-freeze pin · public audited mainnet · listed ABS · Hybrid `v1.3.*-i
 | Default transport | **libp2p (ADR 0020)** on Experimental prod mesh JSON — Hybrid pin stays TCP+TLS |
 | Industrial pin | [Hybrid `v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial) |
 | 48h soaks here | TCP+TLS **PASS** (`0a7932c4`) · **libp2p** [`3c801b87`](evidence/runs/3c801b87/) · **LR lab** [`lr48pass1`](evidence/runs/lr48pass1/) · **Phase 3 post-EVM** [`evm48pass1`](evidence/runs/evm48pass1/). Not BLS / not mainnet / not EVM-only. |
-| Self-check | `.\scripts\verify_hard_all.ps1` (fail-closed, no soak start) · `python scripts/verify_experimental_rd.py` · `.\scripts\verify_adr0019_libp2p_hard.ps1 -Rebuild` |
+| Self-check | `.\scripts\verify_global_rd_audit.ps1` (FullLaunch/Live) · `.\scripts\verify_pre_soak.ps1` · `.\scripts\verify_hard_all.ps1` · `python scripts/verify_experimental_rd.py` |
 
 ## Pipeline (columns)
 
 | 1 libp2p 48h | 2a LR solo 2h | 2b LR mesh 2h | 2c LR lab 48h | 3 EVM mesh 48h | 4 Mempool Rust |
 |:------------:|:-------------:|:-------------:|:-------------:|:--------------:|:--------------:|
-| **PASS** [`3c801b87`](evidence/runs/3c801b87/) | **PASS** [`lr2h9f3a`](evidence/runs/lr2h9f3a/) | **PASS** [`lr2hmesh`](evidence/runs/lr2hmesh/) | **PASS** [`lr48pass1`](evidence/runs/lr48pass1/) | **PASS** [`evm48pass1`](evidence/runs/evm48pass1/) | **4.0–4.3 landed + mesh bake** |
+| **PASS** [`3c801b87`](evidence/runs/3c801b87/) | **PASS** [`lr2h9f3a`](evidence/runs/lr2h9f3a/) | **PASS** [`lr2hmesh`](evidence/runs/lr2hmesh/) | **PASS** [`lr48pass1`](evidence/runs/lr48pass1/) | **PASS** [`evm48pass1`](evidence/runs/evm48pass1/) | **PASS** [`adr0021gaudit1`](evidence/runs/adr0021gaudit1/) |
 
 Full map: [ARCHITECTURE § R&D execution chain](ARCHITECTURE.md#rd-execution-chain) · [EXECUTION_ORDER](EXECUTION_ORDER.md).
 

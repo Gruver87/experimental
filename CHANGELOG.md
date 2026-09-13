@@ -15,6 +15,7 @@ Canonical language for this repository is **English**. Older inherited entries b
 
 ### Experimental R&D
 
+- **Global R&D audit PASS (2026-09-13):** `verify_global_rd_audit.ps1 -Mode FullLaunch -Rebuild` → **13/13** — pack [`docs/evidence/runs/adr0021gaudit1/`](docs/evidence/runs/adr0021gaudit1/). Includes ADR 0021 rust families, demote harden, mesh rebuild, probe, EVM smoke, load harness, prepare READY. **Not** 48h soak / not mainnet.
 - **Pre-soak harden (2026-09-13):** MempoolStore fault demotes to Python dict (no process crash); `MempoolPort.add_batch` matches Tuple API; TxPipeline kernel/admit exceptions logged. Float fee migration still deferred.
 - **Phase 4 mesh bake (2026-09-13):** rebuilt `abs-blockchain-prod:local` with ADR 0021 kernels/store; probe RESULT OK; container families rust; `prod_evm_smoke` + `evm_mempool_load_harness` PASS. Not soak.
 - **Phase 4.2 landed (2026-09-13):** ADR 0021 Rust `MempoolStore` (fee-sorted) behind `Mempool` / family `mempool_store`; Python validation unchanged; dict fallback when native off.

@@ -26,7 +26,7 @@ Canonical docs language is **English**. If GitHub shows a translation, open **Vi
 | Audience | Start here |
 |----------|------------|
 | **Architects / principals** | [AT_A_GLANCE](docs/AT_A_GLANCE.md) → [ARCHITECTURE](docs/ARCHITECTURE.md) → ADR [0017](docs/adr/0017-long-range-research.md) / [0019](docs/adr/0019-rust-libp2p-industrial.md) / [0020](docs/adr/0020-libp2p-industrial-mesh.md) |
-| **Grant officers / diligence** | Hybrid [VISION](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/VISION.md) · Proven-vs-not below · [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) · [EXECUTION_ORDER](docs/EXECUTION_ORDER.md) (B1/B2/Phase 3 **closed**; next Phase 4 / B3 ADR 0021) |
+| **Grant officers / diligence** | Hybrid [VISION](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/VISION.md) · Proven-vs-not below · [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) · [EXECUTION_ORDER](docs/EXECUTION_ORDER.md) (B1/B2/Phase 3/Phase 4 **closed**; next Phase 5+ optional / soak if ordered) |
 | **Operators** | [Start in 60 seconds](#start-in-60-seconds) · `python scripts/verify_experimental_rd.py` · optional `python scripts/verify_parallel_rd_batch.py` |
 | **Auditors (this tree)** | R&D sandbox only — firm engagement package lives on the [Hybrid pin](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/AUDIT_ENGAGEMENT_BRIEF.md) |
 
@@ -86,7 +86,7 @@ What is closed vs open on **this** tree. Columns = execution order ([EXECUTION_O
 | **2b** | Long-Range lab 3-node mesh 2h + Ed25519 committee | **DONE** | [`lr2hmesh`](docs/evidence/runs/lr2hmesh/) |
 | **2c** | Long-Range lab 48h | **DONE** (B2 closed) | [`lr48pass1`](docs/evidence/runs/lr48pass1/) · prior FAIL [`lr48fail1`](docs/evidence/runs/lr48fail1/) · intensify [`lr2hintensify`](docs/evidence/runs/lr2hintensify/) |
 | **3** | EVM mesh regression + post-prep 48h | **DONE** | [`evm48pass1`](docs/evidence/runs/evm48pass1/) · preflight `evm_pre_48h_harness.py` |
-| **4** | Mempool / validation → Rust | **NEXT** (phase 0 landed; B3) | [ADR 0021](docs/adr/0021-mempool-validation-rust-phases.md) |
+| **4** | Mempool / validation → Rust | **DONE** (phases 0–3 + mesh bake + global audit) | [`adr0021gaudit1`](docs/evidence/runs/adr0021gaudit1/) · [ADR 0021](docs/adr/0021-mempool-validation-rust-phases.md) |
 | **5+** | Oracles / shard / council depth | **Lab parallel** | flags **off** on prod JSON |
 | — | Hybrid audit pin / public mainnet | **Other repo** | never claimed here |
 
@@ -97,7 +97,7 @@ flowchart LR
   P2b["Phase2b LR mesh 2h\nPASS lr2hmesh"]
   P2c["Phase2c LR lab 48h\nPASS lr48pass1"]
   P3["Phase3 mesh 48h\nPASS evm48pass1"]
-  P4["Phase4 Mempool Rust\nNEXT B3"]
+  P4["Phase4 Mempool Rust\nPASS adr0021gaudit1"]
   P1 --> P2a --> P2b --> P2c --> P3 --> P4
 ```
 
@@ -113,7 +113,7 @@ Full layer map: [ARCHITECTURE](docs/ARCHITECTURE.md#rd-execution-chain).
 | **ADR 0020 Experimental mesh** | libp2p on `778888` · **B1 CLOSED** 48h PASS | [`3c801b87`](docs/evidence/runs/3c801b87/) · [EXECUTION_ORDER](docs/EXECUTION_ORDER.md) |
 | **ADR 0017 Long-Range** | Lab mesh 2h + **lab 48h PASS** · B2 closed · not BLS/prod | [`lr48pass1`](docs/evidence/runs/lr48pass1/) · [LONG_RANGE_LAB_PROFILE](docs/sprouts/LONG_RANGE_LAB_PROFILE.md) |
 | **EVM depth / RPC honesty** | Waves 8–11 + Phase 3 mesh 48h PASS | [`evm48pass1`](docs/evidence/runs/evm48pass1/) · [EVM_COMPAT_MATRIX](docs/sprouts/EVM_COMPAT_MATRIX.md) |
-| **ADR 0021 mempool Rust** | Phase 0 ports · **NEXT** phase 1 (B3) after Phase 3 | [ADR 0021](docs/adr/0021-mempool-validation-rust-phases.md) |
+| **ADR 0021 mempool Rust** | Phases 0–3 + mesh bake + **global audit PASS** | [`adr0021gaudit1`](docs/evidence/runs/adr0021gaudit1/) · [ADR 0021](docs/adr/0021-mempool-validation-rust-phases.md) |
 
 Latest ADR 0019 work lands on `main`. Historical slice PRs: [#16](https://github.com/Gruver87/experimental/pull/16).
 
@@ -121,7 +121,18 @@ Latest ADR 0019 work lands on `main`. Historical slice PRs: [#16](https://github
 
 ## Clone & verify
 
-### Experimental only (ADR 0019 hard — 116 steps, 117 with `--rebuild`)
+### Experimental only — global R&D audit (recommended)
+
+```powershell
+# FullLaunch rebuilds mesh image, runs ADR 0021 + probe + EVM + prepare (does NOT start soak)
+.\scripts\verify_global_rd_audit.ps1 -Mode FullLaunch -Rebuild
+# Pre-soak only (mesh already up):
+.\scripts\verify_pre_soak.ps1
+```
+
+Report: `logs/verify_global_rd_audit.json` · evidence pack: [`adr0021gaudit1`](docs/evidence/runs/adr0021gaudit1/)
+
+### Experimental ADR 0019 hard (116 steps, 117 with `--rebuild`)
 
 ```powershell
 # Windows — rebuild native libp2p wheel when Rust changed
@@ -166,6 +177,7 @@ Default Hybrid CI / prod mesh builds **without** the `libp2p` feature.
 - Experimental prod mesh JSON (`778888`) is **libp2p** (ADR 0020) with **48h PASS** [`3c801b87`](docs/evidence/runs/3c801b87/). Hybrid audit-pin JSON stays `feature_libp2p=false`. TCP+TLS soak `0a7932c4` is a separate historical PASS — not libp2p.
 - Long-Range is **lab-only** (`feature_long_range=false` on prod JSON). Lab mesh 2h [`lr2hmesh`](docs/evidence/runs/lr2hmesh/) + lab 48h PASS [`lr48pass1`](docs/evidence/runs/lr48pass1/) ≠ BLS ≠ prod arm ≠ mainnet.
 - Phase 3 post-EVM-prep mesh 48h PASS [`evm48pass1`](docs/evidence/runs/evm48pass1/) ≠ EVM-only 48h ≠ full geth.
+- Phase 4 ADR 0021 global audit PASS [`adr0021gaudit1`](docs/evidence/runs/adr0021gaudit1/) ≠ 48h soak ≠ mainnet.
 - Do **not** push R&D into the audit-freeze Hybrid repo.
 - ABS tokenomics in-repo model ≠ listed asset / public mainnet.
 - Experimental tags are `rd-X.Y.Z` — **never** the Hybrid `v1.3.*-industrial` line.
@@ -206,4 +218,4 @@ MIT — [LICENSE](LICENSE)
 ---
 
 *Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87) · Default branch: `main`*  
-*Last surface update: **2026-09-13** — B1 `3c801b87` · B2 `lr48pass1` · Phase 3 `evm48pass1` **closed**; next Phase 4 / B3 ADR 0021. Not BLS / not public mainnet.*
+*Last surface update: **2026-09-13** — B1 `3c801b87` · B2 `lr48pass1` · Phase 3 `evm48pass1` · Phase 4 `adr0021gaudit1` **closed**. Not BLS / not public mainnet / not 48h soak claim from global audit.*

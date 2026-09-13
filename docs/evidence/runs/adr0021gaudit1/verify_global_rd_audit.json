@@ -1,0 +1,99 @@
+﻿{
+    "mode":  "FullLaunch",
+    "total":  13,
+    "elapsed_sec":  168.6,
+    "passed":  13,
+    "honesty":  [
+                    "NOT soak started",
+                    "NOT mainnet",
+                    "NOT Hybrid audit pin",
+                    "PASS here != 48h soak PASS"
+                ],
+    "started":  "2026-09-13T09:40:01.4728326+02:00",
+    "rebuild":  true,
+    "ok":  true,
+    "steps":  [
+                  {
+                      "ok":  true,
+                      "soft":  false,
+                      "name":  "native_crypto_status",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "soft":  false,
+                      "name":  "verify_adr0021_require_rust",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "soft":  false,
+                      "name":  "demote_source_present",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "soft":  false,
+                      "name":  "pytest_adr0021_mempool",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "soft":  false,
+                      "name":  "industrial_gate",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "soft":  false,
+                      "name":  "prod_gate",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "soft":  false,
+                      "name":  "docker_prod_3node_rebuild",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "soft":  false,
+                      "name":  "http_live_18180_182",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "soft":  false,
+                      "name":  "container_demote_and_store",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "soft":  false,
+                      "name":  "probe_prod_mesh_quick",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "soft":  false,
+                      "name":  "prod_evm_smoke",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "soft":  false,
+                      "name":  "evm_mempool_load_harness",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "soft":  false,
+                      "name":  "prepare_48h_soak",
+                      "exit_code":  0
+                  }
+              ],
+    "fail_count":  0,
+    "failed_steps":  [
+
+                     ]
+}

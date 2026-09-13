@@ -3,7 +3,7 @@
 Apply with:
 
 ```powershell
-gh repo edit Gruver87/experimental --description "Absolute Blockchain Experimental — R&D (B1/B2/Phase3 closed: 3c801b87, lr48pass1, evm48pass1). Next: ADR 0021. Not the audit pin."
+gh repo edit Gruver87/experimental --description "Absolute Blockchain Experimental — R&D (B1/B2/P3/P4 closed: 3c801b87, lr48pass1, evm48pass1, adr0021gaudit1). Next: Phase 5+ / soak if ordered. Not the audit pin."
 gh repo edit Gruver87/experimental --homepage "https://github.com/Gruver87/experimental/blob/main/docs/AT_A_GLANCE.md"
 gh repo edit Gruver87/experimental --enable-wiki=false
 @(
@@ -17,7 +17,7 @@ Or paste into **Settings → General → About**.
 
 | Field | Value |
 |-------|-------|
-| **Description** | Absolute Blockchain Experimental — R&D (B1/B2/Phase3 closed: 3c801b87, lr48pass1, evm48pass1). Next: ADR 0021. Not the audit pin. |
+| **Description** | Absolute Blockchain Experimental — R&D (B1/B2/P3/P4 closed: 3c801b87, lr48pass1, evm48pass1, adr0021gaudit1). Next: Phase 5+ / soak if ordered. Not the audit pin. |
 | **Website** | https://github.com/Gruver87/experimental/blob/main/docs/AT_A_GLANCE.md |
 | **Social preview** | Upload evergreen `docs/assets/repo-banner.svg` (export PNG 1280×640) in **Settings → General · Social preview** |
 | **Skimmer card** | [docs/AT_A_GLANCE.md](../docs/AT_A_GLANCE.md) |
@@ -66,11 +66,11 @@ noise-protocol
 | **Tag** | `rd-1.0.0` — first R&D GitHub Release; `main` through Slice DB phase 105 |
 | **ADR stack** | Hybrid 0001–0016 inherited · **0017–0021** Experimental |
 | **Hard gate** | 117 steps with `--rebuild` |
-| **Closed** | B1 libp2p [`3c801b87`](../docs/evidence/runs/3c801b87/) · B2 LR lab [`lr48pass1`](../docs/evidence/runs/lr48pass1/) · Phase 3 [`evm48pass1`](../docs/evidence/runs/evm48pass1/) |
-| **Open / next** | Phase 4 / B3 ADR 0021 mempool Rust phase 1 — see EXECUTION_ORDER |
+| **Closed** | B1 libp2p [`3c801b87`](../docs/evidence/runs/3c801b87/) · B2 LR lab [`lr48pass1`](../docs/evidence/runs/lr48pass1/) · Phase 3 [`evm48pass1`](../docs/evidence/runs/evm48pass1/) · Phase 4 [`adr0021gaudit1`](../docs/evidence/runs/adr0021gaudit1/) |
+| **Open / next** | Phase 5+ optional labs · 48h soak only if explicitly ordered — see EXECUTION_ORDER |
 | **Notes** | [CHANGELOG](../CHANGELOG.md) · [RELEASING](../docs/RELEASING.md) |
 | **Industrial sibling** | [`Absolute_Blockchain_Ultimate_Hybrid`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) — **not** this freeze |
-| **Self-check** | `python scripts/verify_experimental_rd.py` · `python scripts/verify_parallel_rd_batch.py` · `.\scripts\verify_adr0019_libp2p_hard.ps1 -Rebuild` |
+| **Self-check** | `.\scripts\verify_global_rd_audit.ps1` · `.\scripts\verify_pre_soak.ps1` · `python scripts/verify_experimental_rd.py` |
 | **CI** | `experimental-rd.yml`, `test.yml`, `security-audit.yml` |
 | **Community health** | **100%** (GitHub community profile) |
 
