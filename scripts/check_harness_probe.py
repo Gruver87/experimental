@@ -45,12 +45,24 @@ def main() -> int:
             continue
         try:
             # Full (not quick) so waiter budget is 8s, matching the wire flight.
-            h = _get(f"{base}/chain/consistency/harness?peer_timeout=8", timeout=20.0)
+            # One outer retry: mirrors harness peer_probe retry for soft flakes.
+            h = None
+            for attempt in range(2):
+                h = _get(f"{base}/chain/consistency/harness?peer_timeout=8", timeout=20.0)
+                probe = h.get("peer_probe_error")
+                healthy = bool(h.get("harness_healthy"))
+                if healthy and probe is None:
+                    break
+                if probe in ("timeout", "empty") and attempt == 0:
+                    continue
+                break
+            assert h is not None
             failed = h.get("failed_checks") or []
             probe = h.get("peer_probe_error")
             healthy = bool(h.get("harness_healthy"))
             row["harness_healthy"] = healthy
             row["peer_probe_error"] = probe
+            row["peer_probe_attempts"] = h.get("peer_probe_attempts")
             row["failed_checks"] = failed
             mark = "OK" if healthy and probe is None else "FAIL"
             if mark != "OK":

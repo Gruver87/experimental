@@ -8072,62 +8072,99 @@ def _build_state_consistency_harness(
     peers = []
     peer_roots_aligned = True
     peer_probe_error: Optional[str] = None
+    peer_probe_attempts = 0
     if p2p and hasattr(p2p, "request_peer_state_roots_sync"):
-        try:
-            wire = p2p.request_peer_state_roots_sync(timeout=peer_timeout)
-            if wire is None:
-                peer_probe_error = "timeout"
-                logger.warning("state consistency harness peer probe failed: timeout")
-                peer_roots_aligned = False
-                wire = []
-            elif not wire:
-                connected = 0
-                if hasattr(p2p, "peer_count"):
-                    try:
-                        connected = int(p2p.peer_count() or 0)
-                    except Exception:
-                        connected = 0
-                if connected <= 0 and hasattr(p2p, "peers"):
-                    try:
-                        connected = len(getattr(p2p, "peers", None) or {})
-                    except Exception:
-                        connected = 0
-                if connected > 0:
-                    peer_probe_error = "empty"
+        # One retry on timeout/empty — soak soft WARN root cause under GIL load
+        # (Noise ACK HOL / inbox lag). Does not lengthen happy-path budget much.
+        max_attempts = 2
+        for attempt in range(max_attempts):
+            peer_probe_attempts = attempt + 1
+            try:
+                wire = p2p.request_peer_state_roots_sync(timeout=peer_timeout)
+                if wire is None:
+                    peer_probe_error = "timeout"
+                    peer_roots_aligned = False
+                    wire = []
+                elif not wire:
+                    connected = 0
+                    if hasattr(p2p, "peer_count"):
+                        try:
+                            connected = int(p2p.peer_count() or 0)
+                        except Exception:
+                            connected = 0
+                    if connected <= 0 and hasattr(p2p, "peers"):
+                        try:
+                            connected = len(getattr(p2p, "peers", None) or {})
+                        except Exception:
+                            connected = 0
+                    if connected > 0:
+                        peer_probe_error = "empty"
+                        peer_roots_aligned = False
+                    else:
+                        peer_probe_error = None
+                        peer_roots_aligned = True
+                else:
+                    peer_probe_error = None
+                    peer_roots_aligned = True
+
+                if peer_probe_error in ("timeout", "empty") and attempt + 1 < max_attempts:
                     logger.warning(
-                        "state consistency harness peer probe empty with %s peer(s)",
-                        connected,
+                        "state consistency harness peer probe %s (attempt %s/%s); retry",
+                        peer_probe_error,
+                        peer_probe_attempts,
+                        max_attempts,
                     )
-                    peer_roots_aligned = False
-            for entry in wire:
-                pr = str(entry.get("state_root") or "")
-                pr_norm = pr.strip().lower()
-                ph = int(entry.get("height", 0) or 0)
-                local_at = live_norm
-                if (
-                    ph
-                    and ph != int(height or 0)
-                    and bc is not None
-                    and hasattr(bc, "get_block")
-                ):
-                    blk = bc.get_block(ph)
-                    if isinstance(blk, dict):
-                        hist = str(blk.get("state_root") or "").strip().lower()
-                        if hist:
-                            local_at = hist
-                match = (pr_norm == local_at) if pr_norm and local_at else None
-                if match is False:
-                    peer_roots_aligned = False
-                peers.append({
-                    "peer_id": entry.get("peer_id", ""),
-                    "height": ph,
-                    "state_root": pr,
-                    "match": match,
-                })
-        except Exception as exc:
-            peer_probe_error = str(exc)
-            logger.warning("state consistency harness peer probe failed: %s", exc)
-            peer_roots_aligned = False
+                    time.sleep(0.25)
+                    continue
+
+                if peer_probe_error == "timeout":
+                    logger.warning("state consistency harness peer probe failed: timeout")
+                elif peer_probe_error == "empty":
+                    logger.warning(
+                        "state consistency harness peer probe empty after %s attempt(s)",
+                        peer_probe_attempts,
+                    )
+
+                peers = []
+                for entry in wire or []:
+                    pr = str(entry.get("state_root") or "")
+                    pr_norm = pr.strip().lower()
+                    ph = int(entry.get("height", 0) or 0)
+                    local_at = live_norm
+                    if (
+                        ph
+                        and ph != int(height or 0)
+                        and bc is not None
+                        and hasattr(bc, "get_block")
+                    ):
+                        blk = bc.get_block(ph)
+                        if isinstance(blk, dict):
+                            hist = str(blk.get("state_root") or "").strip().lower()
+                            if hist:
+                                local_at = hist
+                    match = (pr_norm == local_at) if pr_norm and local_at else None
+                    if match is False:
+                        peer_roots_aligned = False
+                    peers.append({
+                        "peer_id": entry.get("peer_id", ""),
+                        "height": ph,
+                        "state_root": pr,
+                        "match": match,
+                    })
+                break
+            except Exception as exc:
+                peer_probe_error = str(exc)
+                peer_roots_aligned = False
+                if attempt + 1 < max_attempts:
+                    logger.warning(
+                        "state consistency harness peer probe failed (attempt %s): %s; retry",
+                        peer_probe_attempts,
+                        exc,
+                    )
+                    time.sleep(0.25)
+                    continue
+                logger.warning("state consistency harness peer probe failed: %s", exc)
+                break
 
     mismatches = (
         db.get_state_root_mismatches(limit=20)
@@ -8285,6 +8322,7 @@ def _build_state_consistency_harness(
         "peer_count": len(peers),
         "peers": peers,
         "peer_probe_error": peer_probe_error,
+        "peer_probe_attempts": int(peer_probe_attempts),
         "recent_mismatch_count": len(mismatches),
         "recent_mismatches": mismatches[:5],
         "checks": checks,

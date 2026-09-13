@@ -93,7 +93,37 @@ class RocksChainStore:
         self._root_acc: Any | None = None
         self._batch_acc_dirty: dict[str, bytes | None] = {}
         self._json_decode_failures: int = 0
+        self._native_pack_fallbacks: int = 0
+        # Fail-closed pack path when ABS_REQUIRE_NATIVE_CRYPTO is set (prod mesh).
+        _req = os.environ.get("ABS_REQUIRE_NATIVE_CRYPTO", "").strip().lower()
+        self._require_native_pack = _req in ("1", "true", "yes", "on")
         self._ensure_schema()
+
+    def _pack_row_native_or_json(self, native_fn: str, row: Dict[str, Any]) -> bytes:
+        """Prefer abs_native binary pack; count JSON fallback; refuse if require-native."""
+        try:
+            import abs_native as _abs
+
+            fn = getattr(_abs, native_fn, None)
+            if fn is None:
+                raise AttributeError(f"abs_native missing {native_fn}")
+            return bytes(fn(json.dumps(row, ensure_ascii=False)))
+        except Exception as exc:
+            self._native_pack_fallbacks += 1
+            logger.warning(
+                "[RocksStore] native %s failed, JSON fallback "
+                "(native_pack_fallbacks=%s require_native=%s): %s",
+                native_fn,
+                self._native_pack_fallbacks,
+                self._require_native_pack,
+                exc,
+            )
+            if self._require_native_pack:
+                raise RuntimeError(
+                    f"native {native_fn} required "
+                    f"(ABS_REQUIRE_NATIVE_CRYPTO); JSON fallback refused: {exc}"
+                ) from exc
+            return json.dumps(row, ensure_ascii=False).encode("utf-8")
 
     def _loads_json_or_none(self, raw: bytes | None, *, context: str) -> Optional[Dict]:
         """Decode a Rocks JSON blob; corrupt rows bump the fail-closed counter."""
@@ -142,18 +172,7 @@ class RocksChainStore:
 
     def _pack_account_blob(self, row: Dict[str, Any]) -> bytes:
         """Pack account row as ABAR when native codec is present; else legacy JSON."""
-        try:
-            import abs_native as _abs
-
-            if hasattr(_abs, "pack_account_row"):
-                return bytes(
-                    _abs.pack_account_row(json.dumps(row, ensure_ascii=False))
-                )
-        except Exception as exc:
-            logger.warning(
-                "[RocksStore] native pack_account_row failed, JSON fallback: %s", exc
-            )
-        return json.dumps(row, ensure_ascii=False).encode("utf-8")
+        return self._pack_row_native_or_json("pack_account_row", row)
 
     def _loads_tx_blob_or_none(self, raw: bytes | None, *, context: str) -> Optional[Dict]:
         """Dual-decode tx row: ATXV binary (v1.3.148) or legacy JSON."""
@@ -185,16 +204,7 @@ class RocksChainStore:
 
     def _pack_tx_blob(self, row: Dict[str, Any]) -> bytes:
         """Pack tx row as ATXV when native codec is present; else legacy JSON."""
-        try:
-            import abs_native as _abs
-
-            if hasattr(_abs, "pack_tx_row"):
-                return bytes(_abs.pack_tx_row(json.dumps(row, ensure_ascii=False)))
-        except Exception as exc:
-            logger.warning(
-                "[RocksStore] native pack_tx_row failed, JSON fallback: %s", exc
-            )
-        return json.dumps(row, ensure_ascii=False).encode("utf-8")
+        return self._pack_row_native_or_json("pack_tx_row", row)
 
     def _loads_block_blob_or_none(self, raw: bytes | None, *, context: str) -> Optional[Dict]:
         """Dual-decode block row: ABLK binary (v1.3.149) or legacy JSON."""
@@ -226,18 +236,7 @@ class RocksChainStore:
 
     def _pack_block_blob(self, block: Dict[str, Any]) -> bytes:
         """Pack block row as ABLK when native codec is present; else legacy JSON."""
-        try:
-            import abs_native as _abs
-
-            if hasattr(_abs, "pack_block_row"):
-                return bytes(
-                    _abs.pack_block_row(json.dumps(block, ensure_ascii=False))
-                )
-        except Exception as exc:
-            logger.warning(
-                "[RocksStore] native pack_block_row failed, JSON fallback: %s", exc
-            )
-        return json.dumps(block, ensure_ascii=False).encode("utf-8")
+        return self._pack_row_native_or_json("pack_block_row", block)
 
     def _loads_receipt_blob_or_none(self, raw: bytes | None, *, context: str) -> Optional[Dict]:
         """Dual-decode receipt row: ATXR binary (v1.3.151) or legacy JSON."""
@@ -269,18 +268,7 @@ class RocksChainStore:
 
     def _pack_receipt_blob(self, receipt: Dict[str, Any]) -> bytes:
         """Pack receipt row as ATXR when native codec is present; else legacy JSON."""
-        try:
-            import abs_native as _abs
-
-            if hasattr(_abs, "pack_receipt_row"):
-                return bytes(
-                    _abs.pack_receipt_row(json.dumps(receipt, ensure_ascii=False))
-                )
-        except Exception as exc:
-            logger.warning(
-                "[RocksStore] native pack_receipt_row failed, JSON fallback: %s", exc
-            )
-        return json.dumps(receipt, ensure_ascii=False).encode("utf-8")
+        return self._pack_row_native_or_json("pack_receipt_row", receipt)
 
     def _ensure_schema(self) -> None:
         existing = self._raw_get(kc.key_meta("schema_version"))
@@ -2380,12 +2368,15 @@ class RocksChainStore:
         stats: Dict = {
             "engine": self.engine,
             "json_decode_failures": int(self._json_decode_failures),
+            "native_pack_fallbacks": int(self._native_pack_fallbacks),
+            "require_native_pack": bool(self._require_native_pack),
             "rocksdb_tuning": {
                 "block_cache_mb": self.block_cache_mb,
                 "write_buffer_mb": self.write_buffer_mb,
                 "sync": self.synchronous,
                 "column_families": self.column_families,
                 "json_decode_failures": int(self._json_decode_failures),
+                "native_pack_fallbacks": int(self._native_pack_fallbacks),
             },
         }
         if hasattr(self._engine, "storage_properties"):

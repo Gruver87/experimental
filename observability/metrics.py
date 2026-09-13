@@ -342,6 +342,12 @@ class MetricsCollector:
                         f"abs_rocksdb_json_decode_failures{{node_id=\"{node_id}\"}} "
                         f"{int(rocksdb_tuning.get('json_decode_failures', 0) or 0)}"
                     ),
+                    "# HELP abs_rocksdb_native_pack_fallbacks Native pack→JSON fallback events",
+                    "# TYPE abs_rocksdb_native_pack_fallbacks counter",
+                    (
+                        f"abs_rocksdb_native_pack_fallbacks{{node_id=\"{node_id}\"}} "
+                        f"{int(rocksdb_tuning.get('native_pack_fallbacks', 0) or 0)}"
+                    ),
                     "# HELP abs_rocksdb_running_compactions RocksDB running compactions",
                     "# TYPE abs_rocksdb_running_compactions gauge",
                     (

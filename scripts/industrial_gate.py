@@ -599,6 +599,15 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "storage" / "rocks_store.py"
         ).read_text(encoding="utf-8"):
             errors.append("rocks_store must expose json_decode_failures for /metrics")
+        rocks_wave_c = (ROOT / "storage" / "rocks_store.py").read_text(encoding="utf-8")
+        if "_native_pack_fallbacks" not in rocks_wave_c or "_pack_row_native_or_json" not in rocks_wave_c:
+            errors.append("rocks_store must count native pack→JSON fallbacks (Wave C)")
+        if "peer_probe_attempts" not in http_py or "max_attempts = 2" not in http_py:
+            errors.append("harness must retry peer probe and expose peer_probe_attempts (Wave C)")
+        if "abs_rocksdb_native_pack_fallbacks" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("metrics must emit abs_rocksdb_native_pack_fallbacks (Wave C)")
         if "Config-on ≠ actively forging under mesh gate" not in http_py:
             errors.append("eth_mining must gate on mesh_min_peers / state_consistent")
         if 'checks["wire_probe_probed"]' not in http_py or 'checks["wire_probe_ok"]' not in http_py:
