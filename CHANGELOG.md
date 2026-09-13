@@ -15,6 +15,7 @@ Canonical language for this repository is **English**. Older inherited entries b
 
 ### Experimental R&D
 
+- **Pre-48h max-load 2h STRICT (2026-09-13):** operator script `scripts/start_pre48h_maxload_2h.ps1` — host gates + mesh rebuild/probe + extreme EVM/HTTP load + 2h STRICT soak (`hard_fails=0` / `mesh_warn=0`). Not a 48h claim / not mainnet.
 - **Wave R audit honesty fixes (2026-09-13):** `tx_signer` refuse invented fee `0.001` in hash + ECDSA-missing raise; mempool store ABS from satoshi; AI validator empty avg=0; `/tx/verify` → `valid:null` when unavailable; `verify_wave_r.ps1`. Not soak.
 - **Wave Q audit honesty fixes (2026-09-13):** `/sharding/balance` satoshi; `/tx/sign` requires fee (no `0.001` invent); MEV value via money_abs (no `fee*1e9`); wallet ECDSA-missing → RuntimeError; attestation derive/probe → unavailable (P2P strike distinct); `verify_wave_q.ps1`. Not soak.
 - **Wave P audit honesty fixes (2026-09-13):** `/consensus/stake` labels satoshi unit + ABS display; pool_locks totals/spend in satoshi; tx_validator/eth_tx distinguish verify-unavailable vs invalid; `/bridge2/fee` via money_abs + satoshi fields; `verify_wave_p.ps1`. Not soak.
