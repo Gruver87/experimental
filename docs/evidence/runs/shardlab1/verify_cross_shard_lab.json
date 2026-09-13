@@ -1,0 +1,31 @@
+﻿{
+    "honesty":  [
+                    "NOT soak",
+                    "NOT feature_sharding on prod 778888",
+                    "Profile E script lab only (no docker shard mesh in this verify)"
+                ],
+    "total":  3,
+    "elapsed_sec":  0.4,
+    "passed":  3,
+    "started":  "2026-09-13T10:27:57.7978947+02:00",
+    "phase":  "5.4-cross-shard-lab",
+    "ok":  true,
+    "steps":  [
+                  {
+                      "ok":  true,
+                      "name":  "cross_shard_lab.py",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "prod_mesh_feature_sharding_false",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "industrial_gate_cross_shard_needles",
+                      "exit_code":  0
+                  }
+              ],
+    "fail_count":  0
+}

@@ -15,6 +15,8 @@ Canonical language for this repository is **English**. Older inherited entries b
 
 ### Experimental R&D
 
+- **Phase 5 labs PASS (2026-09-13):** Oracle [`oraclelab1`](docs/evidence/runs/oraclelab1/) · Cross-shard [`shardlab1`](docs/evidence/runs/shardlab1/) · Bridge OFF [`bridgeoff1`](docs/evidence/runs/bridgeoff1/). Prod flags stay false. Not soak / not L1 cutover.
+- **Phase 5.2 Oracle lab PASS (2026-09-13):** `verify_oracle_lab.ps1` 4/4 — pack [`docs/evidence/runs/oraclelab1/`](docs/evidence/runs/oraclelab1/). Aux SQLite only; `feature_oracles=false` on prod mesh. Not soak / not prod arm.
 - **Global R&D audit PASS (2026-09-13):** `verify_global_rd_audit.ps1 -Mode FullLaunch -Rebuild` → **13/13** — pack [`docs/evidence/runs/adr0021gaudit1/`](docs/evidence/runs/adr0021gaudit1/). Includes ADR 0021 rust families, demote harden, mesh rebuild, probe, EVM smoke, load harness, prepare READY. **Not** 48h soak / not mainnet.
 - **Pre-soak harden (2026-09-13):** MempoolStore fault demotes to Python dict (no process crash); `MempoolPort.add_batch` matches Tuple API; TxPipeline kernel/admit exceptions logged. Float fee migration still deferred.
 - **Phase 4 mesh bake (2026-09-13):** rebuilt `abs-blockchain-prod:local` with ADR 0021 kernels/store; probe RESULT OK; container families rust; `prod_evm_smoke` + `evm_mempool_load_harness` PASS. Not soak.

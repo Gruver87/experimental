@@ -62,7 +62,7 @@ Full map: [ARCHITECTURE § R&D execution chain](ARCHITECTURE.md#rd-execution-cha
 
 ## Next click
 
-- **Execution order (what when):** [EXECUTION_ORDER.md](EXECUTION_ORDER.md) — Phase 4 ADR 0021 complete (host + mesh bake); Phase 5+ optional labs
+- **Execution order (what when):** [EXECUTION_ORDER.md](EXECUTION_ORDER.md) — Phase 4 closed; Phase 5 labs `oraclelab1` / `shardlab1` / `bridgeoff1`; soak only if ordered
 - Hybrid pin (do not break): [Ultimate Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid)
 - Contribute: [CONTRIBUTING](../CONTRIBUTING.md)
 - GitHub About: [REPO_PROFILE](../.github/REPO_PROFILE.md)

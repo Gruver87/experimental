@@ -13,7 +13,8 @@ Last updated: 2026-09-13.
 |----|---------|----------|-------------|
 | ~~B1~~ | **libp2p 48h soak** | **PASS** [`3c801b87`](evidence/runs/3c801b87/) (`passed=true`, `hard_fails=0`, `mesh_warn=0`, 2026-09-01→03). Prior FAIL `35104db0` · `87f51b3e` stay on record | **Closed.** |
 | ~~B2~~ | **Long-Range** lab 48h | **PASS** [`lr48pass1`](evidence/runs/lr48pass1/) (`passed=true`, `hard_fails=0`, `mesh_warn=0`, ready_only=13 tolerated, tip ~7929→~14770, 2026-09-09→11). Prior FAIL [`lr48fail1`](evidence/runs/lr48fail1/); intensify [`lr2hintensify`](evidence/runs/lr2hintensify/) | **Closed.** |
-| B3 | **Mempool/validation Rust** phases 0–3 + mesh bake + global audit PASS | ADR 0021 · [`adr0021gaudit1`](evidence/runs/adr0021gaudit1/) | Phase 5+ optional / soak only if ordered |
+| B3 | **Mempool/validation Rust** phases 0–3 + mesh bake + global audit PASS | ADR 0021 · [`adr0021gaudit1`](evidence/runs/adr0021gaudit1/) | Mempool soak only if ordered |
+| — | **Phase 5 labs** oracles / cross-shard / bridge OFF | [`oraclelab1`](evidence/runs/oraclelab1/) · [`shardlab1`](evidence/runs/shardlab1/) · [`bridgeoff1`](evidence/runs/bridgeoff1/) | Prod flags stay false; docker shard mesh optional |
 
 **Not blockers:** EVM depth lab waves 8–10 (done for now); TCP+TLS 48h PASS (`0a7932c4`); **libp2p 48h PASS (`3c801b87`)**; **Long-Range lab 48h PASS (`lr48pass1`)**; **Phase 3 post-EVM-prep mesh 48h PASS (`evm48pass1`)**.
 
@@ -150,6 +151,7 @@ Other optional depth:
 | Long-Range | Waves 1–14 labs + 2h/intensify + **lab 48h PASS `lr48pass1`** | Prod arm / BLS / mainnet Long-Range |
 | EVM | Waves 8–11 + preflight harness; **Phase 3 mesh 48h PASS** [`evm48pass1`](evidence/runs/evm48pass1/) | Further COMPAT_MATRIX; EVM-only 48h still optional/not claimed |
 | Mempool Rust | **Phases 0–3 + mesh bake** (ADR 0021, 2026-09-13) | Post-bake soak only if ordered; satoshi fee migration |
+| Oracles / shard / bridge OFF | Lab verify packs [`oraclelab1`](evidence/runs/oraclelab1/) · [`shardlab1`](evidence/runs/shardlab1/) · [`bridgeoff1`](evidence/runs/bridgeoff1/) | Prod arm / L1 bridge cutover / docker shard mesh (optional) |
 | Council ADR 0022 | Lab + live staging 778889 genesis 87/87 (2026-08-28) | On-chain signed gov, mainnet, 48h council soak |
 
 ---
