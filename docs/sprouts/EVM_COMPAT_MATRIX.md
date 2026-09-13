@@ -24,7 +24,7 @@ Scope: Absolute hybrid EVM subset on the single apply path.
 | `eth_protocolVersion` | **Supported (Absolute honesty)** | JSON-RPC client compatibility constant `0x41` (65) — **not** Ethereum eth/65 wire |
 | `eth_chainId` / `net_version` / `web3_clientVersion` | **Supported (Absolute honesty)** | Config-backed. Lab + unit |
 | `eth_syncing` / `net_peerCount` | **Supported (Absolute honesty)** | No P2P/sync adapter → `false` / `0x0`. With peers, follows mesh consistency + wire probe. Lab + unit |
-| `eth_gasPrice` | **Supported (Absolute honesty)** | Config `gas_price_wei` via `abs_to_wei`. Lab + unit |
+| `eth_gasPrice` | **Supported (Absolute honesty)** | JSON null by default; config floor only when `advertise_config_gas_price=true` (not a live tip). Lab + unit |
 | `eth_getTransactionCount` | **Supported (Absolute honesty)** | Observed account nonce; missing → `0x0`. Lab + unit |
 | `eth_getTransactionByHash` | **Supported (Absolute honesty)** | Missing tx → JSON `null`. Lab + unit |
 | `eth_blockNumber` / `eth_accounts` / `eth_getMempoolSize` | **Supported (Absolute honesty)** | Tip height hex; accounts from wallet/miner only; mempool size hex. Lab + unit |

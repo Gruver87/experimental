@@ -184,13 +184,17 @@ def main() -> int:
     if peers.get("result") != "0x0":
         return _fail("net_peerCount without P2P must be 0x0")
 
-    # eth_gasPrice / getTransactionCount / getTransactionByHash / block tx count
+    # eth_gasPrice: null unless advertise_config_gas_price (Wave I honesty)
+    gp = client.call("eth_gasPrice", [])
+    if gp.get("result") is not None:
+        return _fail("gasPrice without advertise_config_gas_price must be null")
+    client.config.advertise_config_gas_price = True
     from runtime.amount import abs_to_wei
 
-    gp = client.call("eth_gasPrice", [])
+    gp2 = client.call("eth_gasPrice", [])
     want_gp = hex(abs_to_wei(getattr(client.config, "gas_price_wei", 0) or 0))
-    if gp.get("result") != want_gp:
-        return _fail("gasPrice must match config gas_price_wei via abs_to_wei")
+    if gp2.get("result") != want_gp:
+        return _fail("gasPrice with advertise_config_gas_price must match config")
     unknown = "0x" + "33" * 20
     nonce = client.call("eth_getTransactionCount", [unknown, "latest"])
     if nonce.get("result") != "0x0":

@@ -37,8 +37,17 @@ class LiveL1Rpc:
         from bridge.l1_rpc import chain_rpc_url, get_tx_confirmations
 
         url = chain_rpc_url(chain)
-        conf = get_tx_confirmations(url, tx_hash) if url else None
-        return int(conf or 0)
+        if not url:
+            raise RuntimeError(f"L1 RPC URL missing for chain={chain}")
+        if not tx_hash:
+            raise RuntimeError("tx_hash required for L1 confirmations")
+        conf = get_tx_confirmations(url, tx_hash)
+        # Wave I: None = probe/RPC unknown — never collapse to 0 (looks unconfirmed).
+        if conf is None:
+            raise RuntimeError(
+                f"L1 confirmations probe failed for {chain}:{tx_hash}"
+            )
+        return int(conf)
 
     def receipt_status_ok(self, receipt: Dict[str, Any]) -> bool:
         from bridge.l1_rpc import _receipt_status_ok

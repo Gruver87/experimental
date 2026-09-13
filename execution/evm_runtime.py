@@ -65,7 +65,7 @@ _COMPAT_ROWS: List[Dict[str, str]] = [
     {
         "area": "eth_gasPrice",
         "status": "partial",
-        "notes": "Config gas_price_wei → wei hex via abs_to_wei",
+        "notes": "JSON null by default; config floor only when advertise_config_gas_price=true (not a live tip market)",
     },
     {
         "area": "eth_getTransactionCount",

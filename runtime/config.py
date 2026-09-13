@@ -40,6 +40,8 @@ class Config:
     burn_address: str = "0x000000000000000000000000000000000000dead"
     base_gas_price: int = 21_000        # базовая стоимость перевода в gas units
     gas_price_wei: float = 0.000_000_1  # цена одного gas в ABS
+    # Wave I: eth_gasPrice returns JSON null unless True — config floor is not a live market tip.
+    advertise_config_gas_price: bool = False
 
     # ── Сервера ─────────────────────────────────────────────────────────────
     rpc_host: str = "0.0.0.0"

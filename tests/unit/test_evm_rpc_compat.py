@@ -1102,10 +1102,13 @@ def test_eth_chain_net_sync_client_honesty() -> None:
 
 
 def test_eth_gas_price_tx_lookup_honesty() -> None:
-    """Config gasPrice, missing tx null, default nonce, missing block tx count null."""
+    """gasPrice null unless advertise_config_gas_price; missing tx null."""
     from runtime.amount import abs_to_wei
 
     client = FakeRpcClient()
+    assert client.call("eth_gasPrice", []).get("result") is None
+
+    client.config.advertise_config_gas_price = True
     assert client.call("eth_gasPrice", []).get("result") == hex(
         abs_to_wei(getattr(client.config, "gas_price_wei", 0) or 0)
     )

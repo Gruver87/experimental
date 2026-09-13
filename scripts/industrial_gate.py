@@ -5079,9 +5079,21 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("verify_wave_g.ps1 missing (Wave G pack-fallback/ready honesty)")
         if not (ROOT / "scripts" / "verify_wave_h.ps1").is_file():
             errors.append("verify_wave_h.ps1 missing (Wave H audit honesty fixes)")
+        if not (ROOT / "scripts" / "verify_wave_i.ps1").is_file():
+            errors.append("verify_wave_i.ps1 missing (Wave I PQ/gasPrice/confirmations)")
         http_src = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
         if "Wave H: with peers/mesh expected" not in http_src:
             errors.append("/health/ready must gate wire/state when peers present (Wave H)")
+        if "ABS_NATIVE_MODE" not in http_src or "mempool_store_native" not in http_src:
+            errors.append("/health/ready must gate native/demote under require (Wave I)")
+        if "advertise_config_gas_price" not in http_src:
+            errors.append("eth_gasPrice must require advertise_config_gas_price (Wave I)")
+        pq_src = (ROOT / "features" / "postquantum.py").read_text(encoding="utf-8")
+        if "educational hash-demo removed" not in pq_src:
+            errors.append("Dilithium educational verify must be removed (Wave I)")
+        br_ad = (ROOT / "bridge" / "adapter.py").read_text(encoding="utf-8")
+        if "confirmations probe failed" not in br_ad:
+            errors.append("LiveL1Rpc.get_confirmations must refuse unknown (Wave I)")
         nat_src = (ROOT / "runtime" / "native_capabilities.py").read_text(encoding="utf-8")
         if "forbids demote" not in nat_src:
             errors.append("native demote must refuse under ABS_NATIVE_MODE=require (Wave H)")

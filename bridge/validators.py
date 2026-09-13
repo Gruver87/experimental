@@ -82,7 +82,14 @@ class InboundMessageValidator:
                         ok=False, reason="receipt_hash_mismatch", replay_key=replay_key
                     )
             if min_conf > 0:
-                conf = int(self.l1_rpc.get_confirmations(chain, tx_hash) or 0)
+                try:
+                    conf = int(self.l1_rpc.get_confirmations(chain, tx_hash))
+                except Exception as exc:
+                    return ValidationResult(
+                        ok=False,
+                        reason=f"confirmations_unknown:{exc}",
+                        replay_key=replay_key,
+                    )
                 if conf < min_conf:
                     return ValidationResult(
                         ok=False,

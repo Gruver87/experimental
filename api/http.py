@@ -1439,10 +1439,14 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             return None
 
         if method == "eth_gasPrice":
+            # Wave I: Absolute has no live fee market. Do not paint config as tip.
+            if not bool(getattr(cfg, "advertise_config_gas_price", False)):
+                return None
             try:
-                return hex(abs_to_wei(getattr(cfg, "gas_price_wei", 0) or 0))
+                wei = abs_to_wei(getattr(cfg, "gas_price_wei", 0) or 0)
             except (TypeError, ValueError) as exc:
                 raise ValueError("unparseable gas_price_wei") from exc
+            return hex(wei) if wei > 0 else None
 
         if method == "eth_maxPriorityFeePerGas":
             # Absolute is not EIP-1559 tip market: unset/0 → JSON null (not 0x0).
@@ -1897,9 +1901,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                 return
 
             if path == "/health/ready":
-                native_crypto = _status_native_crypto_cached(
-                    required=bool(getattr(cfg, "require_native_crypto", False))
+                _native_req = bool(getattr(cfg, "require_native_crypto", False)) or (
+                    str(os.environ.get("ABS_NATIVE_MODE", "") or "").strip().lower()
+                    == "require"
                 )
+                native_crypto = _status_native_crypto_cached(required=_native_req)
                 bridge_health = _rust_bridge_health(cfg)
                 is_prod = str(getattr(cfg, "deployment_mode", "") or "").lower() == "prod"
                 db_ok = db is not None
@@ -2077,7 +2083,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     payload["sprout_init"] = ready_sprout_init
                 if db_probe_error:
                     payload["db_probe_error"] = db_probe_error
-                # Wave G: informational honesty only — never gate ready on these.
+                # Wave G/I: mempool_store honesty; under prod+require demote gates ready.
                 mp_store_info: Dict[str, Any] = {}
                 if mp is not None and hasattr(mp, "get_stats"):
                     try:
@@ -2090,6 +2096,22 @@ class RESTHandler(BaseHTTPRequestHandler):
                     except Exception as exc:
                         logger.warning("/health/ready mempool_store snapshot failed: %s", exc)
                 payload["mempool_store"] = mp_store_info
+                if (
+                    is_prod
+                    and _native_req
+                    and bool(mp_store_info.get("store_demoted"))
+                ):
+                    checks["mempool_store_native"] = False
+                    if peer_n > 0 or mesh_expected:
+                        ready = all(bool(v) for v in checks.values())
+                    else:
+                        ready = all(
+                            bool(v)
+                            for k, v in checks.items()
+                            if k not in _soft_ready_keys
+                        )
+                    payload["status"] = "ready" if ready else "not_ready"
+                    payload["checks"] = checks
                 pack_fb = 0
                 if db is not None:
                     try:
@@ -3811,12 +3833,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                             "stats": stats,
                         })
                     except Exception as e:
-                        self._json({
-                            "post_quantum": "enabled",
-                            "enabled": True,
-                            "production_ready": False,
-                            "error": str(e),
-                        })
+                        # Wave I: exception must not paint PQ enabled.
+                        self._error(503, f"post_quantum status failed: {e}")
                 else:
                     from features import probe_optional_module
 
@@ -6046,6 +6064,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                         self._json({"algorithm": algo, "valid": ok is True})
                     else:
                         self._error(501, "verify not implemented in PQ manager")
+                except NotImplementedError as e:
+                    self._error(501, str(e))
                 except Exception as e:
                     self._error(500, str(e))
 

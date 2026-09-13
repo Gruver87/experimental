@@ -6,8 +6,7 @@
 
 Квантово-устойчивые криптографические алгоритмы (EDUCATIONAL / R&D ONLY).
 
-SPHINCS+/Kyber/Falcon raise NotImplementedError in this repo.
-Dilithium here is a deterministic hash construction — NOT NIST ML-DSA.
+SPHINCS+/Kyber/Falcon/Dilithium raise NotImplementedError in this repo.
 Do not use for production wallets or consensus; feature_pq is blocked in prod.
 """
 
@@ -166,9 +165,8 @@ class SPHINCSPlus:
         raise NotImplementedError("SPHINCS+ signing backend not available")
     
     def verify(self, signature: PQSignature, message: bytes, public_key: bytes) -> bool:
-        """Проверка подписи"""
-        signature.verified = False
-        return False
+        """Проверка подписи — fail-closed until a real SPHINCS+ backend is wired."""
+        raise NotImplementedError("SPHINCS+ verify backend not available")
 
 
 # ============================================================================
@@ -274,61 +272,25 @@ class Dilithium:
         }
         
     def generate_keypair(self) -> PQKeyPair:
-        """Генерация ключевой пары"""
-        
-        params = self.params[self.security_level]
-        
-        # Генерация seed
-        seed = secrets.token_bytes(32)
-        
-        # В реальности: A ∈ R_q^{k×l}, s1, s2
-        public_key = hashlib.shake_256(seed).digest(params['key_size'])
-        private_key = seed + secrets.token_bytes(params['key_size'])
-        
-        return PQKeyPair(
-            algorithm=PQAlgorithm.DILITHIUM,
-            security_level=self.security_level,
-            public_key=public_key,
-            private_key=private_key
+        """Генерация ключевой пары — refuse educational hash-demo (Wave I)."""
+        raise NotImplementedError(
+            "Dilithium key generation backend not available "
+            "(educational hash-demo removed; no NIST ML-DSA)"
         )
     
     def sign(self, message: bytes, keypair: PQKeyPair) -> PQSignature:
-        """Подписание сообщения"""
-        
-        params = self.params[self.security_level]
-        message_hash = hashlib.sha3_512(message).hexdigest()
-        core = hashlib.shake_256(
-            message_hash.encode() + keypair.private_key
-        ).digest(32)
-        tail = hashlib.shake_256(
-            message_hash.encode() + keypair.public_key + core
-        ).digest(params['sig_size'] - 32)
-        signature = core + tail
-
-        return PQSignature(
-            id=core.hex()[:16],
-            algorithm=PQAlgorithm.DILITHIUM,
-            signature=signature,
-            public_key_hash=native.sha256_hex(keypair.public_key),
-            message_hash=message_hash
+        """Подписание — refuse educational hash-demo (Wave I)."""
+        raise NotImplementedError(
+            "Dilithium signing backend not available "
+            "(educational hash-demo removed; no NIST ML-DSA)"
         )
     
     def verify(self, signature: PQSignature, message: bytes, public_key: bytes) -> bool:
-        """Проверка подписи (deterministic lattice-style commitment)."""
-        expected_hash = hashlib.sha3_512(message).hexdigest()
-        if expected_hash != signature.message_hash:
-            return False
-        if len(signature.signature) < 33:
-            return False
-        core = signature.signature[:32]
-        tail = signature.signature[32:]
-        expected_tail = hashlib.shake_256(
-            expected_hash.encode() + public_key + core
-        ).digest(len(tail))
-        import hmac
-        ok = hmac.compare_digest(tail, expected_tail)
-        signature.verified = ok
-        return ok
+        """Проверка — refuse educational hash-demo that painted valid:true (Wave I)."""
+        raise NotImplementedError(
+            "Dilithium verify backend not available "
+            "(educational hash-demo removed; no NIST ML-DSA)"
+        )
 
 
 # ============================================================================
@@ -374,9 +336,8 @@ class Falcon:
         raise NotImplementedError("Falcon signing backend not available")
     
     def verify(self, signature: PQSignature, message: bytes, public_key: bytes) -> bool:
-        """Проверка подписи"""
-        signature.verified = False
-        return False
+        """Проверка подписи — fail-closed until a real Falcon backend is wired."""
+        raise NotImplementedError("Falcon verify backend not available")
 
 
 # ============================================================================
@@ -504,9 +465,10 @@ class PostQuantumManager:
             'educational_only': True,
             'capabilities': {
                 'dilithium': {
-                    'callable': True,
-                    'backend': 'educational_hash',
+                    'callable': False,
+                    'backend': None,
                     'nist_ml_dsa': False,
+                    'reason': 'NotImplementedError',
                 },
                 'kyber': {
                     'callable': False,

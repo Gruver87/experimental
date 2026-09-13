@@ -304,10 +304,14 @@ class RpcService:
             return None
 
         if method == "eth_gasPrice":
+            # Wave I: Absolute has no live fee market. Do not paint config as tip.
+            if not bool(getattr(cfg, "advertise_config_gas_price", False)):
+                return None
             try:
-                return hex(abs_to_wei(getattr(cfg, "gas_price_wei", 0) or 0))
+                wei = abs_to_wei(getattr(cfg, "gas_price_wei", 0) or 0)
             except (TypeError, ValueError) as exc:
                 raise ValueError("unparseable gas_price_wei") from exc
+            return hex(wei) if wei > 0 else None
 
         if method == "eth_maxPriorityFeePerGas":
             # Absolute is not EIP-1559 tip market: unset/0 → JSON null (not 0x0).
