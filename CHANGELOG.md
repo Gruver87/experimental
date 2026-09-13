@@ -15,6 +15,7 @@ Canonical language for this repository is **English**. Older inherited entries b
 
 ### Experimental R&D
 
+- **Mempool miner pack + validation soak prep (2026-09-13):** `Mempool.get_for_block` (nonce-contiguous) wired into live miner/`PBS`/`MEV` via `abs_to_wei` (no `fee*1e9`). Harness uses shared pack. Sidecar `mempool_validation_sidecar.py` + `start_mempool_validation_soak.ps1` ready — soak **not** started. Not 48h / not wire float cutover.
 - **Strict mesh confirm (2026-09-13):** `Test-MeshCycleAligned -Strict` confirms with parallel resnapshot before FAIL (mining-window delta=1 flake). `health_watch` increments `hard_fails` on Strict mesh/harness FAIL. `check_soak` recovers STRICT meta from report when `soak_active.json` gone. First 2h pre48h maxload: `FINISHED_FAIL` (4× delta=1 race). Re-run after fix: **FINISHED_PASS** (`fail_lines=0`, 11× `strict_confirm=1`, tip +453). Not a 48h claim / not mainnet.
 - **Pre-48h max-load 2h STRICT (2026-09-13):** operator script `scripts/start_pre48h_maxload_2h.ps1` — host gates + mesh rebuild/probe + extreme EVM/HTTP load + 2h STRICT soak (`hard_fails=0` / `mesh_warn=0`). Not a 48h claim / not mainnet.
 - **Wave R audit honesty fixes (2026-09-13):** `tx_signer` refuse invented fee `0.001` in hash + ECDSA-missing raise; mempool store ABS from satoshi; AI validator empty avg=0; `/tx/verify` → `valid:null` when unavailable; `verify_wave_r.ps1`. Not soak.

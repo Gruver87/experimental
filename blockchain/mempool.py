@@ -506,6 +506,60 @@ class Mempool:
                 if int(getattr(tx, "fee_satoshi", 0) or 0) >= min_fee_sat
             ][:limit]
 
+    def get_for_block(
+        self,
+        limit: int,
+        nonce_lookup,
+        *,
+        min_fee: float = 0,
+        fetch_multiplier: int = 16,
+    ) -> List[MempoolTransaction]:
+        """Fee-ranked candidates packed into executable nonce chains per sender.
+
+        ``Mempool.get`` alone under equal fees can surface non-contiguous
+        nonces (e.g. EVM deploy 2,5,8 before 0). Forge then drops invalid
+        txs and may emit empty/thin blocks. Industrial miners pack contiguous
+        executable prefixes from each account's current nonce.
+        """
+        lim = max(0, int(limit))
+        if lim <= 0:
+            return []
+        fetch = max(lim * max(1, int(fetch_multiplier)), 256)
+        candidates = list(self.get(limit=fetch, min_fee=min_fee) or [])
+        by_sender: Dict[str, List[MempoolTransaction]] = {}
+        for tx in candidates:
+            by_sender.setdefault(str(tx.from_addr), []).append(tx)
+        for addr in by_sender:
+            by_sender[addr].sort(key=lambda t: int(t.nonce))
+
+        packed: List[MempoolTransaction] = []
+        ranked_senders = sorted(
+            by_sender.keys(),
+            key=lambda a: (
+                int(by_sender[a][0].nonce) - int(nonce_lookup(a))
+                if by_sender[a]
+                else 10**9,
+                -int(getattr(by_sender[a][0], "fee_satoshi", 0) or 0)
+                if by_sender[a]
+                else 0,
+            ),
+        )
+        for addr in ranked_senders:
+            if len(packed) >= lim:
+                break
+            want = int(nonce_lookup(addr))
+            for tx in by_sender[addr]:
+                if len(packed) >= lim:
+                    break
+                n = int(tx.nonce)
+                if n < want:
+                    continue
+                if n > want:
+                    break
+                packed.append(tx)
+                want += 1
+        return packed
+
     def get_sorted_transactions(self) -> List[Dict]:
         """Возвращает транзакции в формате dict (для BlockBuilder System C)."""
         with self.lock:
