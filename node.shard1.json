@@ -6,6 +6,7 @@
   "p2p_port": 5001,
   "http_port": 8081,
   "rpc_port": 8546,
+  "ws_port": 8767,
   "bootstrap_peers": ["127.0.0.1:5000"],
   "mining_enabled": true,
   "require_signatures": false,
