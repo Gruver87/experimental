@@ -2,7 +2,7 @@
 # ABSOLUTE BLOCKCHAIN — ПОЛНЫЙ СПРАВОЧНИК КОМАНД (репозиторий, БЕЗ секретов)
 # =============================================================================
 # Автор:     Uladzimir Dabranski (Gruver87) · D.U.P.
-# Обновлено: 2026-08-28 (sync Desktop → docs/ALL_COMMANDS.txt)
+# Обновлено: 2026-09-13 (B1/B2/Phase3 closed — sync surface)
 
 # ДВА РЕПОЗИТОРИЯ (не путать):
 #   HYBRID  — audit-pin, TCP+TLS mesh
@@ -22,7 +22,10 @@
 #   · Gate green ≠ public mainnet
 #   · Prod mesh 778888 = industrial PROFILE, не публичный mainnet
 #   · Bridge на live mesh: OFF (ADR 0010 cutover отдельно)
-#   · libp2p 48h — PASS evidence: docs/evidence/runs/3c801b87/ (EVIDENCE_MATRIX)
+#   · libp2p 48h — PASS: docs/evidence/runs/3c801b87/ (B1)
+#   · Long-Range lab 48h — PASS: docs/evidence/runs/lr48pass1/ (B2; not BLS/prod)
+#   · Phase 3 mesh 48h — PASS: docs/evidence/runs/evm48pass1/ (not EVM-only)
+#   · Next: Phase 4 / B3 ADR 0021 mempool Rust phase 1
 #   · Council NFT (87) — lab/staging 778889, НЕ security guarantee L1
 #   · External audit — org blocker (см. MAINNET_GAP_ANALYSIS.md)
 #
@@ -598,7 +601,7 @@ python scripts/package_libp2p_evidence.py
 
 # Execution order / blockers:
 #   docs/EXECUTION_ORDER.md
-#   B1 CLOSED (libp2p 48h PASS 3c801b87) · B2 LR soak · B3 mempool Rust phases
+#   B1/B2/Phase3 CLOSED (3c801b87, lr48pass1, evm48pass1) · B3/Phase4 ADR 0021 NEXT
 
 
 # =============================================================================

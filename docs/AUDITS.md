@@ -15,10 +15,10 @@ This sandbox ships rust-libp2p / Long-Range / EVM-depth labs. Lab PASS ≠ firm 
 | Security workflow (`security-audit.yml`) | Active | pip-audit + cargo-audit (scoped ignores) |
 | Independent external audit report | **Pending — Hybrid pin** | Do not claim “audited” from this repo |
 | Bug bounty | **Not configured** | Disclose via [SECURITY.md](../SECURITY.md) |
-| Parallel R&D after libp2p 48h PASS | **Active (lab/docs)** | B1 closed [`3c801b87`](evidence/runs/3c801b87/); next = LR lab soak (B2) |
+| Parallel R&D after libp2p 48h PASS | **Phase 4 next** | B1/B2/Phase 3 closed: [`3c801b87`](evidence/runs/3c801b87/), [`lr48pass1`](evidence/runs/lr48pass1/), [`evm48pass1`](evidence/runs/evm48pass1/); next = ADR 0021 phase 1 (B3) |
 
-**Operator note (2026-09-03):** libp2p 48h **PASS** — evidence [`3c801b87`](evidence/runs/3c801b87/).
-LR lab compose (`abs-lr-lab`) is wired; timed 2h **not** started. Do not enable
-`feature_long_range` / `feature_oracles` / `feature_sharding` on `778888` JSON.
+**Operator note (2026-09-13):** B1/B2/Phase 3 **PASS** on disk. Prod JSON keeps
+`feature_long_range=false` / `feature_oracles=false` / `feature_sharding=false` on `778888`.
+Not BLS · not EVM-only 48h · not public mainnet.
 
 Related: [SECURITY.md](../SECURITY.md) · [EXPERIMENTAL_SANDBOX.md](../EXPERIMENTAL_SANDBOX.md) · [EXECUTION_ORDER.md](EXECUTION_ORDER.md) · Hybrid [AUDITS.md](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/AUDITS.md)

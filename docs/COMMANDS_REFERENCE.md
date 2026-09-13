@@ -7,7 +7,7 @@
 
 | | |
 |---|---|
-| **Обновлено** | 2026-08-28 |
+| **Обновлено** | 2026-09-13 |
 | **Репозитории** | [Experimental](https://github.com/Gruver87/experimental) (R&D) · [Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) (audit pin) |
 | **Entry** | `python main.py` / `.\scripts\start_node.ps1` |
 | **Статус** | R&D / prod-profile mesh — **не** public audited mainnet |
@@ -19,7 +19,10 @@
 - Gate green ≠ public mainnet
 - Prod mesh `778888` = industrial profile, не публичный mainnet
 - Bridge на live mesh: **OFF**
-- libp2p 48h — **PASS** evidence: [`evidence/runs/3c801b87/`](evidence/runs/3c801b87/) · [`EVIDENCE_MATRIX.md`](EVIDENCE_MATRIX.md)
+- libp2p 48h — **PASS** [`evidence/runs/3c801b87/`](evidence/runs/3c801b87/) (B1)
+- Long-Range lab 48h — **PASS** [`evidence/runs/lr48pass1/`](evidence/runs/lr48pass1/) (B2; not BLS/prod)
+- Phase 3 mesh 48h — **PASS** [`evidence/runs/evm48pass1/`](evidence/runs/evm48pass1/) (not EVM-only)
+- Next: Phase 4 / B3 ADR 0021 — [`EVIDENCE_MATRIX.md`](EVIDENCE_MATRIX.md) · [`EXECUTION_ORDER.md`](EXECUTION_ORDER.md)
 - Council 87 NFT — staging `778889`, **не** L1 security guarantee
 
 Доказательства: [`EVIDENCE_MATRIX.md`](EVIDENCE_MATRIX.md) · [`EXECUTION_ORDER.md`](EXECUTION_ORDER.md) · [`MAINNET_GAP_ANALYSIS.md`](MAINNET_GAP_ANALYSIS.md)

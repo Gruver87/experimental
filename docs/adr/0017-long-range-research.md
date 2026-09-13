@@ -47,10 +47,11 @@ Operator-only after libp2p 48h PASS (EXECUTION_ORDER Phase 2).
 | Compose | `docker-compose.long_range.lab.yml` (`-p abs-lr-lab`) — never `docker/node.prod*.json` |
 | Pre-flight | `python scripts/long_range_lab_2h_harness.py` |
 | Duration | 2h health watch on **lab** nodes (`hard_fails=0`) |
-| 48h | Only after mesh 2h PASS, operator command, separate evidence pack |
+| 48h | **PASS** [`docs/evidence/runs/lr48pass1/`](../evidence/runs/lr48pass1/) (2026-09-09→11). Prior FAIL [`lr48fail1`](../evidence/runs/lr48fail1/); intensify [`lr2hintensify`](../evidence/runs/lr2hintensify/). Not BLS / not prod arm. |
 | Start | `.\scripts\start_soak_long_range_lab.ps1` |
 
 **Solo 2h PASS recorded:** [`docs/evidence/runs/lr2h9f3a/`](../evidence/runs/lr2h9f3a/) (2026-09-03). Digest-only, height=0 — not mesh-industrial.
+**Mesh 2h PASS:** [`docs/evidence/runs/lr2hmesh/`](../evidence/runs/lr2hmesh/). **Lab 48h PASS:** [`lr48pass1`](../evidence/runs/lr48pass1/) (B2 closed).
 
 ### Decision addendum — lab Ed25519 committee (not BLS)
 

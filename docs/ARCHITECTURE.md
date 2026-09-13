@@ -1,6 +1,6 @@
 # Architecture (honest overview)
 
-**Updated:** 2026-09-04  
+**Updated:** 2026-09-13  
 **Scope:** [Gruver87/experimental](https://github.com/Gruver87/experimental) — R&D sandbox. Domain ports match Hybrid (ADR **0001–0016**); this tree also carries **0017–0021** labs.  
 **Not** a launched public mainnet. **Not** the audit-freeze pin.  
 **Industrial pin (sibling):** [`Absolute_Blockchain_Ultimate_Hybrid`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) tag [`v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial).
@@ -11,7 +11,7 @@
 
 **Python** owns orchestration (API, consensus policy, secrets, metrics export). **Domain services** (`sync/`, `storage/`, `core/components/`) own catch-up, fork reconcile, state apply, and persistence behind ports. **Rust/PyO3** (`abs_native`) accelerates crypto, satoshi-integer state roots, RocksDB, EVM kernels, and **rust-libp2p** (ADR 0019/0020). **Experimental prod mesh** (`778888`) transport = **libp2p Noise** (`feature_libp2p=true`) with **48h PASS** [`3c801b87`](evidence/runs/3c801b87/). Hybrid pin stays TCP+TLS.
 
-**Honesty:** Long-Range is lab-only (`feature_long_range=false` on prod JSON). Lab mesh 2h PASS [`lr2hmesh`](evidence/runs/lr2hmesh/) ≠ BLS ≠ mainnet.
+**Honesty:** Long-Range is lab-only (`feature_long_range=false` on prod JSON). Lab mesh 2h [`lr2hmesh`](evidence/runs/lr2hmesh/) + lab 48h PASS [`lr48pass1`](evidence/runs/lr48pass1/) ≠ BLS ≠ mainnet. Phase 3 post-EVM mesh 48h PASS [`evm48pass1`](evidence/runs/evm48pass1/) ≠ EVM-only 48h. Next: Phase 4 / B3 ADR 0021.
 
 ---
 
@@ -21,10 +21,10 @@ Honest progress columns for this sandbox (not Hybrid). Detail: [EXECUTION_ORDER]
 
 | | Phase 1 | Phase 2a | Phase 2b | Phase 2c | Phase 3 | Phase 4 |
 |--|:-------:|:--------:|:--------:|:--------:|:-------:|:-------:|
-| **Track** | libp2p mesh 48h | LR solo 2h | LR 3-node mesh 2h | LR lab 48h | EVM smoke | Mempool Rust |
+| **Track** | libp2p mesh 48h | LR solo 2h | LR 3-node mesh 2h | LR lab 48h | post-EVM mesh 48h | Mempool Rust |
 | **ADR** | 0020 | 0017 | 0017 + Ed25519 | 0017 | — | 0021 |
-| **Status** | **PASS** | **PASS** | **PASS** | **OPEN** (B2) | next | phase 0 ready |
-| **Pack** | [`3c801b87`](evidence/runs/3c801b87/) | [`lr2h9f3a`](evidence/runs/lr2h9f3a/) | [`lr2hmesh`](evidence/runs/lr2hmesh/) | — | — | ports only |
+| **Status** | **PASS** | **PASS** | **PASS** | **PASS** (B2) | **PASS** | **NEXT** (B3) |
+| **Pack** | [`3c801b87`](evidence/runs/3c801b87/) | [`lr2h9f3a`](evidence/runs/lr2h9f3a/) | [`lr2hmesh`](evidence/runs/lr2hmesh/) | [`lr48pass1`](evidence/runs/lr48pass1/) | [`evm48pass1`](evidence/runs/evm48pass1/) | ports only |
 
 ```mermaid
 flowchart TB
@@ -32,11 +32,11 @@ flowchart TB
     L1["libp2p 48h\n3c801b87"]
     L2a["LR solo 2h\nlr2h9f3a"]
     L2b["LR mesh 2h\nlr2hmesh"]
+    L2c["LR lab 48h\nlr48pass1"]
+    EVM["Phase3 mesh 48h\nevm48pass1"]
   end
   subgraph open ["Open / next"]
-    L2c["LR lab 48h\nB2"]
-    EVM["EVM mesh smoke"]
-    MP["Mempool Rust 1-3"]
+    MP["Mempool Rust 1-3\nB3"]
   end
   subgraph neverHere ["Never claimed here"]
     HY["Hybrid audit pin"]

@@ -13,7 +13,7 @@ Lab-only profile for Long-Range. libp2p on Experimental `778888` mesh is
 - **Experimental industrial mesh:** rust-libp2p Noise/Yamux + ADR 0008 `/abs/wire` (ADR 0020).
 - **Hybrid audit-pin:** native TCP + TLS/mTLS (unchanged).
 - **Long-Range:** stays off on prod mesh JSON. Lab arm: `feature_long_range=true` (dev) or `FEATURE_LONG_RANGE` env + `ABS_WS_CHECKPOINT_PATH`.
-- **Execution order:** [EXECUTION_ORDER.md](../EXECUTION_ORDER.md) — libp2p 48h → LR lab soak → EVM regression → mempool Rust (ADR 0021).
+- **Execution order:** [EXECUTION_ORDER.md](../EXECUTION_ORDER.md) — B1/B2/Phase 3 **closed** (`3c801b87`, `lr48pass1`, `evm48pass1`); **next** Phase 4 / B3 mempool Rust (ADR 0021). Preflight: `scripts/evm_pre_48h_harness.py`.
 
 ## EVM depth
 

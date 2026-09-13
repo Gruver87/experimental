@@ -12,14 +12,15 @@ This folder / [Gruver87/experimental](https://github.com/Gruver87/experimental) 
 1. **Push only** to [Gruver87/experimental](https://github.com/Gruver87/experimental) (`origin`).
 2. Remote `audit-frozen` is fetch-only — **do not** push to the audit pin repo.
 3. Work on `experimental/libp2p-longrange-evm` / `rd/*` branches (merge to `main` when ready).
-4. Honesty: experimental ≠ public mainnet ≠ audited ≠ prod libp2p mesh.
+4. Honesty: experimental ≠ public mainnet ≠ audited firm PDF. Experimental prod mesh (`778888`) **is** libp2p (ADR 0020) with 48h PASS [`3c801b87`](docs/evidence/runs/3c801b87/); Hybrid pin stays TCP+TLS / `feature_libp2p=false`.
 5. GitHub Releases here use **`rd-X.Y.Z` prerelease** tags — never Hybrid `v1.3.*`.
 
 ## Transport default
 
-- **Default mesh transport:** native **TCP + TLS/mTLS** (ADR 0002).
-- **libp2p:** opt-in only (`FEATURE_LIBP2P=true`, ADR 0018 + ADR 0019 rust swarm). Never on industrial JSON.
-- **Long-Range:** lab only (`FEATURE_LONG_RANGE=true`, ADR 0017).
+- **Experimental prod mesh (`778888`):** **libp2p Noise** (ADR 0020) — 48h PASS [`3c801b87`](docs/evidence/runs/3c801b87/).
+- **Hybrid audit pin:** native **TCP + TLS/mTLS** (`feature_libp2p=false`).
+- **Long-Range:** lab only (`FEATURE_LONG_RANGE` / lab compose). Lab 48h PASS [`lr48pass1`](docs/evidence/runs/lr48pass1/); prod JSON `feature_long_range=false`.
+- **Phase 3:** post-EVM-prep mesh 48h PASS [`evm48pass1`](docs/evidence/runs/evm48pass1/) — not EVM-only.
 
 Profile F: [docs/sprouts/EXPERIMENTAL_RD_PROFILE.md](docs/sprouts/EXPERIMENTAL_RD_PROFILE.md)
 

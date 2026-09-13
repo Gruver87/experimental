@@ -9,8 +9,18 @@ Weak-subjectivity / Long-Range research. **Not** prod mesh `778888`.
 3. Persist: `ABS_WS_CHECKPOINT_PATH` (digest + Ed25519 committee). Seed via
    `python scripts/seed_long_range_lab_ws.py --restart` (required before soak).
 4. Lab node: `tip_safety_enforce=true` + `TIP_SAFETY_ENFORCE=true` so WS tip gate attaches.
-5. Timed lab 2h / 48h only after libp2p 48h PASS ([EXECUTION_ORDER.md](../EXECUTION_ORDER.md) Phase 2).
+5. Timed lab 2h / 48h only after libp2p 48h PASS ([EXECUTION_ORDER.md](../EXECUTION_ORDER.md) Phase 2). **Lab 48h PASS on disk:** [`lr48pass1`](../evidence/runs/lr48pass1/) (B2 closed). Prod JSON stays `feature_long_range=false`.
 6. BLS aggregate remains **design-only**. Lab-industrial certs use **Ed25519 committee 2/3**.
+
+## Evidence ledger (lab only)
+
+| Run | Result |
+|-----|--------|
+| [`lr2h9f3a`](../evidence/runs/lr2h9f3a/) | solo 2h PASS |
+| [`lr2hmesh`](../evidence/runs/lr2hmesh/) | 3-node mesh 2h PASS |
+| [`lr2hintensify`](../evidence/runs/lr2hintensify/) | intensify 2h PASS |
+| [`lr48fail1`](../evidence/runs/lr48fail1/) | lab 48h FAIL (historical) |
+| [`lr48pass1`](../evidence/runs/lr48pass1/) | lab 48h PASS — B2 closed |
 
 ## Lab proof (no soak)
 

@@ -7,7 +7,8 @@
 - The **ABS** token described in this repository is an **in-repository tokenomics model** only.
 - **Do not** use this software to store, transfer, or manage real money or valuable assets.
 - Security, consensus correctness, and economic guarantees have **not** been professionally audited.
-- Lab / hard-verify PASS does **not** authorize prod libp2p cutover.
+- Lab / hard-verify PASS does **not** authorize Hybrid pin cutover or public mainnet.
+  Experimental prod mesh libp2p 48h PASS (`3c801b87`) is **this tree only** — Hybrid stays TCP+TLS.
 - The authors and contributors provide this code **"as is"** without warranty.
 
 **You may fork, study, test, and improve this sandbox.**  

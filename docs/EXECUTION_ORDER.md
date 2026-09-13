@@ -13,7 +13,7 @@ Last updated: 2026-09-13.
 |----|---------|----------|-------------|
 | ~~B1~~ | **libp2p 48h soak** | **PASS** [`3c801b87`](evidence/runs/3c801b87/) (`passed=true`, `hard_fails=0`, `mesh_warn=0`, 2026-09-01→03). Prior FAIL `35104db0` · `87f51b3e` stay on record | **Closed.** |
 | ~~B2~~ | **Long-Range** lab 48h | **PASS** [`lr48pass1`](evidence/runs/lr48pass1/) (`passed=true`, `hard_fails=0`, `mesh_warn=0`, ready_only=13 tolerated, tip ~7929→~14770, 2026-09-09→11). Prior FAIL [`lr48fail1`](evidence/runs/lr48fail1/); intensify [`lr2hintensify`](evidence/runs/lr2hintensify/) | **Closed.** |
-| B3 | **Mempool/validation Rust** phases 1–3 blocked | ADR 0021; **phase 0 landed** (`blockchain/ports.py` `MempoolPort`) | After Phase 3 mesh 48h PASS [`evm48pass1`](evidence/runs/evm48pass1/) → phase 1 kernels |
+| B3 | **Mempool/validation Rust** phases 1–3 **NEXT** | ADR 0021; **phase 0 landed** (`blockchain/ports.py` `MempoolPort`) | Phase 1 kernels after Phase 3 PASS [`evm48pass1`](evidence/runs/evm48pass1/) |
 
 **Not blockers:** EVM depth lab waves 8–10 (done for now); TCP+TLS 48h PASS (`0a7932c4`); **libp2p 48h PASS (`3c801b87`)**; **Long-Range lab 48h PASS (`lr48pass1`)**; **Phase 3 post-EVM-prep mesh 48h PASS (`evm48pass1`)**.
 

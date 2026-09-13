@@ -1,7 +1,7 @@
 # ADR 0021 — Mempool / validation Rust phases (planned)
 
-- **Status:** Accepted — Phase 0 landed; Phases 1–3 **unblocked** after libp2p 48h PASS [`3c801b87`](../evidence/runs/3c801b87/) (still not started)
-- **Date:** 2026-08-28
+- **Status:** Accepted — Phase 0 landed; Phase 3 mesh 48h PASS [`evm48pass1`](../evidence/runs/evm48pass1/) closed; **Phases 1–3 NEXT** (B3 — still not started)
+- **Date:** 2026-08-28 (status refresh 2026-09-13)
 - **Deciders:** Absolute Blockchain experimental maintainers
 - **Execution order:** [EXECUTION_ORDER.md](../EXECUTION_ORDER.md)
 
