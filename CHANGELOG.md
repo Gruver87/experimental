@@ -15,6 +15,7 @@ Canonical language for this repository is **English**. Older inherited entries b
 
 ### Experimental R&D
 
+- **Wave N audit honesty fixes (2026-09-13):** native canonicalize/`_sat` via `to_satoshi` (no float×1e6); PoS `consensus_engine` stake int satoshi + finality empty-set no invented denom; multisig `amount_satoshi` + `execution_failed`→`success:false`; secp verify exception→`None` (not False); eth_format corrupt stored roots→null; `verify_wave_n.ps1`. Not soak.
 - **Wave M audit honesty fixes (2026-09-13):** BFT stake/quorum int satoshi (`voted*3>=total*2`); lightning in-channel satoshi; plasma L2 balance satoshi; ZK `system_info` fail-closed; WASM refuse pseudo transfer + `enabled` only with wasmtime; `verify_wave_m.ps1`. Not soak.
 - **Wave L audit honesty fixes (2026-09-13):** block_validator value via satoshi; `Blockchain.require_signatures` from config; NFT debit/settle satoshi + council ImportError refuse; bridge confirm must persist; NFT buy/list/transfer require actor-bound signature when JWT off; `verify_wave_l.ps1`. Not soak.
 - **Wave K audit honesty fixes (2026-09-13):** P2P value gates via satoshi; plasma unsigned refuse; cross-shard debit satoshi; `verify_pre_soak -SkipMesh` → static-only (not pre-soak PASS); smart-account recovery requires guardian_verifier+credential; `verify_wave_k.ps1`. Not soak.

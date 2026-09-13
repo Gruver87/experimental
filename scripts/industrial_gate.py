@@ -5089,6 +5089,17 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("verify_wave_l.ps1 missing (Wave L NFT/bridge/validator honesty)")
         if not (ROOT / "scripts" / "verify_wave_m.ps1").is_file():
             errors.append("verify_wave_m.ps1 missing (Wave M BFT/lightning/ZK/WASM)")
+        if not (ROOT / "scripts" / "verify_wave_n.ps1").is_file():
+            errors.append("verify_wave_n.ps1 missing (Wave N satoshi/PoS/multisig honesty)")
+        if "stake: int" not in (ROOT / "consensus_engine.py").read_text(encoding="utf-8"):
+            errors.append("consensus_engine stake must be int satoshi (Wave N)")
+        if "Corrupt stored roots return None" not in (
+            ROOT / "api" / "eth_format.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("eth_format must refuse corrupt stored roots (Wave N)")
+        ms_src = (ROOT / "features" / "multisig.py").read_text(encoding="utf-8")
+        if "amount_satoshi" not in ms_src or '"error": "execution_failed"' not in ms_src:
+            errors.append("multisig must refuse success on execution_failed (Wave N)")
         if "* 3 >= total * 2" not in (
             ROOT / "consensus" / "bft" / "quorum.py"
         ).read_text(encoding="utf-8"):

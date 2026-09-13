@@ -36,8 +36,8 @@ class FinalityEngine:
         self.active_validator_count = 1
 
     def set_active_validator_count(self, count: int) -> None:
-        """Live validator set size for 2/3 quorum (not a hardcoded constant)."""
-        self.active_validator_count = max(1, int(count or 1))
+        """Live validator set size for 2/3 quorum (honest zero allowed)."""
+        self.active_validator_count = max(0, int(count or 0))
     
     def get_epoch(self, block_number: int) -> int:
         """Получение эпохи для блока"""
@@ -68,19 +68,20 @@ class FinalityEngine:
             self.votes[target_epoch].append(validator)
             checkpoint.votes += 1
         
-        # Проверяем justification (2/3 голосов от активного набора валидаторов)
-        total_validators = max(1, self.active_validator_count)
+        # 2/3 of active set — empty set must not invent denom=1 (Wave N).
+        total_validators = int(self.active_validator_count or 0)
         quorum = False
-        if native.native_available() and hasattr(native, "fe_quorum_reached"):
-            try:
-                quorum = bool(
-                    native.fe_quorum_reached(int(checkpoint.votes), int(total_validators))
-                )
-            except Exception as exc:
-                logger.warning("native fe_quorum_reached failed; Python path: %s", exc)
-                quorum = checkpoint.votes >= total_validators * 2 / 3
-        else:
-            quorum = checkpoint.votes >= total_validators * 2 / 3
+        if total_validators > 0:
+            if native.native_available() and hasattr(native, "fe_quorum_reached"):
+                try:
+                    quorum = bool(
+                        native.fe_quorum_reached(int(checkpoint.votes), int(total_validators))
+                    )
+                except Exception as exc:
+                    logger.warning("native fe_quorum_reached failed; Python path: %s", exc)
+                    quorum = checkpoint.votes * 3 >= total_validators * 2
+            else:
+                quorum = checkpoint.votes * 3 >= total_validators * 2
         if quorum:
             if not checkpoint.is_justified:
                 checkpoint.is_justified = True

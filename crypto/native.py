@@ -452,7 +452,10 @@ def _python_canonicalize(obj: Any) -> Any:
     if isinstance(obj, list):
         return [_python_canonicalize(item) for item in obj]
     if isinstance(obj, float):
-        return int(obj * 1_000_000)
+        # Money floats → satoshi; do not invent via raw float*1e6.
+        from runtime.amount import to_satoshi
+
+        return int(to_satoshi(obj))
     return obj
 
 
@@ -1636,13 +1639,15 @@ def evm_plan_create_writeback(
 
 def _writeback_transfers_covered(accounts: dict, ops: list) -> None:
     """Fail-closed: refuse transfer_value that would mint via clamp-to-zero."""
+    from runtime.amount import to_satoshi
+
     bals: dict = {}
     for addr, row in dict(accounts or {}).items():
         row = dict(row or {})
         if row.get("balance_satoshi") is not None:
             bals[str(addr)] = max(0, int(row["balance_satoshi"]))
         else:
-            bals[str(addr)] = max(0, int(float(row.get("balance") or 0) * 1_000_000))
+            bals[str(addr)] = max(0, int(to_satoshi(row.get("balance") or 0)))
     for op in list(ops or []):
         if str(op.get("op") or "") != "transfer_value":
             continue
@@ -1682,14 +1687,19 @@ def _evm_apply_writeback_ops_py(accounts: dict, ops: list) -> dict:
         return accounts[addr]
 
     def _sat(row: dict) -> int:
+        from runtime.amount import to_satoshi
+
         if row.get("balance_satoshi") is not None:
             return max(0, int(row["balance_satoshi"]))
-        return max(0, int(float(row.get("balance") or 0) * 1_000_000))
+        # Prefer explicit satoshi; legacy balance ABS → to_satoshi (not float*1e6).
+        return max(0, int(to_satoshi(row.get("balance") or 0)))
 
     def _set_sat(row: dict, sat: int) -> None:
+        from runtime.amount import from_satoshi_float
+
         sat = max(0, int(sat))
         row["balance_satoshi"] = sat
-        row["balance"] = sat / 1_000_000.0
+        row["balance"] = from_satoshi_float(sat)
 
     for op in list(ops or []):
         kind = str(op.get("op") or "")
@@ -1707,6 +1717,8 @@ def _evm_apply_writeback_ops_py(accounts: dict, ops: list) -> dict:
                 touched.append(addr)
             applied += 1
         elif kind == "save_account":
+            from runtime.amount import to_satoshi
+
             addr = str(op.get("address") or "")
             if not addr:
                 continue
@@ -1721,7 +1733,7 @@ def _evm_apply_writeback_ops_py(accounts: dict, ops: list) -> dict:
             if op.get("balance_satoshi") is not None:
                 _set_sat(row, int(op["balance_satoshi"]))
             else:
-                _set_sat(row, int(float(op.get("balance") or 0) * 1_000_000))
+                _set_sat(row, int(to_satoshi(op.get("balance") or 0)))
             if addr not in touched:
                 touched.append(addr)
             applied += 1
@@ -2199,6 +2211,11 @@ def state_root_accumulator_root_from_blobs(blobs: List[bytes]) -> str:
 def verify_secp256k1_sha256(
     message: bytes, signature_der: bytes, public_key_xy: bytes
 ) -> Optional[bool]:
+    """Return True/False from native verify, or None when unavailable.
+
+    Exceptions must not paint as invalid signature (False) — that hides
+    probe/native failure as a cryptographic reject.
+    """
     if _native is None:
         return None
     try:
@@ -2206,12 +2223,13 @@ def verify_secp256k1_sha256(
             message, signature_der, public_key_xy
         ))
     except Exception:
-        return False
+        return None
 
 
 def verify_secp256k1_sha256_batch(
     items: List[tuple[bytes, bytes, bytes]]
 ) -> Optional[List[bool]]:
+    """Batch verify; None when native missing or the batch probe fails."""
     if _native is None:
         return None
     try:
@@ -2220,7 +2238,7 @@ def verify_secp256k1_sha256_batch(
             for result in _native.verify_secp256k1_sha256_batch(items)
         ]
     except Exception:
-        return [False for _ in items]
+        return None
 
 
 def consensus_stake_weighted_proposer(

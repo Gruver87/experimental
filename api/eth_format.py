@@ -522,18 +522,20 @@ def _tx_hash_from_block_item(tx: Any) -> str:
     return str(tx or "")
 
 
-def block_transactions_root(blk: Dict[str, Any]) -> str:
+def block_transactions_root(blk: Dict[str, Any]) -> Optional[str]:
     """RPC transactionsRoot: stored Block.tx_root, else merkle of tx hashes.
 
     Empty blocks use merkle_root(['empty']) — the same leaf as core.Block.
     This is not geth Hexary MPT; wallets must not treat it as Ethereum-identical.
+
+    Corrupt stored roots return None (Wave N) — do not invent a merkle over txs.
     """
     stored = blk.get("tx_root") or blk.get("transactions_root") or blk.get("transactionsRoot")
     if stored:
         try:
             return _as_eth_root(str(stored))
         except ValueError:
-            pass
+            return None
     txs = blk.get("transactions") or []
     hashes = []
     if isinstance(txs, list):
@@ -544,19 +546,21 @@ def block_transactions_root(blk: Dict[str, Any]) -> str:
     return _abs_tx_merkle_root(hashes)
 
 
-def block_receipts_root(blk: Dict[str, Any]) -> str:
+def block_receipts_root(blk: Dict[str, Any]) -> Optional[str]:
     """RPC receiptsRoot: stored receipts_root, else merkle of hash:status leaves.
 
     Status comes from tx rows already on the block (no extra receipt scan).
     Empty / hash-only lists follow the same empty merkle as transactionsRoot.
     Not Ethereum Hexary MPT.
+
+    Corrupt stored roots return None (Wave N) — do not invent a merkle over txs.
     """
     stored = blk.get("receipts_root") or blk.get("receiptsRoot")
     if stored:
         try:
             return _as_eth_root(str(stored))
         except ValueError:
-            pass
+            return None
     txs = blk.get("transactions") or []
     leaves: List[str] = []
     if isinstance(txs, list):

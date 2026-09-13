@@ -3,6 +3,9 @@ from crypto import native
 import time
 from typing import Callable, List, Dict, Any, Optional, Set
 
+from runtime.amount import to_satoshi
+
+
 class MultiSigWallet:
     _registry: Dict[str, "MultiSigWallet"] = {}
 
@@ -30,20 +33,25 @@ class MultiSigWallet:
         self.transactions: Dict[str, Dict[str, Any]] = {}
         self.confirmations: Dict[str, Set[str]] = {}
         self._registry[self.wallet_id] = self
-    
-    def create_transaction(self, to: str, amount: float) -> Dict[str, Any]:
+
+    def create_transaction(self, to: str, amount) -> Dict[str, Any]:
         if not to:
             return {"success": False, "error": "recipient required"}
-        if amount <= 0:
+        try:
+            amount_sat = int(to_satoshi(amount))
+        except (TypeError, ValueError):
+            return {"success": False, "error": "invalid amount"}
+        if amount_sat <= 0:
             return {"success": False, "error": "amount must be > 0"}
 
         tx_id = "tx_" + native.sha256_hex(
-            f"{self.wallet_id}:{to}:{amount}:{len(self.transactions)}:{time.time_ns()}".encode()
+            f"{self.wallet_id}:{to}:{amount_sat}:{len(self.transactions)}:{time.time_ns()}".encode()
         )[:24]
         tx = {
             "tx_id": tx_id,
             "to": to,
-            "amount": amount,
+            "amount_satoshi": amount_sat,
+            "amount": amount_sat,  # legacy alias: satoshi int
             "created_at": int(time.time()),
             "status": "pending",
             "executed": False,
@@ -54,7 +62,7 @@ class MultiSigWallet:
         self.transactions[tx_id] = tx
         self.confirmations[tx_id] = set()
         return {"success": True, "wallet_id": self.wallet_id, **tx}
-    
+
     def confirm(self, tx_id: str, owner: str) -> Dict[str, Any]:
         if owner not in self.owners:
             return {"success": False, "error": "owner not authorized"}
@@ -77,8 +85,20 @@ class MultiSigWallet:
                     tx["status"] = "executed"
                     tx["execution_result"] = execution
                 else:
+                    # Wave N: execution_failed must not paint success=True.
                     tx["status"] = "execution_failed"
                     tx["execution_result"] = execution
+                    return {
+                        "success": False,
+                        "error": "execution_failed",
+                        "tx_id": tx_id,
+                        "confirmations": len(confirmations),
+                        "required": self.required,
+                        "executed": False,
+                        "status": "execution_failed",
+                        "duplicate": duplicate,
+                        "execution_result": execution,
+                    }
             else:
                 tx["status"] = "approved"
         return {
@@ -115,6 +135,6 @@ class MultiSigWallet:
     def list_wallets(cls) -> List[Dict[str, Any]]:
         return [wallet.to_dict() for wallet in cls._registry.values()]
 
+
 def init():
     return {"success": True, "module": "multisig"}
-
