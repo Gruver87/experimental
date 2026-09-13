@@ -128,6 +128,54 @@ def _to_chain_txs(pending) -> list:
     return out
 
 
+def _pack_nonce_contiguous(mp: Mempool, db: Database, limit: int) -> list:
+    """Miner-faithful pack: fee-ranked candidates, then contiguous nonce per sender.
+
+    Fee-only ``Mempool.get`` under equal fees can surface EVM deploy nonces
+    (2,5,8,...) before nonce 0 — forge then drops all txs and paints empty
+    blocks (recv_balance stays 0 under extreme load). Industrial miners pack
+    executable nonce chains; this harness must do the same or the load test
+    is a false FAIL on selection policy, not apply/throughput.
+    """
+    # Over-fetch fee-ranked pool so contiguous chains can be rebuilt.
+    fetch = max(int(limit) * 16, 256)
+    candidates = list(mp.get(limit=fetch) or [])
+    by_sender: dict[str, list] = {}
+    for tx in candidates:
+        by_sender.setdefault(str(tx.from_addr), []).append(tx)
+    for addr in by_sender:
+        by_sender[addr].sort(key=lambda t: int(t.nonce))
+
+    packed: list = []
+    # Prefer senders that can execute soonest (lowest executable nonce gap).
+    ranked_senders = sorted(
+        by_sender.keys(),
+        key=lambda a: (
+            int(by_sender[a][0].nonce) - int(db.get_nonce(a))
+            if by_sender[a]
+            else 10**9,
+            -int(getattr(by_sender[a][0], "fee_satoshi", 0) or 0)
+            if by_sender[a]
+            else 0,
+        ),
+    )
+    for addr in ranked_senders:
+        if len(packed) >= int(limit):
+            break
+        want = int(db.get_nonce(addr))
+        for tx in by_sender[addr]:
+            if len(packed) >= int(limit):
+                break
+            n = int(tx.nonce)
+            if n < want:
+                continue
+            if n > want:
+                break
+            packed.append(tx)
+            want += 1
+    return packed
+
+
 def run_harness(
     *,
     rounds: int = 20,
@@ -141,6 +189,8 @@ def run_harness(
     forged = 0
     forged_fail = 0
     enqueued = 0
+    included_tx = 0
+    empty_blocks = 0
     nonce_lock = threading.Lock()
     next_nonce = 0
     start_h = bc.get_height()
@@ -166,13 +216,17 @@ def run_harness(
                     except Exception as exc:
                         errors.append(f"producer: {exc}")
 
-                pending = mp.get(limit=cfg.max_tx_per_block)
+                pending = _pack_nonce_contiguous(mp, db, int(cfg.max_tx_per_block))
                 if not pending:
                     continue
                 txs = _to_chain_txs(pending)
                 ok, block = aq.submit_forge_and_apply(txs, cfg.miner_address, None)
                 if ok and block is not None:
                     forged += 1
+                    n_inc = len(getattr(block, "transactions", None) or [])
+                    included_tx += n_inc
+                    if n_inc == 0:
+                        empty_blocks += 1
                     for tx in block.transactions:
                         mp.remove(tx.hash)
                 else:
@@ -195,6 +249,8 @@ def run_harness(
         "enqueued": enqueued,
         "forged_ok": forged,
         "forged_fail": forged_fail,
+        "included_tx": included_tx,
+        "empty_blocks": empty_blocks,
         "apply_reject_total": int(aq.reject_total),
         "apply_completed_total": int(aq.completed_total),
         "apply_wait_seconds_total": round(float(aq.wait_seconds_total), 4),
@@ -208,6 +264,8 @@ def run_harness(
         report["ok"]
         and report["height_delta"] >= 1
         and report["recv_balance"] > 0
+        and report["included_tx"] > 0
+        and report["empty_blocks"] == 0
         and not report["errors"]
     )
     return report

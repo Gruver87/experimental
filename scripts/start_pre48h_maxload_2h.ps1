@@ -200,28 +200,41 @@ Invoke-Check "probe_prod_mesh -Quick (post-load)" {
     & (Join-Path $ScriptDir "probe_prod_mesh.ps1") -Quick
 }
 
-# Write audit summary so far
+# Write audit summary so far (PS 5.1-safe: no nested Generic.List in hashtable literal)
 $preEnded = Get-Date
-$audit = @{
-    kind = "pre48h_maxload_2h"
-    honesty = @(
+$stepRows = @()
+foreach ($s in $steps) {
+    $stepRows += [pscustomobject]@{
+        name      = [string]$s.name
+        ok        = [bool]$s.ok
+        exit_code = [int]$s.exit_code
+        soft      = [bool]$s.soft
+    }
+}
+$audit = [ordered]@{
+    kind                = "pre48h_maxload_2h"
+    honesty             = @(
         "NOT 48h soak claim",
         "NOT mainnet",
         "NOT Hybrid pin",
-        "2h STRICT stress only — gate before optional 48h"
+        "2h STRICT stress only - gate before optional 48h"
     )
-    started_at = $started.ToString("o")
-    preflight_ended_at = $preEnded.ToString("o")
-    hours = $Hours
-    interval_sec = $IntervalSec
-    rebuild = $doRebuild
-    fail_count = $fail
-    steps = @($steps)
-    log_file = $LogFile
-    report_file = $ReportFile
+    started_at          = $started.ToString("o")
+    preflight_ended_at  = $preEnded.ToString("o")
+    hours               = $Hours
+    interval_sec        = $IntervalSec
+    rebuild             = [bool]$doRebuild
+    fail_count          = [int]$fail
+    steps               = $stepRows
+    log_file            = $LogFile
+    report_file         = $ReportFile
 }
-$audit | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $Root $AuditReport) -Encoding UTF8
-Write-Host ("Preflight audit written: " + $AuditReport) -ForegroundColor DarkGray
+try {
+    ($audit | ConvertTo-Json -Depth 6) | Set-Content -Path (Join-Path $Root $AuditReport) -Encoding UTF8
+    Write-Host ("Preflight audit written: " + $AuditReport) -ForegroundColor DarkGray
+} catch {
+    Write-Host ("WARN: could not write audit json: " + $_.Exception.Message) -ForegroundColor Yellow
+}
 
 if ($fail -gt 0) {
     Write-Host "ABORT: post-load failures ($fail). Soak not started." -ForegroundColor Red
@@ -257,7 +270,7 @@ $activeMeta = @{
     started_at = (Get-Date -Format "o")
     git_tag = $gitTag
     git_sha = "$gitSha"
-    note = "2h STRICT max-load pre-48h audit — NOT 48h evidence"
+    note = "2h STRICT max-load pre-48h audit - NOT 48h evidence"
 }
 $activeMeta | ConvertTo-Json | Set-Content -Path (Join-Path $Root "logs/soak_active.json") -Encoding UTF8
 
@@ -303,6 +316,6 @@ Write-Host ""
 Write-Host "RESULT: 2h STRICT max-load soak STARTED (pid=$($proc.Id))" -ForegroundColor Green
 Write-Host "  Monitor: Get-Content $LogFile -Wait -Tail 40" -ForegroundColor DarkGray
 Write-Host "  Status:  .\scripts\check_soak.ps1" -ForegroundColor DarkGray
-Write-Host "  After:   read $ReportFile — claim PASS only if hard_fails=0 / passed=true" -ForegroundColor DarkGray
+Write-Host "  After:   read $ReportFile - claim PASS only if hard_fails=0 / passed=true" -ForegroundColor DarkGray
 Write-Host "  Honesty: NOT 48h / NOT mainnet / NOT Hybrid" -ForegroundColor DarkGray
 exit 0
