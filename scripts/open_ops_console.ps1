@@ -1,4 +1,4 @@
-# Absolute Ops Console — start what's needed and open browser tabs.
+# Absolute Ops Console - start what is needed and open browser tabs.
 #
 # Default: Solo node on :8080 / :8545 (if not already up), then open console views.
 #
@@ -9,7 +9,7 @@
 #   .\scripts\open_ops_console.ps1 -NoMarketJson
 #   .\scripts\open_ops_console.ps1 -NoExplorer
 #
-# Honesty: local R&D demo — not soak / not mainnet.
+# Honesty: local R&D demo - not soak / not mainnet.
 
 param(
     [string]$BaseUrl = "",
@@ -86,7 +86,7 @@ function Start-SoloIfNeeded([string]$TargetBase) {
         return $false
     }
     if ($TargetBase -notmatch ":$HttpPort`$") {
-        Write-Host "Target $TargetBase is down and is not local :$HttpPort — not auto-starting." -ForegroundColor Yellow
+        Write-Host "Target $TargetBase is down and is not local :$HttpPort - not auto-starting." -ForegroundColor Yellow
         Write-Host "Start mesh/node yourself, then re-run with -OpenOnly -BaseUrl $TargetBase" -ForegroundColor DarkGray
         return $false
     }
@@ -108,7 +108,7 @@ function Start-SoloIfNeeded([string]$TargetBase) {
         }
     }
     if ($busy -and (Test-Path (Join-Path $ScriptDir "stop_node.ps1"))) {
-        Write-Host "Ports busy — stopping previous solo node..." -ForegroundColor Yellow
+        Write-Host "Ports busy - stopping previous solo node..." -ForegroundColor Yellow
         & (Join-Path $ScriptDir "stop_node.ps1")
         Start-Sleep -Seconds 2
     }
@@ -157,7 +157,7 @@ function Open-Tabs([string]$Base, [string[]]$Paths) {
 }
 
 Write-Banner "Ops Console demo launcher"
-Write-Host "  NOT soak / NOT mainnet — local UI tour" -ForegroundColor DarkGray
+Write-Host "  NOT soak / NOT mainnet - local UI tour" -ForegroundColor DarkGray
 
 $base = Resolve-BaseUrl
 Write-Host "Base: $base" -ForegroundColor Cyan
@@ -171,13 +171,14 @@ $marketOk = $false
 try {
     $ms = Invoke-RestMethod -Uri "$base/market/snapshot" -TimeoutSec 20
     $marketOk = [bool]$ms.ok
-    Write-Host ("Market snapshot: ok={0} crypto={1} fx={2} tickers={3}" -f `
-            $ms.ok, `
-            @($ms.crypto.items).Count, `
-            @($ms.fx.items).Count, `
-            @($ms.tickers.items).Count) -ForegroundColor $(if ($marketOk) { "Green" } else { "Yellow" })
+    $cCount = @($ms.crypto.items).Count
+    $fCount = @($ms.fx.items).Count
+    $tCount = @($ms.tickers.items).Count
+    $color = "Yellow"
+    if ($marketOk) { $color = "Green" }
+    Write-Host ("Market snapshot: ok={0} crypto={1} fx={2} tickers={3}" -f $ms.ok, $cCount, $fCount, $tCount) -ForegroundColor $color
 } catch {
-    Write-Host "Market snapshot not ready yet (UI still opens): $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host ("Market snapshot not ready yet (UI still opens): {0}" -f $_.Exception.Message) -ForegroundColor Yellow
 }
 
 $paths = @(
@@ -200,9 +201,9 @@ Open-Tabs -Base $base -Paths $paths
 
 Write-Host ""
 Write-Host "RESULT: browser tabs launched" -ForegroundColor Green
-Write-Host "  Console   $base/" -ForegroundColor Gray
-Write-Host "  Markets   $base/#markets" -ForegroundColor Gray
-Write-Host "  Explorer  $base/explorer" -ForegroundColor Gray
+Write-Host ("  Console   {0}/" -f $base) -ForegroundColor Gray
+Write-Host ("  Markets   {0}/#markets" -f $base) -ForegroundColor Gray
+Write-Host ("  Explorer  {0}/explorer" -f $base) -ForegroundColor Gray
 Write-Host "  Stop solo: .\scripts\stop_node.ps1" -ForegroundColor Gray
 Write-Host "  Reopen:    .\scripts\open_ops_console.ps1 -OpenOnly" -ForegroundColor Gray
 exit 0
