@@ -22,20 +22,26 @@ ShadowProvider = Callable[[], Any]
 class TipSafetyEvidenceBridge:
     """Adapt tip-safety domain (+ optional shadow flags) to ``TipEvidencePort``."""
 
-    __slots__ = ("_shadow_provider", "_reorg")
+    __slots__ = ("_shadow_provider", "_reorg", "_deployment_mode")
 
     def __init__(
         self,
         *,
         shadow_provider: Optional[ShadowProvider] = None,
         reorg_policy: Any = None,
+        deployment_mode: str = "dev",
     ) -> None:
         self._shadow_provider = shadow_provider
+        self._deployment_mode = str(deployment_mode or "dev").lower()
         if reorg_policy is None:
             from consensus.tip_safety import ReorgPolicy
 
             reorg_policy = ReorgPolicy()
         self._reorg = reorg_policy
+
+    def _prod_fail_closed(self) -> bool:
+        # Wave J: prod never soft-allows unbound / evaluate errors.
+        return self._deployment_mode in ("prod", "production")
 
     def _shadow(self) -> Any:
         if self._shadow_provider is None:
@@ -67,18 +73,27 @@ class TipSafetyEvidenceBridge:
     ) -> TipEvidenceDecision:
         """Policy-evaluate a block announce / body without shadow counter side effects.
 
-        When tip-safety is disabled or unset → allow.
+        When tip-safety is disabled or unset → allow (dev/lab).
+        Prod: unbound shadow / evaluate exception → refuse (Wave J).
         When enabled → run ``ReorgPolicy.evaluate`` against chain tip (read-only).
-        ``enforce_refuse`` is set only when shadow.enforce and policy rejects.
+        ``enforce_refuse`` is set only when shadow.enforce and policy rejects
+        (or prod fail-closed paths).
         """
         shadow = self._shadow()
         if shadow is not None and not bool(getattr(shadow, "enabled", False)):
             return TipEvidenceDecision(ok=True, reason_code="tip_evidence_disabled")
-        # No shadow wired → allow (import path may still observe later).
+        # No shadow wired → allow in lab; refuse in prod.
         if shadow is None:
+            if self._prod_fail_closed():
+                return TipEvidenceDecision(
+                    ok=False,
+                    reason_code="tip_evidence_unbound",
+                    detail="tip-safety shadow unbound in prod",
+                    enforce_refuse=True,
+                )
             return TipEvidenceDecision(ok=True, reason_code="tip_evidence_unbound")
         if chain is None:
-            if self.enforce:
+            if self.enforce or self._prod_fail_closed():
                 return TipEvidenceDecision(
                     ok=False,
                     reason_code="tip_evidence_no_chain",
@@ -128,7 +143,7 @@ class TipSafetyEvidenceBridge:
                 service = TipSafetyService(state=tip, reorg_policy=self._reorg)
             decision = service.evaluate_candidate(candidate)
         except Exception as exc:
-            if self.enforce:
+            if self.enforce or self._prod_fail_closed():
                 return TipEvidenceDecision(
                     ok=False,
                     reason_code="tip_evidence_error",
@@ -144,7 +159,7 @@ class TipSafetyEvidenceBridge:
         if decision.accepted:
             return TipEvidenceDecision(ok=True, reason_code="ok")
         reason = str(getattr(decision, "reason_code", "") or "tip_reject")
-        refuse = bool(self.enforce)
+        refuse = bool(self.enforce) or self._prod_fail_closed()
         return TipEvidenceDecision(
             ok=not refuse,
             reason_code=reason,

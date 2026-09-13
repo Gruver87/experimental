@@ -1421,11 +1421,17 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             tx_obj = params[0] if params else {}
             to_addr = tx_obj.get("to", "")
             data = tx_obj.get("data", tx_obj.get("input", ""))
-            if evm_adapter and to_addr:
-                result = evm_adapter.static_call(to_addr, data)
-                if result.success and result.return_value is not None:
-                    return encode_eth_call_return(result.return_value)
-            return "0x"
+            # Wave J: missing adapter / failed call must not paint empty success "0x".
+            if not evm_adapter:
+                raise ValueError("evm adapter unavailable for eth_call")
+            if not to_addr:
+                raise ValueError("eth_call requires to")
+            result = evm_adapter.static_call(to_addr, data)
+            if not getattr(result, "success", False):
+                raise ValueError(
+                    getattr(result, "error", None) or "eth_call execution failed"
+                )
+            return encode_eth_call_return(result.return_value)
 
         if method == "eth_estimateGas":
             tx_obj = params[0] if params else {}
@@ -6087,7 +6093,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                         self._error(501, "smart account create not supported")
                         return
                     if isinstance(acc, dict) and acc.get("success") is False:
-                        self._error(400, acc.get("error", "smart account create failed"))
+                        code = int(acc.get("http_status") or 400)
+                        self._error(code, acc.get("error", "smart account create failed"))
                         return
                     self._json({"success": True, "account": acc})
                 except Exception as e:

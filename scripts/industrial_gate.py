@@ -5081,6 +5081,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("verify_wave_h.ps1 missing (Wave H audit honesty fixes)")
         if not (ROOT / "scripts" / "verify_wave_i.ps1").is_file():
             errors.append("verify_wave_i.ps1 missing (Wave I PQ/gasPrice/confirmations)")
+        if not (ROOT / "scripts" / "verify_wave_j.ps1").is_file():
+            errors.append("verify_wave_j.ps1 missing (Wave J L2/eth_call/tip honesty)")
         http_src = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
         if "Wave H: with peers/mesh expected" not in http_src:
             errors.append("/health/ready must gate wire/state when peers present (Wave H)")
@@ -5088,6 +5090,16 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("/health/ready must gate native/demote under require (Wave I)")
         if "advertise_config_gas_price" not in http_src:
             errors.append("eth_gasPrice must require advertise_config_gas_price (Wave I)")
+        if "evm adapter unavailable for eth_call" not in http_src:
+            errors.append("eth_call must refuse missing adapter (Wave J)")
+        if "smart_accounts_ephemeral_unbound" not in (
+            ROOT / "features" / "smart_accounts.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("smart accounts must refuse ephemeral create (Wave J)")
+        if "_prod_fail_closed" not in (
+            ROOT / "network" / "p2p_dispatch" / "tip_evidence.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("tip evidence must fail-closed in prod (Wave J)")
         pq_src = (ROOT / "features" / "postquantum.py").read_text(encoding="utf-8")
         if "educational hash-demo removed" not in pq_src:
             errors.append("Dilithium educational verify must be removed (Wave I)")

@@ -73,29 +73,57 @@ class CryptoWillManager:
         print(f"[CryptoWill] Manager initialized ({len(self.wills)} wills, "
               f"persisted={bool(db)})")
 
-    def _balance(self, addr: str) -> float:
+    def _balance_sat(self, addr: str) -> int:
+        from runtime.amount import to_satoshi
+
+        if self.db and hasattr(self.db, "get_balance_satoshi"):
+            return int(self.db.get_balance_satoshi(addr))
         if self.db and hasattr(self.db, "get_balance"):
-            return float(self.db.get_balance(addr))
+            return int(to_satoshi(self.db.get_balance(addr)))
         if self.blockchain and hasattr(self.blockchain, "get_balance"):
-            return float(self.blockchain.get_balance(addr))
-        return 0.0
+            return int(to_satoshi(self.blockchain.get_balance(addr)))
+        return 0
+
+    def _balance(self, addr: str) -> float:
+        from runtime.amount import from_satoshi_float
+
+        return float(from_satoshi_float(self._balance_sat(addr)))
 
     def _debit(self, addr: str, amount: float) -> bool:
-        if amount <= 0 or self._balance(addr) < amount:
+        from runtime.amount import from_satoshi_float, to_satoshi, try_debit_satoshi
+
+        try:
+            need = int(to_satoshi(amount))
+            try_debit_satoshi(self._balance_sat(addr), amount)
+        except (TypeError, ValueError):
             return False
+        if need <= 0:
+            return False
+        if self.db and hasattr(self.db, "balance_delta_satoshi"):
+            self.db.balance_delta_satoshi(addr, -need)
+            return True
         if self.db and hasattr(self.db, "update_balance"):
-            self.db.update_balance(addr, -amount)
+            self.db.update_balance(addr, -from_satoshi_float(need))
             return True
         return False
 
     def _credit(self, addr: str, amount: float) -> bool:
-        if amount <= 0:
+        from runtime.amount import from_satoshi_float, to_satoshi
+
+        try:
+            add = int(to_satoshi(amount))
+        except (TypeError, ValueError):
             return False
+        if add <= 0:
+            return False
+        if self.db and hasattr(self.db, "balance_delta_satoshi"):
+            self.db.balance_delta_satoshi(addr, add)
+            return True
         if self.db and hasattr(self.db, "update_balance"):
-            self.db.update_balance(addr, amount)
+            self.db.update_balance(addr, from_satoshi_float(add))
             return True
         if self.blockchain and hasattr(self.blockchain, "update_balance"):
-            self.blockchain.update_balance(addr, amount)
+            self.blockchain.update_balance(addr, from_satoshi_float(add))
             return True
         return False
 

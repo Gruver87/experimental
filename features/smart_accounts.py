@@ -681,9 +681,22 @@ class SmartAccountManager:
         return None
 
     def create_account(self, owner: str, auth_method: str = "private_key") -> Dict:
-        """Create and register a smart account for an owner."""
+        """Create and register a smart account for an owner.
+
+        Wave J: refuse success for in-memory-only registry without an execution
+        binding — otherwise HTTP paints fake durable account creation.
+        """
         if not owner:
             return {"success": False, "error": "owner required"}
+        if not self.transaction_executor:
+            return {
+                "success": False,
+                "error": "smart_accounts_ephemeral_unbound",
+                "http_status": 501,
+                "persistent": False,
+                "execution_bound": False,
+                "in_memory_registry": True,
+            }
         address = "0x" + native.sha256_hex(
             f"smart-account:{owner}:{time.time()}:{secrets.token_hex(4)}".encode()
         )[:40]
@@ -700,6 +713,8 @@ class SmartAccountManager:
             "address": address,
             "owner": owner,
             "auth_method": method.value,
+            "execution_bound": True,
+            "persistent": False,
         }
 
     def create_session_key(

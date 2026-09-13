@@ -1944,6 +1944,9 @@ class P2PNode:
         self._dispatch_tip_evidence_refuse_total: int = 0
         self._tip_evidence_bridge = TipSafetyEvidenceBridge(
             shadow_provider=lambda: getattr(self, "tip_safety_shadow", None),
+            deployment_mode=str(
+                getattr(self.config, "deployment_mode", "dev") or "dev"
+            ),
         )
         self.dispatcher = build_default_dispatcher(
             tip_evidence=self._tip_evidence_bridge,
@@ -4865,11 +4868,12 @@ class P2PNode:
                 ) + 1
                 return None
 
-        # v1.3.186: cheap negative-fee refuse before validate_transaction.
-        # Soft DoS honesty — complements fee_too_low when min_fee==0; not Rust fee PQ.
+        # v1.3.186 / Wave J: negative-fee refuse via satoshi (not float(fee) ABS).
         if bool(getattr(self.config, "p2p_mempool_negative_fee_refuse", True)):
             try:
-                if float(fee) < 0.0:
+                from runtime.amount import to_satoshi
+
+                if int(to_satoshi(fee)) < 0:
                     self._last_tx_wire_reject = "fee_negative"
                     self._mempool_fee_negative_refuse_total = int(
                         getattr(self, "_mempool_fee_negative_refuse_total", 0) or 0
@@ -4882,11 +4886,11 @@ class P2PNode:
                 ) + 1
                 return None
 
-        # v1.3.194: cheap non-finite fee refuse before validate_transaction.
-        # Soft DoS honesty — NaN/Inf slip past fee_negative; not Rust fee PQ.
+        # v1.3.194 / Wave J: non-finite refuse on wire float before satoshi convert.
         if bool(getattr(self.config, "p2p_mempool_nonfinite_fee_refuse", True)):
             try:
-                if not math.isfinite(float(fee)):
+                raw_f = float(fee)
+                if not math.isfinite(raw_f):
                     self._last_tx_wire_reject = "fee_non_finite"
                     self._mempool_nonfinite_fee_refuse_total = int(
                         getattr(self, "_mempool_nonfinite_fee_refuse_total", 0) or 0

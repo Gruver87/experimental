@@ -86,31 +86,57 @@ class PlasmaChain:
         print(f"[Plasma] Chain '{chain_id}' initialized "
               f"({len(self.blocks)} blocks, persisted={bool(db)})")
 
-    def _l1_balance(self, addr: str) -> float:
+    def _l1_balance_sat(self, addr: str) -> int:
+        from runtime.amount import to_satoshi
+
+        if self.db and hasattr(self.db, "get_balance_satoshi"):
+            return int(self.db.get_balance_satoshi(addr))
         if self.db and hasattr(self.db, "get_balance"):
-            return float(self.db.get_balance(addr))
+            return int(to_satoshi(self.db.get_balance(addr)))
         if self.root_chain and hasattr(self.root_chain, "get_balance"):
-            return float(self.root_chain.get_balance(addr))
-        return 0.0
+            return int(to_satoshi(self.root_chain.get_balance(addr)))
+        return 0
+
+    def _l1_balance(self, addr: str) -> float:
+        from runtime.amount import from_satoshi_float
+
+        return float(from_satoshi_float(self._l1_balance_sat(addr)))
 
     def _debit_l1(self, addr: str, amount: float) -> bool:
-        if amount <= 0:
+        from runtime.amount import from_satoshi_float, to_satoshi, try_debit_satoshi
+
+        try:
+            need = int(to_satoshi(amount))
+            try_debit_satoshi(self._l1_balance_sat(addr), amount)
+        except (TypeError, ValueError):
             return False
-        if self._l1_balance(addr) < amount:
+        if need <= 0:
             return False
+        if self.db and hasattr(self.db, "balance_delta_satoshi"):
+            self.db.balance_delta_satoshi(addr, -need)
+            return True
         if self.db and hasattr(self.db, "update_balance"):
-            self.db.update_balance(addr, -amount)
+            self.db.update_balance(addr, -from_satoshi_float(need))
             return True
         return False
 
     def _credit_l1(self, addr: str, amount: float) -> bool:
-        if amount <= 0:
+        from runtime.amount import from_satoshi_float, to_satoshi
+
+        try:
+            add = int(to_satoshi(amount))
+        except (TypeError, ValueError):
             return False
+        if add <= 0:
+            return False
+        if self.db and hasattr(self.db, "balance_delta_satoshi"):
+            self.db.balance_delta_satoshi(addr, add)
+            return True
         if self.db and hasattr(self.db, "update_balance"):
-            self.db.update_balance(addr, amount)
+            self.db.update_balance(addr, from_satoshi_float(add))
             return True
         if self.root_chain and hasattr(self.root_chain, "update_balance"):
-            self.root_chain.update_balance(addr, amount)
+            self.root_chain.update_balance(addr, from_satoshi_float(add))
             return True
         return False
 

@@ -241,6 +241,17 @@ def test_tip_evidence_shadow_provider_exception_logs_unbound(caplog) -> None:
     assert "tip-safety shadow provider failed" in caplog.text
 
 
+def test_tip_evidence_unbound_refuses_in_prod() -> None:
+    bridge = TipSafetyEvidenceBridge(
+        shadow_provider=lambda: None,
+        deployment_mode="prod",
+    )
+    d = bridge.evaluate_block_candidate({"height": 1, "hash": "11" * 32}, MagicMock())
+    assert d.ok is False
+    assert d.enforce_refuse is True
+    assert d.reason_code == "tip_evidence_unbound"
+
+
 def test_tip_evidence_disabled_allows() -> None:
     shadow = MagicMock()
     shadow.enabled = False

@@ -279,13 +279,26 @@ class LightningNetwork:
         capacity: float,
         node_balance: Optional[float] = None,
     ) -> Optional[str]:
+        from runtime.amount import from_satoshi_float, to_satoshi
+
         if capacity < self.MIN_CHANNEL or capacity > self.MAX_CHANNEL:
             return None
         if not self.db or not hasattr(self.db, "get_balance"):
             return None
-        if self.db.get_balance(self.node_address) < capacity:
+        try:
+            cap_sat = int(to_satoshi(capacity))
+        except (TypeError, ValueError):
             return None
-        self.db.update_balance(self.node_address, -capacity)
+        if hasattr(self.db, "get_balance_satoshi"):
+            bal_sat = int(self.db.get_balance_satoshi(self.node_address))
+        else:
+            bal_sat = int(to_satoshi(self.db.get_balance(self.node_address)))
+        if bal_sat < cap_sat:
+            return None
+        if hasattr(self.db, "balance_delta_satoshi"):
+            self.db.balance_delta_satoshi(self.node_address, -cap_sat)
+        else:
+            self.db.update_balance(self.node_address, -from_satoshi_float(cap_sat))
         channel_id = native.sha256_hex(
             f"{self.node_address}{peer_address}{capacity}{time.time()}".encode()
         )[:16]
@@ -331,13 +344,24 @@ class LightningNetwork:
         return verify_state(payload, sig, node_pubkey)
 
     def close_channel(self, channel_id: str) -> bool:
+        from runtime.amount import from_satoshi_float, to_satoshi
+
         ch = self.channels.get(channel_id)
         if not ch or ch.status != "open":
             return False
         if not self.db:
             return False
-        self.db.update_balance(ch.node1, ch.balance1)
-        self.db.update_balance(ch.node2, ch.balance2)
+        try:
+            b1 = int(to_satoshi(ch.balance1))
+            b2 = int(to_satoshi(ch.balance2))
+        except (TypeError, ValueError):
+            return False
+        if hasattr(self.db, "balance_delta_satoshi"):
+            self.db.balance_delta_satoshi(ch.node1, b1)
+            self.db.balance_delta_satoshi(ch.node2, b2)
+        else:
+            self.db.update_balance(ch.node1, from_satoshi_float(b1))
+            self.db.update_balance(ch.node2, from_satoshi_float(b2))
         ch.status = "closed"
         ch.state_version += 1
         self._persist_channel(ch)

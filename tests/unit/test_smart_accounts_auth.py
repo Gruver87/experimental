@@ -37,7 +37,9 @@ def test_session_key_auth_remains_bounded_by_validity():
 
 
 def test_manager_create_session_and_authenticate_fail_closed():
-    manager = SmartAccountManager()
+    manager = SmartAccountManager(
+        transaction_executor=lambda tx: {"success": True, "tx_hash": "0xlab", **tx}
+    )
     created = manager.create_account("0x" + "e" * 40)
     address = created["address"]
 
@@ -50,6 +52,14 @@ def test_manager_create_session_and_authenticate_fail_closed():
     assert manager.authenticate(address, session["session_key"], "session_key") is True
     manager.get_account(address).session_keys[session["key_id"]].use()
     assert manager.authenticate(address, session["session_key"], "session_key") is False
+
+
+def test_manager_create_account_refuses_ephemeral_unbound():
+    manager = SmartAccountManager()
+    created = manager.create_account("0x" + "e" * 40)
+    assert created["success"] is False
+    assert created.get("http_status") == 501
+    assert created.get("error") == "smart_accounts_ephemeral_unbound"
 
 
 def test_smart_account_transaction_requires_execution_backend():
@@ -146,7 +156,9 @@ def test_smart_account_recovery_rejects_invalid_new_owner():
 
 
 def test_manager_recover_account_requires_real_guardian_quorum():
-    manager = SmartAccountManager()
+    manager = SmartAccountManager(
+        transaction_executor=lambda tx: {"success": True, "tx_hash": "0xlab", **tx}
+    )
     created = manager.create_account("0x" + "a" * 40)
     account = manager.get_account(created["address"])
     g1 = "0x" + "1" * 40
