@@ -124,21 +124,14 @@ function Start-SoloIfNeeded([string]$TargetBase) {
     $py = (Get-Command python -ErrorAction SilentlyContinue).Source
     if (-not $py) { throw "python not found on PATH" }
 
-    $soloEnvPrefix = ""
-    $depMode = $null
-    if (Test-Path ".env") {
-        Get-Content ".env" | ForEach-Object {
-            if ($_ -match '^\s*DEPLOYMENT_MODE\s*=\s*(.+)\s*$') {
-                $depMode = $Matches[1].Trim().Trim('"').Trim("'").ToLower()
-            }
-        }
-    }
-    if ($depMode -eq "prod") {
-        $soloEnvPrefix = "`$env:TIP_SAFETY_ENFORCE='true'; "
-    }
+    $soloEnvPrefix = (
+        "`$env:DEPLOYMENT_MODE='dev'; " +
+        "`$env:TIP_SAFETY_ENFORCE='false'; "
+    )
+    Write-Host "Demo solo forces DEPLOYMENT_MODE=dev (UI tour; not prod mesh)." -ForegroundColor DarkGray
 
     $soloCmd = "Set-Location '$Root'; $soloEnvPrefix" +
-        "Write-Host 'Absolute Blockchain - solo (ops console demo)' -ForegroundColor Cyan; python main.py"
+        "Write-Host 'Absolute Blockchain - solo (ops console demo, dev)' -ForegroundColor Cyan; python main.py"
     Start-Process -FilePath "powershell.exe" `
         -ArgumentList @("-NoExit", "-Command", $soloCmd) `
         -WorkingDirectory $Root
