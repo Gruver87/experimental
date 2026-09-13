@@ -140,7 +140,12 @@ class TxPipeline:
                 return None
             # Prefer native when available; Python mirror always exists.
             out = native.mempool_validate_post_sig(snapshot, kernel_tx)
-        except Exception:
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "mempool_validate_post_sig failed — legacy path: %s", exc
+            )
             return None
         if not isinstance(out, dict) or "accept" not in out:
             return None
@@ -198,8 +203,12 @@ class TxPipeline:
                     error=reason,
                     meta={"mempool_admit_evm": reason},
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "mempool_admit_evm_deploy failed — python validator: %s", exc
+            )
         from execution.evm_bytecode_validator import validate_bytecode_hex
 
         v = validate_bytecode_hex(tx.data)

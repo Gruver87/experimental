@@ -172,10 +172,16 @@ class _NativeTxMap(Mapping):
         return tx
 
     def __iter__(self) -> Iterator[str]:
-        store = self._pool._native_store
-        if store is None:
-            return iter(())
-        return iter(list(store.hashes()))
+        # Lock order: Python RLock first, then Rust Mutex (via hashes()).
+        with self._pool.lock:
+            store = self._pool._native_store
+            if store is None:
+                return iter(list(self._pool._py_txs.keys()))
+            try:
+                return iter(list(store.hashes()))
+            except Exception as exc:
+                self._pool._demote_store(f"hashes:{exc}")
+                return iter(list(self._pool._py_txs.keys()))
 
     def __len__(self) -> int:
         return self._pool.get_size()
@@ -190,7 +196,8 @@ class Mempool:
 
     ADR 0021 phase-2: pending set may be ``abs_native.MempoolStore`` (Rust).
     Signature / chain validation stays in Python. Lock order: this ``RLock``
-    first, then Rust store Mutex — never reverse.
+    first, then Rust store Mutex — never reverse. On Rust store faults: demote
+    to Python dict (fail-closed for process health; pending set migrated).
     """
 
     def __init__(self, max_size: int = 10000, min_fee: float = 0.0001):
@@ -232,9 +239,39 @@ class Mempool:
                 blockchain.config, "require_signatures", False
             )
 
+    def _demote_store(self, reason: str) -> None:
+        """Drop Rust store; migrate pending txs into Python dict. Caller holds lock."""
+        store = self._native_store
+        if store is None and self._store_backend == "python":
+            return
+        logger.warning("mempool demote rust store → python (%s)", reason)
+        migrated = 0
+        if store is not None:
+            try:
+                rows = list(store.get_sorted(int(self.max_size), 0.0))
+                for raw in rows:
+                    tx = _tx_from_store_dict(dict(raw))
+                    if tx.tx_hash and tx.tx_hash not in self._py_txs:
+                        self._py_txs[tx.tx_hash] = tx
+                        migrated += 1
+            except Exception as exc:
+                logger.error("mempool store migrate on demote failed: %s", exc)
+        self._native_store = None
+        self._store_backend = "python"
+        try:
+            from runtime.native_capabilities import NativeFamily, get_registry
+
+            get_registry().demote(NativeFamily.MEMPOOL_STORE, str(reason or "demoted"))
+        except Exception as exc:
+            logger.warning("mempool store registry demote failed: %s", exc)
+        logger.warning("mempool store demoted; migrated=%s pending=%s", migrated, len(self._py_txs))
+
     def _store_put(self, tx: MempoolTransaction) -> bool:
         if self._native_store is not None:
-            return bool(self._native_store.insert(_tx_to_store_dict(tx)))
+            try:
+                return bool(self._native_store.insert(_tx_to_store_dict(tx)))
+            except Exception as exc:
+                self._demote_store(f"insert:{exc}")
         if tx.tx_hash in self._py_txs:
             return False
         if len(self._py_txs) >= self.max_size:
@@ -374,8 +411,11 @@ class Mempool:
         """Получить транзакции для майнинга (сортировка по комиссии)."""
         with self.lock:
             if self._native_store is not None:
-                rows = list(self._native_store.get_sorted(int(limit), float(min_fee)))
-                return [_tx_from_store_dict(dict(r)) for r in rows]
+                try:
+                    rows = list(self._native_store.get_sorted(int(limit), float(min_fee)))
+                    return [_tx_from_store_dict(dict(r)) for r in rows]
+                except Exception as exc:
+                    self._demote_store(f"get_sorted:{exc}")
             sorted_txs = sorted(
                 self._py_txs.values(),
                 key=lambda x: x.fee,
@@ -387,21 +427,24 @@ class Mempool:
         """Возвращает транзакции в формате dict (для BlockBuilder System C)."""
         with self.lock:
             if self._native_store is not None:
-                rows = list(self._native_store.get_sorted(self.max_size, 0.0))
-                return [
-                    {
-                        "hash": str(r.get("tx_hash") or ""),
-                        "from": str(r.get("from_addr") or ""),
-                        "to": str(r.get("to_addr") or ""),
-                        "value": float(r.get("amount") or 0.0),
-                        "gasPrice": float(r.get("fee") or 0.0),
-                        "gas": int(r.get("gas") or 21000),
-                        "nonce": int(r.get("nonce") or 0),
-                        "data": str(r.get("data") or ""),
-                        "timestamp": float(r.get("timestamp") or 0.0),
-                    }
-                    for r in rows
-                ]
+                try:
+                    rows = list(self._native_store.get_sorted(self.max_size, 0.0))
+                    return [
+                        {
+                            "hash": str(r.get("tx_hash") or ""),
+                            "from": str(r.get("from_addr") or ""),
+                            "to": str(r.get("to_addr") or ""),
+                            "value": float(r.get("amount") or 0.0),
+                            "gasPrice": float(r.get("fee") or 0.0),
+                            "gas": int(r.get("gas") or 21000),
+                            "nonce": int(r.get("nonce") or 0),
+                            "data": str(r.get("data") or ""),
+                            "timestamp": float(r.get("timestamp") or 0.0),
+                        }
+                        for r in rows
+                    ]
+                except Exception as exc:
+                    self._demote_store(f"get_sorted_tx:{exc}")
             sorted_txs = sorted(
                 self._py_txs.values(),
                 key=lambda x: x.fee,
@@ -426,44 +469,59 @@ class Mempool:
         """Удалить транзакцию."""
         with self.lock:
             if self._native_store is not None:
-                return bool(self._native_store.remove(str(tx_hash)))
+                try:
+                    return bool(self._native_store.remove(str(tx_hash)))
+                except Exception as exc:
+                    self._demote_store(f"remove:{exc}")
             return self._py_txs.pop(tx_hash, None) is not None
 
     def has_transaction(self, tx_hash: str) -> bool:
         with self.lock:
             if self._native_store is not None:
-                return bool(self._native_store.contains(str(tx_hash)))
+                try:
+                    return bool(self._native_store.contains(str(tx_hash)))
+                except Exception as exc:
+                    self._demote_store(f"contains:{exc}")
             return tx_hash in self._py_txs
 
     def get_transaction(self, tx_hash: str) -> Optional[MempoolTransaction]:
         with self.lock:
             if self._native_store is not None:
-                raw = self._native_store.get(str(tx_hash))
-                if raw is None:
-                    return None
-                return _tx_from_store_dict(dict(raw))
+                try:
+                    raw = self._native_store.get(str(tx_hash))
+                    if raw is None:
+                        return None
+                    return _tx_from_store_dict(dict(raw))
+                except Exception as exc:
+                    self._demote_store(f"get:{exc}")
             return self._py_txs.get(tx_hash)
 
     def get_size(self) -> int:
         with self.lock:
             if self._native_store is not None:
-                return int(self._native_store.size())
+                try:
+                    return int(self._native_store.size())
+                except Exception as exc:
+                    self._demote_store(f"size:{exc}")
             return len(self._py_txs)
 
     def get_stats(self) -> dict:
         with self.lock:
             if self._native_store is not None:
-                size = int(self._native_store.size())
-                total_fees, avg_fee = self._native_store.fee_stats()
-                return {
-                    "size": size,
-                    "total_fees": float(total_fees),
-                    "avg_fee": float(avg_fee) if size else 0,
-                    "rejected": self._rejected_count,
-                    "validators_available": _VALIDATORS_AVAILABLE,
-                    "ecdsa_available": _ECDSA_AVAILABLE,
-                    "store_backend": self._store_backend,
-                }
+                try:
+                    size = int(self._native_store.size())
+                    total_fees, avg_fee = self._native_store.fee_stats()
+                    return {
+                        "size": size,
+                        "total_fees": float(total_fees),
+                        "avg_fee": float(avg_fee) if size else 0,
+                        "rejected": self._rejected_count,
+                        "validators_available": _VALIDATORS_AVAILABLE,
+                        "ecdsa_available": _ECDSA_AVAILABLE,
+                        "store_backend": self._store_backend,
+                    }
+                except Exception as exc:
+                    self._demote_store(f"fee_stats:{exc}")
             if not self._py_txs:
                 return {
                     "size": 0,

@@ -19,6 +19,28 @@ def test_mempool_is_mempool_port() -> None:
     assert isinstance(pool, MempoolPort)
 
 
+def test_add_batch_port_shape() -> None:
+    """MempoolPort.add_batch matches live Tuple return used by P2P."""
+    import inspect
+
+    from blockchain.mempool import MempoolTransaction
+
+    sig = inspect.signature(Mempool.add_batch)
+    assert "chain_prevalidated" in sig.parameters
+    assert "signature_preverified" not in sig.parameters
+    pool = Mempool(max_size=10, min_fee=0.0)
+    tx = MempoolTransaction(
+        tx_hash="b1",
+        from_addr="0x1111111111111111111111111111111111111111",
+        to_addr="0x2222222222222222222222222222222222222222",
+        amount=1.0,
+        fee=1.0,
+    )
+    added, rejected, hashes = pool.add_batch([tx], chain_prevalidated=True)
+    assert added + rejected == 1
+    assert isinstance(hashes, list)
+
+
 def test_tx_pipeline_port_surface() -> None:
     """ADR 0021: validation stays on TxPipelinePort (not duplicated on MempoolPort)."""
     from blockchain.ports import MempoolPort

@@ -12,7 +12,7 @@ Validation boundary: ``core.components.ports.TxPipelinePort`` (not duplicated he
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
+from typing import Any, Dict, List, Optional, Protocol, Tuple, runtime_checkable
 
 
 @runtime_checkable
@@ -26,7 +26,6 @@ class MempoolPort(Protocol):
     def add(
         self,
         tx: Any,
-        *,
         signature_preverified: bool = False,
         chain_prevalidated: bool = False,
     ) -> bool:
@@ -37,10 +36,9 @@ class MempoolPort(Protocol):
         self,
         txs: List[Any],
         *,
-        signature_preverified: bool = False,
         chain_prevalidated: bool = False,
-    ) -> int:
-        """Batch insert; returns count accepted."""
+    ) -> Tuple[int, int, List[str]]:
+        """Batch insert; returns ``(added, rejected, accepted_hashes)``."""
         ...
 
     def get(self, limit: int = 100, min_fee: float = 0) -> List[Any]:

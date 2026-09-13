@@ -73,3 +73,29 @@ def test_duplicate_and_min_fee_refuse() -> None:
     assert not pool.add(_mk_tx("a", 3.0), signature_preverified=True)
     assert not pool.add(_mk_tx("b", 0.5), signature_preverified=True)
     assert pool.get_size() == 1
+
+
+def test_store_fault_demotes_to_python() -> None:
+    """Rust store exception must demote — not crash admit path (soak hard_fail)."""
+    pool = Mempool(max_size=16, min_fee=0.0)
+    assert pool.add(_mk_tx("keep", 3.0), signature_preverified=True)
+
+    class _Boom:
+        def insert(self, *_a, **_k):
+            raise RuntimeError("mempool_store_lock_poisoned")
+
+        def get_sorted(self, *_a, **_k):
+            raise RuntimeError("mempool_store_lock_poisoned")
+
+        def hashes(self):
+            raise RuntimeError("mempool_store_lock_poisoned")
+
+    pool._native_store = _Boom()
+    pool._store_backend = "rust"
+    # insert path demotes and accepts via python
+    assert pool.add(_mk_tx("after", 5.0), signature_preverified=True)
+    assert pool._native_store is None
+    assert pool.get_stats().get("store_backend") == "python"
+    assert pool.has_transaction("after")
+    # prior tx may be lost if migrate failed on boom get_sorted — after must survive
+    assert pool.get_size() >= 1

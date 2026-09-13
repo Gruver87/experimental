@@ -15,6 +15,7 @@ Canonical language for this repository is **English**. Older inherited entries b
 
 ### Experimental R&D
 
+- **Pre-soak harden (2026-09-13):** MempoolStore fault demotes to Python dict (no process crash); `MempoolPort.add_batch` matches Tuple API; TxPipeline kernel/admit exceptions logged. Float fee migration still deferred.
 - **Phase 4 mesh bake (2026-09-13):** rebuilt `abs-blockchain-prod:local` with ADR 0021 kernels/store; probe RESULT OK; container families rust; `prod_evm_smoke` + `evm_mempool_load_harness` PASS. Not soak.
 - **Phase 4.2 landed (2026-09-13):** ADR 0021 Rust `MempoolStore` (fee-sorted) behind `Mempool` / family `mempool_store`; Python validation unchanged; dict fallback when native off.
 - **Phase 4.3 landed (2026-09-13):** ADR 0021 `mempool_admit_evm_deploy` (EOF/opcode) + TxPipeline wire; goldens parity.
