@@ -5085,6 +5085,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("verify_wave_j.ps1 missing (Wave J L2/eth_call/tip honesty)")
         if not (ROOT / "scripts" / "verify_wave_k.ps1").is_file():
             errors.append("verify_wave_k.ps1 missing (Wave K value/plasma/shard honesty)")
+        if not (ROOT / "scripts" / "verify_wave_l.ps1").is_file():
+            errors.append("verify_wave_l.ps1 missing (Wave L NFT/bridge/validator honesty)")
         http_src = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
         if "Wave H: with peers/mesh expected" not in http_src:
             errors.append("/health/ready must gate wire/state when peers present (Wave H)")
@@ -5094,6 +5096,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("eth_gasPrice must require advertise_config_gas_price (Wave I)")
         if "evm adapter unavailable for eth_call" not in http_src:
             errors.append("eth_call must refuse missing adapter (Wave J)")
+        if "_nft_mutation_authorized" not in http_src:
+            errors.append("NFT mutations must require actor-bound auth (Wave L)")
         if "smart_accounts_ephemeral_unbound" not in (
             ROOT / "features" / "smart_accounts.py"
         ).read_text(encoding="utf-8"):
@@ -5110,6 +5114,14 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "scripts" / "verify_pre_soak.ps1"
         ).read_text(encoding="utf-8"):
             errors.append("verify_pre_soak -SkipMesh must not claim pre-soak PASS (Wave K)")
+        if "confirm_did_not_persist" not in (
+            ROOT / "bridge" / "store_adapter.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("bridge confirm must not paint green without persist (Wave L)")
+        if 'float(tx.get("value"' in (
+            ROOT / "execution" / "block_validator.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("block_validator must not float() value (Wave L)")
         if "_prod_fail_closed" not in (
             ROOT / "network" / "p2p_dispatch" / "tip_evidence.py"
         ).read_text(encoding="utf-8"):

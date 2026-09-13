@@ -32,6 +32,43 @@ def _http_abs(raw: Any, default: Any = 0, *, field: str = "amount") -> float:
     return parse_rpc_value_abs(raw, field=field)
 
 
+def _nft_mutation_authorized(cfg: Any, body: Dict[str, Any], actor: str) -> Optional[str]:
+    """Wave L: when JWT admin is not enforced, require actor-bound signature.
+
+    Returns an error string to refuse, or None when authorized.
+    """
+    if bool(getattr(cfg, "jwt_enforce_admin", False)):
+        return None
+    actor = str(actor or "").strip()
+    if not actor:
+        return "nft actor required"
+    sig = str(body.get("signature") or "").strip()
+    pub = str(body.get("public_key") or "").strip()
+    if not sig or not pub:
+        return "nft mutation requires signature+public_key (or enable jwt_enforce_admin)"
+    try:
+        from crypto.signing import Signer
+        from features.l2_crypto import hash_state
+
+        derived = Signer.get_address_from_public_key(pub)
+        if str(derived).lower() != actor.lower():
+            return "nft signature public_key does not match actor"
+        payload = {
+            "actor": actor,
+            "token_id": str(body.get("token_id") or ""),
+            "action": str(body.get("action") or "nft"),
+        }
+        if not Signer._verify_hash(
+            hash_state(payload),
+            bytes.fromhex(sig),
+            bytes.fromhex(pub),
+        ):
+            return "nft signature invalid"
+    except Exception as exc:
+        return f"nft signature verify failed: {exc}"
+    return None
+
+
 def _http_engine_result(result: Any, extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """JSON for engine ops. Never bool(arbitrary object).
 
@@ -5771,9 +5808,16 @@ class RESTHandler(BaseHTTPRequestHandler):
                 nft = self.__class__.nft
                 if not nft:
                     self._error(503, "NFT module not enabled"); return
+                buyer = body.get("buyer", "")
+                body = dict(body)
+                body["action"] = "nft_buy"
+                auth_err = _nft_mutation_authorized(cfg, body, buyer)
+                if auth_err:
+                    self._error(401, auth_err)
+                    return
                 result = nft.buy(
                     token_id=body.get("token_id", ""),
-                    buyer=body.get("buyer", ""),
+                    buyer=buyer,
                 )
                 self._json(result)
 
@@ -5781,9 +5825,16 @@ class RESTHandler(BaseHTTPRequestHandler):
                 nft = self.__class__.nft
                 if not nft:
                     self._error(503, "NFT module not enabled"); return
+                owner = body.get("owner", "")
+                body = dict(body)
+                body["action"] = "nft_list"
+                auth_err = _nft_mutation_authorized(cfg, body, owner)
+                if auth_err:
+                    self._error(401, auth_err)
+                    return
                 result = nft.list_for_sale(
                     token_id=body.get("token_id", ""),
-                    owner=body.get("owner", ""),
+                    owner=owner,
                     price=_http_abs(body.get("price", 0), field="price"),
                 )
                 self._json(result)
@@ -5792,9 +5843,16 @@ class RESTHandler(BaseHTTPRequestHandler):
                 nft = self.__class__.nft
                 if not nft:
                     self._error(503, "NFT module not enabled"); return
+                from_addr = body.get("from", "")
+                body = dict(body)
+                body["action"] = "nft_transfer"
+                auth_err = _nft_mutation_authorized(cfg, body, from_addr)
+                if auth_err:
+                    self._error(401, auth_err)
+                    return
                 result = nft.transfer(
                     token_id=body.get("token_id", ""),
-                    from_addr=body.get("from", ""),
+                    from_addr=from_addr,
                     to_addr=body.get("to", ""),
                 )
                 self._json(result)

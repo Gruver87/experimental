@@ -296,7 +296,8 @@ class Blockchain:
             storage = open_storage(db)
         self.storage: StoragePort = storage
         self.lock = threading.RLock()
-        self.require_signatures = False
+        # Wave L: mirror config.require_signatures (stats must not paint false in prod).
+        self.require_signatures = bool(getattr(config, "require_signatures", False))
 
         # --- System C: StateEngine ---
         if _STATE_ENGINE_AVAILABLE:

@@ -151,36 +151,79 @@ class NFTMarketplace:
 
         return nullcontext()
 
-    def _balance(self, addr: str) -> float:
+    def _balance_sat(self, addr: str) -> int:
+        from runtime.amount import to_satoshi
+
         if not self._has_balance_backend():
-            return 0.0
-        return float(self.db.get_balance(addr))
+            return 0
+        if hasattr(self.db, "get_balance_satoshi"):
+            return int(self.db.get_balance_satoshi(addr))
+        return int(to_satoshi(self.db.get_balance(addr)))
+
+    def _balance(self, addr: str) -> float:
+        from runtime.amount import from_satoshi_float
+
+        return float(from_satoshi_float(self._balance_sat(addr)))
 
     def _debit(self, addr: str, amount: float) -> bool:
-        if amount <= 0 or not self._has_balance_backend():
+        from runtime.amount import from_satoshi_float, to_satoshi, try_debit_satoshi
+
+        if not self._has_balance_backend():
             return False
-        if self._balance(addr) < amount:
+        try:
+            need = int(to_satoshi(amount))
+            try_debit_satoshi(self._balance_sat(addr), amount)
+        except (TypeError, ValueError):
             return False
-        self.db.update_balance(addr, -amount)
+        if need <= 0:
+            return False
+        if hasattr(self.db, "balance_delta_satoshi"):
+            self.db.balance_delta_satoshi(addr, -need)
+        else:
+            self.db.update_balance(addr, -from_satoshi_float(need))
         return True
 
     def _credit(self, addr: str, amount: float) -> bool:
-        if amount <= 0 or not self._has_balance_backend():
+        from runtime.amount import from_satoshi_float, to_satoshi
+
+        if not self._has_balance_backend():
             return False
-        self.db.update_balance(addr, amount)
+        try:
+            add = int(to_satoshi(amount))
+        except (TypeError, ValueError):
+            return False
+        if add <= 0:
+            return False
+        if hasattr(self.db, "balance_delta_satoshi"):
+            self.db.balance_delta_satoshi(addr, add)
+        else:
+            self.db.update_balance(addr, from_satoshi_float(add))
         return True
 
     def _settle_sale(self, buyer: str, seller: str, creator: str, price: float) -> bool:
-        if price <= 0 or not self._has_balance_backend():
+        from runtime.amount import from_satoshi_float, to_satoshi, try_debit_satoshi
+
+        if not self._has_balance_backend():
             return False
-        if self._balance(buyer) < price:
+        try:
+            price_sat = int(to_satoshi(price))
+            try_debit_satoshi(self._balance_sat(buyer), price)
+        except (TypeError, ValueError):
             return False
-        royalty = price * self.ROYALTY
-        seller_amount = price - royalty
-        self.db.update_balance(buyer, -price)
-        self.db.update_balance(seller, seller_amount)
-        if creator != seller and royalty > 0:
-            self.db.update_balance(creator, royalty)
+        if price_sat <= 0:
+            return False
+        royalty_sat = (price_sat * int(self.ROYALTY * 10_000)) // 10_000
+        seller_sat = price_sat - royalty_sat
+        if hasattr(self.db, "balance_delta_satoshi"):
+            self.db.balance_delta_satoshi(buyer, -price_sat)
+            self.db.balance_delta_satoshi(seller, seller_sat)
+            if creator != seller and royalty_sat > 0:
+                self.db.balance_delta_satoshi(creator, royalty_sat)
+        else:
+            self.db.update_balance(buyer, -from_satoshi_float(price_sat))
+            self.db.update_balance(seller, from_satoshi_float(seller_sat))
+            if creator != seller and royalty_sat > 0:
+                self.db.update_balance(creator, from_satoshi_float(royalty_sat))
         return True
 
     def _load_genesis_collection(self):
@@ -321,7 +364,8 @@ class NFTMarketplace:
                 if refuse:
                     return {"success": False, "error": refuse}
             except ImportError:
-                pass
+                # Wave L: missing council gate must not fail-open.
+                return {"success": False, "error": "nft_council_gate_unavailable"}
             t.owner = to_addr
             t.for_sale = False
             self._persist_token(token_id)

@@ -102,22 +102,24 @@ class BridgeStoreAdapter:
     def confirm_bridge_lock_status(
         self, lock_hash: str, *, l1_tx_hash: str = ""
     ) -> Dict[str, Any]:
+        """Confirm a pending lock. Wave L: never paint confirmed without a real transition."""
         store = self._store
-        if hasattr(store, "confirm_bridge_lock"):
-            store.confirm_bridge_lock(lock_hash)
-            return {"ok": True, "status": "confirmed", "l1_tx_hash": l1_tx_hash}
         lock = self.get_bridge_lock(lock_hash)
         if not lock:
             return {"ok": False, "error": "lock_not_found"}
         if str(lock.get("status") or "") != "pending":
-            return {"ok": False, "error": "illegal_transition", "status": lock.get("status")}
-        # Best-effort in-memory style stores used in fakes
-        if hasattr(store, "save_bridge_lock"):
-            store.save_bridge_lock(
-                lock.get("from_addr"),
-                lock.get("to_chain"),
-                lock.get("to_addr"),
-                lock.get("amount"),
-                lock_hash,
-            )
+            return {
+                "ok": False,
+                "error": "illegal_transition",
+                "status": lock.get("status"),
+            }
+        if not hasattr(store, "confirm_bridge_lock"):
+            return {"ok": False, "error": "confirm_bridge_lock_unavailable"}
+        try:
+            store.confirm_bridge_lock(lock_hash)
+        except Exception as exc:
+            return {"ok": False, "error": f"confirm_failed:{exc}"}
+        after = self.get_bridge_lock(lock_hash)
+        if not after or str(after.get("status") or "") != "confirmed":
+            return {"ok": False, "error": "confirm_did_not_persist"}
         return {"ok": True, "status": "confirmed", "l1_tx_hash": l1_tx_hash}
