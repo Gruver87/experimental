@@ -3,7 +3,7 @@
 **Purpose:** single source of truth for *what runs when*. No step claims PASS unless evidence exists.
 **Rule:** do not start a later phase while an earlier **blocker** is open.
 
-Last updated: 2026-09-11.
+Last updated: 2026-09-13.
 
 ---
 
@@ -12,10 +12,10 @@ Last updated: 2026-09-11.
 | ID | Blocker | Evidence | Next action |
 |----|---------|----------|-------------|
 | ~~B1~~ | **libp2p 48h soak** | **PASS** [`3c801b87`](evidence/runs/3c801b87/) (`passed=true`, `hard_fails=0`, `mesh_warn=0`, 2026-09-01→03). Prior FAIL `35104db0` · `87f51b3e` stay on record | **Closed.** |
-| ~~B2~~ | **Long-Range** lab 48h | **PASS** [`lr48pass1`](evidence/runs/lr48pass1/) (`passed=true`, `hard_fails=0`, `mesh_warn=0`, ready_only=13 tolerated, tip ~7929→~14770, 2026-09-09→11). Prior FAIL [`lr48fail1`](evidence/runs/lr48fail1/); intensify [`lr2hintensify`](evidence/runs/lr2hintensify/) | **Closed.** Next: Phase 3 EVM regression |
-| B3 | **Mempool/validation Rust** phases 1–3 blocked | ADR 0021; **phase 0 landed** (`blockchain/ports.py` `MempoolPort`) | After B2 (done) → phase 1 kernels; prefer after Phase 3 EVM smoke |
+| ~~B2~~ | **Long-Range** lab 48h | **PASS** [`lr48pass1`](evidence/runs/lr48pass1/) (`passed=true`, `hard_fails=0`, `mesh_warn=0`, ready_only=13 tolerated, tip ~7929→~14770, 2026-09-09→11). Prior FAIL [`lr48fail1`](evidence/runs/lr48fail1/); intensify [`lr2hintensify`](evidence/runs/lr2hintensify/) | **Closed.** |
+| B3 | **Mempool/validation Rust** phases 1–3 blocked | ADR 0021; **phase 0 landed** (`blockchain/ports.py` `MempoolPort`) | After Phase 3 mesh 48h PASS [`evm48pass1`](evidence/runs/evm48pass1/) → phase 1 kernels |
 
-**Not blockers:** EVM depth lab waves 8–10 (done for now); TCP+TLS 48h PASS (`0a7932c4`); **libp2p 48h PASS (`3c801b87`)**; **Long-Range lab 48h PASS (`lr48pass1`)**.
+**Not blockers:** EVM depth lab waves 8–10 (done for now); TCP+TLS 48h PASS (`0a7932c4`); **libp2p 48h PASS (`3c801b87`)**; **Long-Range lab 48h PASS (`lr48pass1`)**; **Phase 3 post-EVM-prep mesh 48h PASS (`evm48pass1`)**.
 
 ---
 
@@ -26,7 +26,7 @@ Phase 1   libp2p 48h PASS (prod mesh, feature_long_range=false)
     ↓
 Phase 2   Long-Range lab soak (dev profile, feature_long_range=true, separate evidence pack)
     ↓
-Phase 3   EVM regression on mesh (re-run prod_evm_smoke.py — not a new 48h claim)
+Phase 3   EVM regression + post-prep mesh 48h PASS (evm48pass1)
     ↓
 Phase 4   Mempool/validation Rust (ADR 0021 phases 0→3, mesh gate each sub-phase)
     ↓
@@ -81,17 +81,17 @@ Phase 6   External audit / mainnet gap (out of repo scope until scheduled)
 
 ---
 
-## Phase 3 — EVM mesh regression
+## Phase 3 — EVM mesh regression (**DONE**)
 
-**Goal:** confirm EVM mempool path still PASS after transport soak.
+**Goal met:** EVM preflight + Experimental prod mesh 48h after Long-Range close.
 
-```powershell
-python scripts/prod_evm_smoke.py
-```
+**Preflight (2026-09-11):** `mem_limit` 2048m recreate + `python scripts/evm_pre_48h_harness.py` PASS (labs + gate + probe + `prod_evm_smoke`).
 
-**Not required now:** EVM-only 48h · full geth · EIP-4844.
+**48h evidence (2026-09-11→13):** [`docs/evidence/runs/evm48pass1/`](evidence/runs/evm48pass1/) — `passed=true`, `hard_fails=0`, `mesh_warn=0`, `ready_only=0`, `warn_lines=8` soft (under_mesh peer flaps), tip ~10125→~19197, `hours_elapsed=48.007`.
 
-**Lab (already sufficient for R&D):** waves 8–10 + `GET /evm/status`.
+**Honesty:** Experimental libp2p prod-profile mesh soak after EVM prep — **not** EVM-only 48h · not full geth · not EIP-4844 · not Long-Range · not BLS · not public mainnet. Distinct from [`3c801b87`](evidence/runs/3c801b87/) (different window/tip).
+
+**Next:** Phase 4 ADR 0021 mempool Rust (phase 1 kernels).
 
 ---
 
@@ -144,7 +144,7 @@ Other optional depth:
 |------|-------------------|----------|
 | libp2p transport | Slices A–DB, 2h smoke, **48h PASS `3c801b87`** | Post-soak WARN hardening (optional) |
 | Long-Range | Waves 1–14 labs + 2h/intensify + **lab 48h PASS `lr48pass1`** | Prod arm / BLS / mainnet Long-Range |
-| EVM | Waves 8–11 + maxPriorityFee null-honesty, prod smoke (Jul) | Re-run after B2 (Phase 3), further COMPAT_MATRIX |
+| EVM | Waves 8–11 + preflight harness; **Phase 3 mesh 48h PASS** [`evm48pass1`](evidence/runs/evm48pass1/) | Phase 4 ADR 0021; further COMPAT_MATRIX; EVM-only 48h still optional/not claimed |
 | Mempool Rust | Phase 0 `MempoolPort` | Phases 1–3 (after Phase 3 EVM) |
 | Council ADR 0022 | Lab + live staging 778889 genesis 87/87 (2026-08-28) | On-chain signed gov, mainnet, 48h council soak |
 

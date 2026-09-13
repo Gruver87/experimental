@@ -1,0 +1,10 @@
+﻿FINISHED_PASS Experimental prod mesh 48h (Phase 3 post-EVM-prep)
+window: 2026-09-11T06:38:14+02:00 -> 2026-09-13T06:38:39+02:00
+passed=true hours_elapsed=48.007 hard_fails=0 mesh_warn=0 ready_only=0 warn_lines=8 (soft under_mesh / peer flaps)
+mesh_ok_cycles=567 health_watch_exit=0
+tip: ~10125 -> ~19197 (ports 18180-18182)
+image: sha256:3c801b87c7279f00a283cdcada42514987c88f3e39fc4ce6071ad66d2bd7d2af
+git_sha_at_start_meta: 8b0657cc658b6a28af58a4d4a81d0c70bedda7b4 (host dirty EVM prep; image bake 3c801b87)
+first: 2026-09-11 06:38:16 OK mesh aligned 18180:h10125/p2 18181:h10125/p2 18182:h10125/p2
+last: 2026-09-13 06:38:39 OK mesh aligned 18180:h19197/p2 18181:h19197/p2 18182:h19197/p1
+honesty: Experimental libp2p prod-profile mesh 48h after EVM pre-48h harness. Not EVM-only soak. Not Long-Range. Not BLS. Not public mainnet. Not Hybrid 375d14f. Do not relabel as 3c801b87 (different window).

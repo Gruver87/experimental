@@ -1,0 +1,56 @@
+{
+  "schema": "abs.mesh_evidence.v1",
+  "run_id": "evm48pass1",
+  "result": "PASS",
+  "created_unix": 1789274844,
+  "commit_host": "8b0657cc658b6a28af58a4d4a81d0c70bedda7b4",
+  "image_id": "sha256:3c801b87c7279f00a283cdcada42514987c88f3e39fc4ce6071ad66d2bd7d2af",
+  "honesty": "Experimental ADR 0020 libp2p Noise 3-node prod-profile mesh 48h PASS after Phase 3 EVM preflight (mem_limit 2048m + evm_pre_48h_harness). Soft warn_lines=8 (under_mesh peer flaps); mesh_warn=0 hard_fails=0. Not EVM-only 48h. Not Long-Range. Not BLS. Not public mainnet. Not Hybrid 375d14f. Distinct from libp2p pack 3c801b87 (different window/tip).",
+  "claims": {
+    "transport": "libp2p Noise (feature_libp2p=true, feature_long_range=false)",
+    "48h_soak": "passed=true hard_fails=0 ready_only=0 mesh_warn=0 warn_lines=8 hours_elapsed=48.007 health_watch_exit=0 mesh_ok=567",
+    "window": "2026-09-11T06:38:14+02:00 -> 2026-09-13T06:38:39+02:00",
+    "height_start_approx": 10125,
+    "height_end_approx": 19197,
+    "phase": "Phase 3 post-EVM-prep Experimental mesh soak"
+  },
+  "files": {
+    "soak_report": {
+      "status": "present",
+      "path": "docs/evidence/runs/evm48pass1/soak_report_48h_experimental.json",
+      "sha256": "40e4912b0dec5690a19ff2b46edf322a949c0b623b1aa3b6def714475562e05a",
+      "bytes": 990
+    },
+    "soak_log": {
+      "status": "present",
+      "path": "docs/evidence/runs/evm48pass1/soak_48h_experimental.log",
+      "sha256": "cbe7c4b8dc036e0ecd223df060e7409fd30c14314fb121824997c5683eca9c75",
+      "bytes": 215151
+    },
+    "soak_prep": {
+      "status": "present",
+      "path": "docs/evidence/runs/evm48pass1/soak_48h_prep.json",
+      "sha256": "ab6a3b7e018fd167390c0a36caeb603415891891be22d214c53db0a5cb526061",
+      "bytes": 499
+    },
+    "soak_preflight": {
+      "status": "present",
+      "path": "docs/evidence/runs/evm48pass1/soak_preflight.json",
+      "sha256": "abdb82c4ae07eeef737adbc4f11a29607c58565ae1887dbdf593d3eefdd055fe",
+      "bytes": 2556
+    },
+    "prod_mesh_probe": {
+      "status": "present",
+      "path": "docs/evidence/runs/evm48pass1/prod_mesh_probe.json",
+      "sha256": "b329d27a44da364ce3372df4d09df499d3b9777620f327ca4dcb87d664039ad3",
+      "bytes": 1091
+    },
+    "soak_result": {
+      "status": "present",
+      "path": "docs/evidence/runs/evm48pass1/soak_result.txt",
+      "sha256": "7186edf658cb62ec3c8642cacb8c3c3c2354a2b67686279e4fe1c6db180a126b",
+      "bytes": 904
+    }
+  },
+  "manifest_sha256": "a0766e53e043c7e0d1b7d8f21a3ac06ad89bee2c74f1e712ad1483ca3fd4ccd7"
+}

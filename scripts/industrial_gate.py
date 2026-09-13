@@ -712,6 +712,27 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("tests/unit/test_nft_uow.py missing (ADR 0016)")
         if not (ROOT / "scripts" / "prod_evm_smoke.py").is_file():
             errors.append("scripts/prod_evm_smoke.py missing (EVM depth evidence)")
+        harness = ROOT / "scripts" / "evm_pre_48h_harness.py"
+        if not harness.is_file():
+            errors.append("scripts/evm_pre_48h_harness.py missing (EVM pre-48h readiness)")
+        else:
+            harness_txt = harness.read_text(encoding="utf-8", errors="replace")
+            for needle in (
+                "prod_evm_smoke",
+                "industrial_gate",
+                "Does NOT start a 48h soak",
+                "18180",
+            ):
+                if needle not in harness_txt:
+                    errors.append(f"evm_pre_48h_harness.py missing honesty/surface: {needle}")
+        compose_prod = (ROOT / "docker-compose.prod.3node.yml").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if compose_prod.count("mem_limit: 2048m") < 3:
+            errors.append(
+                "docker-compose.prod.3node.yml must set mem_limit 2048m on all 3 mesh nodes "
+                "(API hang / OOM under long tip + EVM)"
+            )
         if not (ROOT / "docs" / "sprouts" / "EVM_DEPTH.md").is_file():
             errors.append("docs/sprouts/EVM_DEPTH.md missing")
         if not (ROOT / "docker-compose.sandbox.l2.yml").is_file():

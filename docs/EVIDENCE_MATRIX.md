@@ -25,7 +25,7 @@ Compared to documentation-only claims, **evidence level increased** in Jul 2026:
 | `prod_evm_smoke.py` (mempool, 3 RPC) | **PASS** | docker mesh Jul 12 evening + **re-PASS block #7** Jul 12 post-v1.2.29 |
 | `soak_monitor.ps1 -ProdMesh -Hours 7` | **PASS** | `logs/soak_report.json` (159 cycles, 0 fail) |
 | `soak_monitor.ps1 -ProdMesh -Hours 48` | **PASS** (2026-07-19 → 2026-07-21, v1.2.84) | `logs/soak_48h_v1.2.84_rerun3.log` + `logs/soak_report_48h.json` (`passed=true`, 0 FAIL; 11 transient ±1 height mesh WARNs accepted on rescore) |
-| Experimental 48h (`start_soak_prod_mesh_48h.ps1`) | **PASS** TCP+TLS (`0a7932c4`) · **PASS** libp2p (`3c801b87`) · prior FAIL ×2 | TCP+TLS: [`docs/evidence/runs/0a7932c4/`](evidence/runs/0a7932c4/) `passed=true`, `hard_fails=0`, `hours_elapsed=48.02`. Image `0a7932c4`. **Do not relabel as libp2p.** **libp2p #4 PASS:** [`docs/evidence/runs/3c801b87/`](evidence/runs/3c801b87/) `passed=true`, `hard_fails=0`, `ready_only=0`, `mesh_warn=0`, `status_slow=0`, `hours_elapsed=48.007`, window 2026-09-01→03, image `3c801b87`, height_end=8902. Prior FAIL: [`35104db0`](evidence/runs/35104db0/) (`health_watch_exit=1`) · [`87f51b3e`](evidence/runs/87f51b3e/) (`mesh_warn=46`). Not Hybrid `375d14f`. Not public mainnet. |
+| Experimental 48h (`start_soak_prod_mesh_48h.ps1`) | **PASS** TCP+TLS (`0a7932c4`) · **PASS** libp2p (`3c801b87`) · **PASS** post-EVM-prep (`evm48pass1`) · prior FAIL ×2 | TCP+TLS: [`0a7932c4`](evidence/runs/0a7932c4/). **libp2p #4:** [`3c801b87`](evidence/runs/3c801b87/). **Phase 3 post-EVM:** [`evm48pass1`](evidence/runs/evm48pass1/) `passed=true`, `hard_fails=0`, `mesh_warn=0`, `ready_only=0`, `warn_lines=8` soft, tip ~10125→~19197, window 2026-09-11→13. Prior FAIL: [`35104db0`](evidence/runs/35104db0/) · [`87f51b3e`](evidence/runs/87f51b3e/). Not Hybrid `375d14f`. Not public mainnet. Not EVM-only 48h. |
 | libp2p mesh-fix 2h smoke (`health_watch.ps1 -DurationMin 120`) | **PASS** (2026-08-28) | [`mesh-fix-smoke-2h`](evidence/runs/mesh-fix-smoke-2h/) + [`mesh-fix-smoke-2h-pre48h3`](evidence/runs/mesh-fix-smoke-2h-pre48h3/) — both `passed=true`, `hard_fails=0`, `mesh_warn=0`. Pre-flight before libp2p 48h #4. |
 
 ### Experimental soak / smoke index (operator)
@@ -43,13 +43,14 @@ Compared to documentation-only claims, **evidence level increased** in Jul 2026:
 | [`lr48fail1`](evidence/runs/lr48fail1/) | Long-Range lab 3-node mesh 48h | **48h FAIL** (`passed=false`, `hard_fails=0`, mesh_warn=28 non-transient, tip h4→~6782) | Historical; superseded by `lr48pass1` |
 | [`lr2hintensify`](evidence/runs/lr2hintensify/) | Long-Range lab intensify 2h | **2h PASS** (`passed=true`, `hard_fails=0`, `mesh_warn=0`, tip ~6828→~7765) | Preflight before `lr48pass1`. **Not BLS / not mainnet** |
 | [`lr48pass1`](evidence/runs/lr48pass1/) | Long-Range lab 3-node mesh 48h | **48h PASS** (`passed=true`, `hard_fails=0`, `mesh_warn=0`, ready_only=13 tolerated, tip ~7929→~14770) | B2 closed — **not** BLS / not prod 778888 / not mainnet / not Hybrid |
+| [`evm48pass1`](evidence/runs/evm48pass1/) | Experimental prod mesh 48h (post-EVM prep) | **48h PASS** (`passed=true`, `hard_fails=0`, `mesh_warn=0`, `ready_only=0`, `warn_lines=8` soft, tip ~10125→~19197) | Phase 3 closed — **not** EVM-only 48h / not Long-Range / not BLS / not mainnet |
 
 ### Lab evidence (not soak)
 
 | Claim | Status | Artifact |
 |-------|--------|----------|
 | ADR 0017 Long-Range lab | **Lab mesh 2h PASS** [`lr2hmesh`](evidence/runs/lr2hmesh/); **lab 48h PASS** [`lr48pass1`](evidence/runs/lr48pass1/) (`hard_fails=0`, `mesh_warn=0`, ready_only=13 tolerated); prior FAIL [`lr48fail1`](evidence/runs/lr48fail1/); intensify [`lr2hintensify`](evidence/runs/lr2hintensify/) | 3-node compose + committee + outbound WS gossip. Prod mesh keeps `feature_long_range=false`. **not BLS / not prod arm / not mainnet Long-Range proof.** |
-| EVM depth lab (Profile A) | **Unit + lab proven** (mesh separate) | waves 8–11 + RPC null-honesty (`evm_rpc_lab`, `evm_logs_lab`, `evm_filters_lab` polling filters). Batch: `verify_parallel_rd_batch.py`. `prod_evm_smoke.py` = live mesh. **not full geth / not EIP-4844 / not EVM-only 48h / not WS eth_subscribe.** |
+| EVM depth lab (Profile A) | **Unit + lab + Phase 3 mesh 48h** | waves 8–11 + RPC labs + `evm_pre_48h_harness.py`. Mesh soak [`evm48pass1`](evidence/runs/evm48pass1/). Prod `mem_limit` 2048m. **not full geth / not EIP-4844 / not EVM-only 48h / not WS eth_subscribe.** |
 | Oracle / cross-shard lab | **Unit + lab proven** (aux / Profile E) | wave-2: quorum median + reporter dedupe (`oracle_lab`); 2/3 validator quorum (`cross_shard_lab`). Prod flags off. **Not prod 778888 sprout enable.** |
 | Gruver87 council (ADR 0022) | **Lab + live staging compose PASS** (not mainnet / not on-chain gov) | Manifest `gruver87-council-manifest.json` (sha prefix `4487b29a…`); labs `guarantor_council_lab.py`, `guarantor_council_staging_mint_lab.py` PASS; live Profile C `:19080` / `778889` genesis mint **87/87** ([`council-staging-genesis-20260828`](evidence/runs/council-staging-genesis-20260828/)). **Not signed on-chain gov / not 48h soak / not L1 security guarantee.** |
 | `bridge_decision_off` | **PASS** (2026-07-21) | Bridge stays OFF until audited L1 contracts — see [BRIDGE_L1_MAINNET](BRIDGE_L1_MAINNET.md) |
@@ -178,13 +179,14 @@ Bridge remains **disabled** on prod mesh until audited L1 contracts ship. Use th
 1. `.\scripts\docker_prod_3node.ps1 -SkipBuild -KeepVolumes`
 2. `.\scripts\prod_mesh_failover.ps1` — record block heights during node2 outage
 3. `python scripts/prod_signed_tx_smoke.py`
-4. `python scripts/prod_evm_smoke.py` — deploy + `eth_getStorageAt` on all prod RPC ports
-5. `.\scripts\prod_evidence_suite.ps1` — health + failover + signed tx + EVM (optional one-shot)
-6. `.\scripts\soak_monitor.ps1 -ProdMesh -Hours 48 -IntervalSec 300`
-7. `.\scripts\testnet_readiness.ps1 -ProdMesh -MinSoakHours 48`
-8. External audit tracker → third-party review
-9. `python scripts/bridge_off_audit_gate.py` — Bridge OFF checklist (10 controls)
-10. `python scripts/stamp_release_evidence.py --git-tag v1.2.96` — evidence stamp (optional soak ref)
+4. `python scripts/evm_pre_48h_harness.py` — labs + gate + probe + `prod_evm_smoke` (no soak start)
+5. `python scripts/prod_evm_smoke.py` — deploy + `eth_getStorageAt` on all prod RPC ports (standalone)
+6. `.\scripts\prod_evidence_suite.ps1` — health + failover + signed tx + EVM (optional one-shot)
+7. `.\scripts\soak_monitor.ps1 -ProdMesh -Hours 48 -IntervalSec 300` — **only on explicit operator command**
+8. `.\scripts\testnet_readiness.ps1 -ProdMesh -MinSoakHours 48`
+9. External audit tracker → third-party review
+10. `python scripts/bridge_off_audit_gate.py` — Bridge OFF checklist (10 controls)
+11. `python scripts/stamp_release_evidence.py --git-tag v1.2.96` — evidence stamp (optional soak ref)
 
 ---
 

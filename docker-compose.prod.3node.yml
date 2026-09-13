@@ -120,7 +120,8 @@ services:
       - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro
       - ./data/prod_mesh/wallets/validator-1.wallet.json:/app/data/wallet.json:ro
     logging: *abs-logging
-    mem_limit: 1536m
+    # 1536m OOM'd API under long tip (status hang); EVM apply needs headroom for 48h.
+    mem_limit: 2048m
     cpus: "1.5"
     depends_on:
       redis:
@@ -228,7 +229,7 @@ services:
       - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro
       - ./data/prod_mesh/wallets/validator-2.wallet.json:/app/data/wallet.json:ro
     logging: *abs-logging
-    mem_limit: 1536m
+    mem_limit: 2048m
     cpus: "1.5"
     depends_on:
       redis:
@@ -270,7 +271,7 @@ services:
       - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro
       - ./data/prod_mesh/wallets/validator-3.wallet.json:/app/data/wallet.json:ro
     logging: *abs-logging
-    mem_limit: 1536m
+    mem_limit: 2048m
     cpus: "1.5"
     depends_on:
       redis:
