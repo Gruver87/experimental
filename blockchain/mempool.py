@@ -82,6 +82,9 @@ class MempoolTransaction:
                 "gas_limit": int(self.gas or 21_000),
             }
             return verify_transaction_signature(tx_dict)
+        except RuntimeError:
+            # Wave R: ECDSA unavailable must not paint as invalid signature.
+            raise
         except Exception as exc:
             logger.warning("mempool signature verify error: %s", exc)
             return False
@@ -146,7 +149,7 @@ def _mempool_tx_verify_dict(tx: MempoolTransaction, chain_id: int) -> Dict:
 
 
 def _tx_to_store_dict(tx: MempoolTransaction) -> Dict[str, Any]:
-    from runtime.amount import to_satoshi
+    from runtime.amount import from_satoshi_float, to_satoshi
 
     fee_sat = int(getattr(tx, "fee_satoshi", -1))
     if fee_sat < 0:
@@ -155,14 +158,16 @@ def _tx_to_store_dict(tx: MempoolTransaction) -> Dict[str, Any]:
     amount_sat = int(getattr(tx, "amount_satoshi", -1)) if hasattr(tx, "amount_satoshi") else -1
     if amount_sat < 0:
         amount_sat = int(to_satoshi(tx.amount))
-    # Dual-write: wire float retained for peer ABS fee compat; satoshi authoritative.
+        if hasattr(tx, "amount_satoshi"):
+            tx.amount_satoshi = amount_sat
+    # Wave R: ABS floats derived from satoshi (no raw float() money invent).
     return {
         "tx_hash": str(tx.tx_hash),
         "from_addr": str(tx.from_addr),
         "to_addr": str(tx.to_addr),
-        "amount": float(tx.amount),
+        "amount": from_satoshi_float(amount_sat),
         "amount_satoshi": int(amount_sat),
-        "fee": float(tx.fee),
+        "fee": from_satoshi_float(fee_sat),
         "fee_satoshi": int(fee_sat),
         "nonce": int(tx.nonce or 0),
         "signature": str(tx.signature or ""),
@@ -174,20 +179,24 @@ def _tx_to_store_dict(tx: MempoolTransaction) -> Dict[str, Any]:
 
 
 def _tx_from_store_dict(raw: Dict[str, Any]) -> MempoolTransaction:
-    fee = float(raw.get("fee") or 0.0)
-    raw_sat = raw.get("fee_satoshi")
-    if raw_sat is None:
-        from runtime.amount import to_satoshi
+    from runtime.amount import from_satoshi_float, money_abs, to_satoshi
 
-        fee_sat = int(to_satoshi(fee))
+    raw_fee_sat = raw.get("fee_satoshi")
+    if raw_fee_sat is None:
+        fee_sat = int(to_satoshi(money_abs(raw.get("fee") or 0, field="fee")))
     else:
-        fee_sat = int(raw_sat)
+        fee_sat = int(raw_fee_sat)
+    raw_amt_sat = raw.get("amount_satoshi")
+    if raw_amt_sat is None:
+        amount_sat = int(to_satoshi(money_abs(raw.get("amount") or 0, field="amount")))
+    else:
+        amount_sat = int(raw_amt_sat)
     return MempoolTransaction(
         tx_hash=str(raw.get("tx_hash") or ""),
         from_addr=str(raw.get("from_addr") or ""),
         to_addr=str(raw.get("to_addr") or ""),
-        amount=float(raw.get("amount") or 0.0),
-        fee=fee,
+        amount=from_satoshi_float(amount_sat),
+        fee=from_satoshi_float(fee_sat),
         nonce=int(raw.get("nonce") or 0),
         signature=str(raw.get("signature") or ""),
         public_key=str(raw.get("public_key") or ""),

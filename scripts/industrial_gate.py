@@ -5097,6 +5097,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("verify_wave_p.ps1 missing (Wave P stake/pool/sig honesty)")
         if not (ROOT / "scripts" / "verify_wave_q.ps1").is_file():
             errors.append("verify_wave_q.ps1 missing (Wave Q http/wallet/attestation honesty)")
+        if not (ROOT / "scripts" / "verify_wave_r.ps1").is_file():
+            errors.append("verify_wave_r.ps1 missing (Wave R tx_signer/mempool/AI honesty)")
         if "stake: int" not in (ROOT / "consensus_engine.py").read_text(encoding="utf-8"):
             errors.append("consensus_engine stake must be int satoshi (Wave N)")
         if "Corrupt stored roots return None" not in (
@@ -5138,6 +5140,15 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "crypto" / "validator_keys.py"
         ).read_text(encoding="utf-8"):
             errors.append("validator_keys must raise on derive/probe fail (Wave Q)")
+        ts_src = (ROOT / "crypto" / "tx_signer.py").read_text(encoding="utf-8")
+        if "fee or fee_satoshi required for transaction hash" not in ts_src:
+            errors.append("tx_signer must refuse invented fee in hash (Wave R)")
+        if "ECDSA backend missing" not in ts_src:
+            errors.append("tx_signer verify must raise when ECDSA missing (Wave R)")
+        if "from_satoshi_float(amount_sat)" not in (
+            ROOT / "blockchain" / "mempool.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("mempool store must derive ABS from satoshi (Wave R)")
         if "* 3 >= total * 2" not in (
             ROOT / "consensus" / "bft" / "quorum.py"
         ).read_text(encoding="utf-8"):

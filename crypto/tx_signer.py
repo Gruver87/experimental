@@ -16,16 +16,26 @@ class TransactionSigner:
     
     @staticmethod
     def hash_transaction(tx_data: Dict[str, Any]) -> str:
-        """Вычисление хэша транзакции для подписи"""
-        # Сортируем поля для детерминированности
+        """Вычисление хэша транзакции для подписи.
+
+        Wave R: fee must be explicit — do not invent 0.001 into the digest.
+        """
+        if tx_data.get("fee") is None and tx_data.get("fee_satoshi") is None:
+            raise ValueError("fee or fee_satoshi required for transaction hash")
+        if tx_data.get("fee") is None:
+            from runtime.amount import from_satoshi_float
+
+            fee = from_satoshi_float(int(tx_data["fee_satoshi"]))
+        else:
+            fee = tx_data.get("fee")
         ordered = {
-            'from': tx_data.get('from', ''),
-            'to': tx_data.get('to', ''),
-            'amount': str(tx_data.get('amount', 0)),
-            'nonce': str(tx_data.get('nonce', 0)),
-            'fee': str(tx_data.get('fee', 0.001))
+            "from": tx_data.get("from", ""),
+            "to": tx_data.get("to", ""),
+            "amount": str(tx_data.get("amount", 0)),
+            "nonce": str(tx_data.get("nonce", 0)),
+            "fee": str(fee),
         }
-        
+
         message = json.dumps(ordered, sort_keys=True)
         return native.sha256_hex(message.encode())
     
@@ -43,9 +53,11 @@ class TransactionSigner:
         """
         Верификация подписи
         Проверяет, что подпись соответствует public_key и адресу.
+
+        Wave R: missing ECDSA is unavailable (RuntimeError), not valid=False.
         """
         if not CRYPTO_AVAILABLE:
-            return False
+            raise RuntimeError("signature verify unavailable: ECDSA backend missing")
         if not signature:
             return False
         public_key_hex = tx_data.get("public_key", "")

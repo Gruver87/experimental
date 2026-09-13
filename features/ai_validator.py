@@ -93,10 +93,14 @@ class AIValidatorEngine:
         }
     
     def get_stats(self) -> Dict:
+        n = len(self.validators)
         return {
-            "validators": len(self.validators),
+            "validators": n,
             "total_stake": sum(v.stake for v in self.validators.values()),
-            "avg_performance": sum(v.performance for v in self.validators.values()) / max(1, len(self.validators)),
+            # Wave R: empty set avg is 0 — do not invent denom=1.
+            "avg_performance": (
+                sum(v.performance for v in self.validators.values()) / n if n else 0.0
+            ),
             "total_rewards": sum(v.rewards for v in self.validators.values()),
             "simulation_only": True,
             "consensus_wired": False,

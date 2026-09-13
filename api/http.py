@@ -6559,6 +6559,9 @@ class RESTHandler(BaseHTTPRequestHandler):
                     from crypto.tx_signer import TransactionSigner
                     ok = TransactionSigner.verify_signature(tx_data, signature, address)
                     self._json({"valid": ok})
+                except RuntimeError as e:
+                    # Wave R: unavailable must not paint valid:false.
+                    self._json({"valid": None, "unavailable": True, "error": str(e)})
                 except Exception as e:
                     self._error(500, str(e))
 
