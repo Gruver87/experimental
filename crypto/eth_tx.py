@@ -323,5 +323,8 @@ def verify_eth_transaction_dict(tx: dict) -> bool:
             recovered = _recover_address(signing_hash, v, r, s, chain_id if v >= 35 else None)
         from_addr = tx.get("from", tx.get("from_addr", ""))
         return recovered.lower() == str(from_addr).lower()
-    except Exception:
+    except (ValueError, TypeError):
         return False
+    except Exception as exc:
+        # Wave P: backend/probe failures must not paint as invalid signature.
+        raise RuntimeError(f"eth signature verify unavailable: {exc}") from exc

@@ -5093,6 +5093,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("verify_wave_n.ps1 missing (Wave N satoshi/PoS/multisig honesty)")
         if not (ROOT / "scripts" / "verify_wave_o.ps1").is_file():
             errors.append("verify_wave_o.ps1 missing (Wave O P2P satoshi/DAO/gas honesty)")
+        if not (ROOT / "scripts" / "verify_wave_p.ps1").is_file():
+            errors.append("verify_wave_p.ps1 missing (Wave P stake/pool/sig honesty)")
         if "stake: int" not in (ROOT / "consensus_engine.py").read_text(encoding="utf-8"):
             errors.append("consensus_engine stake must be int satoshi (Wave N)")
         if "Corrupt stored roots return None" not in (
@@ -5113,6 +5115,17 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "network" / "p2p_node.py"
         ).read_text(encoding="utf-8"):
             errors.append("P2P must refuse unset gas_price invent (Wave O)")
+        http_wave = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
+        if "total_stake_satoshi" not in http_wave or '"unit": "satoshi"' not in http_wave:
+            errors.append("/consensus/stake must label satoshi unit (Wave P)")
+        if "spendable_balance_sat" not in (
+            ROOT / "runtime" / "pool_locks.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("pool_locks must compare spend in satoshi (Wave P)")
+        if "signature verify unavailable" not in (
+            ROOT / "blockchain" / "tx_validator.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("tx_validator must distinguish unavailable sig verify (Wave P)")
         if "* 3 >= total * 2" not in (
             ROOT / "consensus" / "bft" / "quorum.py"
         ).read_text(encoding="utf-8"):

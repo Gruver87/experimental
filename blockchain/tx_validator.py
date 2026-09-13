@@ -80,12 +80,20 @@ class TransactionValidator:
         if require_signature and not signature and not eth_signed:
             return False, "Signature required"
         if eth_signed:
-            if not cls._verify_signature(tx, signature, chain_id):
+            try:
+                ok = cls._verify_signature(tx, signature, chain_id)
+            except RuntimeError as exc:
+                return False, str(exc)
+            if not ok:
                 return False, "Invalid signature"
         elif signature:
             if not public_key:
                 return False, "public_key required with signature"
-            if not cls._verify_signature(tx, signature, chain_id):
+            try:
+                ok = cls._verify_signature(tx, signature, chain_id)
+            except RuntimeError as exc:
+                return False, str(exc)
+            if not ok:
                 return False, "Invalid signature"
 
         return True, "OK"
@@ -107,20 +115,37 @@ class TransactionValidator:
 
     @classmethod
     def _verify_signature(cls, tx: dict, signature: str, chain_id: int) -> bool:
+        """Return True/False for crypto result; raise RuntimeError if verify unavailable.
+
+        Wave P: probe/import/backend failures must not paint as Invalid signature.
+        """
         if tx.get("eth_signed"):
             try:
                 from crypto.eth_tx import verify_eth_transaction_dict
-                return verify_eth_transaction_dict(tx)
-            except Exception:
+                return bool(verify_eth_transaction_dict(tx))
+            except RuntimeError:
+                raise
+            except (ValueError, TypeError):
                 return False
+            except Exception as exc:
+                raise RuntimeError(f"signature verify unavailable: {exc}") from exc
         try:
             from crypto.wallet import verify_transaction_signature
+            from runtime.amount import from_satoshi_float
+
             raw_value = tx.get("value", tx.get("amount", 0))
-            value = (
-                int(raw_value)
-                if float(raw_value) == int(float(raw_value))
-                else float(raw_value)
-            )
+            if tx.get("amount_satoshi") is not None or tx.get("value_satoshi") is not None:
+                sat = int(tx.get("amount_satoshi", tx.get("value_satoshi")))
+                value = from_satoshi_float(sat)
+            else:
+                try:
+                    value = (
+                        int(raw_value)
+                        if float(raw_value) == int(float(raw_value))
+                        else float(raw_value)
+                    )
+                except (TypeError, ValueError):
+                    return False
             tx_dict = {
                 "from": tx.get("from", tx.get("from_addr", "")),
                 "to": tx.get("to", tx.get("to_addr", "")),
@@ -132,6 +157,10 @@ class TransactionValidator:
                 "data": tx.get("data", tx.get("input", "")),
                 "gas_limit": tx.get("gas_limit") or tx.get("gas", 21000),
             }
-            return verify_transaction_signature(tx_dict)
-        except Exception:
+            return bool(verify_transaction_signature(tx_dict))
+        except RuntimeError:
+            raise
+        except (ValueError, TypeError):
             return False
+        except Exception as exc:
+            raise RuntimeError(f"signature verify unavailable: {exc}") from exc
