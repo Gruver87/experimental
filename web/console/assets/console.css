@@ -449,3 +449,35 @@ tr:hover td { background: rgba(255,255,255,.02); }
   gap: 8px;
   margin-top: 10px;
 }
+.clock-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+.clock-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--bg);
+}
+.clock-card .city { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; }
+.clock-card .time { font-family: var(--mono); font-size: 22px; color: var(--signal); margin-top: 4px; }
+.clock-card .meta { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.ticker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+.ticker {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--bg);
+}
+.ticker .sym { font-size: 11px; color: var(--dim); }
+.ticker .px { font-family: var(--mono); font-size: 16px; color: var(--copper); margin-top: 4px; }
+.ticker .ch { font-family: var(--mono); font-size: 12px; margin-top: 2px; }
+.ticker .ch.up { color: var(--ok); }
+.ticker .ch.dn { color: var(--bad); }
+.ex-table td.open-yes { color: var(--ok); }
+.ex-table td.open-no { color: var(--muted); }

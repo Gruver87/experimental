@@ -174,7 +174,17 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         ROOT / "web" / "console" / "assets" / "wallets.js"
     ).read_text(encoding="utf-8"):
         errors.append("ops console must include council watch + wallet sendTx")
+    if "renderMarkets" not in console_app or "/market/snapshot" not in console_app:
+        errors.append("ops console must include Markets panel wired to /market/snapshot")
+    if not (ROOT / "api" / "market_feed.py").is_file():
+        errors.append("api/market_feed.py missing (ops market snapshot)")
+    else:
+        mf = (ROOT / "api" / "market_feed.py").read_text(encoding="utf-8")
+        if "api.coingecko.com" not in mf or "create_default_context" not in mf:
+            errors.append("market_feed must allowlist CoinGecko and verify TLS")
     http_static = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
+    if "/market/snapshot" not in http_static:
+        errors.append("http.py must expose GET /market/snapshot")
     if "_resolve_web_static" not in http_static:
         errors.append("http.py must resolve web/console static safely")
     if "Content-Security-Policy" not in http_static or "_WEB_CSP" not in http_static:

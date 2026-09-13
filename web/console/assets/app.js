@@ -10,6 +10,7 @@
     chain: ["Chain", "Recent blocks · tip · state consistency"],
     wallets: ["Wallets", "EIP-1193 · Absolute chain switch · eth_sendTransaction"],
     council: ["Council", "ADR 0022 watch — staging 778889 only (never prod mint)"],
+    markets: ["Markets", "Exchange clocks · FX · crypto · macro — not L1 oracle"],
     security: ["Security", "CSP · CORS posture · what this console will not do"],
   };
 
@@ -686,6 +687,233 @@
     el("btn-council-refresh").onclick = () => renderCouncil();
   }
 
+  function fmtPx(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return "—";
+    if (Math.abs(n) >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    if (Math.abs(n) >= 1) return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+    return n.toLocaleString(undefined, { maximumFractionDigits: 6 });
+  }
+
+  function fmtCh(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return { text: "—", cls: "" };
+    const sign = n > 0 ? "+" : "";
+    return {
+      text: sign + n.toFixed(2) + "%",
+      cls: n > 0 ? "up" : n < 0 ? "dn" : "",
+    };
+  }
+
+  function localParts(tz) {
+    try {
+      const fmt = new Intl.DateTimeFormat("en-GB", {
+        timeZone: tz,
+        weekday: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      });
+      const parts = fmt.formatToParts(new Date());
+      const get = (t) => (parts.find((p) => p.type === t) || {}).value;
+      return {
+        weekday: get("weekday"),
+        time: get("hour") + ":" + get("minute") + ":" + get("second"),
+        hour: Number(get("hour")),
+        minute: Number(get("minute")),
+      };
+    } catch (_) {
+      return { weekday: "—", time: "—", hour: 0, minute: 0 };
+    }
+  }
+
+  function sessionOpen(ex, parts) {
+    if (ex.always_open) return true;
+    const wd = String(parts.weekday || "");
+    if (wd === "Sat" || wd === "Sun") return false;
+    const [oh, om] = String(ex.open || "00:00")
+      .split(":")
+      .map(Number);
+    const [ch, cm] = String(ex.close || "23:59")
+      .split(":")
+      .map(Number);
+    const now = parts.hour * 60 + parts.minute;
+    const o = oh * 60 + (om || 0);
+    const c = ch * 60 + (cm || 0);
+    if (ex.id === "cme") {
+      // Globex wraps overnight — treat as open unless in daily maintenance window roughly 16:00-17:00 CT weekdays
+      return !(now >= 16 * 60 && now < 17 * 60);
+    }
+    if (c > o) return now >= o && now < c;
+    return now >= o || now < c;
+  }
+
+  async function renderMarkets() {
+    const root = el("view-markets");
+    root.innerHTML = `<div class="card"><h2>Loading markets…</h2></div>`;
+    let snap = null;
+    try {
+      snap = await AbsApi.getJson("/market/snapshot");
+    } catch (e) {
+      root.innerHTML = `<div class="warn-box">Market snapshot unavailable: ${esc(
+        e.message || e
+      )}</div>`;
+      return;
+    }
+    const exchanges = (snap && snap.exchanges) || [];
+    const crypto = ((snap && snap.crypto) || {}).items || [];
+    const fx = ((snap && snap.fx) || {}).items || [];
+    const tickers = ((snap && snap.tickers) || {}).items || [];
+    const commodities = tickers.filter((t) => t.kind === "commodity" || t.kind === "index");
+    const equities = tickers.filter((t) => t.kind === "equity");
+
+    root.innerHTML = `
+      <div class="warn-box">
+        Orientation only — <strong>not</strong> Absolute consensus / not on-chain oracle.
+        Feeds: ${(snap.upstreams || []).map(esc).join(", ") || "—"}.
+        Cache ${(snap.cache || "?")} · TTL ${esc(snap.ttl_sec || "—")}s · ${esc(
+          snap.generated_at || ""
+        )}
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <h2>Leading exchange clocks</h2>
+        <div class="clock-grid" id="market-clocks"></div>
+      </div>
+      <div class="grid grid-2" style="margin-bottom:14px">
+        <div class="card">
+          <h2>FX converter (ECB / Frankfurter)</h2>
+          <div class="row">
+            <div class="form-row" style="flex:1"><label>Amount</label><input id="fx-amt" value="100" /></div>
+            <div class="form-row" style="width:100px"><label>From</label><input id="fx-from" value="USD" /></div>
+            <div class="form-row" style="width:100px"><label>To</label><input id="fx-to" value="EUR" /></div>
+          </div>
+          <button type="button" class="btn" id="btn-fx">Convert</button>
+          <div id="fx-out" class="mono" style="margin-top:10px"></div>
+          <h3>USD crosses</h3>
+          <div class="ticker-grid">
+            ${fx
+              .slice(0, 16)
+              .map(
+                (r) =>
+                  `<div class="ticker"><div class="sym">${esc(
+                    r.pair
+                  )}</div><div class="px">${esc(fmtPx(r.rate))}</div></div>`
+              )
+              .join("") || '<p class="muted">FX unavailable</p>'}
+          </div>
+        </div>
+        <div class="card">
+          <h2>Exchanges board</h2>
+          <table class="ex-table">
+            <thead><tr><th>Venue</th><th>Local</th><th>Session</th><th>Kind</th></tr></thead>
+            <tbody id="ex-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <h2>Crypto (CoinGecko)</h2>
+        <div class="ticker-grid">
+          ${crypto
+            .map((c) => {
+              const ch = fmtCh(c.change_24h_pct);
+              return `<div class="ticker"><div class="sym">${esc(
+                c.id
+              )}</div><div class="px">$${esc(fmtPx(c.price_usd))}</div><div class="ch ${
+                ch.cls
+              }">${esc(ch.text)}</div></div>`;
+            })
+            .join("") || '<p class="muted">Crypto unavailable</p>'}
+        </div>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>Commodities &amp; indices</h2>
+          <div class="ticker-grid">
+            ${commodities
+              .map((t) => {
+                const ch = fmtCh(t.change_pct);
+                return `<div class="ticker"><div class="sym">${esc(t.name)} · ${esc(
+                  t.symbol
+                )}</div><div class="px">${esc(fmtPx(t.price))} ${esc(
+                  t.currency || ""
+                )}</div><div class="ch ${ch.cls}">${esc(ch.text)}</div></div>`;
+              })
+              .join("") || '<p class="muted">Unavailable</p>'}
+          </div>
+        </div>
+        <div class="card">
+          <h2>Mega-cap equities</h2>
+          <div class="ticker-grid">
+            ${equities
+              .map((t) => {
+                const ch = fmtCh(t.change_pct);
+                return `<div class="ticker"><div class="sym">${esc(t.name)} · ${esc(
+                  t.symbol
+                )}</div><div class="px">${esc(fmtPx(t.price))} ${esc(
+                  t.currency || ""
+                )}</div><div class="ch ${ch.cls}">${esc(ch.text)}</div></div>`;
+              })
+              .join("") || '<p class="muted">Unavailable</p>'}
+          </div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button type="button" class="btn ghost" id="btn-market-refresh">Refresh snapshot</button>
+      </div>`;
+
+    function paintClocks() {
+      const clockRoot = el("market-clocks");
+      const exBody = el("ex-body");
+      if (!clockRoot || !exBody) return;
+      clockRoot.innerHTML = exchanges
+        .map((ex) => {
+          const p = localParts(ex.tz);
+          const open = sessionOpen(ex, p);
+          return `<div class="clock-card"><div class="city">${esc(ex.city)} · ${esc(
+            ex.name
+          )}</div><div class="time">${esc(p.time)}</div><div class="meta">${esc(
+            p.weekday
+          )} · ${open ? "SESSION OPEN" : "closed / off"} · ${esc(ex.tz)}</div></div>`;
+        })
+        .join("");
+      exBody.innerHTML = exchanges
+        .map((ex) => {
+          const p = localParts(ex.tz);
+          const open = sessionOpen(ex, p);
+          return `<tr><td>${esc(ex.name)}</td><td class="mono">${esc(
+            p.time
+          )}</td><td class="${open ? "open-yes" : "open-no"}">${
+            open ? "open" : "closed"
+          }</td><td>${esc(ex.kind)}</td></tr>`;
+        })
+        .join("");
+    }
+    paintClocks();
+    if (state._marketClockTimer) clearInterval(state._marketClockTimer);
+    state._marketClockTimer = setInterval(paintClocks, 1000);
+
+    el("btn-fx").onclick = async () => {
+      try {
+        const amount = el("fx-amt").value.trim();
+        const frm = el("fx-from").value.trim();
+        const to = el("fx-to").value.trim();
+        const q =
+          "/market/fx?amount=" +
+          encodeURIComponent(amount) +
+          "&from=" +
+          encodeURIComponent(frm) +
+          "&to=" +
+          encodeURIComponent(to);
+        const r = await AbsApi.getJson(q);
+        el("fx-out").textContent = JSON.stringify(r, null, 2);
+      } catch (e) {
+        toast(String(e.message || e));
+      }
+    };
+    el("btn-market-refresh").onclick = () => renderMarkets();
+  }
+
   function renderSecurity() {
     el("view-security").innerHTML = `
       <div class="grid grid-2">
@@ -735,6 +963,9 @@
         break;
       case "council":
         renderCouncil();
+        break;
+      case "markets":
+        renderMarkets();
         break;
       case "security":
         renderSecurity();

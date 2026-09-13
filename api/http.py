@@ -1000,6 +1000,8 @@ _PUBLIC_API_ROUTES = [
     {"method": "POST", "path": "/testnet/fork-exercise", "summary": "P2P fork reconcile recovery drill (dev, Wave 58)"},
     {"method": "GET", "path": "/sync/status", "summary": "Chain sync status"},
     {"method": "GET", "path": "/features", "summary": "Feature flags and module availability"},
+    {"method": "GET", "path": "/market/snapshot", "summary": "Ops market snapshot (FX/crypto/macro; not consensus)"},
+    {"method": "GET", "path": "/market/fx", "summary": "FX convert via Frankfurter (not consensus)"},
     {"method": "GET", "path": "/evm/supported-opcodes", "summary": "EVM opcode support matrix"},
     {"method": "GET", "path": "/evm/status", "summary": "EVM compat honesty snapshot (Profile A lab; not full geth)"},
     {"method": "GET", "path": "/consensus/attestations", "summary": "Latest validator attestations (LMD)"},
@@ -3062,6 +3064,41 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "long_range_defense": False,
                         "error": "consensus_adapter_missing",
                     })
+
+            elif path == "/market/snapshot":
+                try:
+                    from api.market_feed import build_market_snapshot
+
+                    self._json(build_market_snapshot())
+                except Exception as exc:
+                    logger.warning("/market/snapshot failed: %s", exc)
+                    self._json({
+                        "ok": False,
+                        "error": str(exc),
+                        "honesty": ["NOT consensus", "market feed unavailable"],
+                    })
+
+            elif path == "/market/fx":
+                try:
+                    from api.market_feed import MarketFeedError, convert_fx
+
+                    amount_raw = (qs.get("amount") or ["1"])[0]
+                    frm = (qs.get("from") or ["USD"])[0]
+                    to = (qs.get("to") or ["EUR"])[0]
+                    try:
+                        amount = float(amount_raw)
+                    except (TypeError, ValueError):
+                        self._error(400, "amount must be a number")
+                        return
+                    if amount < 0:
+                        self._error(400, "amount must be >= 0")
+                        return
+                    self._json(convert_fx(amount, frm, to))
+                except MarketFeedError as exc:
+                    self._error(502, str(exc))
+                except Exception as exc:
+                    logger.warning("/market/fx failed: %s", exc)
+                    self._error(502, "fx convert failed")
 
             elif path == "/features":
                 from features import FeatureFlags, OPTIONAL_MODULE_PROBES, probe_optional_module

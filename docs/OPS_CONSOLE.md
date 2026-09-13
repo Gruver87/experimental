@@ -26,6 +26,17 @@ Same-origin industrial UI for Experimental nodes.
 2. Connect injected wallet → **Switch to Absolute** (uses node `chain_id`).
 3. Send ABS via wallet-signed `eth_sendTransaction` (wei, 18 decimals).
 
+## Markets
+
+`GET /market/snapshot` and `GET /market/fx` are **ops orientation only** (not consensus / not Absolute oracle).
+
+- Exchange clocks: NYSE, LSE, TSE, HKEX, SSE, CME, MOEX, ASX, Binance, Coinbase, Bybit, OKX, Kraken
+- Crypto: CoinGecko simple price
+- FX: Frankfurter (ECB) + converter
+- Macro: Yahoo chart basket (gold/silver/oil/gas/copper, indices, mega-caps)
+
+Server-side allowlist + TLS verify; browser CSP stays `connect-src 'self'`.
+
 ## Operator check
 
 ```powershell
