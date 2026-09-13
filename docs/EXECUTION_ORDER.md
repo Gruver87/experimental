@@ -148,7 +148,7 @@ Other optional depth:
 | Area | Done (lab / unit) | Deferred |
 |------|-------------------|----------|
 | libp2p transport | Slices A–DB, 2h smoke, **48h PASS `3c801b87`** | Post-soak WARN hardening (optional) |
-| Long-Range | Waves 1–14 labs + 2h/intensify + **lab 48h PASS `lr48pass1`** | Prod arm / BLS / mainnet Long-Range |
+| Long-Range | Waves 1–14 labs + 2h/intensify + **lab 48h PASS** [`lr48pass1`](evidence/runs/lr48pass1/); host pack [`lrlab1`](evidence/runs/lrlab1/) | Prod arm / BLS / mainnet Long-Range |
 | EVM | Waves 8–11 + preflight harness; **Phase 3 mesh 48h PASS** [`evm48pass1`](evidence/runs/evm48pass1/); host depth pack [`evmlab1`](evidence/runs/evmlab1/) | Further COMPAT_MATRIX; EVM-only 48h still optional/not claimed |
 | Mempool Rust | **Phases 0–3 + mesh bake** (ADR 0021, 2026-09-13); **fee_satoshi dual-write** + Wave A admit/max-fee satoshi | Post-bake soak only if ordered; wire ABS fee float cutover still deferred |
 | Oracles / shard / bridge OFF | Lab verify packs [`oraclelab1`](evidence/runs/oraclelab1/) · [`shardlab1`](evidence/runs/shardlab1/) · [`bridgeoff1`](evidence/runs/bridgeoff1/) | Prod arm / L1 bridge cutover / docker shard mesh (optional) |
