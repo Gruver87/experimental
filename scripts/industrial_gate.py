@@ -167,6 +167,13 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         errors.append("web/console/index.html missing (ops console)")
     if not (ROOT / "web" / "console" / "assets" / "app.js").is_file():
         errors.append("web/console/assets/app.js missing")
+    if not (ROOT / "web" / "console" / "assets" / "theme.js").is_file():
+        errors.append("web/console/assets/theme.js missing (CSP-safe theme boot)")
+    console_app = (ROOT / "web" / "console" / "assets" / "app.js").read_text(encoding="utf-8")
+    if "renderCouncil" not in console_app or "eth_sendTransaction" not in (
+        ROOT / "web" / "console" / "assets" / "wallets.js"
+    ).read_text(encoding="utf-8"):
+        errors.append("ops console must include council watch + wallet sendTx")
     http_static = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
     if "_resolve_web_static" not in http_static:
         errors.append("http.py must resolve web/console static safely")

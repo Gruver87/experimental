@@ -1,5 +1,5 @@
 /* Absolute Ops Console — industrial graphite + copper. No CDN. */
-:root {
+:root, [data-theme="dark"] {
   --ink: #e8e4dc;
   --muted: #9a9488;
   --dim: #5c574e;
@@ -17,6 +17,28 @@
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --mono: "Cascadia Code", "Consolas", "SF Mono", ui-monospace, monospace;
   --sans: "Bahnschrift", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --noise-a: rgba(255,255,255,.06);
+  --stage-copper: rgba(196,120,58,.12);
+  --stage-signal: rgba(61,214,198,.07);
+}
+
+[data-theme="light"] {
+  --ink: #1c1916;
+  --muted: #5c574e;
+  --dim: #8a8478;
+  --bg: #f3efe6;
+  --bg2: #fffdf8;
+  --bg3: #ebe6db;
+  --line: #d5cec0;
+  --copper: #a85f28;
+  --copper-dim: rgba(168, 95, 40, 0.12);
+  --signal: #0f7f76;
+  --warn: #9a6b00;
+  --bad: #b53a2e;
+  --ok: #2f7a4a;
+  --noise-a: rgba(0,0,0,.04);
+  --stage-copper: rgba(168,95,40,.08);
+  --stage-signal: rgba(15,127,118,.06);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -35,8 +57,8 @@ body {
   inset: 0;
   opacity: 0.04;
   background-image:
-    linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px);
+    linear-gradient(var(--noise-a) 1px, transparent 1px),
+    linear-gradient(90deg, var(--noise-a) 1px, transparent 1px);
   background-size: 48px 48px;
   mask-image: radial-gradient(ellipse at 30% 20%, #000 20%, transparent 70%);
   z-index: 0;
@@ -135,9 +157,16 @@ a:hover { text-decoration: underline; }
   position: relative;
   z-index: 1;
   background:
-    radial-gradient(900px 420px at 85% -10%, rgba(196,120,58,.12), transparent 60%),
-    radial-gradient(700px 380px at -10% 40%, rgba(61,214,198,.07), transparent 55%),
+    radial-gradient(900px 420px at 85% -10%, var(--stage-copper), transparent 60%),
+    radial-gradient(700px 380px at -10% 40%, var(--stage-signal), transparent 55%),
     var(--bg);
+}
+.rail {
+  background: linear-gradient(180deg, var(--bg2) 0%, var(--bg) 100%);
+}
+.theme-btn { width: 100%; margin-top: 4px; font-size: 12px; }
+.chart-wrap, .metric-tile, .wallet-card {
+  background: var(--bg);
 }
 .top {
   display: flex;

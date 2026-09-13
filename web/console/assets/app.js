@@ -8,7 +8,8 @@
     metrics: ["Live Metrics", "All scrapeable abs_* series from GET /metrics"],
     mempool: ["Mempool", "Store backend honesty · pending · fee surface"],
     chain: ["Chain", "Recent blocks · tip · state consistency"],
-    wallets: ["Wallets", "EIP-1193 + watchlist — keys never leave the browser"],
+    wallets: ["Wallets", "EIP-1193 · Absolute chain switch · eth_sendTransaction"],
+    council: ["Council", "ADR 0022 watch — staging 778889 only (never prod mint)"],
     security: ["Security", "CSP · CORS posture · what this console will not do"],
   };
 
@@ -430,13 +431,12 @@
 
   async function renderWallets() {
     const root = el("view-wallets");
+    const st = state.status || {};
     let nodeW = null;
     try {
       nodeW = await AbsApi.getJson("/wallet/status");
     } catch (_) {}
     const injected = AbsWallets.hasInjected();
-    const watch = AbsWallets.watchlist.slice();
-    // Seed node operational addresses into watch (read-only labels).
     if (nodeW) {
       ["address", "signing_address", "founder_address", "miner_address"].forEach(
         (k) => {
@@ -464,24 +464,34 @@
       }
       balances.push({ entry, addr, bal });
     }
+    const chainId = st.chain_id || "—";
+    const symbol = st.coin_symbol || "ABS";
     root.innerHTML = `
       <div class="warn-box">
-        Security posture: this console never asks you to paste a private key into a form that POSTs to the node.
-        Sign with an injected wallet (EIP-1193) or keep keys offline. Session watchlist is sessionStorage only.
+        Keys never POST to the node. MetaMask signs locally after
+        <code>wallet_switchEthereumChain</code> / <code>wallet_addEthereumChain</code>
+        to Absolute chain_id <strong>${esc(chainId)}</strong> with JSON-RPC
+        <code>${esc(AbsApi.rpcBase || "—")}</code>.
       </div>
       <div class="grid grid-2">
         <div class="card">
-          <h2>Connect</h2>
+          <h2>Connect &amp; Absolute chain</h2>
           <p class="muted" style="margin-bottom:10px">${
             injected
               ? "Injected provider detected."
-              : "No browser wallet detected — watch-only mode still works."
+              : "No browser wallet — watch-only still works."
           }</p>
           <div class="row">
-            <button type="button" class="btn" id="btn-connect">Connect wallet</button>
+            <button type="button" class="btn" id="btn-connect">Connect</button>
+            <button type="button" class="btn ghost" id="btn-switch-chain">Switch to Absolute</button>
             <button type="button" class="btn ghost" id="btn-sign-ping">Sign ping</button>
           </div>
           <div id="wallet-connect-out" class="mono" style="margin-top:12px"></div>
+          <h3>Send (eth_sendTransaction)</h3>
+          <div class="form-row"><label>To</label><input id="tx-to" placeholder="0x…" spellcheck="false" /></div>
+          <div class="form-row"><label>Amount (${esc(symbol)})</label><input id="tx-amt" value="0.001" /></div>
+          <button type="button" class="btn" id="btn-send-tx">Send via wallet</button>
+          <div id="tx-send-out" class="mono" style="margin-top:10px"></div>
           <h3>Node operational (read-only)</h3>
           <pre class="mono muted">${esc(
             JSON.stringify(nodeW || { error: "unavailable" }, null, 2)
@@ -505,7 +515,7 @@
                   b.addr
                 )}</div><div style="margin-top:8px;font-size:18px;color:var(--copper)">${esc(
                   bal ?? "—"
-                )} ABS</div>
+                )} ${esc(symbol)}</div>
                 <button type="button" class="btn ghost" data-rm="${esc(
                   b.addr
                 )}" style="margin-top:8px">Remove</button></div>`;
@@ -513,33 +523,47 @@
               .join("") || '<p class="muted">Empty watchlist</p>'}
           </div>
         </div>
-      </div>
-      <div class="card" style="margin-top:14px">
-        <h2>Future interaction surface</h2>
-        <p class="muted">Prepared for Absolute EVM JSON-RPC + council / multisig flows without server-side keys:
-        connect → select account → personal_sign / eth_sendTransaction against allowlisted chain_id.
-        Profile C council (778889) stays off prod 778888.</p>
       </div>`;
+
+    async function ensureChain() {
+      const cid = Number(st.chain_id);
+      if (!cid) throw new Error("Node chain_id unknown — refresh status");
+      return AbsWallets.ensureAbsoluteChain({
+        chainId: cid,
+        rpcUrl: AbsApi.rpcBase,
+        chainName: "Absolute " + cid,
+        symbol: symbol,
+        explorerUrl: AbsApi.base || window.location.origin,
+      });
+    }
 
     el("btn-connect").onclick = async () => {
       try {
         const accs = await AbsWallets.connectInjected();
         const cid = await AbsWallets.chainId();
         el("wallet-connect-out").textContent = JSON.stringify(
-          { accounts: accs, chainId: cid },
+          { accounts: accs, walletChainId: cid, nodeChainId: st.chain_id },
           null,
           2
         );
         toast("Wallet connected");
-        renderWallets();
+      } catch (e) {
+        toast(String(e.message || e));
+      }
+    };
+    el("btn-switch-chain").onclick = async () => {
+      try {
+        if (!AbsWallets.accounts[0]) await AbsWallets.connectInjected();
+        const r = await ensureChain();
+        el("wallet-connect-out").textContent = JSON.stringify(r, null, 2);
+        toast("On Absolute chain");
       } catch (e) {
         toast(String(e.message || e));
       }
     };
     el("btn-sign-ping").onclick = async () => {
       try {
-        const msg =
-          "Absolute Ops Console ping " + new Date().toISOString();
+        const msg = "Absolute Ops Console ping " + new Date().toISOString();
         const sig = await AbsWallets.personalSign(msg);
         el("wallet-connect-out").textContent = JSON.stringify(
           { message: msg, signature: sig },
@@ -547,6 +571,20 @@
           2
         );
         toast("Signed locally");
+      } catch (e) {
+        toast(String(e.message || e));
+      }
+    };
+    el("btn-send-tx").onclick = async () => {
+      try {
+        if (!AbsWallets.accounts[0]) await AbsWallets.connectInjected();
+        await ensureChain();
+        const hash = await AbsWallets.sendTransaction({
+          to: el("tx-to").value.trim(),
+          amountAbs: el("tx-amt").value.trim(),
+        });
+        el("tx-send-out").textContent = JSON.stringify({ txHash: hash }, null, 2);
+        toast("Broadcast via wallet");
       } catch (e) {
         toast(String(e.message || e));
       }
@@ -569,6 +607,85 @@
     });
   }
 
+  async function renderCouncil() {
+    const root = el("view-council");
+    root.innerHTML = `<div class="card"><h2>Loading council…</h2></div>`;
+    let stats = null;
+    let manifest = null;
+    try {
+      stats = await AbsApi.getJson("/council/stats");
+    } catch (_) {}
+    try {
+      manifest = await AbsApi.getJson("/council/manifest?summary=1");
+    } catch (_) {}
+    const st = state.status || {};
+    const nodeCid = Number(st.chain_id || 0);
+    const staging = Number((manifest && manifest.chain_id_staging) || 778889);
+    const onProd = nodeCid === 778888;
+    const onStaging = nodeCid === staging;
+    // Founder seat watch from manifest summary if full tokens not loaded
+    if (manifest && manifest.ok && Array.isArray(manifest.tokens)) {
+      const founder = manifest.tokens.find((t) => Number(t.token_id) === 87);
+      if (founder && founder.owner) {
+        try {
+          AbsWallets.addWatch(founder.owner, "council-founder");
+        } catch (_) {}
+      }
+    }
+    root.innerHTML = `
+      <div class="${onProd ? "warn-box" : "ok-box"}">
+        ${
+          onProd
+            ? "Node is prod chain_id 778888 — council genesis mint is forbidden here. Watch-only."
+            : onStaging
+              ? "Node looks like Profile C staging (" +
+                staging +
+                ") — council lab surface OK."
+              : "Node chain_id=" +
+                esc(nodeCid || "—") +
+                "; council staging target is " +
+                staging +
+                ". Mint stays off prod."
+        }
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>Manifest summary</h2>
+          <table>
+            <tr><th>ok</th><td>${esc(String(!!(manifest && manifest.ok)))}</td></tr>
+            <tr><th>collection</th><td class="mono">${esc(
+              (manifest && manifest.collection_id) || "—"
+            )}</td></tr>
+            <tr><th>supply_cap</th><td class="mono">${esc(
+              (manifest && manifest.supply_cap) || 87
+            )}</td></tr>
+            <tr><th>token_count</th><td class="mono">${esc(
+              (manifest && manifest.token_count) || "—"
+            )}</td></tr>
+            <tr><th>chain_id_staging</th><td class="mono">${esc(staging)}</td></tr>
+            <tr><th>sha256</th><td class="mono">${esc(
+              ((manifest && manifest.manifest_tokens_sha256) || "").slice(0, 24) || "—"
+            )}</td></tr>
+          </table>
+          <div class="row" style="margin-top:12px">
+            <button type="button" class="btn ghost" id="btn-council-refresh">Refresh</button>
+            <a class="btn ghost" href="/council/manifest?summary=1" target="_blank" rel="noopener">Raw summary</a>
+          </div>
+        </div>
+        <div class="card">
+          <h2>On-node council_stats</h2>
+          <pre class="mono muted" style="white-space:pre-wrap;max-height:360px;overflow:auto">${esc(
+            JSON.stringify(stats || { error: "unavailable" }, null, 2)
+          )}</pre>
+          <p class="muted" style="margin-top:10px;font-size:12px">
+            Not an L1 security guarantor. Operator lab:
+            <code>.\\scripts\\verify_council_lab.ps1</code>
+          </p>
+        </div>
+      </div>`;
+    el("btn-council-refresh").onclick = () => renderCouncil();
+  }
+
   function renderSecurity() {
     el("view-security").innerHTML = `
       <div class="grid grid-2">
@@ -580,6 +697,7 @@
             <li>Static paths confined to web/console and web/explorer</li>
             <li>Path traversal refused by realpath allowlist</li>
             <li>CORS remain allow-list only (never *)</li>
+            <li>Theme preference in localStorage only (no secrets)</li>
           </ul>
         </div>
         <div class="card">
@@ -587,7 +705,8 @@
           <ul class="muted" style="padding-left:18px;line-height:1.8">
             <li>No private key paste → POST /tx/sign</li>
             <li>No JWT / API keys stored by default</li>
-            <li>No admin mutations in this console</li>
+            <li>No admin mutations / council mint from this console</li>
+            <li>eth_sendTransaction only via injected wallet on Absolute chain_id</li>
             <li>Not a mainnet readiness claim · not soak evidence</li>
           </ul>
         </div>
@@ -614,6 +733,9 @@
       case "wallets":
         renderWallets();
         break;
+      case "council":
+        renderCouncil();
+        break;
       case "security":
         renderSecurity();
         break;
@@ -632,6 +754,12 @@
         st = await AbsApi.getJson("/status");
       }
       state.status = st || {};
+      AbsApi.syncRpcFromStatus(state.status);
+      const ethRpc = el("eth-rpc");
+      if (ethRpc && AbsApi.rpcBase && (!ethRpc.value || ethRpc.dataset.auto === "1")) {
+        ethRpc.value = AbsApi.rpcBase;
+        ethRpc.dataset.auto = "1";
+      }
       renderStrip(state.status);
 
       state._heightHist = state._heightHist || [];
@@ -674,12 +802,27 @@
 
   function boot() {
     const baseInput = el("rpc-base");
+    const ethInput = el("eth-rpc");
     baseInput.value = AbsApi.base || window.location.origin;
     AbsApi.setBase(baseInput.value);
+    if (!AbsApi.rpcBase) {
+      AbsApi.setRpcBase(AbsApi.deriveRpcUrl(baseInput.value, 8545));
+    }
+    ethInput.value = AbsApi.rpcBase;
+    ethInput.dataset.auto = AbsApi.rpcBase ? "1" : "0";
+
     baseInput.addEventListener("change", () => {
       AbsApi.setBase(baseInput.value);
-      toast("RPC base updated");
+      AbsApi.setRpcBase(AbsApi.deriveRpcUrl(baseInput.value, (state.status || {}).rpc_port || 8545));
+      ethInput.value = AbsApi.rpcBase;
+      ethInput.dataset.auto = "1";
+      toast("REST + JSON-RPC bases updated");
       refreshAll();
+    });
+    ethInput.addEventListener("change", () => {
+      AbsApi.setRpcBase(ethInput.value);
+      ethInput.dataset.auto = "0";
+      toast("JSON-RPC override saved");
     });
 
     document.querySelectorAll(".nav-btn").forEach((btn) => {
@@ -691,6 +834,15 @@
       el("btn-poll").dataset.on = state.poll ? "1" : "0";
       el("btn-poll").textContent = state.poll ? "Auto 5s" : "Paused";
       schedule();
+    };
+    el("btn-theme").onclick = () => {
+      const cur = document.documentElement.getAttribute("data-theme") || "dark";
+      const next = cur === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try {
+        localStorage.setItem("abs_console_theme", next);
+      } catch (_) {}
+      toast("Theme: " + next);
     };
 
     setView("overview");

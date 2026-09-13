@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -7,6 +7,7 @@
   <meta name="referrer" content="no-referrer" />
   <title>Absolute — Ops Console</title>
   <link rel="stylesheet" href="/console/assets/console.css" />
+  <script src="/console/assets/theme.js"></script>
 </head>
 <body>
   <div class="noise" aria-hidden="true"></div>
@@ -25,10 +26,12 @@
       <button type="button" class="nav-btn" data-view="mempool">Mempool</button>
       <button type="button" class="nav-btn" data-view="chain">Chain</button>
       <button type="button" class="nav-btn" data-view="wallets">Wallets</button>
+      <button type="button" class="nav-btn" data-view="council">Council</button>
       <button type="button" class="nav-btn" data-view="security">Security</button>
     </nav>
     <div class="rail-foot">
       <div class="pill" id="live-pill"><span class="pulse"></span> live</div>
+      <button type="button" class="btn ghost theme-btn" id="btn-theme">Theme</button>
       <a class="rail-link" href="/explorer">Legacy explorer</a>
       <a class="rail-link" href="/docs">API docs</a>
     </div>
@@ -42,8 +45,12 @@
       </div>
       <div class="top-actions">
         <label class="endpoint">
-          <span>RPC base</span>
+          <span>REST base</span>
           <input id="rpc-base" type="text" spellcheck="false" autocomplete="off" value="" />
+        </label>
+        <label class="endpoint">
+          <span>JSON-RPC</span>
+          <input id="eth-rpc" type="text" spellcheck="false" autocomplete="off" value="" />
         </label>
         <button type="button" class="btn ghost" id="btn-refresh">Refresh</button>
         <button type="button" class="btn" id="btn-poll" data-on="1">Auto 5s</button>
@@ -58,6 +65,7 @@
     <section class="view" id="view-mempool"></section>
     <section class="view" id="view-chain"></section>
     <section class="view" id="view-wallets"></section>
+    <section class="view" id="view-council"></section>
     <section class="view" id="view-security"></section>
   </main>
 
