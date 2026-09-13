@@ -76,6 +76,11 @@
     const m = META[name] || ["", ""];
     el("view-title").textContent = m[0];
     el("view-lede").textContent = m[1];
+    try {
+      if (location.hash.replace(/^#/, "") !== name) {
+        history.replaceState(null, "", "#" + name);
+      }
+    } catch (_) {}
     renderView();
   }
 
@@ -1076,7 +1081,13 @@
       toast("Theme: " + next);
     };
 
-    setView("overview");
+    window.addEventListener("hashchange", () => {
+      const h = (location.hash || "").replace(/^#/, "");
+      if (META[h] && h !== state.view) setView(h);
+    });
+
+    const initial = (location.hash || "").replace(/^#/, "");
+    setView(META[initial] ? initial : "overview");
     refreshAll();
     schedule();
   }

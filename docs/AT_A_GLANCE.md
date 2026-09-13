@@ -23,6 +23,7 @@ The audit-freeze pin · public audited mainnet · listed ABS · Hybrid `v1.3.*-i
 | 48h soaks here | TCP+TLS **PASS** (`0a7932c4`) · **libp2p** [`3c801b87`](evidence/runs/3c801b87/) · **LR lab** [`lr48pass1`](evidence/runs/lr48pass1/) · **Phase 3 post-EVM** [`evm48pass1`](evidence/runs/evm48pass1/). Not BLS / not mainnet / not EVM-only. |
 | Self-check | `.\scripts\verify_global_rd_audit.ps1` (FullLaunch/Live) · `.\scripts\verify_pre_soak.ps1` · `.\scripts\verify_evm_depth_lab.ps1` · `.\scripts\verify_long_range_lab.ps1` · `.\scripts\verify_council_lab.ps1` · `.\scripts\verify_hard_all.ps1` · `python scripts/verify_experimental_rd.py` |
 | Web UI | **Ops Console** `/` (`web/console/`) · legacy explorer `/explorer` · Grafana `deploy/grafana/dashboard.json` |
+| Open UI | `.\scripts\open_ops_console.ps1` (solo + browser tabs) · reopen `.\scripts\open_ops_console.ps1 -OpenOnly` |
 
 ## Pipeline (columns)
 
