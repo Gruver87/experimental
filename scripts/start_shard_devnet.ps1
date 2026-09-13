@@ -12,17 +12,37 @@ $env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"
 $env:ABS_REQUIRE_NATIVE_CRYPTO = "true"
 
-# Pin lab env: a leftover DEPLOYMENT_MODE=prod from setup_prod_env / .env overrides
-# node.shard*.json (deployment_mode=dev), forces require_wallet_file, and hard-offs
-# FEATURE_SHARDING — nodes then die before HTTP is up ("not ready yet").
+# Pin lab env for child node processes only — restore after spawn so this
+# session cannot poison industrial_gate / verify_pre_soak (FEATURE_SHARDING).
+$prevEnv = @{
+    DEPLOYMENT_MODE     = $env:DEPLOYMENT_MODE
+    FEATURE_SHARDING    = $env:FEATURE_SHARDING
+    FEATURE_ORACLES     = $env:FEATURE_ORACLES
+    FEATURE_LONG_RANGE  = $env:FEATURE_LONG_RANGE
+    BRIDGE_ENABLED      = $env:BRIDGE_ENABLED
+}
+function Restore-LabEnvPin {
+    foreach ($k in $prevEnv.Keys) {
+        $v = $prevEnv[$k]
+        if ($null -eq $v -or $v -eq "") {
+            Remove-Item "Env:$k" -ErrorAction SilentlyContinue
+        } else {
+            Set-Item -Path "Env:$k" -Value $v
+        }
+    }
+}
+
+# Leftover DEPLOYMENT_MODE=prod overrides node.shard*.json (dev), forces
+# require_wallet_file, and hard-offs FEATURE_SHARDING — nodes die before HTTP.
 $env:DEPLOYMENT_MODE = "dev"
 $env:FEATURE_SHARDING = "true"
 $env:FEATURE_ORACLES = "false"
 $env:FEATURE_LONG_RANGE = "false"
 $env:BRIDGE_ENABLED = "false"
 
-Write-Host "Lab env pin: DEPLOYMENT_MODE=dev FEATURE_SHARDING=true (prod shell leftovers ignored)" -ForegroundColor DarkGray
+Write-Host "Lab env pin: DEPLOYMENT_MODE=dev FEATURE_SHARDING=true (restored after spawn)" -ForegroundColor DarkGray
 
+try {
 & (Join-Path $ProjectRoot "scripts\stop_node.ps1") 2>$null | Out-Null
 
 if ($Fresh) {
@@ -47,6 +67,9 @@ Start-Process python -ArgumentList @("main.py", "--config", "node.shard1.json") 
     -WorkingDirectory $ProjectRoot `
     -RedirectStandardError $log1 `
     -WindowStyle Hidden
+} finally {
+    Restore-LabEnvPin
+}
 
 Start-Sleep -Seconds 8
 
