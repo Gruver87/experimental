@@ -145,6 +145,10 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "abs_rocksdb_block_cache_mb",
         "abs_state_consistent",
         "abs_sync_wire_probe_ok",
+        "abs_mempool_store_demoted",
+        "abs_p2p_under_mesh",
+        "AbsoluteMempoolStoreDemoted",
+        "AbsoluteP2PUnderMesh",
     ):
         if needle not in alerts_src:
             errors.append(f"prometheus alerts.yml missing rule surface: {needle}")
@@ -5065,6 +5069,17 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("guarantor_council_staging_mint_lab.py missing (ADR 0022)")
         if not (ROOT / "scripts" / "verify_council_lab.ps1").is_file():
             errors.append("verify_council_lab.ps1 missing (council operator self-check)")
+        if not (ROOT / "scripts" / "verify_wave_e.ps1").is_file():
+            errors.append("verify_wave_e.ps1 missing (Wave E demote Prom self-check)")
+        if not (ROOT / "scripts" / "verify_wave_f.ps1").is_file():
+            errors.append("verify_wave_f.ps1 missing (Wave F validators/alerts self-check)")
+        http_src = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
+        if "def sanitize_input(x): return x" in http_src or "def sanitize_input(x):return x" in http_src:
+            errors.append("http.py must not identity-stub sanitize_input (Wave F)")
+        if "require_input_validators" not in http_src:
+            errors.append("http.py missing require_input_validators (Wave F)")
+        if "input validators not available" not in http_src:
+            errors.append("http.py must 503/refuse when input validators missing (Wave F)")
         metrics_under = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_p2p_under_mesh" not in metrics_under:
             errors.append("metrics must export abs_p2p_under_mesh (under_mesh honesty)")

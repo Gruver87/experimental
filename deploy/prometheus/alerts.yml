@@ -244,3 +244,30 @@ groups:
         annotations:
           summary: "RocksDB write buffer unset on {{ $labels.node_id }}"
           description: "Prod-like node (native crypto required) reports rocksdb write_buffer_mb=0."
+
+      - alert: AbsoluteMempoolStoreDemoted
+        expr: abs_mempool_store_demoted == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Mempool store demoted to Python on {{ $labels.node_id }}"
+          description: "Rust MempoolStore demoted; scrape abs_mempool_store_backend / demote_count."
+
+      - alert: AbsoluteMempoolStoreDemoteBurst
+        expr: increase(abs_mempool_store_demote_count[1h]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Mempool store demote event(s) on {{ $labels.node_id }}"
+          description: "demote_count increased in the last hour; investigate native store faults."
+
+      - alert: AbsoluteP2PUnderMesh
+        expr: abs_p2p_under_mesh == 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P2P under_mesh on {{ $labels.node_id }}"
+          description: "Peer count below mesh_min for 15m (Wave D honesty); forging may be gated."

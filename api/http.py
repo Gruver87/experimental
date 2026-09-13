@@ -340,13 +340,30 @@ def _check_rate_limit(handler, path: Optional[str] = None) -> bool:
     return False
 
 # --- Input validators (middleware/validators.py) ---
+# Fail-closed: never identity-stub sanitize_input (Wave F). Import missing →
+# flag false; mutating JSON paths refuse with 503; prod boot refuses.
 try:
     from middleware.validators import validate_address, validate_amount, sanitize_input
     _INPUT_VALIDATORS_AVAILABLE = True
 except ImportError:
+    validate_address = None  # type: ignore[misc, assignment]
+    validate_amount = None  # type: ignore[misc, assignment]
+    sanitize_input = None  # type: ignore[misc, assignment]
     _INPUT_VALIDATORS_AVAILABLE = False
-    def sanitize_input(x): return x
 
+
+def require_input_validators(config=None) -> None:
+    """Prod (and any boot that calls this) refuses missing input validators."""
+    if _INPUT_VALIDATORS_AVAILABLE and sanitize_input is not None:
+        return
+    if config is not None and not _is_production_cfg(config):
+        logger.warning(
+            "input validators unavailable (dev soft-warn; mutating paths still 503)"
+        )
+        return
+    raise RuntimeError(
+        "input validators required (middleware.validators); identity sanitize forbidden"
+    )
 # --- JWT Auth (middleware/jwt_auth.py) ---
 try:
     from middleware.jwt_auth import jwt_auth
@@ -1181,8 +1198,19 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             return
         try:
             req = json.loads(raw_bytes or b"")
-            if _INPUT_VALIDATORS_AVAILABLE:
-                req = sanitize_input(req)
+            if not _INPUT_VALIDATORS_AVAILABLE or sanitize_input is None:
+                self._send_json(
+                    {
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -32000,
+                            "message": "input validators not available",
+                        },
+                        "id": None,
+                    }
+                )
+                return
+            req = sanitize_input(req)
         except json.JSONDecodeError:
             self._send_json({"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": None})
             return
@@ -5556,7 +5584,10 @@ class RESTHandler(BaseHTTPRequestHandler):
         if raw_bytes:
             try:
                 raw_body = json.loads(raw_bytes.decode("utf-8"))
-                body = sanitize_input(raw_body) if _INPUT_VALIDATORS_AVAILABLE else raw_body
+                if not _INPUT_VALIDATORS_AVAILABLE or sanitize_input is None:
+                    self._error(503, "input validators not available")
+                    return
+                body = sanitize_input(raw_body)
             except json.JSONDecodeError:
                 self._error(400, "Invalid JSON")
                 return
@@ -9463,6 +9494,7 @@ def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
 def create_rpc_server(blockchain, mempool, config, evm=None, p2p=None, wallet=None, sync_engine=None) -> HTTPServer:
     """Создаёт JSON-RPC сервер на config.rpc_port."""
     configure_rate_limiter(config)
+    require_input_validators(config)
     try:
         from middleware.rpc_auth import RPCApiKeyAuth
         JSONRPCHandler.rpc_auth = RPCApiKeyAuth.from_config(config)
@@ -9550,6 +9582,7 @@ def create_http_server(blockchain, mempool, db, config,
                        bus=None) -> ThreadedHTTPServer:
     """Создаёт REST API сервер на config.http_port."""
     configure_rate_limiter(config)
+    require_input_validators(config)
     RESTHandler.blockchain = blockchain
     RESTHandler.mempool = mempool
     RESTHandler.config = config

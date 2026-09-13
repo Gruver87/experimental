@@ -30,6 +30,8 @@ docker compose -f docker-compose.observability.yml up -d
 - `abs_chain_height` — высота цепи
 - `abs_peers_connected` — P2P пиры
 - `abs_mempool_size` — мемпул
+- `abs_mempool_store_demoted` / `abs_mempool_store_demote_count` / `abs_mempool_store_backend` — demote honesty (Wave E)
+- `abs_p2p_under_mesh` / `abs_p2p_sync_status` / `abs_p2p_peer_sync_gap` — mesh honesty (Wave D)
 - `abs_http_requests_total` — HTTP запросы
 - `abs_errors_total` — ошибки API
 - `abs_native_crypto_available` / `abs_native_crypto_self_test` — состояние PyO3/Rust crypto
@@ -44,6 +46,9 @@ docker compose -f docker-compose.observability.yml up -d
 - `AbsoluteMempoolBacklog` — mempool > 500
 - `AbsoluteHighErrorRate` — рост ошибок
 - `AbsoluteRustBridgeDown` — production Rust bridge не прошёл JSON smoke-test
+- `AbsoluteMempoolStoreDemoted` — Rust mempool store demoted 5m (Wave E/F)
+- `AbsoluteMempoolStoreDemoteBurst` — demote_count increase in 1h
+- `AbsoluteP2PUnderMesh` — under_mesh 15m (Wave D/F; longer `for` to reduce soft flaps)
 
 Prometheus **оценивает** правила; для Telegram/email нужен **Alertmanager** (ещё не в compose) или внешний uptime.
 
