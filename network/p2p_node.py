@@ -4769,11 +4769,12 @@ class P2PNode:
                 ) + 1
                 return None
 
-        # v1.3.184: cheap negative-value refuse before validate_transaction.
-        # Soft DoS honesty — not amount-cap economics / full tokenomics port.
+        # v1.3.184 / Wave K: negative-value refuse via satoshi (not float(value)).
         if bool(getattr(self.config, "p2p_mempool_negative_value_refuse", True)):
             try:
-                if float(value) < 0.0:
+                from runtime.amount import to_satoshi
+
+                if int(to_satoshi(value)) < 0:
                     self._last_tx_wire_reject = "value_negative"
                     self._mempool_value_refuse_total = int(
                         getattr(self, "_mempool_value_refuse_total", 0) or 0
@@ -4786,11 +4787,11 @@ class P2PNode:
                 ) + 1
                 return None
 
-        # v1.3.193: cheap non-finite value refuse before validate_transaction.
-        # Soft DoS honesty — NaN/Inf slip past value_negative; not amount-cap economics.
+        # v1.3.193 / Wave K: non-finite value refuse on wire float before satoshi.
         if bool(getattr(self.config, "p2p_mempool_nonfinite_value_refuse", True)):
             try:
-                if not math.isfinite(float(value)):
+                raw_v = float(value)
+                if not math.isfinite(raw_v):
                     self._last_tx_wire_reject = "value_non_finite"
                     self._mempool_nonfinite_value_refuse_total = int(
                         getattr(self, "_mempool_nonfinite_value_refuse_total", 0) or 0
@@ -4803,8 +4804,7 @@ class P2PNode:
                 ) + 1
                 return None
 
-        # v1.3.202: cheap max-value refuse before validate_transaction.
-        # Soft DoS honesty — fantasy amounts fail before DB; not full tokenomics/economics.
+        # v1.3.202 / Wave K: max-value refuse via satoshi compare.
         if bool(getattr(self.config, "p2p_mempool_max_value_refuse", True)):
             try:
                 max_value = float(
@@ -4814,7 +4814,11 @@ class P2PNode:
             except (TypeError, ValueError):
                 max_value = 221_000_000.0
             try:
-                if max_value > 0 and float(value) > max_value:
+                from runtime.amount import to_satoshi
+
+                max_value_sat = int(to_satoshi(max_value)) if max_value > 0 else 0
+                value_sat = int(to_satoshi(value))
+                if max_value_sat > 0 and value_sat > max_value_sat:
                     self._last_tx_wire_reject = "value_too_high"
                     self._mempool_value_high_refuse_total = int(
                         getattr(self, "_mempool_value_high_refuse_total", 0) or 0

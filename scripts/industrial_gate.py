@@ -5083,6 +5083,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("verify_wave_i.ps1 missing (Wave I PQ/gasPrice/confirmations)")
         if not (ROOT / "scripts" / "verify_wave_j.ps1").is_file():
             errors.append("verify_wave_j.ps1 missing (Wave J L2/eth_call/tip honesty)")
+        if not (ROOT / "scripts" / "verify_wave_k.ps1").is_file():
+            errors.append("verify_wave_k.ps1 missing (Wave K value/plasma/shard honesty)")
         http_src = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
         if "Wave H: with peers/mesh expected" not in http_src:
             errors.append("/health/ready must gate wire/state when peers present (Wave H)")
@@ -5096,6 +5098,18 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "features" / "smart_accounts.py"
         ).read_text(encoding="utf-8"):
             errors.append("smart accounts must refuse ephemeral create (Wave J)")
+        if "guardian_verifier" not in (
+            ROOT / "features" / "smart_accounts.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("smart account recovery must require guardian_verifier (Wave K)")
+        if "unsigned plasma txs must not admit" not in (
+            ROOT / "features" / "plasma.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("plasma must refuse unsigned txs (Wave K)")
+        if "PASS static-only" not in (
+            ROOT / "scripts" / "verify_pre_soak.ps1"
+        ).read_text(encoding="utf-8"):
+            errors.append("verify_pre_soak -SkipMesh must not claim pre-soak PASS (Wave K)")
         if "_prod_fail_closed" not in (
             ROOT / "network" / "p2p_dispatch" / "tip_evidence.py"
         ).read_text(encoding="utf-8"):

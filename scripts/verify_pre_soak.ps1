@@ -142,6 +142,12 @@ if ($fail -gt 0) {
     Write-Host "RESULT: FAIL ($fail step(s)) - do not start soak" -ForegroundColor Red
     exit 1
 }
+if ($SkipMesh) {
+    # Wave K: static unit pack is not pre-soak readiness.
+    Write-Host "RESULT: PASS static-only (SkipMesh — NOT pre-soak ready)" -ForegroundColor Yellow
+    Write-Host "  Re-run without -SkipMesh before ordering soak" -ForegroundColor DarkGray
+    exit 0
+}
 Write-Host "RESULT: PASS pre-soak checks" -ForegroundColor Green
 Write-Host "  To start soak ONLY when you order it:" -ForegroundColor DarkGray
 Write-Host "  .\scripts\start_soak_prod_mesh_48h.ps1" -ForegroundColor DarkGray

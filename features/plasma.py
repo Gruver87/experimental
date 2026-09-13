@@ -249,10 +249,11 @@ class PlasmaChain:
         return native.sha256_hex(canonical_json(tx).encode("utf-8"))
 
     def _verify_signed_tx(self, tx: Dict) -> bool:
+        # Wave K: unsigned plasma txs must not admit (fail-closed).
         sig = tx.get("signature", "")
         pubkey = tx.get("public_key", "")
         if not sig or not pubkey:
-            return True
+            return False
         body = {k: v for k, v in tx.items() if k not in ("signature", "public_key")}
         try:
             return Signer._verify_hash(
@@ -270,6 +271,7 @@ class PlasmaChain:
         amount: float,
         signature: str = "",
         public_key: str = "",
+        private_key: bytes = b"",
     ) -> Optional[str]:
         if amount <= 0 or not from_addr or not to_addr:
             return None
@@ -283,7 +285,16 @@ class PlasmaChain:
                 "amount": amount,
                 "timestamp": int(time.time()),
             }
-            if signature and public_key:
+            if private_key and public_key:
+                body = {
+                    k: v for k, v in tx.items() if k not in ("signature", "public_key")
+                }
+                try:
+                    tx["signature"] = Signer._sign_hash(hash_state(body), private_key)
+                    tx["public_key"] = public_key
+                except (ValueError, TypeError):
+                    return None
+            elif signature and public_key:
                 tx["signature"] = signature
                 tx["public_key"] = public_key
             if not self._verify_signed_tx(tx):

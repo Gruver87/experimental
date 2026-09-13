@@ -183,6 +183,7 @@ def test_plasma_finalize_exit_requires_credit_backend():
 
 
 def test_plasma_block_persisted():
+    from crypto.keys import KeyGenerator
     from features.plasma import PlasmaChain
     from storage.database import Database
 
@@ -192,10 +193,13 @@ def test_plasma_block_persisted():
     user = "0x" + "1" * 40
     recipient = "0x" + "2" * 40
     db.set_balance(user, 100.0)
+    kp = KeyGenerator.generate_keypair()
 
     pl = PlasmaChain(chain_id="test", db=db)
     assert pl.deposit(user, 10.0)
-    assert pl.submit_transaction(user, recipient, 5.0)
+    assert pl.submit_transaction(
+        user, recipient, 5.0, private_key=kp.private_key, public_key=kp.public_key.hex()
+    )
     blk = pl.submit_block()
     assert blk is not None
 
@@ -204,6 +208,7 @@ def test_plasma_block_persisted():
 
 
 def test_plasma_transfer_requires_l2_balance():
+    from crypto.keys import KeyGenerator
     from features.plasma import PlasmaChain
     from storage.database import Database
 
@@ -213,16 +218,26 @@ def test_plasma_transfer_requires_l2_balance():
     user = "0x" + "3" * 40
     recipient = "0x" + "4" * 40
     db.set_balance(user, 100.0)
+    kp = KeyGenerator.generate_keypair()
 
     pl = PlasmaChain(chain_id="test", db=db)
-    assert pl.submit_transaction(user, recipient, 1.0) is None
+    assert pl.submit_transaction(
+        user, recipient, 1.0, private_key=kp.private_key, public_key=kp.public_key.hex()
+    ) is None
     assert pl.deposit(user, 10.0)
-    assert pl.submit_transaction(user, recipient, 11.0) is None
-    assert pl.submit_transaction(user, recipient, 4.0)
-    assert pl.submit_transaction(user, recipient, 7.0) is None
+    assert pl.submit_transaction(
+        user, recipient, 11.0, private_key=kp.private_key, public_key=kp.public_key.hex()
+    ) is None
+    assert pl.submit_transaction(
+        user, recipient, 4.0, private_key=kp.private_key, public_key=kp.public_key.hex()
+    )
+    assert pl.submit_transaction(
+        user, recipient, 7.0, private_key=kp.private_key, public_key=kp.public_key.hex()
+    ) is None
 
 
 def test_plasma_exit_requires_unspent_l2_balance():
+    from crypto.keys import KeyGenerator
     from features.plasma import PlasmaChain
     from storage.database import Database
 
@@ -232,11 +247,14 @@ def test_plasma_exit_requires_unspent_l2_balance():
     user = "0x" + "5" * 40
     recipient = "0x" + "6" * 40
     db.set_balance(user, 100.0)
+    kp = KeyGenerator.generate_keypair()
 
     pl = PlasmaChain(chain_id="test", db=db)
     did = pl.deposit(user, 10.0)
     assert did
-    assert pl.submit_transaction(user, recipient, 6.0)
+    assert pl.submit_transaction(
+        user, recipient, 6.0, private_key=kp.private_key, public_key=kp.public_key.hex()
+    )
 
     assert pl.request_exit(did, user) is None
 

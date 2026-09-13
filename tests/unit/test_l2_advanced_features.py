@@ -62,6 +62,7 @@ def test_lightning_htlc_refund_after_expiry():
 
 
 def test_plasma_merkle_proof_roundtrip():
+    from crypto.keys import KeyGenerator
     from features.plasma import PlasmaChain
     from storage.database import Database
 
@@ -71,10 +72,13 @@ def test_plasma_merkle_proof_roundtrip():
     user = "0x" + "1" * 40
     recipient = "0x" + "2" * 40
     db.set_balance(user, 100.0)
+    kp = KeyGenerator.generate_keypair()
 
     pl = PlasmaChain(chain_id="merkle", db=db)
     pl.deposit(user, 30.0)
-    txh = pl.submit_transaction(user, recipient, 7.0)
+    txh = pl.submit_transaction(
+        user, recipient, 7.0, private_key=kp.private_key, public_key=kp.public_key.hex()
+    )
     assert txh
     blk = pl.submit_block()
     assert blk

@@ -15,6 +15,7 @@ Canonical language for this repository is **English**. Older inherited entries b
 
 ### Experimental R&D
 
+- **Wave K audit honesty fixes (2026-09-13):** P2P value gates via satoshi; plasma unsigned refuse; cross-shard debit satoshi; `verify_pre_soak -SkipMesh` → static-only (not pre-soak PASS); smart-account recovery requires guardian_verifier+credential; `verify_wave_k.ps1`. Not soak.
 - **Wave J audit honesty fixes (2026-09-13):** will/plasma/lightning debit via satoshi; `eth_call` errors on missing adapter/failed call (no fake `0x`); P2P negative fee via `to_satoshi`; smart-account create 501 without executor; tip-evidence unbound/error refuse in prod; `verify_wave_j.ps1`. Not soak.
 - **Wave I audit honesty fixes (2026-09-13):** Dilithium/SPHINCS/Falcon verify → NotImplemented (no fake `valid:true`); L1 `get_confirmations` refuse unknown (not `0`); `eth_gasPrice` JSON null unless `advertise_config_gas_price`; ready forces native under `ABS_NATIVE_MODE=require` + demote gates ready in prod+require; `/pq/status` 503 on error; `verify_wave_i.ps1`. Not soak.
 - **Wave H audit honesty fixes (2026-09-13):** `/health/ready` gates wire/state when peers/mesh expected; `demote()` fatal under `ABS_NATIVE_MODE=require`; SPHINCS verify → 501/NotImplemented; validators/bridge fees satoshi/BPS; L1 receipt transport errors raise; consistency callback logs; serializer requires parent; fake `web/index.html`+`simple.html` redirect; explorer R&D behind `?lab=1`; release/full-check honesty labels; `verify_wave_h.ps1`. Not soak.

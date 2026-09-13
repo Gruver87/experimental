@@ -411,34 +411,50 @@ class SmartAccount:
         self.recovery_requests[request_id] = request
         return request_id
     
-    def approve_recovery(self, request_id: str, guardian: str) -> bool:
-        """Одобрение восстановления хранителем"""
-        
+    def approve_recovery(
+        self, request_id: str, guardian: str, credential: Any = None
+    ) -> bool:
+        """Одобрение восстановления хранителем.
+
+        Wave K: address-string presence alone is not auth. Require a non-empty
+        credential and a bound guardian_verifier; otherwise refuse.
+        """
         if request_id not in self.recovery_requests:
             return False
-        
+
         guardian_record = self.guardians.get(guardian)
         if not guardian_record or not guardian_record.approved:
             return False
-        
+
+        if not credential:
+            return False
+        verifier = getattr(self, "guardian_verifier", None)
+        if verifier is None:
+            return False
+        try:
+            if not bool(verifier(guardian, credential, request_id)):
+                return False
+        except Exception:
+            return False
+
         request = self.recovery_requests[request_id]
         if request.status != "pending":
             return False
         if time.time() > request.expires_at:
             request.status = "expired"
             return False
-        
+
         if guardian not in request.guardians_approved:
             request.guardians_approved.append(guardian)
-        
+
         # Проверяем, достаточно ли одобрений
         total_weight = sum(self.guardians[g].weight for g in request.guardians_approved)
         approved_weight = sum(g.weight for g in self.guardians.values() if g.approved)
         required_weight = approved_weight // 2 + 1
-        
+
         if total_weight >= required_weight:
             request.status = "approved"
-        
+
         return True
     
     def execute_recovery(self, request_id: str, new_owner: str) -> bool:
@@ -780,19 +796,32 @@ class SmartAccountManager:
         
         return True
     
-    def recover_account(self, identifier: str, new_owner: str, guardians: List[str]) -> bool:
-        """Guardian quorum recovery — request, approve, execute."""
+    def recover_account(
+        self,
+        identifier: str,
+        new_owner: str,
+        guardians: List[str],
+        credentials: Optional[List[Any]] = None,
+    ) -> bool:
+        """Guardian quorum recovery — request, approve, execute.
+
+        Wave K: each approval needs a matching credential when a verifier is bound.
+        """
         account = self.get_account(identifier)
         if not account or not new_owner or not guardians:
             return False
+        creds = list(credentials or [])
         request_id = None
-        for guardian in guardians:
+        for idx, guardian in enumerate(guardians):
+            cred = creds[idx] if idx < len(creds) else None
             if request_id:
-                if not account.approve_recovery(request_id, guardian):
+                if not account.approve_recovery(request_id, guardian, credential=cred):
                     return False
                 continue
             request_id = account.request_recovery(guardian)
-            if request_id and not account.approve_recovery(request_id, guardian):
+            if request_id and not account.approve_recovery(
+                request_id, guardian, credential=cred
+            ):
                 return False
         if not request_id:
             return False
