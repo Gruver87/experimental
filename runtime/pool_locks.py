@@ -12,7 +12,9 @@ from runtime.tokenomics import build_allocations, MAX_SUPPLY_ABS
 
 POOL_META_KEY = "pool_locks_state"
 STAKING_RELEASE_EPOCHS = 100   # 100 эпох × 32 блока = полная разблокировка staking
-DAO_VOTE_THRESHOLD = 0.51        # 51% валидаторов для unlock ecosystem/treasury
+# Wave O: integer majority — vote*100 >= total*51 (not float 0.51).
+DAO_VOTE_BPS = 5100  # 51.00% in basis points (of 10000)
+DAO_VOTE_THRESHOLD = 0.51  # legacy display only
 
 
 class PoolLockManager:
@@ -177,15 +179,20 @@ class PoolLockManager:
         votes = pools[target_addr].setdefault("dao_votes", {})
         votes[voter] = True
 
-        total_validators = 1
+        # Wave O: do not invent total_validators=1 when the set is empty / missing.
+        total_validators = 0
         if validator_registry:
             if hasattr(validator_registry, "validators"):
-                total_validators = max(1, len(validator_registry.validators))
+                total_validators = len(validator_registry.validators)
             elif hasattr(validator_registry, "get_all"):
-                total_validators = max(1, len(validator_registry.get_all()))
+                total_validators = len(validator_registry.get_all())
 
         vote_count = len(votes)
-        quorum = vote_count / total_validators >= DAO_VOTE_THRESHOLD
+        if total_validators <= 0:
+            quorum = False
+        else:
+            # Integer 51%: vote*10000 >= total*5100
+            quorum = vote_count * 10000 >= total_validators * DAO_VOTE_BPS
         if quorum:
             pools[target_addr]["dao_unlocked"] = True
             pools[target_addr]["locked"] = False

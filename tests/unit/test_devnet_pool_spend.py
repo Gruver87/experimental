@@ -102,9 +102,11 @@ def test_allocation_includes_live_pool_status():
     db.initialize()
     bc = Blockchain(cfg, db)
     pl = PoolLockManager(db, miner)
-    pl.dao_vote("treasury", miner, validator_registry=None)
+    vr = ValidatorRegistry()
+    vr.register_validator(miner, 1000)
+    pl.dao_vote("treasury", miner, validator_registry=vr)
     mp = Mempool(cfg, db)
-    base, server = _start_server(bc, mp, db, cfg, pool_locks=pl)
+    base, server = _start_server(bc, mp, db, cfg, pool_locks=pl, validator_registry=vr)
     try:
         st, body = _get(f"{base}/allocation")
         assert st == 200

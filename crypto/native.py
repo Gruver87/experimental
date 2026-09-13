@@ -3303,24 +3303,47 @@ def create_mempool_store(max_size: int = 10000, min_fee: float = 0.0001):
 
 def validate_p2p_validator_register(data: Any) -> Optional[dict]:
     payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
+    from runtime.amount import from_satoshi_float, to_satoshi
+
+    def _normalize(result: dict) -> dict:
+        out = dict(result)
+        try:
+            if out.get("stake_satoshi") is not None:
+                stake_sat = int(out["stake_satoshi"])
+            else:
+                stake_sat = int(to_satoshi(out.get("stake", 0) or 0))
+        except (TypeError, ValueError):
+            return out
+        out["stake_satoshi"] = stake_sat
+        out["stake"] = from_satoshi_float(stake_sat)
+        return out
+
     if _native is not None and hasattr(_native, "validate_p2p_validator_register"):
         result = _native.validate_p2p_validator_register(payload)
-        return dict(result) if result is not None else None
+        return _normalize(dict(result)) if result is not None else None
     if not isinstance(data, dict):
         return None
     address = str(data.get("address") or "").strip()
     if not address or len(address) > 128:
         return None
     try:
-        stake = float(data.get("stake", 0) or 0)
+        if data.get("stake_satoshi") is not None:
+            stake_sat = int(data["stake_satoshi"])
+        else:
+            stake_sat = int(to_satoshi(data.get("stake", 0) or 0))
     except (TypeError, ValueError):
         return None
-    if not math.isfinite(stake) or stake < 0.0 or stake > 1e18:
+    if stake_sat < 0 or stake_sat > int(to_satoshi("1000000000000000000")):
         return None
     node_id = str(data.get("node_id") or "").strip()
     if len(node_id) > 128:
         return None
-    return {"address": address, "stake": stake, "node_id": node_id}
+    return {
+        "address": address,
+        "stake": from_satoshi_float(stake_sat),
+        "stake_satoshi": stake_sat,
+        "node_id": node_id,
+    }
 
 
 def validate_p2p_peers_list(data: Any) -> Optional[List[str]]:
@@ -3514,9 +3537,24 @@ def verify_p2p_handshake_head_semantics(data: Any) -> Optional[str]:
 
 def validate_p2p_cross_shard_tx(data: Any) -> Optional[dict]:
     payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
+    from runtime.amount import from_satoshi_float, to_satoshi
+
+    def _normalize(result: dict) -> dict:
+        out = dict(result)
+        try:
+            if out.get("amount_satoshi") is not None:
+                amount_sat = int(out["amount_satoshi"])
+            else:
+                amount_sat = int(to_satoshi(out.get("amount")))
+        except (TypeError, ValueError):
+            return out
+        out["amount_satoshi"] = amount_sat
+        out["amount"] = from_satoshi_float(amount_sat)
+        return out
+
     if _native is not None and hasattr(_native, "validate_p2p_cross_shard_tx"):
         result = _native.validate_p2p_cross_shard_tx(payload)
-        return dict(result) if result is not None else None
+        return _normalize(dict(result)) if result is not None else None
     if not isinstance(data, dict):
         return None
     tx_id = str(data.get("tx_id") or "").strip()
@@ -3536,10 +3574,13 @@ def validate_p2p_cross_shard_tx(data: Any) -> Optional[dict]:
     if not from_addr or not to_addr or len(from_addr) > 128 or len(to_addr) > 128:
         return None
     try:
-        amount = float(data.get("amount"))
+        if data.get("amount_satoshi") is not None:
+            amount_sat = int(data["amount_satoshi"])
+        else:
+            amount_sat = int(to_satoshi(data.get("amount")))
     except (TypeError, ValueError):
         return None
-    if not math.isfinite(amount) or amount <= 0.0 or amount > 1e18:
+    if amount_sat <= 0 or amount_sat > int(to_satoshi("1000000000000000000")):
         return None
     status = str(data.get("status") or "").strip()
     if len(status) > 64:
@@ -3553,7 +3594,8 @@ def validate_p2p_cross_shard_tx(data: Any) -> Optional[dict]:
         "to_shard": to_shard,
         "from_addr": from_addr,
         "to_addr": to_addr,
-        "amount": amount,
+        "amount": from_satoshi_float(amount_sat),
+        "amount_satoshi": amount_sat,
         "status": status,
         "source_node": source_node,
     }
@@ -3599,9 +3641,24 @@ def validate_p2p_cross_shard_ack(data: Any) -> Optional[dict]:
 
 def validate_p2p_shard_migration(data: Any) -> Optional[dict]:
     payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
+    from runtime.amount import from_satoshi_float, to_satoshi
+
+    def _normalize(result: dict) -> dict:
+        out = dict(result)
+        try:
+            if out.get("balance_satoshi") is not None:
+                balance_sat = int(out["balance_satoshi"])
+            else:
+                balance_sat = int(to_satoshi(out.get("balance")))
+        except (TypeError, ValueError):
+            return out
+        out["balance_satoshi"] = balance_sat
+        out["balance"] = from_satoshi_float(balance_sat)
+        return out
+
     if _native is not None and hasattr(_native, "validate_p2p_shard_migration"):
         result = _native.validate_p2p_shard_migration(payload)
-        return dict(result) if result is not None else None
+        return _normalize(dict(result)) if result is not None else None
     if not isinstance(data, dict):
         return None
     if str(data.get("type") or "").strip() != "shard_migration":
@@ -3619,17 +3676,21 @@ def validate_p2p_shard_migration(data: Any) -> Optional[dict]:
     if from_shard == to_shard:
         return None
     try:
-        balance = float(data.get("balance"))
+        if data.get("balance_satoshi") is not None:
+            balance_sat = int(data["balance_satoshi"])
+        else:
+            balance_sat = int(to_satoshi(data.get("balance")))
     except (TypeError, ValueError):
         return None
-    if not math.isfinite(balance) or balance <= 0.0 or balance > 1e18:
+    if balance_sat <= 0 or balance_sat > int(to_satoshi("1000000000000000000")):
         return None
     return {
         "type": "shard_migration",
         "address": address,
         "from_shard": from_shard,
         "to_shard": to_shard,
-        "balance": balance,
+        "balance": from_satoshi_float(balance_sat),
+        "balance_satoshi": balance_sat,
     }
 
 

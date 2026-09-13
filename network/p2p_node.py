@@ -4688,8 +4688,31 @@ class P2PNode:
             if raw_fee is None:
                 from runtime.amount import from_satoshi_float, plan_transfer_fees_sat
 
-                _gp = getattr(self.config, "gas_price_wei", 0.001) or 0.001
-                _br = getattr(self.config, "burn_rate", 0.0) or 0.0
+                # Wave O: do not invent gas_price via `or 0.001` when unset/zero.
+                _gp_raw = getattr(self.config, "gas_price_wei", None)
+                if _gp_raw is None:
+                    self._last_tx_wire_reject = "fee_gas_price_unset"
+                    self._mempool_fee_unparseable_refuse_total = int(
+                        getattr(self, "_mempool_fee_unparseable_refuse_total", 0) or 0
+                    ) + 1
+                    return None
+                try:
+                    _gp = float(_gp_raw)
+                except (TypeError, ValueError):
+                    self._last_tx_wire_reject = "fee_gas_price_unparseable"
+                    return None
+                if not math.isfinite(_gp) or _gp < 0:
+                    self._last_tx_wire_reject = "fee_gas_price_invalid"
+                    return None
+                _br_raw = getattr(self.config, "burn_rate", 0.0)
+                try:
+                    _br = float(_br_raw if _br_raw is not None else 0.0)
+                except (TypeError, ValueError):
+                    self._last_tx_wire_reject = "fee_burn_rate_unparseable"
+                    return None
+                if not math.isfinite(_br) or _br < 0:
+                    self._last_tx_wire_reject = "fee_burn_rate_invalid"
+                    return None
                 _fee_sat = int(
                     plan_transfer_fees_sat(int(gas), _gp, _br, 0)["fee_sat"]
                 )

@@ -242,10 +242,24 @@ class Mempool:
     def __init__(self, max_size: int = 10000, min_fee: float = 0.0001):
         from runtime.amount import to_satoshi
 
+        # Legacy tests call Mempool(config, db). Accept Config-like first arg.
+        if not isinstance(max_size, int):
+            cfg = max_size
+            max_size = int(getattr(cfg, "mempool_max_size", 10_000) or 10_000)
+            try:
+                if callable(getattr(cfg, "base_fee", None)):
+                    min_fee = float(cfg.base_fee()) * 0.5
+                elif getattr(cfg, "min_fee", None) is not None:
+                    min_fee = float(cfg.min_fee)
+                else:
+                    min_fee = float(min_fee)
+            except (TypeError, ValueError):
+                min_fee = 0.0001
+
         self._py_txs: Dict[str, MempoolTransaction] = {}
-        self.max_size = max_size
-        self.min_fee = min_fee
-        self.min_fee_satoshi = int(to_satoshi(min_fee))
+        self.max_size = int(max_size)
+        self.min_fee = float(min_fee)
+        self.min_fee_satoshi = int(to_satoshi(self.min_fee))
         self.lock = threading.RLock()
         self._rejected_count = 0
         self._demote_count = 0

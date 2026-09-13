@@ -5091,6 +5091,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("verify_wave_m.ps1 missing (Wave M BFT/lightning/ZK/WASM)")
         if not (ROOT / "scripts" / "verify_wave_n.ps1").is_file():
             errors.append("verify_wave_n.ps1 missing (Wave N satoshi/PoS/multisig honesty)")
+        if not (ROOT / "scripts" / "verify_wave_o.ps1").is_file():
+            errors.append("verify_wave_o.ps1 missing (Wave O P2P satoshi/DAO/gas honesty)")
         if "stake: int" not in (ROOT / "consensus_engine.py").read_text(encoding="utf-8"):
             errors.append("consensus_engine stake must be int satoshi (Wave N)")
         if "Corrupt stored roots return None" not in (
@@ -5100,6 +5102,17 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         ms_src = (ROOT / "features" / "multisig.py").read_text(encoding="utf-8")
         if "amount_satoshi" not in ms_src or '"error": "execution_failed"' not in ms_src:
             errors.append("multisig must refuse success on execution_failed (Wave N)")
+        nat_src = (ROOT / "crypto" / "native.py").read_text(encoding="utf-8")
+        if "stake_satoshi" not in nat_src or "amount_satoshi" not in nat_src:
+            errors.append("P2P wire validators must emit satoshi fields (Wave O)")
+        if "DAO_VOTE_BPS" not in (ROOT / "runtime" / "pool_locks.py").read_text(
+            encoding="utf-8"
+        ):
+            errors.append("pool_locks DAO must use integer BPS quorum (Wave O)")
+        if "fee_gas_price_unset" not in (
+            ROOT / "network" / "p2p_node.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("P2P must refuse unset gas_price invent (Wave O)")
         if "* 3 >= total * 2" not in (
             ROOT / "consensus" / "bft" / "quorum.py"
         ).read_text(encoding="utf-8"):
