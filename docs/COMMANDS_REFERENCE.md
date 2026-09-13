@@ -22,7 +22,9 @@
 - libp2p 48h — **PASS** [`evidence/runs/3c801b87/`](evidence/runs/3c801b87/) (B1)
 - Long-Range lab 48h — **PASS** [`evidence/runs/lr48pass1/`](evidence/runs/lr48pass1/) (B2; not BLS/prod)
 - Phase 3 mesh 48h — **PASS** [`evidence/runs/evm48pass1/`](evidence/runs/evm48pass1/) (not EVM-only)
-- Next: Phase 4 / B3 ADR 0021 — [`EVIDENCE_MATRIX.md`](EVIDENCE_MATRIX.md) · [`EXECUTION_ORDER.md`](EXECUTION_ORDER.md)
+- Phase 4 ADR 0021 — **closed** [`adr0021gaudit1`](evidence/runs/adr0021gaudit1/); Phase 5 labs closed; Waves A–G honesty DX on main
+- Next: soak **only if ordered** — [`EVIDENCE_MATRIX.md`](EVIDENCE_MATRIX.md) · [`EXECUTION_ORDER.md`](EXECUTION_ORDER.md)
+- Self-check: `.\scripts\verify_wave_g.ps1` · `.\scripts\verify_pre_soak.ps1`
 - Council 87 NFT — staging `778889`, **не** L1 security guarantee
 
 Доказательства: [`EVIDENCE_MATRIX.md`](EVIDENCE_MATRIX.md) · [`EXECUTION_ORDER.md`](EXECUTION_ORDER.md) · [`MAINNET_GAP_ANALYSIS.md`](MAINNET_GAP_ANALYSIS.md)

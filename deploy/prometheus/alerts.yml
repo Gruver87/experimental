@@ -271,3 +271,12 @@ groups:
         annotations:
           summary: "P2P under_mesh on {{ $labels.node_id }}"
           description: "Peer count below mesh_min for 15m (Wave D honesty); forging may be gated."
+
+      - alert: AbsoluteRocksNativePackFallbacks
+        expr: increase(abs_rocksdb_native_pack_fallbacks[1h]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RocksDB native pack→JSON fallbacks on {{ $labels.node_id }}"
+          description: "Wave C honesty: native pack_* fell back to JSON; check ABS_REQUIRE_NATIVE_CRYPTO / Rocks integrity."

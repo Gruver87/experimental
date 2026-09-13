@@ -149,6 +149,8 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "abs_p2p_under_mesh",
         "AbsoluteMempoolStoreDemoted",
         "AbsoluteP2PUnderMesh",
+        "AbsoluteRocksNativePackFallbacks",
+        "abs_rocksdb_native_pack_fallbacks",
     ):
         if needle not in alerts_src:
             errors.append(f"prometheus alerts.yml missing rule surface: {needle}")
@@ -5073,7 +5075,16 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("verify_wave_e.ps1 missing (Wave E demote Prom self-check)")
         if not (ROOT / "scripts" / "verify_wave_f.ps1").is_file():
             errors.append("verify_wave_f.ps1 missing (Wave F validators/alerts self-check)")
+        if not (ROOT / "scripts" / "verify_wave_g.ps1").is_file():
+            errors.append("verify_wave_g.ps1 missing (Wave G pack-fallback/ready honesty)")
         http_src = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
+        if "rocks_native_pack_fallbacks" not in http_src:
+            errors.append("/health/ready must expose rocks_native_pack_fallbacks (Wave G)")
+        if 'payload["mempool_store"]' not in http_src:
+            errors.append("/health/ready must expose mempool_store (Wave G)")
+        hw = (ROOT / "scripts" / "health_watch.ps1").read_text(encoding="utf-8")
+        if "MempoolDemoted" not in hw and "mempool_demoted" not in hw:
+            errors.append("health_watch must soft-WARN on mempool demote (Wave G)")
         if "def sanitize_input(x): return x" in http_src or "def sanitize_input(x):return x" in http_src:
             errors.append("http.py must not identity-stub sanitize_input (Wave F)")
         if "require_input_validators" not in http_src:

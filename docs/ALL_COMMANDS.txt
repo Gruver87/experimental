@@ -25,7 +25,8 @@
 #   · libp2p 48h — PASS: docs/evidence/runs/3c801b87/ (B1)
 #   · Long-Range lab 48h — PASS: docs/evidence/runs/lr48pass1/ (B2; not BLS/prod)
 #   · Phase 3 mesh 48h — PASS: docs/evidence/runs/evm48pass1/ (not EVM-only)
-#   · Next: Phase 4 / B3 ADR 0021 mempool Rust phase 1
+#   · Phase 4 ADR 0021 closed (adr0021gaudit1); Phase 5 labs closed; Waves A-G honesty DX
+#   · Next: soak ONLY if ordered · .\scripts\verify_wave_g.ps1 · verify_pre_soak.ps1
 #   · Council NFT (87) — lab/staging 778889, НЕ security guarantee L1
 #   · External audit — org blocker (см. MAINNET_GAP_ANALYSIS.md)
 #

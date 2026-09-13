@@ -2072,6 +2072,30 @@ class RESTHandler(BaseHTTPRequestHandler):
                     payload["sprout_init"] = ready_sprout_init
                 if db_probe_error:
                     payload["db_probe_error"] = db_probe_error
+                # Wave G: informational honesty only — never gate ready on these.
+                mp_store_info: Dict[str, Any] = {}
+                if mp is not None and hasattr(mp, "get_stats"):
+                    try:
+                        _mst = mp.get_stats() or {}
+                        mp_store_info = {
+                            "store_backend": _mst.get("store_backend"),
+                            "store_demoted": bool(_mst.get("store_demoted")),
+                            "demote_count": int(_mst.get("demote_count") or 0),
+                        }
+                    except Exception as exc:
+                        logger.warning("/health/ready mempool_store snapshot failed: %s", exc)
+                payload["mempool_store"] = mp_store_info
+                pack_fb = 0
+                if db is not None:
+                    try:
+                        # Cheap attribute only — never get_stats() on /health/ready.
+                        pack_fb = int(getattr(db, "_native_pack_fallbacks", 0) or 0)
+                    except Exception as exc:
+                        logger.warning(
+                            "/health/ready rocks pack_fallbacks snapshot failed: %s",
+                            exc,
+                        )
+                payload["rocks_native_pack_fallbacks"] = pack_fb
                 if ready:
                     self._json(payload)
                 else:

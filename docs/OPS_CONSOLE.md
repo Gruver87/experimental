@@ -30,12 +30,26 @@ Same-origin industrial UI for Experimental nodes.
 
 `GET /market/snapshot` and `GET /market/fx` are **ops orientation only** (not consensus / not Absolute oracle).
 
-- Exchange clocks: NYSE, LSE, TSE, HKEX, SSE, CME, MOEX, ASX, Binance, Coinbase, Bybit, OKX, Kraken
+- Exchange clocks: NYSE, LSE, Xetra, MOEX, **BCSE (Minsk)**, TSE, HKEX, SSE, ASX, crypto venues
 - Crypto: CoinGecko simple price
-- FX: Frankfurter (ECB) + converter
+- FX: Frankfurter USD+EUR crosses + **BYN** (Yahoo) + converter presets EUR→BYN / USD→BYN
 - Macro: Yahoo chart basket (gold/silver/oil/gas/copper, indices, mega-caps)
 
 Server-side allowlist + TLS verify; browser CSP stays `connect-src 'self'`.
+
+## Launcher
+
+```powershell
+.\scripts\open_ops_console.ps1          # solo + ONE main tab /
+.\scripts\open_ops_console.ps1 -OpenOnly
+.\scripts\open_ops_console.ps1 -AllTabs # multi-tab tour
+```
+
+Auto-refresh default **5 minutes** (soft strip update; full remount only on manual Refresh).
+
+## Honesty panels
+
+Console surfaces `mempool_store` demote, `under_mesh`, pack-fallback metrics when present on `/status` / `/metrics`. `/health/ready` also carries informational `mempool_store` + `rocks_native_pack_fallbacks` (does **not** gate ready).
 
 ## Operator check
 

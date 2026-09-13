@@ -13,7 +13,7 @@ Lab-only profile for Long-Range. libp2p on Experimental `778888` mesh is
 - **Experimental industrial mesh:** rust-libp2p Noise/Yamux + ADR 0008 `/abs/wire` (ADR 0020).
 - **Hybrid audit-pin:** native TCP + TLS/mTLS (unchanged).
 - **Long-Range:** stays off on prod mesh JSON. Lab arm: `feature_long_range=true` (dev) or `FEATURE_LONG_RANGE` env + `ABS_WS_CHECKPOINT_PATH`.
-- **Execution order:** [EXECUTION_ORDER.md](../EXECUTION_ORDER.md) — B1/B2/Phase 3 **closed** (`3c801b87`, `lr48pass1`, `evm48pass1`); Phase 4 ADR 0021 **closed** (`adr0021gaudit1`); Phase 5 labs **closed** (`oraclelab1`/`shardlab1`/`bridgeoff1`); Wave A fee/admit honesty landed. Mempool soak **only if ordered**. Preflight: `scripts/evm_pre_48h_harness.py` · `scripts/verify_pre_soak.ps1`.
+- **Execution order:** [EXECUTION_ORDER.md](../EXECUTION_ORDER.md) — B1/B2/Phase 3 **closed** (`3c801b87`, `lr48pass1`, `evm48pass1`); Phase 4 ADR 0021 **closed** (`adr0021gaudit1`); Phase 5 labs **closed** (`oraclelab1`/`shardlab1`/`bridgeoff1`); Waves A–G honesty DX landed. Mempool soak **only if ordered**. Preflight: `scripts/evm_pre_48h_harness.py` · `scripts/verify_pre_soak.ps1` · `scripts/verify_wave_g.ps1`.
 
 ## EVM depth
 

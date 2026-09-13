@@ -77,6 +77,7 @@ if ($LASTEXITCODE -ne 0) {
 Step "3c) Prom demote + under_mesh present in metrics source"
 $metricsPy = Join-Path $Root "observability\metrics.py"
 $mTxt = Get-Content -Raw -Path $metricsPy
+$alertsTxt = Get-Content -Raw -Path (Join-Path $Root "deploy\prometheus\alerts.yml")
 if ($mTxt -notmatch "abs_mempool_store_demoted") {
     Write-Host "FAIL: metrics missing abs_mempool_store_demoted (Wave E)" -ForegroundColor Red
     $fail++
@@ -86,8 +87,20 @@ if ($mTxt -notmatch "abs_mempool_store_demoted") {
 } elseif ($mTxt -notmatch "abs_rocksdb_native_pack_fallbacks") {
     Write-Host "FAIL: metrics missing abs_rocksdb_native_pack_fallbacks (Wave C)" -ForegroundColor Red
     $fail++
+} elseif ($alertsTxt -notmatch "AbsoluteRocksNativePackFallbacks") {
+    Write-Host "FAIL: alerts missing AbsoluteRocksNativePackFallbacks (Wave G)" -ForegroundColor Red
+    $fail++
 } else {
-    Write-Host "OK: Prom honesty needles (C/D/E) in metrics.py" -ForegroundColor Green
+    Write-Host "OK: Prom honesty needles (C/D/E) + Wave G pack alert" -ForegroundColor Green
+}
+
+Step "3d) Wave F validators unit"
+python -m pytest -q tests/unit/test_wave_f_input_validators_fail_closed.py --tb=line
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "FAIL: Wave F unit tests" -ForegroundColor Red
+    $fail++
+} else {
+    Write-Host "OK: Wave F unit tests" -ForegroundColor Green
 }
 
 if (-not $SkipMesh) {

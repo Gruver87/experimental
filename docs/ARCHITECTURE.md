@@ -11,7 +11,7 @@
 
 **Python** owns orchestration (API, consensus policy, secrets, metrics export). **Domain services** (`sync/`, `storage/`, `core/components/`) own catch-up, fork reconcile, state apply, and persistence behind ports. **Rust/PyO3** (`abs_native`) accelerates crypto, satoshi-integer state roots, RocksDB, EVM kernels, and **rust-libp2p** (ADR 0019/0020). **Experimental prod mesh** (`778888`) transport = **libp2p Noise** (`feature_libp2p=true`) with **48h PASS** [`3c801b87`](evidence/runs/3c801b87/). Hybrid pin stays TCP+TLS.
 
-**Honesty:** Long-Range is lab-only (`feature_long_range=false` on prod JSON). Lab mesh 2h [`lr2hmesh`](evidence/runs/lr2hmesh/) + lab 48h PASS [`lr48pass1`](evidence/runs/lr48pass1/) ≠ BLS ≠ mainnet. Phase 3 post-EVM mesh 48h PASS [`evm48pass1`](evidence/runs/evm48pass1/) ≠ EVM-only 48h. Next: Phase 4 / B3 ADR 0021.
+**Honesty:** Long-Range is lab-only (`feature_long_range=false` on prod JSON). Lab mesh 2h [`lr2hmesh`](evidence/runs/lr2hmesh/) + lab 48h PASS [`lr48pass1`](evidence/runs/lr48pass1/) ≠ BLS ≠ mainnet. Phase 3 post-EVM mesh 48h PASS [`evm48pass1`](evidence/runs/evm48pass1/) ≠ EVM-only 48h. Phase 4 ADR 0021 **closed** [`adr0021gaudit1`](evidence/runs/adr0021gaudit1/). Waves A–G honesty DX on main. Soak only if ordered.
 
 ---
 

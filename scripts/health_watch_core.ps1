@@ -16,6 +16,22 @@ function Get-StatusProbeUri {
     return "http://127.0.0.1:$Port/status?probe=1"
 }
 
+function Get-MempoolDemotedFlag {
+    # Wave G: soft honesty from /status?probe=1 or /health/ready informational fields.
+    param($Probe, $ReadyBody)
+    try {
+        if ($null -ne $Probe -and $null -ne $Probe.mempool_store) {
+            return [bool]$Probe.mempool_store.store_demoted
+        }
+    } catch { }
+    try {
+        if ($null -ne $ReadyBody -and $null -ne $ReadyBody.mempool_store) {
+            return [bool]$ReadyBody.mempool_store.store_demoted
+        }
+    } catch { }
+    return $false
+}
+
 function Invoke-Ready503Recovery {
     param(
         [int]$Port,
@@ -34,6 +50,7 @@ function Invoke-Ready503Recovery {
                 Head = $stProbe.head_hash
                 Peers = [int]$stProbe.peers
                 P2P = $stProbe.p2p_sync_status
+                MempoolDemoted = (Get-MempoolDemotedFlag -Probe $stProbe -ReadyBody $ReadyBody)
                 Aligned = $true
                 HarnessHealthy = $false
                 Failed = @("ready_flap")
@@ -61,6 +78,7 @@ function Invoke-Ready503Recovery {
                         Head = ""
                         Peers = $peers503
                         P2P = "ready_503_body"
+                        MempoolDemoted = (Get-MempoolDemotedFlag -ReadyBody $ReadyBody)
                         Aligned = $true
                         HarnessHealthy = $false
                         Failed = @("ready_flap")
@@ -138,6 +156,7 @@ function Test-NodeHealth {
                 Head = $stProbe.head_hash
                 Peers = $stProbe.peers
                 P2P = $stProbe.p2p_sync_status
+                MempoolDemoted = (Get-MempoolDemotedFlag -Probe $stProbe -ReadyBody $readyBody)
                 Aligned = $true
                 HarnessHealthy = $false
                 Failed = @("ready_flap")
@@ -169,6 +188,7 @@ function Test-NodeHealth {
                     Head = ""
                     Peers = $peers
                     P2P = "live_fallback"
+                    MempoolDemoted = (Get-MempoolDemotedFlag -ReadyBody $readyBody)
                     Aligned = $true
                     HarnessHealthy = $false
                     Failed = @("ready_flap")
@@ -203,6 +223,7 @@ function Test-NodeHealth {
                 Head = ""
                 Peers = $(if ($null -ne $readyBody.peer_count) { [int]$readyBody.peer_count } else { 0 })
                 P2P = "ready_fallback"
+                MempoolDemoted = (Get-MempoolDemotedFlag -ReadyBody $readyBody)
                 Aligned = $true
                 HarnessHealthy = $false
                 Failed = @("status_slow")
@@ -239,6 +260,7 @@ function Test-NodeHealth {
         Head = $st.head_hash
         Peers = $st.peers
         P2P = $st.p2p_sync_status
+        MempoolDemoted = (Get-MempoolDemotedFlag -Probe $st -ReadyBody $readyBody)
         Aligned = $aligned
         HarnessHealthy = $harnessHealthy
         Failed = $failed
