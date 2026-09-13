@@ -4927,7 +4927,14 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("mempool_store.rs missing (ADR 0021 phase-2)")
         else:
             ms_txt = ms_rs.read_text(encoding="utf-8", errors="replace")
-            for needle in ("struct MempoolStore", "fn insert", "fn get_sorted", "cleanup_cheapest_10pct"):
+            for needle in (
+                "struct MempoolStore",
+                "fn insert",
+                "fn get_sorted",
+                "cleanup_cheapest_10pct",
+                "fee_satoshi",
+                "min_fee_satoshi",
+            ):
                 if needle not in ms_txt:
                     errors.append(f"mempool_store.rs missing {needle}")
         mempool_py = (ROOT / "blockchain" / "mempool.py").read_text(encoding="utf-8", errors="replace")
@@ -4935,6 +4942,24 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("blockchain/mempool.py must wire create_mempool_store (ADR 0021 phase-2)")
         if "store_backend" not in mempool_py:
             errors.append("mempool get_stats must expose store_backend (ADR 0021 phase-2)")
+        if "fee_satoshi" not in mempool_py or "min_fee_satoshi" not in mempool_py:
+            errors.append("mempool must dual-write fee_satoshi / min_fee_satoshi (Wave A)")
+        p2p_py = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8", errors="replace")
+        if "fee_sat > max_fee_sat" not in p2p_py:
+            errors.append("p2p_node max-fee refuse must compare satoshi (Wave A)")
+        if 'value_unparseable' not in p2p_py:
+            errors.append("p2p_node must refuse unparseable value (Wave A; no except-pass)")
+        http_py = (ROOT / "api" / "http.py").read_text(encoding="utf-8", errors="replace")
+        if "plan_transfer_fees_sat" not in http_py:
+            errors.append("api/http admit must use plan_transfer_fees_sat (Wave A)")
+        if "except ImportError:\n        pass" in http_py and "TransactionValidator" in http_py:
+            # Narrow: soft-skip of TxValidator is forbidden after Wave A.
+            errors.append("api/http must not soft-skip TransactionValidator on ImportError")
+        ser_py = (ROOT / "blockchain" / "canonical_serializer.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "_field_satoshi" not in ser_py:
+            errors.append("canonical_serializer must prefer fee_satoshi via _field_satoshi")
         native_py = (ROOT / "crypto" / "native.py").read_text(encoding="utf-8", errors="replace")
         if "def mempool_validate_post_sig" not in native_py:
             errors.append("crypto/native.py must export mempool_validate_post_sig (ADR 0021)")

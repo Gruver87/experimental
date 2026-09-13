@@ -9115,39 +9115,45 @@ def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
     if not validation["valid"]:
         raise ValueError(validation["error"])
 
-    # Extra validation via TransactionValidator (Database-backed)
-    try:
-        from blockchain.tx_validator import TransactionValidator
-        from blockchain.state_adapter import DatabaseStateAdapter
-        adapter = DatabaseStateAdapter(bc.db)
-        tx_dict = {
-            "from": from_addr,
-            "to": to_addr,
-            "amount": value,
-            "value": value,
-            "nonce": nonce,
-            "fee": gas * cfg.gas_price_wei,
-            "signature": tx_obj.get("signature", ""),
-            "public_key": tx_obj.get("public_key", ""),
-            "hash": tx.hash,
-            "data": tx_obj.get("data", tx_obj.get("input", "")),
-            "gas": gas,
-            "gas_limit": tx_obj.get("gas_limit", gas),
-        }
-        ok, reason = TransactionValidator.validate(
-            tx_dict, adapter, mempool=mp, chain_id=getattr(cfg, "chain_id", 1),
-            require_signature=bool(
-                tx_obj.get("signature") or getattr(cfg, "require_signatures", False)
-            ),
-        )
-        if not ok:
-            raise ValueError(f"tx_validator: {reason}")
-    except ImportError:
-        pass
-    except ValueError:
-        raise
+    # Extra validation via TransactionValidator (Database-backed). Fail-closed:
+    # missing validator module must not skip checks (ImportError is not soft-OK).
+    from blockchain.tx_validator import TransactionValidator
+    from blockchain.state_adapter import DatabaseStateAdapter
+    from runtime.amount import from_satoshi_float, plan_transfer_fees_sat
 
-    fee = gas * cfg.gas_price_wei
+    adapter = DatabaseStateAdapter(bc.db)
+    fee_plan = plan_transfer_fees_sat(
+        int(gas),
+        getattr(cfg, "gas_price_wei", 0) or 0,
+        getattr(cfg, "burn_rate", 0) or 0,
+        value,
+    )
+    fee_satoshi = int(fee_plan["fee_sat"])
+    fee = from_satoshi_float(fee_satoshi)
+    tx_dict = {
+        "from": from_addr,
+        "to": to_addr,
+        "amount": value,
+        "value": value,
+        "nonce": nonce,
+        "fee": fee,
+        "fee_satoshi": fee_satoshi,
+        "signature": tx_obj.get("signature", ""),
+        "public_key": tx_obj.get("public_key", ""),
+        "hash": tx.hash,
+        "data": tx_obj.get("data", tx_obj.get("input", "")),
+        "gas": gas,
+        "gas_limit": tx_obj.get("gas_limit", gas),
+    }
+    ok, reason = TransactionValidator.validate(
+        tx_dict, adapter, mempool=mp, chain_id=getattr(cfg, "chain_id", 1),
+        require_signature=bool(
+            tx_obj.get("signature") or getattr(cfg, "require_signatures", False)
+        ),
+    )
+    if not ok:
+        raise ValueError(f"tx_validator: {reason}")
+
     mp_tx = MempoolTransaction(
         tx_hash=tx.hash,
         from_addr=from_addr,
@@ -9159,6 +9165,7 @@ def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
         public_key=tx_obj.get("public_key", ""),
         data=tx_obj.get("data", tx_obj.get("input", "")),
         gas=gas,
+        fee_satoshi=fee_satoshi,
     )
     if not mp.add(mp_tx):
         raise ValueError("mempool_rejected")

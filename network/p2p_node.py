@@ -4683,8 +4683,15 @@ class P2PNode:
                 return None
         try:
             if raw_fee is None:
+                from runtime.amount import from_satoshi_float, plan_transfer_fees_sat
+
+                _gp = getattr(self.config, "gas_price_wei", 0.001) or 0.001
+                _br = getattr(self.config, "burn_rate", 0.0) or 0.0
+                _fee_sat = int(
+                    plan_transfer_fees_sat(int(gas), _gp, _br, 0)["fee_sat"]
+                )
                 fee = parse_p2p_wire_abs(
-                    gas * float(getattr(self.config, "gas_price_wei", 0.001) or 0.001),
+                    from_satoshi_float(_fee_sat),
                     field="fee",
                 )
             else:
@@ -4770,7 +4777,11 @@ class P2PNode:
                     ) + 1
                     return None
             except (TypeError, ValueError):
-                pass
+                self._last_tx_wire_reject = "value_unparseable"
+                self._mempool_value_refuse_total = int(
+                    getattr(self, "_mempool_value_refuse_total", 0) or 0
+                ) + 1
+                return None
 
         # v1.3.193: cheap non-finite value refuse before validate_transaction.
         # Soft DoS honesty — NaN/Inf slip past value_negative; not amount-cap economics.
@@ -4783,7 +4794,11 @@ class P2PNode:
                     ) + 1
                     return None
             except (TypeError, ValueError):
-                pass
+                self._last_tx_wire_reject = "value_unparseable"
+                self._mempool_nonfinite_value_refuse_total = int(
+                    getattr(self, "_mempool_nonfinite_value_refuse_total", 0) or 0
+                ) + 1
+                return None
 
         # v1.3.202: cheap max-value refuse before validate_transaction.
         # Soft DoS honesty — fantasy amounts fail before DB; not full tokenomics/economics.
@@ -4803,7 +4818,11 @@ class P2PNode:
                     ) + 1
                     return None
             except (TypeError, ValueError):
-                pass
+                self._last_tx_wire_reject = "value_unparseable"
+                self._mempool_value_high_refuse_total = int(
+                    getattr(self, "_mempool_value_high_refuse_total", 0) or 0
+                ) + 1
+                return None
 
         # v1.3.185: cheap negative-nonce refuse before validate_transaction.
         # Soft DoS honesty — not account-nonce window / full mempool scheduler.
@@ -4816,7 +4835,11 @@ class P2PNode:
                     ) + 1
                     return None
             except (TypeError, ValueError):
-                pass
+                self._last_tx_wire_reject = "nonce_unparseable"
+                self._mempool_nonce_refuse_total = int(
+                    getattr(self, "_mempool_nonce_refuse_total", 0) or 0
+                ) + 1
+                return None
 
         # v1.3.200: cheap max-nonce refuse before validate_transaction.
         # Soft DoS honesty — fantasy nonces skip cheap before DB; not nonce-window.
@@ -4836,7 +4859,11 @@ class P2PNode:
                     ) + 1
                     return None
             except (TypeError, ValueError):
-                pass
+                self._last_tx_wire_reject = "nonce_unparseable"
+                self._mempool_nonce_high_refuse_total = int(
+                    getattr(self, "_mempool_nonce_high_refuse_total", 0) or 0
+                ) + 1
+                return None
 
         # v1.3.186: cheap negative-fee refuse before validate_transaction.
         # Soft DoS honesty — complements fee_too_low when min_fee==0; not Rust fee PQ.
@@ -4849,7 +4876,11 @@ class P2PNode:
                     ) + 1
                     return None
             except (TypeError, ValueError):
-                pass
+                self._last_tx_wire_reject = "fee_unparseable"
+                self._mempool_fee_unparseable_refuse_total = int(
+                    getattr(self, "_mempool_fee_unparseable_refuse_total", 0) or 0
+                ) + 1
+                return None
 
         # v1.3.194: cheap non-finite fee refuse before validate_transaction.
         # Soft DoS honesty — NaN/Inf slip past fee_negative; not Rust fee PQ.
@@ -4862,10 +4893,15 @@ class P2PNode:
                     ) + 1
                     return None
             except (TypeError, ValueError):
-                pass
+                self._last_tx_wire_reject = "fee_unparseable"
+                self._mempool_fee_unparseable_refuse_total = int(
+                    getattr(self, "_mempool_fee_unparseable_refuse_total", 0) or 0
+                ) + 1
+                return None
 
         # v1.3.201: cheap max-fee refuse before validate_transaction.
         # Soft DoS honesty — complements fee_too_low; not fee-market / Rust fee PQ.
+        # Compare in satoshi so ceiling is not IEEE float ABS ordering.
         if bool(getattr(self.config, "p2p_mempool_max_fee_refuse", True)):
             try:
                 max_fee = float(
@@ -4875,14 +4911,22 @@ class P2PNode:
             except (TypeError, ValueError):
                 max_fee = 1_000_000_000.0
             try:
-                if max_fee > 0 and float(fee) > max_fee:
+                from runtime.amount import to_satoshi
+
+                max_fee_sat = int(to_satoshi(max_fee)) if max_fee > 0 else 0
+                fee_sat = int(to_satoshi(fee))
+                if max_fee_sat > 0 and fee_sat > max_fee_sat:
                     self._last_tx_wire_reject = "fee_too_high"
                     self._mempool_fee_high_refuse_total = int(
                         getattr(self, "_mempool_fee_high_refuse_total", 0) or 0
                     ) + 1
                     return None
             except (TypeError, ValueError):
-                pass
+                self._last_tx_wire_reject = "fee_unparseable"
+                self._mempool_fee_unparseable_refuse_total = int(
+                    getattr(self, "_mempool_fee_unparseable_refuse_total", 0) or 0
+                ) + 1
+                return None
 
         # v1.3.187: cheap negative-gas refuse before validate_transaction.
         # Soft DoS honesty — complements gas_too_high; not Rust gas PQ.
@@ -4896,7 +4940,11 @@ class P2PNode:
                     ) + 1
                     return None
             except (TypeError, ValueError):
-                pass
+                self._last_tx_wire_reject = "gas_unparseable"
+                self._mempool_gas_negative_refuse_total = int(
+                    getattr(self, "_mempool_gas_negative_refuse_total", 0) or 0
+                ) + 1
+                return None
 
         tx = Transaction(
             from_addr=from_addr,

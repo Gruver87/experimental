@@ -115,6 +115,14 @@ def test_ok_max_fee_reaches_validate():
     assert node._mempool_fee_high_refuse_total == 0
 
 
+def test_max_fee_compare_is_satoshi_not_float_product():
+    """Ceiling uses to_satoshi(fee) vs to_satoshi(max_fee), not float ABS >."""
+    p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+    assert "fee_sat > max_fee_sat" in p2p
+    assert "float(fee) > max_fee" not in p2p
+    assert "to_satoshi(max_fee)" in p2p
+
+
 def test_security_status_gauge():
     node = _node()
     st = node.get_p2p_security_status()

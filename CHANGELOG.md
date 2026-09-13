@@ -15,6 +15,7 @@ Canonical language for this repository is **English**. Older inherited entries b
 
 ### Experimental R&D
 
+- **Wave A money/admit honesty (2026-09-13):** P2P max-fee + default fee via satoshi; HTTP RPC admit uses `plan_transfer_fees_sat` (no `ImportError` skip of TxValidator); canonical serializer prefers `fee_satoshi`; unparseable wire fields refuse (no `except: pass` fallthrough). Not soak / not wire float cutover.
 - **EVM depth lab verify pack (2026-09-13):** `verify_evm_depth_lab.ps1` → [`evmlab1`](docs/evidence/runs/evmlab1/). Host labs+unit+gate; mesh optional `-WithMesh`. Not soak / not EVM-only 48h.
 - **Mempool fee_satoshi dual-write (2026-09-13):** store/sort/evict/min-fee use integer `fee_satoshi`; wire ABS `fee` float retained. Rust `MempoolStore` API takes `min_fee_satoshi`. Not full wire/config cutover; not soak.
 - **Phase 5 labs PASS (2026-09-13):** Oracle [`oraclelab1`](docs/evidence/runs/oraclelab1/) · Cross-shard [`shardlab1`](docs/evidence/runs/shardlab1/) · Bridge OFF [`bridgeoff1`](docs/evidence/runs/bridgeoff1/). Prod flags stay false. Not soak / not L1 cutover.
