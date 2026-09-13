@@ -32,8 +32,8 @@ class AdapterValidatorRegistry:
                 return v
         return None
 
-    def total_active_stake(self) -> float:
-        return float(sum(float(v.stake) for v in self.list_active()))
+    def total_active_stake(self) -> int:
+        return int(sum(int(v.stake) for v in self.list_active()))
 
     def is_active(self, validator_id: str) -> bool:
         v = self.get(validator_id)
@@ -87,7 +87,7 @@ class AdapterValidatorRegistry:
                 out.append(
                     ValidatorInfo(
                         validator_id=vid,
-                        stake=float(getattr(v, "stake", 0) or 0),
+                        stake=getattr(v, "stake", 0) or 0,
                         active=bool(getattr(v, "is_active", True)),
                         slashed=False,
                     )
@@ -104,7 +104,7 @@ class AdapterValidatorRegistry:
                 return None
             return ValidatorInfo(
                 validator_id=vid,
-                stake=float(raw.get("stake", 0) or 0),
+                stake=raw.get("stake", 0) or 0,
                 pubkey=str(raw.get("public_key") or raw.get("pubkey") or ""),
                 active=bool(raw.get("is_active", raw.get("active", True))),
                 slashed=bool(raw.get("slashed", False)),
@@ -114,7 +114,7 @@ class AdapterValidatorRegistry:
             return None
         return ValidatorInfo(
             validator_id=vid,
-            stake=float(getattr(raw, "stake", 0) or 0),
+            stake=getattr(raw, "stake", 0) or 0,
             pubkey=str(getattr(raw, "public_key", "") or ""),
             active=bool(getattr(raw, "is_active", True)),
             slashed=bool(getattr(raw, "slashed", False)),

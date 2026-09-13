@@ -219,7 +219,8 @@ class WASMVirtualMachine:
             "execution_bound": wt,
             "pseudo_token_host": True,
             "operational": wt,
-            "enabled": True,
+            # Wave M: enabled only when real wasmtime is present.
+            "enabled": bool(wt),
         }
 
     def _run_constructor(self, addr: str, params: Dict, owner: str):
@@ -237,19 +238,12 @@ class WASMVirtualMachine:
             account = params.get("account", caller)
             return {"success": True, "result": store.get(f"balance_{account}", 0)}
         elif fn == "transfer":
-            to = params.get("to")
-            amount = params.get("amount", 0)
-            if not to:
-                return {"success": False, "error": "Recipient required"}
-            if amount <= 0:
-                return {"success": False, "error": "Amount must be > 0"}
-            from_bal = store.get(f"balance_{caller}", 0)
-            if from_bal < amount:
-                return {"success": False, "error": "Insufficient balance"}
-            store[f"balance_{caller}"] = from_bal - amount
-            store[f"balance_{to}"] = store.get(f"balance_{to}", 0) + amount
-            self.storage[addr] = store
-            return {"success": True, "result": True}
+            # Wave M: refuse pseudo-host money mutator (not real WASM execution).
+            return {
+                "success": False,
+                "error": "wasm_pseudo_token_host_refused",
+                "pseudo_token_host": True,
+            }
         elif fn == "constructor":
             return {"success": False, "error": "Constructor cannot be called after deployment"}
         elif fn == "getInfo":

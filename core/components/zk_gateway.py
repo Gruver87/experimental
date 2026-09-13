@@ -70,12 +70,17 @@ class FeaturesZkGateway:
     def system_info(self) -> Dict[str, Any]:
         if self._system is None:
             return {"enabled": False, "backend": "features.zk"}
-        info = {}
+        info: Dict[str, Any] = {}
         if hasattr(self._system, "get_system_info"):
             try:
                 info = dict(self._system.get_system_info() or {})
-            except Exception:
-                info = {}
+            except Exception as exc:
+                # Wave M: probe failure must not paint ZK enabled.
+                return {
+                    "enabled": False,
+                    "backend": "features.zk",
+                    "error": str(exc),
+                }
         info["enabled"] = True
         info["backend"] = "features.zk"
         return info

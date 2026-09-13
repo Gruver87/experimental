@@ -31,11 +31,18 @@ def test_lightning_htlc_settle_and_refund():
 
     ln_b = LightningNetwork(node_address=bob, db=db)
     ch = ln_b.channels[cid]
-    assert ch.balance1 == 15.0 - (5.0 * ch.fee_rate)
+    from runtime.amount import from_satoshi_float, to_satoshi
+
+    expected = from_satoshi_float(
+        int(to_satoshi(20.0))
+        - int(to_satoshi(5.0))
+        - (int(to_satoshi(5.0)) * int(to_satoshi(ch.fee_rate))) // 1_000_000
+    )
+    assert abs(ch.balance1 - expected) < 1e-9
 
     assert ln_b.settle_htlc(htlc_id, preimage)
     assert ln_b.htlcs[htlc_id].status == "settled"
-    assert ch.balance2 >= 5.0
+    assert ch.balance2 >= 5.0 - 1e-9
 
 
 def test_lightning_htlc_refund_after_expiry():

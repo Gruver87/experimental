@@ -41,11 +41,11 @@ def test_wasm_call_persists_storage():
     vm = WASMVirtualMachine(db=db)
     addr = vm.deploy("token", owner, "Tok", {"initialSupply": 1000})
     out = vm.call(addr, "transfer", {"to": "0x" + "c" * 40, "amount": 100}, owner)
-    assert out["success"] is True
-
-    vm2 = WASMVirtualMachine(db=db)
-    bal = vm2.call(addr, "balanceOf", {"account": owner}, owner)
-    assert bal["result"] == 900
+    assert out["success"] is False
+    assert out.get("error") == "wasm_pseudo_token_host_refused"
+    assert vm.get_stats().get("enabled") is bool(
+        __import__("features.wasm_engine", fromlist=["WASMEngine"]).WASMEngine.available()
+    )
 
 
 def test_wasm_deploy_rejects_low_balance():

@@ -189,16 +189,24 @@ class PlasmaChain:
         if self.db and hasattr(self.db, "set_meta"):
             self.db.set_meta("plasma_pending_txs", self.pending_txs[-200:])
 
-    def _l2_balance(self, addr: str) -> float:
-        balance = 0.0
+    def _l2_balance_sat(self, addr: str) -> int:
+        from runtime.amount import to_satoshi
+
+        balance = 0
         for dep in self.deposits.values():
             if dep.get("from") == addr and dep.get("status") == "confirmed":
-                balance += float(dep.get("amount", 0) or 0)
+                try:
+                    balance += int(to_satoshi(dep.get("amount", 0) or 0))
+                except (TypeError, ValueError):
+                    continue
         for block in self.blocks:
             for tx in block.transactions:
                 if tx.get("type") == "deposit":
                     continue
-                amount = float(tx.get("amount", 0) or 0)
+                try:
+                    amount = int(to_satoshi(tx.get("amount", 0) or 0))
+                except (TypeError, ValueError):
+                    continue
                 if tx.get("from") == addr:
                     balance -= amount
                 if tx.get("to") == addr:
@@ -206,12 +214,20 @@ class PlasmaChain:
         for tx in self.pending_txs:
             if tx.get("type") == "deposit":
                 continue
-            amount = float(tx.get("amount", 0) or 0)
+            try:
+                amount = int(to_satoshi(tx.get("amount", 0) or 0))
+            except (TypeError, ValueError):
+                continue
             if tx.get("from") == addr:
                 balance -= amount
             if tx.get("to") == addr:
                 balance += amount
-        return balance
+        return int(balance)
+
+    def _l2_balance(self, addr: str) -> float:
+        from runtime.amount import from_satoshi_float
+
+        return float(from_satoshi_float(self._l2_balance_sat(addr)))
 
     def deposit(self, from_addr: str, amount: float,
                 main_tx_hash: str = "") -> Optional[str]:
@@ -276,7 +292,13 @@ class PlasmaChain:
         if amount <= 0 or not from_addr or not to_addr:
             return None
         with self._lock:
-            if self._l2_balance(from_addr) < amount:
+            from runtime.amount import to_satoshi
+
+            try:
+                need = int(to_satoshi(amount))
+            except (TypeError, ValueError):
+                return None
+            if self._l2_balance_sat(from_addr) < need:
                 return None
             tx = {
                 "hash": "",
@@ -362,7 +384,13 @@ class PlasmaChain:
             dep = self.deposits.get(deposit_id)
             if not dep or dep["status"] != "confirmed" or dep["from"] != user:
                 return None
-            if self._l2_balance(user) < float(dep.get("amount", 0) or 0):
+            from runtime.amount import to_satoshi
+
+            try:
+                dep_sat = int(to_satoshi(dep.get("amount", 0) or 0))
+            except (TypeError, ValueError):
+                return None
+            if self._l2_balance_sat(user) < dep_sat:
                 return None
             exit_id = native.sha256_hex(
                 f"{deposit_id}{user}{time.time()}".encode()

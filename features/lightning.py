@@ -373,29 +373,46 @@ class LightningNetwork:
         return self.close_channel(channel_id)
 
     def send_payment(self, channel_id: str, to_node: str, amount: float) -> Optional[str]:
-        if amount <= 0:
-            return None
+        from runtime.amount import SATOSHI_MULTIPLIER, from_satoshi_float, to_satoshi
+
         ch = self.channels.get(channel_id)
         if not ch or ch.status != "open":
             return None
-        fee = amount * ch.fee_rate
+        try:
+            amt_sat = int(to_satoshi(amount))
+            fee_sat = (amt_sat * int(to_satoshi(ch.fee_rate))) // int(SATOSHI_MULTIPLIER)
+            b1 = int(to_satoshi(ch.balance1))
+            b2 = int(to_satoshi(ch.balance2))
+        except (TypeError, ValueError):
+            return None
+        if amt_sat <= 0:
+            return None
         if self.node_address == ch.node1:
-            if to_node != ch.node2 or ch.balance1 < amount + fee:
+            if to_node != ch.node2 or b1 < amt_sat + fee_sat:
                 return None
-            ch.balance1 -= amount + fee
-            ch.balance2 += amount
+            b1 -= amt_sat + fee_sat
+            b2 += amt_sat
         elif self.node_address == ch.node2:
-            if to_node != ch.node1 or ch.balance2 < amount + fee:
+            if to_node != ch.node1 or b2 < amt_sat + fee_sat:
                 return None
-            ch.balance1 += amount
-            ch.balance2 -= amount + fee
+            b1 += amt_sat
+            b2 -= amt_sat + fee_sat
         else:
             return None
+        ch.balance1 = from_satoshi_float(b1)
+        ch.balance2 = from_satoshi_float(b2)
         ch.state_version += 1
         pid = native.sha256_hex(
             f"{channel_id}{self.node_address}{to_node}{amount}{time.time()}".encode()
         )[:16]
-        payment = LightningPayment(pid, channel_id, self.node_address, to_node, amount, fee)
+        payment = LightningPayment(
+            pid,
+            channel_id,
+            self.node_address,
+            to_node,
+            from_satoshi_float(amt_sat),
+            from_satoshi_float(fee_sat),
+        )
         self.payments[pid] = payment
         self._persist_channel(ch)
         self._persist_payment(payment)
@@ -410,27 +427,44 @@ class LightningNetwork:
         preimage_hash: str,
         expiry: int = None,
     ) -> Optional[str]:
+        from runtime.amount import SATOSHI_MULTIPLIER, from_satoshi_float, to_satoshi
+
         ch = self.channels.get(channel_id)
-        if not ch or ch.status != "open" or amount <= 0:
+        if not ch or ch.status != "open":
+            return None
+        try:
+            amt_sat = int(to_satoshi(amount))
+            fee_sat = (amt_sat * int(to_satoshi(ch.fee_rate))) // int(SATOSHI_MULTIPLIER)
+            b1 = int(to_satoshi(ch.balance1))
+            b2 = int(to_satoshi(ch.balance2))
+        except (TypeError, ValueError):
+            return None
+        if amt_sat <= 0:
             return None
         expiry = int(expiry or (int(time.time()) + self.DEFAULT_HTLC_EXPIRY_SEC))
-        fee = amount * ch.fee_rate
         if self.node_address == ch.node1:
-            if receiver != ch.node2 or ch.balance1 < amount + fee:
+            if receiver != ch.node2 or b1 < amt_sat + fee_sat:
                 return None
-            ch.balance1 -= amount + fee
+            b1 -= amt_sat + fee_sat
         elif self.node_address == ch.node2:
-            if receiver != ch.node1 or ch.balance2 < amount + fee:
+            if receiver != ch.node1 or b2 < amt_sat + fee_sat:
                 return None
-            ch.balance2 -= amount + fee
+            b2 -= amt_sat + fee_sat
         else:
             return None
+        ch.balance1 = from_satoshi_float(b1)
+        ch.balance2 = from_satoshi_float(b2)
         htlc_id = native.sha256_hex(
             f"{channel_id}{preimage_hash}{amount}{time.time()}".encode()
         )[:16]
         htlc = LightningHTLC(
-            htlc_id, channel_id, preimage_hash, amount, expiry,
-            self.node_address, receiver,
+            htlc_id,
+            channel_id,
+            preimage_hash,
+            from_satoshi_float(amt_sat),
+            expiry,
+            self.node_address,
+            receiver,
         )
         self.htlcs[htlc_id] = htlc
         ch.state_version += 1
@@ -440,6 +474,8 @@ class LightningNetwork:
         return htlc_id
 
     def settle_htlc(self, htlc_id: str, preimage: str) -> bool:
+        from runtime.amount import from_satoshi_float, to_satoshi
+
         htlc = self.htlcs.get(htlc_id)
         if not htlc or htlc.status != "pending":
             return False
@@ -450,11 +486,19 @@ class LightningNetwork:
         ch = self.channels.get(htlc.channel_id)
         if not ch or ch.status != "open":
             return False
+        try:
+            amt_sat = int(to_satoshi(htlc.amount))
+            b1 = int(to_satoshi(ch.balance1))
+            b2 = int(to_satoshi(ch.balance2))
+        except (TypeError, ValueError):
+            return False
         if self.node_address == htlc.receiver:
             if self.node_address == ch.node1:
-                ch.balance1 += htlc.amount
+                b1 += amt_sat
             elif self.node_address == ch.node2:
-                ch.balance2 += htlc.amount
+                b2 += amt_sat
+            ch.balance1 = from_satoshi_float(b1)
+            ch.balance2 = from_satoshi_float(b2)
         htlc.status = "settled"
         htlc.preimage = preimage
         ch.state_version += 1
@@ -464,6 +508,8 @@ class LightningNetwork:
         return True
 
     def refund_htlc(self, htlc_id: str) -> bool:
+        from runtime.amount import from_satoshi_float, to_satoshi
+
         htlc = self.htlcs.get(htlc_id)
         if not htlc or htlc.status != "pending":
             return False
@@ -472,10 +518,18 @@ class LightningNetwork:
         ch = self.channels.get(htlc.channel_id)
         if not ch:
             return False
+        try:
+            amt_sat = int(to_satoshi(htlc.amount))
+            b1 = int(to_satoshi(ch.balance1))
+            b2 = int(to_satoshi(ch.balance2))
+        except (TypeError, ValueError):
+            return False
         if htlc.sender == ch.node1:
-            ch.balance1 += htlc.amount
+            b1 += amt_sat
         elif htlc.sender == ch.node2:
-            ch.balance2 += htlc.amount
+            b2 += amt_sat
+        ch.balance1 = from_satoshi_float(b1)
+        ch.balance2 = from_satoshi_float(b2)
         htlc.status = "refunded"
         ch.state_version += 1
         self._persist_channel(ch)

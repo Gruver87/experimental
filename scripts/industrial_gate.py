@@ -5087,6 +5087,20 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("verify_wave_k.ps1 missing (Wave K value/plasma/shard honesty)")
         if not (ROOT / "scripts" / "verify_wave_l.ps1").is_file():
             errors.append("verify_wave_l.ps1 missing (Wave L NFT/bridge/validator honesty)")
+        if not (ROOT / "scripts" / "verify_wave_m.ps1").is_file():
+            errors.append("verify_wave_m.ps1 missing (Wave M BFT/lightning/ZK/WASM)")
+        if "* 3 >= total * 2" not in (
+            ROOT / "consensus" / "bft" / "quorum.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("BFT quorum must use integer 2/3 (Wave M)")
+        if "wasm_pseudo_token_host_refused" not in (
+            ROOT / "features" / "wasm_vm.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("WASM must refuse pseudo transfer (Wave M)")
+        if "must not paint ZK enabled" not in (
+            ROOT / "core" / "components" / "zk_gateway.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("ZK gateway must fail-closed on probe error (Wave M)")
         http_src = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
         if "Wave H: with peers/mesh expected" not in http_src:
             errors.append("/health/ready must gate wire/state when peers present (Wave H)")

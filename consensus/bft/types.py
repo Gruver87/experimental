@@ -46,14 +46,20 @@ class RoundId:
 @dataclass(frozen=True)
 class ValidatorInfo:
     validator_id: str
-    stake: float = 0.0
+    stake: int = 0  # Wave M: integer satoshi (not float ABS)
     pubkey: str = ""
     active: bool = True
     slashed: bool = False
 
     def __post_init__(self) -> None:
+        from runtime.amount import to_satoshi
+
         object.__setattr__(self, "validator_id", str(self.validator_id or "").strip())
-        object.__setattr__(self, "stake", float(self.stake or 0.0))
+        try:
+            stake_sat = int(to_satoshi(self.stake or 0))
+        except (TypeError, ValueError):
+            stake_sat = 0
+        object.__setattr__(self, "stake", max(0, stake_sat))
         object.__setattr__(self, "pubkey", str(self.pubkey or ""))
         object.__setattr__(self, "active", bool(self.active))
         object.__setattr__(self, "slashed", bool(self.slashed))
@@ -75,12 +81,12 @@ class ValidatorSetSnapshot:
                 return v
         return None
 
-    def total_active_stake(self) -> float:
-        return float(
+    def total_active_stake(self) -> int:
+        return int(
             sum(
-                float(v.stake)
+                int(v.stake)
                 for v in self.validators
-                if v.active and not v.slashed and float(v.stake) > 0
+                if v.active and not v.slashed and int(v.stake) > 0
             )
         )
 
@@ -151,16 +157,16 @@ class QuorumCertificate:
     round_id: RoundId
     vote_type: VoteType
     block_hash: str
-    stake_voted: float
-    stake_total: float
+    stake_voted: int
+    stake_total: int
     reached: bool
 
     def __post_init__(self) -> None:
         object.__setattr__(
             self, "block_hash", str(self.block_hash or "").strip().lower()
         )
-        object.__setattr__(self, "stake_voted", float(self.stake_voted or 0.0))
-        object.__setattr__(self, "stake_total", float(self.stake_total or 0.0))
+        object.__setattr__(self, "stake_voted", int(self.stake_voted or 0))
+        object.__setattr__(self, "stake_total", int(self.stake_total or 0))
         object.__setattr__(self, "reached", bool(self.reached))
 
 
