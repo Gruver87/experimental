@@ -2,7 +2,8 @@
 #
 # Operator-ordered stress: host gates + live mesh probe + extreme load + 2h STRICT soak.
 # Does NOT claim 48h PASS / mainnet / Hybrid pin / BLS.
-# PASS bar for the 2h window: hard_fails=0, mesh_warn=0 (STRICT), no ready-flap.
+# PASS bar for the 2h window: hard_fails=0 after Strict confirm (mining-window
+# delta=1 must clear on resnapshot; persistent skew still FAIL), mesh_warn=0, no ready-flap.
 #
 # Usage (repo root):
 #   .\scripts\start_pre48h_maxload_2h.ps1

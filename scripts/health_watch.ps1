@@ -110,6 +110,7 @@ while ($true) {
         if ($harnessBad) {
             $failures += $line
             if ($Strict) {
+                $totalHardFails++
                 Write-Log "FAIL harness port $($r.Port) [$modeLabel] height=$($r.Height) peers=$($r.Peers) p2p=$($r.P2P) aligned=$($r.Aligned) failed=$failedTxt" "Red"
             } else {
                 Write-Log "WARN $line" "Yellow"
@@ -143,6 +144,7 @@ while ($true) {
             $suffix = ""
             if ($mesh.Resnapshot) { $suffix = " resnapshot=1" }
             if ($mesh.Transient) { $suffix += " transient_delta=$($mesh.Delta)" }
+            if ($mesh.ConfirmedClear) { $suffix += " strict_confirm=1" }
             if ($cycleRows.Count -lt $Ports.Count) {
                 Write-Log "WARN mesh partial aligned $detail$suffix" "Yellow"
             } else {
@@ -152,6 +154,7 @@ while ($true) {
             $detail = ($cycleRows | ForEach-Object { "h$($_.Port)=$($_.Height)" }) -join " "
             $failures += "mesh misaligned: $detail delta=$($mesh.Delta)"
             if ($Strict) {
+                $totalHardFails++
                 Write-Log "FAIL mesh misaligned $detail delta=$($mesh.Delta)" "Red"
             } else {
                 Write-Log "WARN mesh misaligned $detail delta=$($mesh.Delta)" "Yellow"

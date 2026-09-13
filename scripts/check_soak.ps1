@@ -43,6 +43,7 @@ if ($active) {
 
 if (-not $log) {
     $preferred = @(
+        (Join-Path $Root "logs\soak_2h_pre48h_maxload.log"),
         (Join-Path $Root "logs\soak_48h_long_range_lab.log"),
         (Join-Path $Root "logs\soak_2h_long_range_lab.log"),
         (Join-Path $Root "logs\soak_48h_experimental.log"),
@@ -79,6 +80,20 @@ if (-not $reportFile) {
         }
     } else {
         $reportFile = "logs/soak_report_48h.json"
+    }
+}
+
+# When soak_active.json is gone, recover STRICT/hours/interval from the report.
+if (-not $active -and $reportFile) {
+    $earlyReport = Join-Path $Root ($reportFile -replace '/', '\')
+    if (Test-Path $earlyReport) {
+        try {
+            $er = Get-Content $earlyReport -Raw | ConvertFrom-Json
+            if ($er.PSObject.Properties.Name -contains 'strict') { $strict = [bool]$er.strict }
+            if (-not $hoursRequested -and $er.hours_requested) { $hoursRequested = $er.hours_requested }
+            if ($er.interval_sec) { $intervalSec = [int]$er.interval_sec }
+            if (-not $startedAt -and $er.started_at) { $startedAt = $er.started_at }
+        } catch { }
     }
 }
 
@@ -185,6 +200,9 @@ if (Test-Path $reportPath) {
     try {
         $rep = Get-Content $reportPath -Raw | ConvertFrom-Json
         Write-KV "report" "$reportFile passed=$($rep.passed) hours=$($rep.hours_elapsed)/$($rep.hours_requested)"
+        if (-not $strict -and $rep.strict) {
+            Write-KV "report_strict" "true (from soak report; active meta gone)" "DarkGray"
+        }
     } catch { }
 }
 

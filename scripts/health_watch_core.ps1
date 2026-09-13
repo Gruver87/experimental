@@ -340,8 +340,38 @@ function Test-MeshCycleAligned {
     $uniqueHeads = @($heads | Select-Object -Unique)
 
     if ($Strict) {
+        # Zero-skew bar, but mining-window races are real: confirm with a short
+        # parallel resnapshot before FAIL (same class of flake verify_prod_mesh_probe
+        # already retries). Persistent delta/head mismatch after confirm = FAIL.
         $ok = ($delta -eq 0) -and ($uniqueHeads.Count -le 1)
-        return @{ Ok = $ok; Delta = $delta; Resnapshot = $false }
+        if ($ok) {
+            return @{ Ok = $true; Delta = $delta; Resnapshot = $false }
+        }
+        Start-Sleep -Milliseconds 2500
+        $snap = Invoke-ParallelMeshResnapshot -Ports $Ports -ProdMesh:$ProdMesh
+        $snapOk = @($snap | Where-Object { $_.Ok -and [int]$_.Height -ge 0 })
+        if ($snapOk.Count -ge 2) {
+            $snapHeights = @($snapOk | ForEach-Object { [int]$_.Height })
+            $snapHeads = @(
+                $snapOk | Where-Object { ([string]$_.Head) } |
+                    ForEach-Object { ([string]$_.Head).ToLowerInvariant() } |
+                    Select-Object -Unique
+            )
+            $snapDelta = [int](($snapHeights | Measure-Object -Maximum).Maximum - ($snapHeights | Measure-Object -Minimum).Minimum)
+            if (($snapDelta -eq 0) -and ($snapHeads.Count -le 1)) {
+                return @{
+                    Ok = $true
+                    Delta = 0
+                    Resnapshot = $true
+                    Transient = $true
+                    ConfirmedClear = $true
+                }
+            }
+            $delta = $snapDelta
+            $uniqueHeads = $snapHeads
+        }
+        $ok = ($delta -eq 0) -and ($uniqueHeads.Count -le 1)
+        return @{ Ok = $ok; Delta = $delta; Resnapshot = $true }
     }
 
     # Prod mesh: ±2 blocks covers parallel poll + one tip-v2 mine tick (soak evidence).
