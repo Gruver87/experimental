@@ -7,16 +7,23 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $Root
 
-$procs = Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue |
+$procs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
     Where-Object {
         $_.CommandLine -and (
-            $_.CommandLine -match 'soak_monitor\.ps1' -or
-            $_.CommandLine -match 'long_range_lab_chaos_pulse\.ps1'
+            ($_.Name -eq 'powershell.exe' -and (
+                $_.CommandLine -match 'soak_monitor\.ps1' -or
+                $_.CommandLine -match 'long_range_lab_chaos_pulse\.ps1' -or
+                $_.CommandLine -match 'start_mempool_validation_soak\.ps1' -or
+                $_.CommandLine -match 'start_pre48h_maxload_2h\.ps1'
+            )) -or
+            (($_.Name -eq 'python.exe' -or $_.Name -eq 'python') -and (
+                $_.CommandLine -match 'mempool_validation_sidecar\.py'
+            ))
         )
     }
 
 if (-not $procs) {
-    Write-Host "OK: no soak_monitor/chaos_pulse processes found" -ForegroundColor Green
+    Write-Host "OK: no soak_monitor/chaos_pulse/sidecar processes found" -ForegroundColor Green
     if (Test-Path (Join-Path $Root "logs/soak_active.json")) {
         Remove-Item (Join-Path $Root "logs/soak_active.json") -Force
     }

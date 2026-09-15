@@ -73,8 +73,22 @@ def _metrics_snippet(http: str) -> dict:
         out["mempool_size"] = st.get("mempool_size")
         ms = st.get("mempool_store") or {}
         if isinstance(ms, dict):
-            out["demoted"] = ms.get("demoted")
-            out["store_backend"] = ms.get("backend")
+            # API fields are store_demoted / store_backend (Wave E); accept legacy aliases.
+            out["demoted"] = ms.get("store_demoted", ms.get("demoted"))
+            out["store_backend"] = ms.get("store_backend", ms.get("backend"))
+        # Prefer slim probe under load (same as health_watch).
+        try:
+            st2 = _api(f"{http.rstrip('/')}/status?probe=1")
+            ms2 = st2.get("mempool_store") or {}
+            if isinstance(ms2, dict):
+                if ms2.get("store_demoted") is not None:
+                    out["demoted"] = ms2.get("store_demoted")
+                if ms2.get("store_backend"):
+                    out["store_backend"] = ms2.get("store_backend")
+            if st2.get("mempool_size") is not None:
+                out["mempool_size"] = st2.get("mempool_size")
+        except Exception:
+            pass
     except Exception:
         pass
     return out

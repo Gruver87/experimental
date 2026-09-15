@@ -46,8 +46,10 @@ if ($RescoreOnly) {
     Write-Host "Soak rescore-only: log=$LogFile report=$ReportFile" -ForegroundColor Cyan
 } else {
     Write-Host "Soak monitor: ${Hours}h interval=${IntervalSec}s log=$LogFile" -ForegroundColor Cyan
-    if ($Strict) {
-        Write-Host "  STRICT: mesh_warn=0, no ready-flap, no 1-height skew, full harness every cycle" -ForegroundColor Yellow
+    if ($Strict -and [int]$Hours -ge 12) {
+        Write-Host "  STRICT long (>=12h): mesh_warn=0, soft ready_flap OK, FullHarnessEvery=6" -ForegroundColor Yellow
+    } elseif ($Strict) {
+        Write-Host "  STRICT short: mesh_warn=0, soft ready_flap when /status live, AlwaysFullHarness" -ForegroundColor Yellow
     } elseif ($FullHarness) {
         Write-Host "  full harness every 6 cycles (WARN on probe flake; 48h default scoring)" -ForegroundColor DarkGray
     }

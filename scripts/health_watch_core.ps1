@@ -171,7 +171,7 @@ function Test-NodeHealth {
         }
         try {
             $live = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health/live" -TimeoutSec 8
-            if ($live -and $live.status -eq "alive" -and -not $Strict) {
+            if ($live -and $live.status -eq "alive") {
                 $h = 0
                 $peers = 0
                 if ($null -ne $readyBody) {

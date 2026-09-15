@@ -88,9 +88,9 @@ if ($fail -gt 0) {
 }
 
 if ($SkipRebuild) {
-    Invoke-Check "docker_prod_3node keep" {
+    Invoke-Check "docker_prod_3node keep (HARD - must succeed)" {
         & (Join-Path $ScriptDir "docker_prod_3node.ps1") -SkipBuild -KeepVolumes
-    } -Soft
+    }
 } else {
     Invoke-Check "docker_prod_3node rebuild" {
         & (Join-Path $ScriptDir "docker_prod_3node.ps1") -KeepVolumes

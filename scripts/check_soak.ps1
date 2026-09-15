@@ -43,6 +43,7 @@ if ($active) {
 
 if (-not $log) {
     $preferred = @(
+        (Join-Path $Root "logs\soak_mempool_validation_48h.log"),
         (Join-Path $Root "logs\soak_2h_pre48h_maxload.log"),
         (Join-Path $Root "logs\soak_48h_long_range_lab.log"),
         (Join-Path $Root "logs\soak_2h_long_range_lab.log"),
@@ -177,7 +178,16 @@ if ($done) {
 }
 
 Write-KV "state" $state $color
-Write-KV "strict" $(if ($strict) { "true (5h bar: fail=0 mesh_warn=0)" } else { "false (default 48h scoring)" })
+$strictLabel = if ($strict) {
+    if ($hoursRequested -and [int]$hoursRequested -ge 12) {
+        "true (long STRICT: fail=0 mesh_warn=0; FullHarnessEvery=6)"
+    } else {
+        "true (short STRICT: fail=0 mesh_warn=0; AlwaysFullHarness)"
+    }
+} else {
+    "false (default 48h scoring)"
+}
+Write-KV "strict" $strictLabel
 if ($active -and $active.git_sha) { Write-KV "git_sha" $active.git_sha }
 if ($active -and $null -ne $active.git_dirty) { Write-KV "git_dirty" $active.git_dirty }
 if ($active -and $active.image_id) { Write-KV "image_id" $active.image_id }
@@ -206,13 +216,41 @@ if (Test-Path $reportPath) {
     } catch { }
 }
 
+# Mempool+validation soaks: sidecar report is part of the honesty bar.
+$sidecarReport = Join-Path $Root "logs\mempool_validation_sidecar_report.json"
+if (($active -and $active.mempool_validation) -or ($log -and ($log -match 'mempool_validation'))) {
+    if (Test-Path $sidecarReport) {
+        try {
+            $sr = Get-Content $sidecarReport -Raw | ConvertFrom-Json
+            $sc = "passed=$($sr.passed) admit_ok=$($sr.admit_ok) refuse_ok=$($sr.refuse_ok) admit_fail=$($sr.admit_fail) refuse_fail=$($sr.refuse_fail)"
+            Write-KV "sidecar" $sc $(if ($sr.passed) { "Green" } else { "Yellow" })
+            if ($state -eq "FINISHED_PASS" -and -not $sr.passed) {
+                $state = "FINISHED_FAIL"
+                $color = "Red"
+                $exitCode = 2
+                Write-KV "state" $state $color
+                Write-KV "sidecar_gate" "soak mesh PASS but sidecar failed - overall FAIL" "Red"
+            }
+        } catch {
+            Write-KV "sidecar" "report unreadable" "Yellow"
+        }
+    } elseif ($done) {
+        Write-KV "sidecar" "MISSING report (expected for mempool_validation soak)" "Yellow"
+        if ($state -eq "FINISHED_PASS") {
+            $state = "FINISHED_FAIL"
+            $exitCode = 2
+            Write-KV "state" $state "Red"
+        }
+    }
+}
+
 if (-not $Quiet) {
     Write-Host ""
     Write-Host "  re-check: .\scripts\check_soak.ps1" -ForegroundColor DarkGray
     Write-Host "  tail:     Get-Content $log -Tail 30" -ForegroundColor DarkGray
     Write-Host "  stop:     .\scripts\stop_soak_monitors.ps1 -Force" -ForegroundColor DarkGray
-    Write-Host "  note:     5h STRICT is not 48h evidence even if passed=true" -ForegroundColor DarkGray
-    Write-Host "  48h:      .\scripts\start_soak_prod_mesh_48h.ps1" -ForegroundColor DarkGray
+    Write-Host "  note:     STRICT PASS is not mainnet; 48h claim only if hours~48 and passed=true" -ForegroundColor DarkGray
+    Write-Host "  mempool:  .\scripts\start_mempool_validation_soak.ps1 -Hours 48" -ForegroundColor DarkGray
 }
 
 exit $exitCode
