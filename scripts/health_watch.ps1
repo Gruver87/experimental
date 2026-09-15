@@ -146,7 +146,28 @@ while ($true) {
     }
 
     if ($Ports.Count -gt 1) {
-        $mesh = Test-MeshCycleAligned -Rows $cycleRows -Strict:$Strict -Ports $Ports -ProdMesh:$ProdMesh
+        $meshRows = @($cycleRows)
+        # Soft mesh_exclude can drop below 2 tip rows under AlwaysFullHarness HOL.
+        # Re-snapshot all ports before Strict Partial FAIL (false "insufficient rows").
+        if ($meshRows.Count -lt 2) {
+            $snap = Invoke-ParallelMeshResnapshot -Ports $Ports -ProdMesh:$ProdMesh
+            $meshRows = @(
+                $snap |
+                    Where-Object { $_.Ok -and [int]$_.Height -ge 0 -and ([string]$_.Head) } |
+                    ForEach-Object {
+                        [PSCustomObject]@{
+                            Port = [int]$_.Port
+                            Height = [int]$_.Height
+                            Head = [string]$_.Head
+                            Peers = 0
+                        }
+                    }
+            )
+            if ($meshRows.Count -lt 2) {
+                Write-Log "WARN mesh tip rows thin after exclude+resnapshot count=$($meshRows.Count)" "Yellow"
+            }
+        }
+        $mesh = Test-MeshCycleAligned -Rows $meshRows -Strict:$Strict -Ports $Ports -ProdMesh:$ProdMesh
         if ($mesh.Partial) {
             $failures += $mesh.Detail
             if ($Strict) {
@@ -155,18 +176,18 @@ while ($true) {
                 Write-Log "WARN mesh probe: $($mesh.Detail)" "Yellow"
             }
         } elseif ($mesh.Ok) {
-            $detail = ($cycleRows | ForEach-Object { "$($_.Port):h$($_.Height)/p$($_.Peers)" }) -join " "
+            $detail = ($meshRows | ForEach-Object { "$($_.Port):h$($_.Height)/p$($_.Peers)" }) -join " "
             $suffix = ""
             if ($mesh.Resnapshot) { $suffix = " resnapshot=1" }
             if ($mesh.Transient) { $suffix += " transient_delta=$($mesh.Delta)" }
             if ($mesh.ConfirmedClear) { $suffix += " strict_confirm=1" }
-            if ($cycleRows.Count -lt $Ports.Count) {
+            if ($meshRows.Count -lt $Ports.Count) {
                 Write-Log "WARN mesh partial aligned $detail$suffix" "Yellow"
             } else {
                 Write-Log "OK mesh aligned $detail$suffix" "DarkGray"
             }
         } else {
-            $detail = ($cycleRows | ForEach-Object { "h$($_.Port)=$($_.Height)" }) -join " "
+            $detail = ($meshRows | ForEach-Object { "h$($_.Port)=$($_.Height)" }) -join " "
             $failures += "mesh misaligned: $detail delta=$($mesh.Delta)"
             if ($Strict) {
                 $totalHardFails++

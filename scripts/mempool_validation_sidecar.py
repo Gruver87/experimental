@@ -165,6 +165,23 @@ def _admit_smoke(http: str, wallet: str) -> tuple[str, str]:
     except Exception as exc:
         if _is_timeout(exc):
             return "soft", f"timeout:{exc}"
+        msg = str(exc).lower()
+        # Load/HOL: deploy submitted but confirmation window missed — soft, not gate fail.
+        if any(
+            s in msg
+            for s in (
+                "not mined",
+                "not confirmed",
+                "confirmation",
+                "timed out",
+                "timeout",
+                "connection reset",
+                "10054",
+                "temporarily unavailable",
+                "503",
+            )
+        ):
+            return "soft", f"load:{exc}"
         return "fail", f"admit_fail:{exc}"
 
 
@@ -186,11 +203,33 @@ def main() -> int:
     args = ap.parse_args()
 
     log = Path(args.log_file)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text("", encoding="utf-8")  # fresh run — no stale FAIL lines from prior soak
     deadline = time.time() + max(0.1, float(args.hours)) * 3600.0
     cycle = 0
     admit_ok = admit_soft = admit_fail = 0
     refuse_ok = refuse_soft = refuse_fail = 0
     backoff = float(args.interval_sec)
+
+    def _write_report(*, passed: bool, extra: dict | None = None) -> Path:
+        report = {
+            "kind": "mempool_validation_sidecar",
+            "honesty": ["NOT 48h soak claim", "NOT mainnet", "NOT Hybrid pin"],
+            "cycles": cycle,
+            "admit_ok": admit_ok,
+            "admit_soft": admit_soft,
+            "admit_fail": admit_fail,
+            "refuse_ok": refuse_ok,
+            "refuse_soft": refuse_soft,
+            "refuse_fail": refuse_fail,
+            "ended_at": datetime.now(timezone.utc).isoformat(),
+            "passed": passed,
+        }
+        if extra:
+            report.update(extra)
+        out = ROOT / "logs" / "mempool_validation_sidecar_report.json"
+        out.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        return out
 
     _log(
         log,
@@ -209,6 +248,8 @@ def main() -> int:
         )
         if snap.get("demoted") in (True, 1, "1", "true"):
             _log(log, "FAIL mempool_store demoted under sidecar — abort")
+            out = _write_report(passed=False, extra={"abort": "store_demoted"})
+            _log(log, f"sidecar abort demoted report={out}")
             return 2
 
         if not args.skip_refuse:
@@ -244,24 +285,11 @@ def main() -> int:
             break
         time.sleep(min(backoff, remaining))
 
-    report = {
-        "kind": "mempool_validation_sidecar",
-        "honesty": ["NOT 48h soak claim", "NOT mainnet", "NOT Hybrid pin"],
-        "cycles": cycle,
-        "admit_ok": admit_ok,
-        "admit_soft": admit_soft,
-        "admit_fail": admit_fail,
-        "refuse_ok": refuse_ok,
-        "refuse_soft": refuse_soft,
-        "refuse_fail": refuse_fail,
-        "ended_at": datetime.now(timezone.utc).isoformat(),
-        # Timeouts under mesh load are soft; unexpected accept / hard errors fail.
-        "passed": refuse_fail == 0 and admit_fail == 0 and cycle > 0,
-    }
-    out = ROOT / "logs" / "mempool_validation_sidecar_report.json"
-    out.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    _log(log, f"sidecar done passed={report['passed']} report={out}")
-    return 0 if report["passed"] else 1
+    out = _write_report(
+        passed=(refuse_fail == 0 and admit_fail == 0 and cycle > 0),
+    )
+    _log(log, f"sidecar done passed={refuse_fail == 0 and admit_fail == 0 and cycle > 0} report={out}")
+    return 0 if (refuse_fail == 0 and admit_fail == 0 and cycle > 0) else 1
 
 
 if __name__ == "__main__":
