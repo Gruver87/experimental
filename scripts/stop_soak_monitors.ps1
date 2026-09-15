@@ -1,4 +1,6 @@
-# Stop background soak_monitor / LR chaos_pulse processes (duplicate soaks).
+# Stop background soak_monitor / LR chaos_pulse / sidecar (duplicate soaks).
+# Does NOT match start_* orchestrators — those call this script and would
+# self-kill if listed (false abort before mesh rebuild).
 param(
     [switch]$Force
 )
@@ -7,14 +9,22 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $Root
 
+$selfPid = $PID
+$parentPid = $null
+try {
+    $parentPid = (Get-CimInstance Win32_Process -Filter "ProcessId=$selfPid" -ErrorAction SilentlyContinue).ParentProcessId
+} catch { }
+
 $procs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
     Where-Object {
-        $_.CommandLine -and (
+        $_.CommandLine -and
+        $_.ProcessId -ne $selfPid -and
+        ($null -eq $parentPid -or $_.ProcessId -ne $parentPid) -and
+        (
             ($_.Name -eq 'powershell.exe' -and (
                 $_.CommandLine -match 'soak_monitor\.ps1' -or
                 $_.CommandLine -match 'long_range_lab_chaos_pulse\.ps1' -or
-                $_.CommandLine -match 'start_mempool_validation_soak\.ps1' -or
-                $_.CommandLine -match 'start_pre48h_maxload_2h\.ps1'
+                $_.CommandLine -match 'health_watch\.ps1'
             )) -or
             (($_.Name -eq 'python.exe' -or $_.Name -eq 'python') -and (
                 $_.CommandLine -match 'mempool_validation_sidecar\.py'
