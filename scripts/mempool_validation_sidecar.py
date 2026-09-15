@@ -68,38 +68,59 @@ def _metrics_snippet(http: str) -> dict:
         "demoted": None,
         "store_backend": None,
     }
-    try:
-        st = _api(f"{http.rstrip('/')}/status")
-        out["mempool_size"] = st.get("mempool_size")
-        ms = st.get("mempool_store") or {}
-        if isinstance(ms, dict):
-            # API fields are store_demoted / store_backend (Wave E); accept legacy aliases.
+    base = http.rstrip("/")
+
+    def _apply_ms(ms: object) -> None:
+        if not isinstance(ms, dict):
+            return
+        if ms.get("store_demoted") is not None:
             out["demoted"] = ms.get("store_demoted", ms.get("demoted"))
-            out["store_backend"] = ms.get("store_backend", ms.get("backend"))
-        # Prefer slim probe under load (same as health_watch).
+        elif ms.get("demoted") is not None:
+            out["demoted"] = ms.get("demoted")
+        backend = ms.get("store_backend", ms.get("backend"))
+        if backend:
+            out["store_backend"] = backend
+
+    # Prefer slim probe under load; fall back to full /status then /health/ready.
+    for path in ("/status?probe=1", "/status", "/health/ready"):
         try:
-            st2 = _api(f"{http.rstrip('/')}/status?probe=1")
-            ms2 = st2.get("mempool_store") or {}
-            if isinstance(ms2, dict):
-                if ms2.get("store_demoted") is not None:
-                    out["demoted"] = ms2.get("store_demoted")
-                if ms2.get("store_backend"):
-                    out["store_backend"] = ms2.get("store_backend")
-            if st2.get("mempool_size") is not None:
-                out["mempool_size"] = st2.get("mempool_size")
+            st = _api(f"{base}{path}", timeout=12)
+            if not isinstance(st, dict):
+                continue
+            if st.get("mempool_size") is not None:
+                out["mempool_size"] = st.get("mempool_size")
+            _apply_ms(st.get("mempool_store") or {})
+            if out["demoted"] is not None and out["store_backend"]:
+                break
         except Exception:
-            pass
-    except Exception:
-        pass
+            continue
     return out
 
 
 def _is_timeout(exc: BaseException) -> bool:
-    msg = str(exc).lower()
-    return "timed out" in msg or "timeout" in msg or isinstance(exc, TimeoutError)
+    """Classify load HOL / socket stalls as soft (not refuse_fail)."""
+    if isinstance(exc, TimeoutError):
+        return True
+    try:
+        import socket
+
+        if isinstance(exc, socket.timeout):
+            return True
+    except Exception:
+        pass
+    # urllib wraps timeouts as URLError(reason=...) on Windows.
+    reason = getattr(exc, "reason", None)
+    if isinstance(reason, BaseException) and _is_timeout(reason):
+        return True
+    msg = f"{type(exc).__name__} {exc} {reason}".lower()
+    return (
+        "timed out" in msg
+        or "timeout" in msg
+        or "winerror 10060" in msg
+    )
 
 
-def _refuse_empty_tx(http: str, *, timeout: float = 25.0) -> tuple[str, str]:
+def _refuse_empty_tx(http: str, *, timeout: float = 45.0) -> tuple[str, str]:
     """POST bad /tx/send. Returns (ok|soft|fail, detail)."""
     try:
         resp = _post_json(

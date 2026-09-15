@@ -87,18 +87,33 @@ while ($true) {
             Write-Log "FAIL port $port $err" "Red"
             continue
         }
-        [void]$cycleRows.Add([PSCustomObject]@{
-            Port = [int]$r.Port
-            Height = [int]$r.Height
-            Head = [string]$r.Head
-            Peers = [int]$r.Peers
-        })
+        # Soft ready_flap / live_fallback without a real tip must NOT enter mesh
+        # rows — Height=0 (or empty head after status HOL) poisons Strict delta
+        # into a false multi-thousand-block FAIL after soft-flap conversion.
+        $headStr = [string]$r.Head
+        $p2pStr = [string]$r.P2P
+        $readyFlap = $false
+        try { $readyFlap = [bool]$r.ReadyFlap } catch { $readyFlap = $false }
+        $unreliableTip = (
+            ($p2pStr -eq "live_fallback") -or
+            ($readyFlap -and (-not $headStr)) -or
+            (($p2pStr -eq "ready_503_body") -and (-not $headStr))
+        )
+        if (-not $unreliableTip) {
+            [void]$cycleRows.Add([PSCustomObject]@{
+                Port = [int]$r.Port
+                Height = [int]$r.Height
+                Head = $headStr
+                Peers = [int]$r.Peers
+            })
+        }
         $failedList = @($r.Failed)
         $failedTxt = if ($failedList.Count -gt 0) { $failedList -join "," } else { "" }
         $line = "OK port $($r.Port) [$modeLabel] height=$($r.Height) peers=$($r.Peers) p2p=$($r.P2P) aligned=$($r.Aligned) failed=$failedTxt"
+        if ($unreliableTip) { $line = "$line mesh_exclude=1" }
         # Solo is expected for single-node lab soaks (Long-Range :29080); warn only on multi-node mesh.
-        $soloExpected = (-not $ProdMesh) -and ($Ports.Count -eq 1) -and ([string]$r.P2P -eq "solo")
-        $p2pWarn = (([string]$r.P2P -in @("solo", "under_mesh", "stale")) -and (-not $soloExpected))
+        $soloExpected = (-not $ProdMesh) -and ($Ports.Count -eq 1) -and ($p2pStr -eq "solo")
+        $p2pWarn = (($p2pStr -in @("solo", "under_mesh", "stale", "inconsistent")) -and (-not $soloExpected))
         # Wave G: demote is soft-WARN only (never hard_fail / soak score).
         $demoteWarn = $false
         try { $demoteWarn = [bool]$r.MempoolDemoted } catch { $demoteWarn = $false }
