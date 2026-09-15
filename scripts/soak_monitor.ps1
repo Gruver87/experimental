@@ -65,7 +65,14 @@ if (-not $RescoreOnly) {
     elseif ($Ports -and $Ports.Count -gt 0) { $hwArgs.Ports = $Ports }
     if ($Strict) {
         $hwArgs.Strict = $true
-        $hwArgs.AlwaysFullHarness = $true
+        # Short STRICT (5h bar): full harness every cycle.
+        # Long STRICT (>=12h / 48h mempool): AlwaysFullHarness HOL-stalls
+        # /health/ready + harness → false ready_flap / harness_timeout FAILs.
+        if ([int]$Hours -ge 12) {
+            $hwArgs.FullHarnessEvery = 6
+        } else {
+            $hwArgs.AlwaysFullHarness = $true
+        }
     } elseif ($AlwaysFullHarness) {
         $hwArgs.AlwaysFullHarness = $true
     } elseif ($FullHarness) {

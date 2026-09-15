@@ -12,8 +12,8 @@
 
 param(
     [int]$Hours = 5,
-    [int]$IntervalSec = 30,
-    [int]$SidecarIntervalSec = 120,
+    [int]$IntervalSec = 60,
+    [int]$SidecarIntervalSec = 300,
     [switch]$SkipRebuild,
     [switch]$SkipHostAudit,
     [switch]$PreflightOnly,

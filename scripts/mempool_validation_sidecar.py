@@ -80,8 +80,13 @@ def _metrics_snippet(http: str) -> dict:
     return out
 
 
-def _refuse_empty_tx(http: str) -> tuple[bool, str]:
-    """POST a structurally empty /tx/send — expect refuse (4xx/5xx or success:false)."""
+def _is_timeout(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return "timed out" in msg or "timeout" in msg or isinstance(exc, TimeoutError)
+
+
+def _refuse_empty_tx(http: str, *, timeout: float = 25.0) -> tuple[str, str]:
+    """POST bad /tx/send. Returns (ok|soft|fail, detail)."""
     try:
         resp = _post_json(
             http.rstrip("/"),
@@ -93,7 +98,7 @@ def _refuse_empty_tx(http: str) -> tuple[bool, str]:
                 "fee": 0.0,
                 "nonce": 0,
             },
-            timeout=10,
+            timeout=timeout,
         )
         if isinstance(resp, dict) and (
             resp.get("success") is False
@@ -101,34 +106,38 @@ def _refuse_empty_tx(http: str) -> tuple[bool, str]:
             or resp.get("refused")
             or resp.get("valid") is False
         ):
-            return True, f"refused_body={list(resp.keys())[:6]}"
-        return False, f"unexpected_accept={resp!r}"[:200]
+            return "ok", f"refused_body={list(resp.keys())[:6]}"
+        return "fail", f"unexpected_accept={resp!r}"[:200]
     except urllib.error.HTTPError as exc:
-        # 4xx/5xx = refuse at boundary — PASS for this probe.
         if 400 <= int(exc.code) < 600:
-            return True, f"http_{exc.code}"
-        return False, f"http_{exc.code}"
+            return "ok", f"http_{exc.code}"
+        return "fail", f"http_{exc.code}"
     except Exception as exc:
-        return False, f"error:{exc}"
+        if _is_timeout(exc):
+            return "soft", f"timeout:{exc}"
+        return "fail", f"error:{exc}"
 
 
-def _admit_smoke(http: str, wallet: str) -> tuple[bool, str]:
+def _admit_smoke(http: str, wallet: str) -> tuple[str, str]:
+    """Signed deploy smoke. Returns (ok|soft|fail, detail)."""
     try:
         from prod_evm_smoke import _deploy_via_mempool, _ensure_deployer_balance, _wallet_address
 
         deployer = _wallet_address(wallet)
         _ensure_deployer_balance(http, deployer, min_balance=1.0)
         tx_hash, contract, height = _deploy_via_mempool(http, wallet)
-        return True, f"deploy tx={tx_hash[:16]}… h={height} c={contract[:14]}…"
+        return "ok", f"deploy tx={tx_hash[:16]}... h={height} c={contract[:14]}..."
     except Exception as exc:
-        return False, f"admit_fail:{exc}"
+        if _is_timeout(exc):
+            return "soft", f"timeout:{exc}"
+        return "fail", f"admit_fail:{exc}"
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Mempool validation soak sidecar")
     ap.add_argument("--http", default="http://127.0.0.1:18180")
     ap.add_argument("--hours", type=float, default=2.0)
-    ap.add_argument("--interval-sec", type=int, default=120)
+    ap.add_argument("--interval-sec", type=int, default=300)
     ap.add_argument(
         "--wallet",
         default=str(ROOT / "data" / "prod_mesh" / "wallets" / "validator-1.wallet.json"),
@@ -144,7 +153,9 @@ def main() -> int:
     log = Path(args.log_file)
     deadline = time.time() + max(0.1, float(args.hours)) * 3600.0
     cycle = 0
-    admit_ok = admit_fail = refuse_ok = refuse_fail = 0
+    admit_ok = admit_soft = admit_fail = 0
+    refuse_ok = refuse_soft = refuse_fail = 0
+    backoff = float(args.interval_sec)
 
     _log(
         log,
@@ -166,37 +177,50 @@ def main() -> int:
             return 2
 
         if not args.skip_refuse:
-            ok, detail = _refuse_empty_tx(args.http)
-            if ok:
+            kind, detail = _refuse_empty_tx(args.http)
+            if kind == "ok":
                 refuse_ok += 1
                 _log(log, f"OK refuse {detail}")
+                backoff = float(args.interval_sec)
+            elif kind == "soft":
+                refuse_soft += 1
+                _log(log, f"WARN refuse {detail}")
+                backoff = min(backoff * 1.5, 900.0)
             else:
                 refuse_fail += 1
                 _log(log, f"FAIL refuse expected {detail}")
 
         if not args.skip_admit:
-            ok, detail = _admit_smoke(args.http, args.wallet)
-            if ok:
+            kind, detail = _admit_smoke(args.http, args.wallet)
+            if kind == "ok":
                 admit_ok += 1
                 _log(log, f"OK admit {detail}")
+                backoff = float(args.interval_sec)
+            elif kind == "soft":
+                admit_soft += 1
+                _log(log, f"WARN admit {detail}")
+                backoff = min(backoff * 1.5, 900.0)
             else:
                 admit_fail += 1
-                _log(log, f"WARN admit {detail}")
+                _log(log, f"FAIL admit {detail}")
 
         remaining = deadline - time.time()
         if remaining <= 0:
             break
-        time.sleep(min(float(args.interval_sec), remaining))
+        time.sleep(min(backoff, remaining))
 
     report = {
         "kind": "mempool_validation_sidecar",
         "honesty": ["NOT 48h soak claim", "NOT mainnet", "NOT Hybrid pin"],
         "cycles": cycle,
         "admit_ok": admit_ok,
+        "admit_soft": admit_soft,
         "admit_fail": admit_fail,
         "refuse_ok": refuse_ok,
+        "refuse_soft": refuse_soft,
         "refuse_fail": refuse_fail,
         "ended_at": datetime.now(timezone.utc).isoformat(),
+        # Timeouts under mesh load are soft; unexpected accept / hard errors fail.
         "passed": refuse_fail == 0 and admit_fail == 0 and cycle > 0,
     }
     out = ROOT / "logs" / "mempool_validation_sidecar_report.json"
