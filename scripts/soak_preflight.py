@@ -117,12 +117,33 @@ def run_soak_preflight(
             row["p2p_sync_status"] = st.get("p2p_sync_status")
             if str(st.get("deployment_mode", "")).lower() != "prod":
                 warnings.append(f"node{i} deployment_mode={st.get('deployment_mode')!r}")
+            # Cold-start race: one node can briefly show peers=1 while mesh
+            # is still forming (6h relaunch evidence: node3 peers=1 then 2).
             if int(row.get("peers") or 0) < 2:
-                msg = f"node{i} peers={row.get('peers')} (need >=2 for 48h mesh)"
-                if require_wire_probe:
-                    errors.append(msg)
-                else:
-                    warnings.append(msg)
+                peers_ok = False
+                last_peers = int(row.get("peers") or 0)
+                for _attempt in range(1, 6):
+                    time.sleep(3)
+                    try:
+                        st_retry = _api(f"{url}/status?probe=1", timeout=12)
+                        last_peers = int(
+                            st_retry.get("peers", st_retry.get("peer_count", 0)) or 0
+                        )
+                        row["peers"] = last_peers
+                        if st_retry.get("height") is not None:
+                            row["height"] = int(st_retry.get("height", 0) or 0)
+                        if last_peers >= 2:
+                            peers_ok = True
+                            row["peers_retry"] = _attempt
+                            break
+                    except OSError:
+                        continue
+                if not peers_ok:
+                    msg = f"node{i} peers={last_peers} (need >=2 for 48h mesh)"
+                    if require_wire_probe:
+                        errors.append(msg)
+                    else:
+                        warnings.append(msg)
             consist = st.get("state_consistent")
             if consist is False:
                 msg = f"node{i} state_consistent=false"

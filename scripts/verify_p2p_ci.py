@@ -165,7 +165,9 @@ def verify_health_ready_mesh(
     need = max(1, int(cycles))
     green = 0
     attempts = 0
-    max_attempts = max(need * 5, need + 2)
+    # Cold KeepVolumes restart: node2/3 can flap /health/ready for >15 attempts
+    # while peers_alive already true (6h soak relaunch evidence). Allow longer settle.
+    max_attempts = max(need * 12, need + 8)
     while green < need and attempts < max_attempts:
         attempts += 1
         if attempts > 1:
