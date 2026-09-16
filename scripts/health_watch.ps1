@@ -113,7 +113,18 @@ while ($true) {
         if ($unreliableTip) { $line = "$line mesh_exclude=1" }
         # Solo is expected for single-node lab soaks (Long-Range :29080); warn only on multi-node mesh.
         $soloExpected = (-not $ProdMesh) -and ($Ports.Count -eq 1) -and ($p2pStr -eq "solo")
-        $p2pWarn = (($p2pStr -in @("solo", "under_mesh", "stale", "inconsistent")) -and (-not $soloExpected))
+        # tip_skew (<=2 height) is tip-v2 mine-window noise — not WARN.
+        # tip_lagging / inconsistent / under_mesh / solo / stale still WARN.
+        $p2pWarn = (
+            ($p2pStr -in @(
+                "solo",
+                "under_mesh",
+                "under_mesh_lagging",
+                "stale",
+                "inconsistent",
+                "tip_lagging"
+            )) -and (-not $soloExpected)
+        )
         # Wave G: demote is soft-WARN only (never hard_fail / soak score).
         $demoteWarn = $false
         try { $demoteWarn = [bool]$r.MempoolDemoted } catch { $demoteWarn = $false }

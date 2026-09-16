@@ -703,7 +703,13 @@ def _derive_p2p_sync_status(
     deployment_mode: str,
     mesh_min_peers: int,
 ) -> str:
-    """Human-readable mesh sync state for dashboard and audits."""
+    """Human-readable mesh sync state for dashboard and audits.
+
+    Tip-height skew while state_consistent remains true is *not* a fork —
+    tip-v2 mine ticks routinely show peer_gap 1–2 (6h mempool STRICT soak:
+    95× false ``inconsistent`` WARNs with mesh always aligned). Reserve
+    ``inconsistent`` for ``state_consistent=False`` only.
+    """
     mesh_need = max(2, int(mesh_min_peers or 0))
     mode = (deployment_mode or "dev").strip().lower()
     if peer_count <= 0:
@@ -716,9 +722,12 @@ def _derive_p2p_sync_status(
         return "aligned"
     if peer_gap > 20:
         return "catching_up"
-    if not state_consistent or peer_gap > 0:
+    if not state_consistent:
         return "inconsistent"
-    return "aligned"
+    # state_consistent + small height skew: mining-window honesty label.
+    if peer_gap <= 2:
+        return "tip_skew"
+    return "tip_lagging"
 
 
 def _qs_truthy(qs: dict, key: str) -> bool:

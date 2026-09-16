@@ -62,6 +62,28 @@ def test_derive_p2p_sync_status_helpers():
         peer_count=3, peer_gap=0, state_consistent=True,
         deployment_mode="prod", mesh_min_peers=2,
     ) == "aligned"
+    # tip-v2 mine window: gap 1–2 + consistent → tip_skew, not inconsistent
+    assert _derive_p2p_sync_status(
+        peer_count=2, peer_gap=1, state_consistent=True,
+        deployment_mode="prod", mesh_min_peers=2,
+    ) == "tip_skew"
+    assert _derive_p2p_sync_status(
+        peer_count=2, peer_gap=2, state_consistent=True,
+        deployment_mode="prod", mesh_min_peers=2,
+    ) == "tip_skew"
+    assert _derive_p2p_sync_status(
+        peer_count=2, peer_gap=5, state_consistent=True,
+        deployment_mode="prod", mesh_min_peers=2,
+    ) == "tip_lagging"
+    # Real fork / root mismatch keeps inconsistent
+    assert _derive_p2p_sync_status(
+        peer_count=2, peer_gap=0, state_consistent=False,
+        deployment_mode="prod", mesh_min_peers=2,
+    ) == "inconsistent"
+    assert _derive_p2p_sync_status(
+        peer_count=2, peer_gap=1, state_consistent=False,
+        deployment_mode="prod", mesh_min_peers=2,
+    ) == "inconsistent"
 
 
 def test_bridge_disabled_reason_mainnet_v1(monkeypatch):
