@@ -14,6 +14,7 @@ __all__ = [
     "StorageCorruptionError",
     "StorageFullError",
     "StorageUnavailableError",
+    "PersistError",
     "StorageConflictError",
     "BlockRecord",
     "AccountRecord",
@@ -45,6 +46,10 @@ class StorageFullError(StorageError):
 
 class StorageUnavailableError(StorageError):
     """Engine closed, I/O failure, or temporarily unavailable."""
+
+
+class PersistError(StorageUnavailableError):
+    """Hot-path write failed — fail-closed; never soft ``False`` to callers."""
 
 
 class StorageConflictError(StorageError):

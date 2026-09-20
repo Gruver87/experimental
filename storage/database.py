@@ -634,15 +634,23 @@ class Database:
     # ── Блоки ────────────────────────────────────────────────────────────────
 
     def save_block(self, block: Dict) -> bool:
+        """Persist block body. Raises PersistError on failure (fail-closed)."""
+        from storage.types import PersistError
+
         with self.lock:
             try:
                 self._insert_block(block)
                 self.conn.commit()
                 return True
+            except PersistError:
+                raise
             except Exception as e:
                 self.conn.rollback()
                 print(f"[DB] save_block error: {e}")
-                return False
+                raise PersistError(
+                    f"save_block failed: {e}",
+                    reason_code="persist_failed",
+                ) from e
 
     def _insert_block(self, block: Dict) -> None:
         from runtime.amount import money_abs
@@ -700,17 +708,25 @@ class Database:
         burned_amount: float = 0.0,
         burn_address: str = "",
     ) -> bool:
-        """Атомарно сохраняет блок, транзакции и статистику сжигания."""
+        """Atomic block+txs persist. Raises PersistError on failure (fail-closed)."""
+        from storage.types import PersistError
+
         with self.lock:
             try:
                 self.conn.execute("BEGIN IMMEDIATE")
                 self._persist_block_locked(block, transactions, burned_amount, burn_address)
                 self.conn.commit()
                 return True
+            except PersistError:
+                self.conn.rollback()
+                raise
             except Exception as e:
                 self.conn.rollback()
                 print(f"[DB] persist_block_atomic error: {e}")
-                return False
+                raise PersistError(
+                    f"persist_block_atomic failed: {e}",
+                    reason_code="persist_failed",
+                ) from e
 
     def _persist_block_locked(
         self,
@@ -1357,15 +1373,23 @@ class Database:
             ]
 
     def save_transaction(self, tx: Dict) -> bool:
+        """Persist tx row. Raises PersistError on failure (fail-closed)."""
+        from storage.types import PersistError
+
         with self.lock:
             try:
                 self._insert_transaction(tx)
                 self.conn.commit()
                 return True
+            except PersistError:
+                raise
             except Exception as e:
                 self.conn.rollback()
                 print(f"[DB] save_transaction error: {e}")
-                return False
+                raise PersistError(
+                    f"save_transaction failed: {e}",
+                    reason_code="persist_failed",
+                ) from e
 
     def get_transaction(self, tx_hash: str) -> Optional[Dict]:
         with self.lock:

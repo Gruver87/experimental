@@ -39,6 +39,8 @@ __all__ = ["RocksDBStorageAdapter", "map_engine_error"]
 
 def map_engine_error(exc: BaseException) -> StorageError:
     """Map OS / Rocks / decode failures to typed storage errors."""
+    if isinstance(exc, StorageError):
+        return exc
     msg = str(exc or type(exc).__name__)
     low = msg.lower()
     en = getattr(exc, "errno", None)
@@ -836,9 +838,15 @@ class RocksDBStorageAdapter:
 
     def save_block(self, block: Mapping[str, Any]) -> bool:
         try:
-            return bool(self._store.save_block(dict(block)))
+            ok = bool(self._store.save_block(dict(block)))
         except Exception as exc:
             raise map_engine_error(exc) from exc
+        if not ok:
+            raise StorageUnavailableError(
+                "save_block returned False",
+                reason_code="persist_failed",
+            )
+        return True
 
     def truncate_all_blocks(self) -> None:
         try:

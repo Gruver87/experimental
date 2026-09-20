@@ -4991,6 +4991,17 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("mempool get_stats must expose store_backend (ADR 0021 phase-2)")
         if "fee_satoshi" not in mempool_py or "min_fee_satoshi" not in mempool_py:
             errors.append("mempool must dual-write fee_satoshi / min_fee_satoshi (Wave A)")
+        types_py = (ROOT / "storage" / "types.py").read_text(encoding="utf-8", errors="replace")
+        if "class PersistError" not in types_py:
+            errors.append("storage.types must define PersistError (persist fail-closed)")
+        for rel, label in (
+            ("storage/rocks_store.py", "rocks_store"),
+            ("storage/database.py", "database"),
+            ("storage/chain_storage.py", "chain_storage"),
+        ):
+            src = (ROOT / rel).read_text(encoding="utf-8", errors="replace")
+            if "raise PersistError" not in src:
+                errors.append(f"{label} must raise PersistError on hot persist failure")
         wire_py = (ROOT / "blockchain" / "mempool_wire.py").read_text(
             encoding="utf-8", errors="replace"
         )
