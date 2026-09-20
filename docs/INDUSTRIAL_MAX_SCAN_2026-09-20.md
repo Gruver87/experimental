@@ -10,13 +10,20 @@ Phases **1–4 closed** with real 48h packs (`3c801b87`, `lr48pass1`, `evm48pass
 
 ## Landed this polish wave
 
-| Fix | Why |
-|-----|-----|
-| `main.py` PQ boot string | Removed stale `Dilithium=hash-demo` (Wave I is NotImplemented) |
-| `runtime/config.py` sprout defaults | `feature_*` sprouts default **False** (ADR 0016 fail-closed) |
-| `features/__init__.py` FeatureFlags | Same OFF defaults + getattr fallbacks |
-| `node.industrial.json` / `node2.industrial.json` | Bridge OFF, oracles OFF, L1 proof required if bridge armed; honesty name |
+| Fix | Why | Stub-scan IDs |
+|-----|-----|---------------|
+| `main.py` PQ boot string | Removed stale `Dilithium=hash-demo` (Wave I is NotImplemented) | #21 |
+| `runtime/config.py` sprout defaults | `feature_*` sprouts default **False** (ADR 0016 fail-closed) | #12 |
+| `features/__init__.py` FeatureFlags | Same OFF defaults + getattr fallbacks | #26 |
+| `node.industrial.json` / `node2.industrial.json` | Bridge OFF, oracles OFF, L1 proof required if bridge armed; honesty name | #11 |
 
+Commit: `7a4ffc9`.
+
+## Cross-check vs deep stub scan
+
+Honesty landmines from the stub/fail-open pass that are **already closed** above: Config/FeatureFlags defaults, industrial JSON, PQ boot string.
+
+Still **open CRITICAL/HIGH** (not in `7a4ffc9`): float ledger/wire/apply (#1–5, #15–17, #27), soft persist False (#8–10), native unwrap/f64 (#6–7, #28), slash best-effort (#18), native demote fallback under require (#19–20), bridge reject swallow (#24), libp2p dial stub honesty (#22). Prod mesh libp2p+TLS-off (#13) is **intentional ADR 0020** — document only, do not “fix” to Hybrid TCP+TLS.
 ## Do **not** claim fixed (deferred / larger)
 
 | Gap | Class | Note |
