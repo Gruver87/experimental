@@ -3,7 +3,7 @@
 **Purpose:** single source of truth for *what runs when*. No step claims PASS unless evidence exists.
 **Rule:** do not start a later phase while an earlier **blocker** is open.
 
-Last updated: 2026-09-13.
+Last updated: 2026-09-20.
 
 ---
 
@@ -13,10 +13,10 @@ Last updated: 2026-09-13.
 |----|---------|----------|-------------|
 | ~~B1~~ | **libp2p 48h soak** | **PASS** [`3c801b87`](evidence/runs/3c801b87/) (`passed=true`, `hard_fails=0`, `mesh_warn=0`, 2026-09-01→03). Prior FAIL `35104db0` · `87f51b3e` stay on record | **Closed.** |
 | ~~B2~~ | **Long-Range** lab 48h | **PASS** [`lr48pass1`](evidence/runs/lr48pass1/) (`passed=true`, `hard_fails=0`, `mesh_warn=0`, ready_only=13 tolerated, tip ~7929→~14770, 2026-09-09→11). Prior FAIL [`lr48fail1`](evidence/runs/lr48fail1/); intensify [`lr2hintensify`](evidence/runs/lr2hintensify/) | **Closed.** |
-| B3 | **Mempool/validation Rust** phases 0–3 + mesh bake + global audit PASS | ADR 0021 · [`adr0021gaudit1`](evidence/runs/adr0021gaudit1/) | Mempool soak only if ordered |
-| — | **Phase 5 labs** oracles / cross-shard / bridge OFF | [`oraclelab1`](evidence/runs/oraclelab1/) · [`shardlab1`](evidence/runs/shardlab1/) · [`bridgeoff1`](evidence/runs/bridgeoff1/) | Prod flags stay false; docker shard mesh optional |
+| ~~B3~~ | **Mempool/validation Rust** phases 0–3 + mesh bake + global audit + STRICT dual-report 48h | ADR 0021 · [`adr0021gaudit1`](evidence/runs/adr0021gaudit1/) · **48h PASS** [`mempool48pass1`](evidence/runs/mempool48pass1/) (2026-09-17→19) | **Closed.** |
+| — | **Phase 5 labs** oracles / cross-shard / bridge OFF | [`oraclelab1`](evidence/runs/oraclelab1/) · [`shardlab1`](evidence/runs/shardlab1/) · [`bridgeoff1`](evidence/runs/bridgeoff1/) | Re-verify host labs; prod flags stay false; docker shard mesh optional |
 
-**Not blockers:** EVM depth lab waves 8–10 (done for now); TCP+TLS 48h PASS (`0a7932c4`); **libp2p 48h PASS (`3c801b87`)**; **Long-Range lab 48h PASS (`lr48pass1`)**; **Phase 3 post-EVM-prep mesh 48h PASS (`evm48pass1`)**.
+**Not blockers:** EVM depth lab waves 8–10 (done for now); TCP+TLS 48h PASS (`0a7932c4`); **libp2p 48h PASS (`3c801b87`)**; **Long-Range lab 48h PASS (`lr48pass1`)**; **Phase 3 post-EVM-prep mesh 48h PASS (`evm48pass1`)**; **mempool+validation STRICT 48h PASS (`mempool48pass1`)**.
 
 ---
 
@@ -92,7 +92,7 @@ Phase 6   External audit / mainnet gap (out of repo scope until scheduled)
 
 **Honesty:** Experimental libp2p prod-profile mesh soak after EVM prep — **not** EVM-only 48h · not full geth · not EIP-4844 · not Long-Range · not BLS · not public mainnet. Distinct from [`3c801b87`](evidence/runs/3c801b87/) (different window/tip).
 
-**Next:** Phase 4 ADR 0021 mempool Rust (phase 1 kernels).
+**Next:** Phase 5 lab re-verify (oracle / cross-shard / bridge-OFF); no prod flag flips.
 
 ---
 
@@ -109,7 +109,11 @@ Phase 6   External audit / mainnet gap (out of repo scope until scheduled)
 
 **4.0 / 4.1 / 4.2 / 4.3 status:** landed on host **and** prod mesh bake (2026-09-13):
 `docker_prod_3node.ps1 -KeepVolumes` → probe OK; container `mempool_store`/`mempool_kernel` = rust;
-`prod_evm_smoke.py` PASS; `evm_mempool_load_harness.py` PASS. **Not** a new 48h soak.
+`prod_evm_smoke.py` PASS; `evm_mempool_load_harness.py` PASS.
+
+**4.soak status:** **PASS** dual-report STRICT 48h 2026-09-17→19 — [`mempool48pass1`](evidence/runs/mempool48pass1/)
+(`hard_fails=0`, `mesh_warn=0`, sidecar admit/refuse fail=0, store=rust demoted=False).
+Prior FAIL 2026-09-13→15 (35) stays on record. **Not** mainnet / **not** Hybrid.
 
 **Invariants (never skip):** sig before DB reads · single mempool (ADR 0016) · remove from pool only after successful import · satoshi integers · solicit-only `MSG_MEMPOOL`.
 
@@ -150,8 +154,8 @@ Other optional depth:
 | libp2p transport | Slices A–DB, 2h smoke, **48h PASS `3c801b87`** | Post-soak WARN hardening (optional) |
 | Long-Range | Waves 1–14 labs + 2h/intensify + **lab 48h PASS** [`lr48pass1`](evidence/runs/lr48pass1/); host pack [`lrlab1`](evidence/runs/lrlab1/) | Prod arm / BLS / mainnet Long-Range |
 | EVM | Waves 8–11 + preflight harness; **Phase 3 mesh 48h PASS** [`evm48pass1`](evidence/runs/evm48pass1/); host depth pack [`evmlab1`](evidence/runs/evmlab1/) | Further COMPAT_MATRIX; EVM-only 48h still optional/not claimed |
-| Mempool Rust | **Phases 0–3 + mesh bake** (ADR 0021, 2026-09-13); **fee_satoshi dual-write** + Wave A admit/max-fee satoshi | Post-bake soak only if ordered; wire ABS fee float cutover still deferred |
-| Oracles / shard / bridge OFF | Lab verify packs [`oraclelab1`](evidence/runs/oraclelab1/) · [`shardlab1`](evidence/runs/shardlab1/) · [`bridgeoff1`](evidence/runs/bridgeoff1/) | Prod arm / L1 bridge cutover / docker shard mesh (optional) |
+| Mempool Rust | **Phases 0–3 + mesh bake** (ADR 0021) + **STRICT dual-report 48h PASS** [`mempool48pass1`](evidence/runs/mempool48pass1/) | Wire ABS fee float cutover still deferred; prod arm of unrelated features stays off |
+| Oracles / shard / bridge OFF | Lab verify packs [`oraclelab1`](evidence/runs/oraclelab1/) · [`shardlab1`](evidence/runs/shardlab1/) · [`bridgeoff1`](evidence/runs/bridgeoff1/); **host re-verify PASS** 2026-09-20 [`phase5reverify1`](evidence/runs/phase5reverify1/) | Prod arm / L1 bridge cutover / docker shard mesh (optional) |
 | Council ADR 0022 | Lab + live staging 778889 genesis 87/87 (2026-08-28) | On-chain signed gov, mainnet, 48h council soak |
 
 ---

@@ -1,0 +1,32 @@
+﻿{
+    "honesty":  [
+                    "NOT bridge ON",
+                    "NOT L1 cutover",
+                    "NOT soak / NOT mainnet",
+                    "bridge OFF PASS != bridge ready"
+                ],
+    "total":  3,
+    "elapsed_sec":  0.2,
+    "passed":  3,
+    "started":  "2026-09-20T20:34:29.2936687+02:00",
+    "phase":  "5.5-bridge-off",
+    "ok":  true,
+    "steps":  [
+                  {
+                      "ok":  true,
+                      "name":  "bridge_off_audit_gate",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "prod_mesh_bridge_enabled_false",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "compose_bridge_enabled_default_false",
+                      "exit_code":  0
+                  }
+              ],
+    "fail_count":  0
+}

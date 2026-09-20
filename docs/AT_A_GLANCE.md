@@ -65,7 +65,7 @@ Full map: [ARCHITECTURE § R&D execution chain](ARCHITECTURE.md#rd-execution-cha
 
 ## Next click
 
-- **Execution order (what when):** [EXECUTION_ORDER.md](EXECUTION_ORDER.md) — Phase 4 closed; Phase 5 labs `oraclelab1` / `shardlab1` / `bridgeoff1`; EVM depth `evmlab1`; soak only if ordered
+- **Execution order (what when):** [EXECUTION_ORDER.md](EXECUTION_ORDER.md) — Phases 1–4 closed (incl. [`mempool48pass1`](evidence/runs/mempool48pass1/)); Phase 5 labs re-verified 2026-09-20 (`oraclelab1` / `shardlab1` / `bridgeoff1` host verifies PASS, prod flags off); optional docker shard mesh / EVM depth / Phase 6 audit only if ordered
 - Hybrid pin (do not break): [Ultimate Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid)
 - Contribute: [CONTRIBUTING](../CONTRIBUTING.md)
 - GitHub About: [REPO_PROFILE](../.github/REPO_PROFILE.md)

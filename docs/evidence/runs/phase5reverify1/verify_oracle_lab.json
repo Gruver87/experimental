@@ -1,0 +1,36 @@
+﻿{
+    "honesty":  [
+                    "NOT soak",
+                    "NOT feature_oracles on prod 778888",
+                    "aux SQLite lab only"
+                ],
+    "total":  4,
+    "elapsed_sec":  10.1,
+    "passed":  4,
+    "started":  "2026-09-20T20:34:18.5522380+02:00",
+    "phase":  "5.2-oracle-lab",
+    "ok":  true,
+    "steps":  [
+                  {
+                      "ok":  true,
+                      "name":  "oracle_lab.py",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "pytest_wave39_oracle",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "prod_mesh_feature_oracles_false",
+                      "exit_code":  0
+                  },
+                  {
+                      "ok":  true,
+                      "name":  "industrial_gate_oracle_needle",
+                      "exit_code":  0
+                  }
+              ],
+    "fail_count":  0
+}
