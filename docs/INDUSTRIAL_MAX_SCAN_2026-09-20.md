@@ -43,14 +43,14 @@ Commit: `7a4ffc9`.
 
 Honesty landmines from the stub/fail-open pass that are **already closed** above: Config/FeatureFlags defaults, industrial JSON, PQ boot string, **wire fee/amount satoshi cutover**.
 
-Still **open CRITICAL/HIGH**: native unwrap/f64 (#6–7, #28), slash best-effort (#18), native demote fallback under require (#19–20), bridge reject swallow (#24), libp2p dial stub honesty (#22). Soft persist False (#8–10) **closed** via `PersistError`. Residual float on apply/display edges (#15–17 subset) is dual-write display — not wire authority. Prod mesh libp2p+TLS-off (#13) is **intentional ADR 0020** — document only, do not “fix” to Hybrid TCP+TLS.
+Still **open CRITICAL/HIGH**: slash best-effort (#18), native demote fallback under require (#19–20), bridge reject swallow (#24), libp2p dial stub honesty (#22). Soft persist False (#8–10) **closed** via `PersistError`. Native f64/unwrap (#6–7, #28) **closed** (amount + writeback). Residual float on apply/display edges (#15–17 subset) is dual-write display — not wire authority. Prod mesh libp2p+TLS-off (#13) is **intentional ADR 0020** — document only, do not “fix” to Hybrid TCP+TLS.
 
 ## Do **not** claim fixed (deferred / larger)
 
 | Gap | Class | Note |
 |-----|-------|------|
 | Soft `return False` on persist (`rocks_store` / SQLite / chain_storage) | **Closed 2026-09-20** | Hot writes raise `PersistError`; ops `backup_to` still soft-bool |
-| Rust `amount.rs` / EVM writeback `f64` + some `.unwrap()` | **P0 native** | Needs typed refuse, not panic |
+| Rust `amount.rs` / EVM writeback `f64` + some `.unwrap()` | **Closed 2026-09-20** | Decimal fee plan; refuse float `*_satoshi`; writeback via `from_satoshi_float_inner`; map get → typed refuse |
 | Long-Range **prod** / BLS / tip-proof | **Park** | Lab 48h only; `feature_long_range=false` on 778888 |
 | Bridge L1 enable | **Park** | Stay OFF until audited contracts |
 | Full EVM / EIP-4844 / WS subscribe | **Optional** | Subset + mesh soak already proven |
@@ -63,6 +63,6 @@ Experimental `docker/node.prod.mesh*.json`: `feature_libp2p=true`, `feature_long
 
 ## Next ordered polish (if operator continues)
 
-1. Native amount/EVM writeback typed errors
-2. Optional tip-safety-enforce soak claim (or keep docs: gate/lab only)
-3. Phase 6 audit only when scheduled
+1. Optional tip-safety-enforce soak claim (or keep docs: gate/lab only)
+2. Phase 6 audit only when scheduled
+3. Remaining HIGH honesty: slash best-effort / demote-under-require / bridge reject swallow / libp2p dial stub

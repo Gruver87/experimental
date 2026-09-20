@@ -4994,6 +4994,18 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         types_py = (ROOT / "storage" / "types.py").read_text(encoding="utf-8", errors="replace")
         if "class PersistError" not in types_py:
             errors.append("storage.types must define PersistError (persist fail-closed)")
+        amt_rs = (ROOT / "native" / "abs_native" / "src" / "amount.rs").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        wb_rs = (ROOT / "native" / "abs_native" / "src" / "evm_writeback.rs").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "must be integer satoshi" not in amt_rs:
+            errors.append("amount.rs must refuse float satoshi fields (native hygiene)")
+        if "to_f64().unwrap_or(0.0)" in amt_rs:
+            errors.append("amount.rs must not paint satoshi→float failure as 0.0")
+        if "f * 1_000_000.0" in wb_rs or "(sat as f64) / 1_000_000.0" in wb_rs:
+            errors.append("evm_writeback must not use IEEE×1e6 money path")
         for rel, label in (
             ("storage/rocks_store.py", "rocks_store"),
             ("storage/database.py", "database"),

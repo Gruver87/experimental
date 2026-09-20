@@ -260,7 +260,7 @@ pub fn evm_plan_create_writeback_py(
 fn ensure_account_obj<'a>(
     accounts: &'a mut Map<String, Value>,
     address: &str,
-) -> &'a mut Map<String, Value> {
+) -> PyResult<&'a mut Map<String, Value>> {
     if !accounts.contains_key(address) {
         let mut row = Map::new();
         row.insert("address".into(), Value::String(address.to_string()));
@@ -274,21 +274,53 @@ fn ensure_account_obj<'a>(
     accounts
         .get_mut(address)
         .and_then(|v| v.as_object_mut())
-        .expect("account object")
+        .ok_or_else(|| {
+            pyo3::exceptions::PyRuntimeError::new_err("account object missing after insert")
+        })
 }
 
-fn account_satoshi(row: &Map<String, Value>) -> i64 {
-    row.get("balance_satoshi")
-        .and_then(|v| v.as_i64())
-        .or_else(|| {
-            row.get("balance").and_then(|v| match v {
-                Value::Number(n) => n.as_f64().map(|f| (f * 1_000_000.0) as i64),
-                Value::String(s) => crate::amount::to_satoshi_inner(s).ok(),
-                _ => None,
-            })
-        })
-        .unwrap_or(0)
-        .max(0)
+fn abs_number_to_satoshi(v: &Value) -> PyResult<i64> {
+    match v {
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                // Ambiguous legacy: prefer treating whole numbers via Decimal ABS path.
+                crate::amount::to_satoshi_inner(&i.to_string())
+            } else if let Some(u) = n.as_u64() {
+                crate::amount::to_satoshi_inner(&u.to_string())
+            } else if let Some(f) = n.as_f64() {
+                if !f.is_finite() || f < 0.0 {
+                    return Err(pyo3::exceptions::PyValueError::new_err(
+                        "non_finite_balance",
+                    ));
+                }
+                crate::amount::to_satoshi_inner(&format!("{f}"))
+            } else {
+                Ok(0)
+            }
+        }
+        Value::String(s) => crate::amount::to_satoshi_inner(s),
+        _ => Ok(0),
+    }
+}
+
+fn account_satoshi(row: &Map<String, Value>) -> PyResult<i64> {
+    if let Some(v) = row.get("balance_satoshi") {
+        if let Some(i) = v.as_i64() {
+            return Ok(i.max(0));
+        }
+        if let Some(u) = v.as_u64() {
+            return Ok(i64::try_from(u).unwrap_or(i64::MAX).max(0));
+        }
+        if v.as_f64().is_some() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "balance_satoshi must be integer (not float)",
+            ));
+        }
+    }
+    if let Some(v) = row.get("balance") {
+        return abs_number_to_satoshi(v).map(|s| s.max(0));
+    }
+    Ok(0)
 }
 
 fn wei_to_satoshi(value_wei: i64) -> i64 {
@@ -296,11 +328,12 @@ fn wei_to_satoshi(value_wei: i64) -> i64 {
     (value_wei.max(0) as i128 / 1_000_000_000_000i128) as i64
 }
 
-fn set_balance_sat(row: &mut Map<String, Value>, sat: i64) {
+fn set_balance_sat(row: &mut Map<String, Value>, sat: i64) -> PyResult<()> {
     let sat = sat.max(0);
     row.insert("balance_satoshi".into(), Value::Number(Number::from(sat)));
-    let bal = (sat as f64) / 1_000_000.0;
+    let bal = crate::amount::from_satoshi_float_inner(sat)?;
     row.insert("balance".into(), serde_json::json!(bal));
+    Ok(())
 }
 
 /// Apply writeback ops to an in-memory accounts map (v1.3.61).
@@ -370,7 +403,7 @@ pub fn evm_apply_writeback_ops_py(accounts_json: String, ops_json: String) -> Py
                     Value::String(s) => s.clone(),
                     _ => "{}".into(),
                 };
-                let row = ensure_account_obj(&mut accounts, &addr);
+                let row = ensure_account_obj(&mut accounts, &addr)?;
                 row.insert("storage".into(), Value::String(storage_str));
                 if !touched.contains(&addr) {
                     touched.push(addr);
@@ -400,22 +433,28 @@ pub fn evm_apply_writeback_ops_py(accounts_json: String, ops_json: String) -> Py
                     }
                     _ => "{}".into(),
                 };
-                let bal_sat = op
-                    .get("balance_satoshi")
-                    .and_then(|v| v.as_i64())
-                    .or_else(|| {
-                        op.get("balance").and_then(|v| match v {
-                            Value::Number(n) => n.as_f64().map(|f| (f * 1_000_000.0) as i64),
-                            _ => None,
-                        })
-                    })
-                    .unwrap_or(0)
-                    .max(0);
-                let row = ensure_account_obj(&mut accounts, &addr);
+                let bal_sat = if let Some(v) = op.get("balance_satoshi") {
+                    if let Some(i) = v.as_i64() {
+                        i.max(0)
+                    } else if let Some(u) = v.as_u64() {
+                        i64::try_from(u).unwrap_or(i64::MAX).max(0)
+                    } else if v.as_f64().is_some() {
+                        return Err(pyo3::exceptions::PyValueError::new_err(
+                            "balance_satoshi must be integer (not float)",
+                        ));
+                    } else {
+                        0
+                    }
+                } else if let Some(v) = op.get("balance") {
+                    abs_number_to_satoshi(v)?.max(0)
+                } else {
+                    0
+                };
+                let row = ensure_account_obj(&mut accounts, &addr)?;
                 row.insert("code".into(), Value::String(code));
                 row.insert("nonce".into(), Value::Number(Number::from(nonce)));
                 row.insert("storage".into(), Value::String(storage));
-                set_balance_sat(row, bal_sat);
+                set_balance_sat(row, bal_sat)?;
                 if !touched.contains(&addr) {
                     touched.push(addr);
                 }
@@ -449,19 +488,19 @@ pub fn evm_apply_writeback_ops_py(accounts_json: String, ops_json: String) -> Py
                     continue;
                 }
                 {
-                    let row = ensure_account_obj(&mut accounts, &from);
-                    let cur = account_satoshi(row);
+                    let row = ensure_account_obj(&mut accounts, &from)?;
+                    let cur = account_satoshi(row)?;
                     if cur < sat {
                         return Err(pyo3::exceptions::PyValueError::new_err(
                             "insufficient_writeback_value",
                         ));
                     }
-                    set_balance_sat(row, cur - sat);
+                    set_balance_sat(row, cur - sat)?;
                 }
                 {
-                    let row = ensure_account_obj(&mut accounts, &to);
-                    let cur = account_satoshi(row);
-                    set_balance_sat(row, cur.saturating_add(sat));
+                    let row = ensure_account_obj(&mut accounts, &to)?;
+                    let cur = account_satoshi(row)?;
+                    set_balance_sat(row, cur.saturating_add(sat))?;
                 }
                 if !touched.contains(&from) {
                     touched.push(from);

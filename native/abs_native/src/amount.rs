@@ -36,12 +36,58 @@ pub(crate) fn apply_delta_satoshi_inner(current_sat: i64, delta_abs: &str) -> Py
     Ok((current_sat.saturating_add(delta)).max(0))
 }
 
-fn from_satoshi_float_inner(satoshi: i64) -> f64 {
+pub(crate) fn from_satoshi_float_inner(satoshi: i64) -> PyResult<f64> {
     let d = Decimal::from(satoshi) / Decimal::from(SATOSHI_MULTIPLIER);
-    d.to_f64().unwrap_or(0.0)
+    d.to_f64().ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err("satoshi_to_float_failed")
+    })
+}
+
+/// Parse integer satoshi JSON; refuse IEEE float satoshi fields (fail-closed).
+fn json_satoshi_int(v: &Value, field: &str) -> PyResult<i64> {
+    match v {
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Ok(i.max(0))
+            } else if let Some(u) = n.as_u64() {
+                Ok(i64::try_from(u).unwrap_or(i64::MAX).max(0))
+            } else {
+                Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "{field} must be integer satoshi (not float)"
+                )))
+            }
+        }
+        Value::String(s) => {
+            let t = s.trim();
+            if t.contains('.') || t.contains('e') || t.contains('E') {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "{field} must be integer satoshi string"
+                )));
+            }
+            t.parse::<i64>()
+                .map(|i| i.max(0))
+                .map_err(|_| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "{field} must be integer satoshi"
+                    ))
+                })
+        }
+        Value::Null => Ok(0),
+        _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "{field} must be integer satoshi"
+        ))),
+    }
 }
 
 fn account_balance(acc: &Value) -> i64 {
+    if let Some(v) = acc.get("balance_satoshi") {
+        return v
+            .as_i64()
+            .or_else(|| v.as_u64().map(|u| u as i64))
+            .unwrap_or(0)
+            .max(0);
+    }
+    // StateEngine legacy: ``balance`` held satoshi integers.
     acc.get("balance")
         .and_then(|v| v.as_i64())
         .or_else(|| {
@@ -62,15 +108,22 @@ fn account_nonce(acc: &Value) -> i64 {
 
 fn empty_account() -> Value {
     let mut row = Map::new();
+    row.insert("balance_satoshi".to_string(), Value::Number(0.into()));
     row.insert("balance".to_string(), Value::Number(0.into()));
     row.insert("nonce".to_string(), Value::Number(0.into()));
     Value::Object(row)
 }
 
-fn set_account_balance(acc: &mut Value, balance: i64, nonce: i64) {
-    let obj = acc.as_object_mut().expect("account object");
-    obj.insert("balance".to_string(), Value::Number(balance.into()));
+fn set_account_balance(acc: &mut Value, balance: i64, nonce: i64) -> PyResult<()> {
+    let obj = acc.as_object_mut().ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err("account row must be object")
+    })?;
+    let bal = balance.max(0);
+    obj.insert("balance_satoshi".to_string(), Value::Number(bal.into()));
+    // StateEngine legacy field: satoshi integer (not ABS float).
+    obj.insert("balance".to_string(), Value::Number(bal.into()));
     obj.insert("nonce".to_string(), Value::Number(nonce.into()));
+    Ok(())
 }
 
 fn tx_amount_sat(tx: &Value) -> PyResult<i64> {
@@ -78,12 +131,7 @@ fn tx_amount_sat(tx: &Value) -> PyResult<i64> {
         .as_object()
         .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("tx must be object"))?;
     if let Some(v) = obj.get("amount_satoshi") {
-        let sat = v
-            .as_i64()
-            .or_else(|| v.as_u64().map(|u| u as i64))
-            .or_else(|| v.as_f64().map(|f| f as i64))
-            .unwrap_or(0);
-        return Ok(sat.max(0));
+        return json_satoshi_int(v, "amount_satoshi");
     }
     let amount = obj
         .get("amount")
@@ -97,7 +145,12 @@ fn tx_amount_sat(tx: &Value) -> PyResult<i64> {
             } else if let Some(u) = n.as_u64() {
                 to_satoshi_inner(&u.to_string())
             } else if let Some(f) = n.as_f64() {
-                to_satoshi_inner(&f.to_string())
+                if !f.is_finite() {
+                    return Err(pyo3::exceptions::PyValueError::new_err(
+                        "non_finite_amount",
+                    ));
+                }
+                to_satoshi_inner(&format!("{f}"))
             } else {
                 Ok(0)
             }
@@ -112,12 +165,7 @@ fn tx_fee_sat(tx: &Value) -> PyResult<i64> {
         .as_object()
         .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("tx must be object"))?;
     if let Some(v) = obj.get("fee_satoshi") {
-        let sat = v
-            .as_i64()
-            .or_else(|| v.as_u64().map(|u| u as i64))
-            .or_else(|| v.as_f64().map(|f| f as i64))
-            .unwrap_or(0);
-        return Ok(sat.max(0));
+        return json_satoshi_int(v, "fee_satoshi");
     }
     let fee = obj.get("fee").cloned().unwrap_or(Value::Number(0.into()));
     match fee {
@@ -128,7 +176,10 @@ fn tx_fee_sat(tx: &Value) -> PyResult<i64> {
             } else if let Some(u) = n.as_u64() {
                 to_satoshi_inner(&u.to_string())
             } else if let Some(f) = n.as_f64() {
-                to_satoshi_inner(&f.to_string())
+                if !f.is_finite() {
+                    return Err(pyo3::exceptions::PyValueError::new_err("non_finite_fee"));
+                }
+                to_satoshi_inner(&format!("{f}"))
             } else {
                 Ok(0)
             }
@@ -160,8 +211,16 @@ fn apply_one_tx(accounts: &mut BTreeMap<String, Value>, tx: &Value) -> PyResult<
     if !accounts.contains_key(&from_addr) {
         accounts.insert(from_addr.clone(), empty_account());
     }
-    let from_bal = account_balance(accounts.get(&from_addr).unwrap());
-    let from_nonce = account_nonce(accounts.get(&from_addr).unwrap());
+    let from_bal = account_balance(
+        accounts
+            .get(&from_addr)
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("missing_from_account"))?,
+    );
+    let from_nonce = account_nonce(
+        accounts
+            .get(&from_addr)
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("missing_from_account"))?,
+    );
     let total = amount_sat.saturating_add(fee_sat);
     if from_bal < total {
         return Err(pyo3::exceptions::PyRuntimeError::new_err(format!(
@@ -179,17 +238,21 @@ fn apply_one_tx(accounts: &mut BTreeMap<String, Value>, tx: &Value) -> PyResult<
     }
 
     {
-        let from = accounts.get_mut(&from_addr).unwrap();
-        set_account_balance(from, from_bal - total, from_nonce + 1);
+        let from = accounts
+            .get_mut(&from_addr)
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("missing_from_account"))?;
+        set_account_balance(from, from_bal - total, from_nonce + 1)?;
     }
     if !accounts.contains_key(&to_addr) {
         accounts.insert(to_addr.clone(), empty_account());
     }
     {
-        let to = accounts.get_mut(&to_addr).unwrap();
+        let to = accounts
+            .get_mut(&to_addr)
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("missing_to_account"))?;
         let to_bal = account_balance(to);
         let to_nonce = account_nonce(to);
-        set_account_balance(to, to_bal + amount_sat, to_nonce);
+        set_account_balance(to, to_bal + amount_sat, to_nonce)?;
     }
     Ok(())
 }
@@ -231,7 +294,7 @@ fn amount_apply_delta_satoshi(current_sat: i64, delta_abs: String) -> PyResult<i
 
 #[pyfunction]
 fn amount_from_satoshi_float(satoshi: i64) -> PyResult<f64> {
-    Ok(from_satoshi_float_inner(satoshi))
+    from_satoshi_float_inner(satoshi)
 }
 
 /// L1 transfer fee split matching Python float math:
@@ -255,10 +318,10 @@ fn plan_transfer_fees(
         gas_used,
     )?;
     Ok((
-        from_satoshi_float_inner(fee_s),
-        from_satoshi_float_inner(burned_s),
-        from_satoshi_float_inner(miner_s),
-        from_satoshi_float_inner(total_s),
+        from_satoshi_float_inner(fee_s)?,
+        from_satoshi_float_inner(burned_s)?,
+        from_satoshi_float_inner(miner_s)?,
+        from_satoshi_float_inner(total_s)?,
     ))
 }
 
@@ -269,31 +332,40 @@ fn plan_transfer_fees_satoshi_inner(
     value: &str,
     gas_used: Option<u64>,
 ) -> PyResult<(i64, i64, i64, i64)> {
-    let gp = to_satoshi_inner(gas_price_wei).unwrap_or(0);
-    // gas_price may be fractional ABS (< 1 sat); compute fee via Decimal-scale string path.
-    // Prefer: fee_sat = to_satoshi(gas * gas_price_abs) using full string multiply in Python;
-    // here approximate with to_satoshi of (gas as string * price string) via f64 only for tiny prices.
-    let gp_f: f64 = gas_price_wei
-        .parse()
-        .map_err(|_| pyo3::exceptions::PyValueError::new_err("invalid_gas_price"))?;
-    let br_f: f64 = burn_rate
-        .parse()
-        .map_err(|_| pyo3::exceptions::PyValueError::new_err("invalid_burn_rate"))?;
-    if !gp_f.is_finite() || !br_f.is_finite() || gp_f < 0.0 || br_f < 0.0 {
+    let gp = decimal_from_amount(gas_price_wei)?;
+    let br = decimal_from_amount(burn_rate)?;
+    if gp.is_sign_negative() || br.is_sign_negative() {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "non_finite_fee_inputs",
         ));
     }
-    let mut fee_abs = (gas as f64) * gp_f;
+    let gas_d = Decimal::from(gas);
+    let mut fee_abs = gas_d * gp;
     if let Some(used) = gas_used {
-        fee_abs = fee_abs.max((used as f64) * gp_f);
+        let used_fee = Decimal::from(used) * gp;
+        if used_fee > fee_abs {
+            fee_abs = used_fee;
+        }
     }
-    let fee_sat = to_satoshi_inner(&format!("{fee_abs}"))?;
-    let rate = br_f.clamp(0.0, 1.0);
-    let burned_sat = ((fee_sat as f64) * rate).floor() as i64;
+    let fee_scaled = (fee_abs * Decimal::from(SATOSHI_MULTIPLIER))
+        .round_dp_with_strategy(0, RoundingStrategy::ToZero);
+    let fee_sat = fee_scaled.to_i64().ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err("fee_satoshi out of i64 range")
+    })?;
+    let rate = if br > Decimal::ONE {
+        Decimal::ONE
+    } else if br.is_sign_negative() {
+        Decimal::ZERO
+    } else {
+        br
+    };
+    let burned_dec = (Decimal::from(fee_sat) * rate)
+        .round_dp_with_strategy(0, RoundingStrategy::ToZero);
+    let burned_sat = burned_dec.to_i64().ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err("burned_satoshi out of i64 range")
+    })?;
     let miner_sat = fee_sat - burned_sat;
     let value_sat = to_satoshi_inner(value)?;
-    let _ = gp; // silence when price < 1 sat
     Ok((fee_sat, burned_sat, miner_sat, value_sat + fee_sat))
 }
 
@@ -401,29 +473,48 @@ fn apply_simple_transfer_with_fees(
         .or_else(|| obj.get("amount"))
         .cloned()
         .unwrap_or(Value::Number(0.into()));
-    let value_f = match &value_abs {
-        Value::Number(n) => n.as_f64().unwrap_or(0.0),
-        Value::String(s) => s.parse::<f64>().unwrap_or(0.0),
-        _ => 0.0,
+    let value_str = match &value_abs {
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                i.to_string()
+            } else if let Some(u) = n.as_u64() {
+                u.to_string()
+            } else if let Some(f) = n.as_f64() {
+                if !f.is_finite() {
+                    return Err(pyo3::exceptions::PyValueError::new_err(
+                        "non_finite_value",
+                    ));
+                }
+                format!("{f}")
+            } else {
+                "0".to_string()
+            }
+        }
+        Value::String(s) => s.clone(),
+        _ => "0".to_string(),
     };
     let gas = obj
         .get("gas")
         .and_then(|v| v.as_u64().or_else(|| v.as_i64().map(|i| i as u64)))
         .unwrap_or(21_000);
 
-    let (fee, burned, miner_fee, total_cost) =
-        plan_transfer_fees(gas, gas_price_wei, burn_rate, value_f, None)?;
-    let value_sat = to_satoshi_inner(&value_f.to_string())?;
-    let fee_sat = to_satoshi_inner(&fee.to_string())?;
-    let burned_sat = to_satoshi_inner(&burned.to_string())?;
-    let miner_fee_sat = to_satoshi_inner(&miner_fee.to_string())?;
-    let total_sat = to_satoshi_inner(&total_cost.to_string())?;
+    let (fee_sat, burned_sat, miner_fee_sat, total_sat) = plan_transfer_fees_satoshi_inner(
+        gas,
+        &gas_price_wei.to_string(),
+        &burn_rate.to_string(),
+        &value_str,
+        None,
+    )?;
+    let value_sat = to_satoshi_inner(&value_str)?;
 
     if !accounts.contains_key(&from_addr) {
         accounts.insert(from_addr.clone(), empty_account());
     }
-    let from_bal = account_balance(accounts.get(&from_addr).unwrap());
-    let from_nonce = account_nonce(accounts.get(&from_addr).unwrap());
+    let from_row = accounts
+        .get(&from_addr)
+        .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("missing_from_account"))?;
+    let from_bal = account_balance(from_row);
+    let from_nonce = account_nonce(from_row);
     if from_bal < total_sat {
         return Err(pyo3::exceptions::PyRuntimeError::new_err(
             "insufficient_funds",
@@ -440,35 +531,43 @@ fn apply_simple_transfer_with_fees(
     }
 
     {
-        let from = accounts.get_mut(&from_addr).unwrap();
-        set_account_balance(from, from_bal - total_sat, from_nonce + 1);
+        let from = accounts
+            .get_mut(&from_addr)
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("missing_from_account"))?;
+        set_account_balance(from, from_bal - total_sat, from_nonce + 1)?;
     }
     if !accounts.contains_key(&to_addr) {
         accounts.insert(to_addr.clone(), empty_account());
     }
     {
-        let to = accounts.get_mut(&to_addr).unwrap();
+        let to = accounts
+            .get_mut(&to_addr)
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("missing_to_account"))?;
         let to_bal = account_balance(to);
         let to_nonce = account_nonce(to);
-        set_account_balance(to, to_bal + value_sat, to_nonce);
+        set_account_balance(to, to_bal + value_sat, to_nonce)?;
     }
     if miner_fee_sat > 0 && !proposer.is_empty() {
         if !accounts.contains_key(proposer) {
             accounts.insert(proposer.to_string(), empty_account());
         }
-        let row = accounts.get_mut(proposer).unwrap();
+        let row = accounts
+            .get_mut(proposer)
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("missing_proposer"))?;
         let bal = account_balance(row);
         let nonce = account_nonce(row);
-        set_account_balance(row, bal + miner_fee_sat, nonce);
+        set_account_balance(row, bal + miner_fee_sat, nonce)?;
     }
     if burned_sat > 0 && !burn_address.is_empty() {
         if !accounts.contains_key(burn_address) {
             accounts.insert(burn_address.to_string(), empty_account());
         }
-        let row = accounts.get_mut(burn_address).unwrap();
+        let row = accounts
+            .get_mut(burn_address)
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("missing_burn_address"))?;
         let bal = account_balance(row);
         let nonce = account_nonce(row);
-        set_account_balance(row, bal + burned_sat, nonce);
+        set_account_balance(row, bal + burned_sat, nonce)?;
     }
     let _ = fee_sat; // fee = miner + burned (satoshi rounding may leave dust burned nowhere)
     Ok(burned_sat)
@@ -505,19 +604,34 @@ fn apply_host_fee_effect(
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    let value_f = if apply_value {
+    let value_str = if apply_value {
         let value_abs = obj
             .get("value")
             .or_else(|| obj.get("amount"))
             .cloned()
             .unwrap_or(Value::Number(0.into()));
         match &value_abs {
-            Value::Number(n) => n.as_f64().unwrap_or(0.0),
-            Value::String(s) => s.parse::<f64>().unwrap_or(0.0),
-            _ => 0.0,
+            Value::Number(n) => {
+                if let Some(i) = n.as_i64() {
+                    i.to_string()
+                } else if let Some(u) = n.as_u64() {
+                    u.to_string()
+                } else if let Some(f) = n.as_f64() {
+                    if !f.is_finite() {
+                        return Err(pyo3::exceptions::PyValueError::new_err(
+                            "non_finite_value",
+                        ));
+                    }
+                    format!("{f}")
+                } else {
+                    "0".to_string()
+                }
+            }
+            Value::String(s) => s.clone(),
+            _ => "0".to_string(),
         }
     } else {
-        0.0
+        "0".to_string()
     };
     let gas = obj
         .get("gas")
@@ -527,22 +641,27 @@ fn apply_host_fee_effect(
         .get("gas_used")
         .and_then(|v| v.as_u64().or_else(|| v.as_i64().map(|i| i as u64)));
 
-    let (_fee, burned, miner_fee, total_cost) =
-        plan_transfer_fees(gas, gas_price_wei, burn_rate, value_f, gas_used)?;
+    let (_fee_sat, burned_sat, miner_fee_sat, total_sat) = plan_transfer_fees_satoshi_inner(
+        gas,
+        &gas_price_wei.to_string(),
+        &burn_rate.to_string(),
+        &value_str,
+        gas_used,
+    )?;
     let value_sat = if apply_value {
-        to_satoshi_inner(&value_f.to_string())?
+        to_satoshi_inner(&value_str)?
     } else {
         0
     };
-    let burned_sat = to_satoshi_inner(&burned.to_string())?;
-    let miner_fee_sat = to_satoshi_inner(&miner_fee.to_string())?;
-    let total_sat = to_satoshi_inner(&total_cost.to_string())?;
 
     if !accounts.contains_key(&from_addr) {
         accounts.insert(from_addr.clone(), empty_account());
     }
-    let from_bal = account_balance(accounts.get(&from_addr).unwrap());
-    let from_nonce = account_nonce(accounts.get(&from_addr).unwrap());
+    let from_row = accounts
+        .get(&from_addr)
+        .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("missing_from_account"))?;
+    let from_bal = account_balance(from_row);
+    let from_nonce = account_nonce(from_row);
     if from_bal < total_sat {
         return Err(pyo3::exceptions::PyRuntimeError::new_err(
             "insufficient_funds",
@@ -559,8 +678,10 @@ fn apply_host_fee_effect(
     }
 
     {
-        let from = accounts.get_mut(&from_addr).unwrap();
-        set_account_balance(from, from_bal - total_sat, from_nonce + 1);
+        let from = accounts
+            .get_mut(&from_addr)
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("missing_from_account"))?;
+        set_account_balance(from, from_bal - total_sat, from_nonce + 1)?;
     }
     if apply_value {
         if to_addr.is_empty() {
@@ -569,28 +690,34 @@ fn apply_host_fee_effect(
         if !accounts.contains_key(&to_addr) {
             accounts.insert(to_addr.clone(), empty_account());
         }
-        let to = accounts.get_mut(&to_addr).unwrap();
+        let to = accounts
+            .get_mut(&to_addr)
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("missing_to_account"))?;
         let to_bal = account_balance(to);
         let to_nonce = account_nonce(to);
-        set_account_balance(to, to_bal + value_sat, to_nonce);
+        set_account_balance(to, to_bal + value_sat, to_nonce)?;
     }
     if miner_fee_sat > 0 && !proposer.is_empty() {
         if !accounts.contains_key(proposer) {
             accounts.insert(proposer.to_string(), empty_account());
         }
-        let row = accounts.get_mut(proposer).unwrap();
+        let row = accounts
+            .get_mut(proposer)
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("missing_proposer"))?;
         let bal = account_balance(row);
         let nonce = account_nonce(row);
-        set_account_balance(row, bal + miner_fee_sat, nonce);
+        set_account_balance(row, bal + miner_fee_sat, nonce)?;
     }
     if burned_sat > 0 && !burn_address.is_empty() {
         if !accounts.contains_key(burn_address) {
             accounts.insert(burn_address.to_string(), empty_account());
         }
-        let row = accounts.get_mut(burn_address).unwrap();
+        let row = accounts
+            .get_mut(burn_address)
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("missing_burn_address"))?;
         let bal = account_balance(row);
         let nonce = account_nonce(row);
-        set_account_balance(row, bal + burned_sat, nonce);
+        set_account_balance(row, bal + burned_sat, nonce)?;
     }
     Ok(burned_sat)
 }
@@ -605,6 +732,11 @@ fn apply_block_reward_sat(
     if proposer.is_empty() || reward_abs <= 0.0 {
         return Ok(0);
     }
+    if !reward_abs.is_finite() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "non_finite_block_reward",
+        ));
+    }
     let mut reward_sat = to_satoshi_inner(&reward_abs.to_string())?;
     if current_supply_sat + reward_sat > max_supply_sat {
         reward_sat = (max_supply_sat - current_supply_sat).max(0);
@@ -615,10 +747,12 @@ fn apply_block_reward_sat(
     if !accounts.contains_key(proposer) {
         accounts.insert(proposer.to_string(), empty_account());
     }
-    let row = accounts.get_mut(proposer).unwrap();
+    let row = accounts
+        .get_mut(proposer)
+        .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("missing_proposer"))?;
     let bal = account_balance(row);
     let nonce = account_nonce(row);
-    set_account_balance(row, bal + reward_sat, nonce);
+    set_account_balance(row, bal + reward_sat, nonce)?;
     Ok(reward_sat)
 }
 
@@ -919,5 +1053,27 @@ mod tests {
         assert!((burned - fee * 0.02).abs() < 1e-15);
         assert!((miner - (fee - burned)).abs() < 1e-15);
         assert!((total - (1.0 + fee)).abs() < 1e-15);
+    }
+
+    #[test]
+    fn plan_transfer_fees_satoshi_decimal_path() {
+        let (fee, burned, miner, total) =
+            plan_transfer_fees_satoshi_inner(21_000, "0.0000001", "0.02", "1.0", None).unwrap();
+        assert_eq!(fee, 2100);
+        assert_eq!(burned, 42);
+        assert_eq!(miner, 2058);
+        assert_eq!(total, 1_000_000 + 2100);
+    }
+
+    #[test]
+    fn refuse_float_amount_satoshi() {
+        let tx = serde_json::json!({
+            "from": "a",
+            "to": "b",
+            "amount_satoshi": 1.5,
+            "fee": 0,
+            "nonce": 0
+        });
+        assert!(tx_amount_sat(&tx).is_err());
     }
 }
