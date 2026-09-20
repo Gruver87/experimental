@@ -38,8 +38,8 @@ except ImportError:
 class MempoolTransaction:
     """Транзакция в мемпуле.
 
-    Dual-write: ``fee`` ABS float for wire/display; ``fee_satoshi`` integer is
-    the canonical sort / min-fee / eviction key (ADR 0021 fee migration).
+    Dual-write: ABS ``fee`` / ``amount`` for display; ``fee_satoshi`` /
+    ``amount_satoshi`` integers are canonical (ADR 0021 wire cutover).
     """
     tx_hash: str
     from_addr: str
@@ -53,12 +53,15 @@ class MempoolTransaction:
     gas: int = 21_000
     timestamp: float = field(default_factory=time.time)
     fee_satoshi: int = -1
+    amount_satoshi: int = -1
 
     def __post_init__(self) -> None:
-        if int(self.fee_satoshi) < 0:
-            from runtime.amount import to_satoshi
+        from runtime.amount import to_satoshi
 
+        if int(self.fee_satoshi) < 0:
             self.fee_satoshi = int(to_satoshi(self.fee))
+        if int(self.amount_satoshi) < 0:
+            self.amount_satoshi = int(to_satoshi(self.amount))
 
     def has_valid_signature(self) -> bool:
         """ECDSA check; when require_signatures is on, empty signature fails."""
@@ -155,12 +158,11 @@ def _tx_to_store_dict(tx: MempoolTransaction) -> Dict[str, Any]:
     if fee_sat < 0:
         fee_sat = int(to_satoshi(tx.fee))
         tx.fee_satoshi = fee_sat
-    amount_sat = int(getattr(tx, "amount_satoshi", -1)) if hasattr(tx, "amount_satoshi") else -1
+    amount_sat = int(getattr(tx, "amount_satoshi", -1))
     if amount_sat < 0:
         amount_sat = int(to_satoshi(tx.amount))
-        if hasattr(tx, "amount_satoshi"):
-            tx.amount_satoshi = amount_sat
-    # Wave R: ABS floats derived from satoshi (no raw float() money invent).
+        tx.amount_satoshi = amount_sat
+    # Wave R / ADR 0021: ABS floats derived from satoshi (no raw float invent).
     return {
         "tx_hash": str(tx.tx_hash),
         "from_addr": str(tx.from_addr),
@@ -204,6 +206,7 @@ def _tx_from_store_dict(raw: Dict[str, Any]) -> MempoolTransaction:
         gas=int(raw.get("gas") or 21_000),
         timestamp=float(raw.get("timestamp") or 0.0),
         fee_satoshi=fee_sat,
+        amount_satoshi=amount_sat,
     )
 
 

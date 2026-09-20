@@ -119,6 +119,7 @@ Pytest alone is **not** acceptance for mempool/P2P changes.
 - Phase 0–3 completion ≠ mainnet readiness.
 - Cross-node EVM evidence remains `prod_evm_smoke.py` on live mesh.
 - Ultimate Hybrid audit pin is updated only via explicit merge policy — not by this ADR alone.
+- **Wire satoshi cutover (2026-09-20):** gossip emits/prefers `fee_satoshi`/`amount_satoshi`; ABS float dual-write retained for display + mixed-mesh legacy ingress. Unit evidence only — not mesh probe / not 48h re-soak.
 
 ## Consequences
 

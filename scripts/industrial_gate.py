@@ -4991,6 +4991,17 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("mempool get_stats must expose store_backend (ADR 0021 phase-2)")
         if "fee_satoshi" not in mempool_py or "min_fee_satoshi" not in mempool_py:
             errors.append("mempool must dual-write fee_satoshi / min_fee_satoshi (Wave A)")
+        wire_py = (ROOT / "blockchain" / "mempool_wire.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "amount_satoshi" not in wire_py or "fee_satoshi" not in wire_py:
+            errors.append(
+                "mempool_wire must emit amount_satoshi / fee_satoshi (ADR 0021 cutover)"
+            )
+        if "resolve_wire_fee_sat" not in wire_py or "WireMoneyMismatch" not in wire_py:
+            errors.append(
+                "mempool_wire must resolve satoshi + refuse mismatch (ADR 0021 cutover)"
+            )
         if "def get_for_block" not in mempool_py:
             errors.append("mempool must expose get_for_block (nonce-contiguous miner pack)")
         main_py = (ROOT / "main.py").read_text(encoding="utf-8", errors="replace")
@@ -4999,6 +5010,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         if "fee * 1e9" in main_py:
             errors.append("main.py must not invent gasPrice via fee*1e9 (use abs_to_wei)")
         p2p_py = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8", errors="replace")
+        if "fee_satoshi_mismatch" not in p2p_py or "value_satoshi_mismatch" not in p2p_py:
+            errors.append(
+                "p2p_node must refuse fee/value satoshi mismatch (ADR 0021 cutover)"
+            )
         if "fee_sat > max_fee_sat" not in p2p_py:
             errors.append("p2p_node max-fee refuse must compare satoshi (Wave A)")
         if 'value_unparseable' not in p2p_py:

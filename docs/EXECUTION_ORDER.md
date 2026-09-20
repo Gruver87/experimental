@@ -154,7 +154,7 @@ Other optional depth:
 | libp2p transport | Slices A–DB, 2h smoke, **48h PASS `3c801b87`** | Post-soak WARN hardening (optional) |
 | Long-Range | Waves 1–14 labs + 2h/intensify + **lab 48h PASS** [`lr48pass1`](evidence/runs/lr48pass1/); host pack [`lrlab1`](evidence/runs/lrlab1/) | Prod arm / BLS / mainnet Long-Range |
 | EVM | Waves 8–11 + preflight harness; **Phase 3 mesh 48h PASS** [`evm48pass1`](evidence/runs/evm48pass1/); host depth pack [`evmlab1`](evidence/runs/evmlab1/) | Further COMPAT_MATRIX; EVM-only 48h still optional/not claimed |
-| Mempool Rust | **Phases 0–3 + mesh bake** (ADR 0021) + **STRICT dual-report 48h PASS** [`mempool48pass1`](evidence/runs/mempool48pass1/) | Wire ABS fee float cutover still deferred; prod arm of unrelated features stays off |
+| Mempool Rust | **Phases 0–3 + mesh bake** (ADR 0021) + **STRICT dual-report 48h PASS** [`mempool48pass1`](evidence/runs/mempool48pass1/) + **wire satoshi cutover** (`fee_satoshi`/`amount_satoshi` canonical; float dual-write; mismatch refuse) | Float-only legacy ingress still accepted for mixed mesh; prod arm of unrelated features stays off |
 | Oracles / shard / bridge OFF | Lab verify packs [`oraclelab1`](evidence/runs/oraclelab1/) · [`shardlab1`](evidence/runs/shardlab1/) · [`bridgeoff1`](evidence/runs/bridgeoff1/); **host re-verify PASS** 2026-09-20 [`phase5reverify1`](evidence/runs/phase5reverify1/) | Prod arm / L1 bridge cutover / docker shard mesh (optional) |
 | Council ADR 0022 | Lab + live staging 778889 genesis 87/87 (2026-08-28) | On-chain signed gov, mainnet, 48h council soak |
 

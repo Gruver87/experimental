@@ -4493,7 +4493,8 @@ class P2PNode:
         from_addr = data.get("from_addr", data.get("from", ""))
         to_addr = data.get("to_addr", data.get("to", ""))
         # v1.3.204: junk value must refuse, not raise into the ingest path.
-        # parse_p2p_wire_abs: bool/hex are unparseable (float(True)==1.0 would mint 1 ABS).
+        # ADR 0021 cutover: prefer amount_satoshi / value_satoshi; ABS float is
+        # display dual-write. Mismatch → refuse (fail-closed).
         # IEEE NaN/Inf stay on the v1.3.193 non-finite path (reason_code preserved).
         raw_value = data.get("value", data.get("amount", 0))
         if isinstance(raw_value, float) and not math.isfinite(raw_value):
@@ -4504,7 +4505,15 @@ class P2PNode:
                 ) + 1
                 return None
         try:
-            value = parse_p2p_wire_abs(raw_value, field="value")
+            from blockchain.mempool_wire import WireMoneyMismatch, resolve_wire_amount_sat
+
+            amount_sat, value = resolve_wire_amount_sat(data)
+        except WireMoneyMismatch:
+            self._last_tx_wire_reject = "value_satoshi_mismatch"
+            self._mempool_value_unparseable_refuse_total = int(
+                getattr(self, "_mempool_value_unparseable_refuse_total", 0) or 0
+            ) + 1
+            return None
         except (TypeError, ValueError):
             if bool(getattr(self.config, "p2p_mempool_unparseable_value_refuse", True)):
                 self._last_tx_wire_reject = "value_unparseable"
@@ -4512,7 +4521,7 @@ class P2PNode:
                     getattr(self, "_mempool_value_unparseable_refuse_total", 0) or 0
                 ) + 1
                 return None
-            value = 0.0
+            amount_sat, value = 0, 0.0
         # v1.3.205: junk nonce must refuse, not raise into the ingest path.
         try:
             nonce = int(data.get("nonce", 0))
@@ -4685,6 +4694,7 @@ class P2PNode:
                 return None
 
         # v1.3.177: cheap min-fee refuse before validate_transaction (ECDSA/state).
+        # ADR 0021 cutover: prefer fee_satoshi; ABS fee is display dual-write.
         # Soft DoS honesty — not Rust gas priority queue / EIP-1559 lanes.
         raw_fee = data.get("fee", None)
         if isinstance(raw_fee, float) and not math.isfinite(raw_fee):
@@ -4695,8 +4705,11 @@ class P2PNode:
                 ) + 1
                 return None
         try:
-            if raw_fee is None:
-                from runtime.amount import from_satoshi_float, plan_transfer_fees_sat
+            from blockchain.mempool_wire import WireMoneyMismatch, resolve_wire_fee_sat
+
+            planned_fee_sat = None
+            if raw_fee is None and data.get("fee_satoshi") is None:
+                from runtime.amount import plan_transfer_fees_sat
 
                 # Wave O: do not invent gas_price via `or 0.001` when unset/zero.
                 _gp_raw = getattr(self.config, "gas_price_wei", None)
@@ -4723,15 +4736,18 @@ class P2PNode:
                 if not math.isfinite(_br) or _br < 0:
                     self._last_tx_wire_reject = "fee_burn_rate_invalid"
                     return None
-                _fee_sat = int(
+                planned_fee_sat = int(
                     plan_transfer_fees_sat(int(gas), _gp, _br, 0)["fee_sat"]
                 )
-                fee = parse_p2p_wire_abs(
-                    from_satoshi_float(_fee_sat),
-                    field="fee",
-                )
-            else:
-                fee = parse_p2p_wire_abs(raw_fee, field="fee")
+            fee_sat, fee = resolve_wire_fee_sat(
+                data, planned_fee_sat=planned_fee_sat
+            )
+        except WireMoneyMismatch:
+            self._last_tx_wire_reject = "fee_satoshi_mismatch"
+            self._mempool_fee_unparseable_refuse_total = int(
+                getattr(self, "_mempool_fee_unparseable_refuse_total", 0) or 0
+            ) + 1
+            return None
         except (TypeError, ValueError):
             self._last_tx_wire_reject = "fee_unparseable"
             self._mempool_fee_unparseable_refuse_total = int(
@@ -4741,33 +4757,37 @@ class P2PNode:
         if bool(getattr(self.config, "p2p_mempool_min_fee_refuse", True)):
             min_fee_sat = 0
             if self.mempool is not None:
-                try:
-                    min_fee_sat = int(getattr(self.mempool, "min_fee_satoshi", 0) or 0)
-                    if min_fee_sat <= 0:
-                        from runtime.amount import to_satoshi
-
-                        min_fee_sat = int(
-                            to_satoshi(float(getattr(self.mempool, "min_fee", 0) or 0))
-                        )
-                except (TypeError, ValueError):
-                    min_fee_sat = 0
-            if min_fee_sat > 0:
                 from runtime.amount import to_satoshi
 
-                try:
-                    fee_sat = int(to_satoshi(fee))
-                except (TypeError, ValueError):
-                    self._last_tx_wire_reject = "fee_unparseable"
-                    self._mempool_fee_unparseable_refuse_total = int(
-                        getattr(self, "_mempool_fee_unparseable_refuse_total", 0) or 0
-                    ) + 1
-                    return None
-                if fee_sat < min_fee_sat:
-                    self._last_tx_wire_reject = "fee_too_low"
-                    self._mempool_fee_refuse_total = int(
-                        getattr(self, "_mempool_fee_refuse_total", 0) or 0
-                    ) + 1
-                    return None
+                raw_min_sat = getattr(self.mempool, "min_fee_satoshi", None)
+                # Only real ints/digit strings — MagicMock.__int__ returns 1 and
+                # would silently disable the min-fee gate under unit mocks.
+                if isinstance(raw_min_sat, bool):
+                    min_fee_sat = 0
+                elif isinstance(raw_min_sat, int):
+                    min_fee_sat = int(raw_min_sat)
+                elif isinstance(raw_min_sat, str):
+                    try:
+                        min_fee_sat = int(raw_min_sat.strip())
+                    except (TypeError, ValueError):
+                        min_fee_sat = 0
+                else:
+                    min_fee_sat = 0
+                if min_fee_sat <= 0:
+                    try:
+                        min_fee_sat = int(
+                            to_satoshi(
+                                float(getattr(self.mempool, "min_fee", 0) or 0)
+                            )
+                        )
+                    except (TypeError, ValueError):
+                        min_fee_sat = 0
+            if min_fee_sat > 0 and int(fee_sat) < min_fee_sat:
+                self._last_tx_wire_reject = "fee_too_low"
+                self._mempool_fee_refuse_total = int(
+                    getattr(self, "_mempool_fee_refuse_total", 0) or 0
+                ) + 1
+                return None
 
         # v1.3.179: cheap gas ceiling refuse before validate_transaction.
         # Soft DoS honesty — not Rust gas priority queue / EIP-1559 lanes.
@@ -4804,17 +4824,8 @@ class P2PNode:
 
         # v1.3.184 / Wave K: negative-value refuse via satoshi (not float(value)).
         if bool(getattr(self.config, "p2p_mempool_negative_value_refuse", True)):
-            try:
-                from runtime.amount import to_satoshi
-
-                if int(to_satoshi(value)) < 0:
-                    self._last_tx_wire_reject = "value_negative"
-                    self._mempool_value_refuse_total = int(
-                        getattr(self, "_mempool_value_refuse_total", 0) or 0
-                    ) + 1
-                    return None
-            except (TypeError, ValueError):
-                self._last_tx_wire_reject = "value_unparseable"
+            if int(amount_sat) < 0:
+                self._last_tx_wire_reject = "value_negative"
                 self._mempool_value_refuse_total = int(
                     getattr(self, "_mempool_value_refuse_total", 0) or 0
                 ) + 1
@@ -4850,8 +4861,7 @@ class P2PNode:
                 from runtime.amount import to_satoshi
 
                 max_value_sat = int(to_satoshi(max_value)) if max_value > 0 else 0
-                value_sat = int(to_satoshi(value))
-                if max_value_sat > 0 and value_sat > max_value_sat:
+                if max_value_sat > 0 and int(amount_sat) > max_value_sat:
                     self._last_tx_wire_reject = "value_too_high"
                     self._mempool_value_high_refuse_total = int(
                         getattr(self, "_mempool_value_high_refuse_total", 0) or 0
@@ -4907,19 +4917,10 @@ class P2PNode:
 
         # v1.3.186 / Wave J: negative-fee refuse via satoshi (not float(fee) ABS).
         if bool(getattr(self.config, "p2p_mempool_negative_fee_refuse", True)):
-            try:
-                from runtime.amount import to_satoshi
-
-                if int(to_satoshi(fee)) < 0:
-                    self._last_tx_wire_reject = "fee_negative"
-                    self._mempool_fee_negative_refuse_total = int(
-                        getattr(self, "_mempool_fee_negative_refuse_total", 0) or 0
-                    ) + 1
-                    return None
-            except (TypeError, ValueError):
-                self._last_tx_wire_reject = "fee_unparseable"
-                self._mempool_fee_unparseable_refuse_total = int(
-                    getattr(self, "_mempool_fee_unparseable_refuse_total", 0) or 0
+            if int(fee_sat) < 0:
+                self._last_tx_wire_reject = "fee_negative"
+                self._mempool_fee_negative_refuse_total = int(
+                    getattr(self, "_mempool_fee_negative_refuse_total", 0) or 0
                 ) + 1
                 return None
 
@@ -4955,7 +4956,6 @@ class P2PNode:
                 from runtime.amount import to_satoshi
 
                 max_fee_sat = int(to_satoshi(max_fee)) if max_fee > 0 else 0
-                fee_sat = int(to_satoshi(fee))
                 if max_fee_sat > 0 and fee_sat > max_fee_sat:
                     self._last_tx_wire_reject = "fee_too_high"
                     self._mempool_fee_high_refuse_total = int(
@@ -5014,6 +5014,8 @@ class P2PNode:
             public_key=public_key,
             data=calldata,
             gas=gas,
+            fee_satoshi=int(fee_sat),
+            amount_satoshi=int(amount_sat),
         )
         return mp_tx, tx.hash
 
