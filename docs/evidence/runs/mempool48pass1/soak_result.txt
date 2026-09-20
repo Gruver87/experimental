@@ -1,0 +1,13 @@
+RESULT: PASS
+kind: Experimental mempool+validation STRICT 48h dual-report soak
+window: 2026-09-17T03:49:50+03:00 -> 2026-09-19T03:50:13+03:00
+hours_elapsed: 48.0065 / 48
+health_watch: exit=0 hard_fails=0 ready_only=0 mesh_ok=2589 mesh_warn=0 warn_lines=31 soft
+full_every: 6 (long STRICT)
+tip: ~35187 -> ~44020
+sidecar: passed=true cycles=467 admit_ok=303 admit_soft=164 refuse_ok=467 refuse_fail=0 admit_fail=0
+store: rust demoted=False (465 cycles observed)
+strict_confirm clears: 247
+honesty: NOT mainnet / NOT Hybrid pin / NOT Long-Range / NOT BLS
+prior: 6h dual PASS 2026-09-16; prior 48h FINISHED_FAIL 2026-09-13..15 (35 hard) triaged before this run
+git_host_at_land: 42b56ee (tip_skew honesty) — image bake may differ; evidence is runtime logs

@@ -1,0 +1,50 @@
+{
+  "schema": "abs.mesh_evidence.v1",
+  "run_id": "mempool48pass1",
+  "result": "PASS",
+  "created_unix": 1789928712,
+  "commit_host": "42b56ee",
+  "honesty": "Experimental mempool+validation STRICT dual-report 48h PASS (soak fail=0 mesh_warn=0 + sidecar refuse_fail=0 admit_fail=0, store rust not demoted). FullHarnessEvery=6. Soft warn_lines=31 (ready_flap/peer_probe/harness_timeout/tip labels). Not public mainnet. Not Hybrid pin. Not Long-Range. Not BLS. Not EVM-only 48h.",
+  "claims": {
+    "transport": "Experimental prod mesh 778888 (TCP+TLS default profile; feature_long_range=false)",
+    "48h_soak": "passed=true hard_fails=0 ready_only=0 mesh_warn=0 warn_lines=31 hours_elapsed=48.0065 health_watch_exit=0 mesh_ok=2589",
+    "sidecar": "passed=true admit_ok=303 admit_soft=164 refuse_ok=467 refuse_fail=0 admit_fail=0",
+    "window": "2026-09-17T03:49:50+03:00 -> 2026-09-19T03:50:13+03:00",
+    "height_start_approx": 35187,
+    "height_end_approx": 44020,
+    "phase": "Mempool Rust store + validation sidecar STRICT soak"
+  },
+  "files": {
+    "soak_report": {
+      "status": "present",
+      "path": "docs/evidence/runs/mempool48pass1/soak_report_mempool_validation_48h.json",
+      "sha256": "761c3df56541f1cd61f6930afe86d20b184a9881a5b5ba531bc03fed9d563395",
+      "bytes": 1036
+    },
+    "soak_log": {
+      "status": "present",
+      "path": "docs/evidence/runs/mempool48pass1/soak_mempool_validation_48h.log",
+      "sha256": "d003ff65d4afab197111b997e58a228a9086758094b58cd6aa76045db9113448",
+      "bytes": 985491
+    },
+    "sidecar_log": {
+      "status": "present",
+      "path": "docs/evidence/runs/mempool48pass1/mempool_validation_sidecar.log",
+      "sha256": "6faaec234a71dc58d11b2c3f5e9c2f943127d0b14e26082aacc12621267025fa",
+      "bytes": 90151
+    },
+    "sidecar_report": {
+      "status": "present",
+      "path": "docs/evidence/runs/mempool48pass1/mempool_validation_sidecar_report.json",
+      "sha256": "5201a7a0d1a1d5893087e6c1d9a4a3ba85a74317f91ec44e63121973e5cd0fd1",
+      "bytes": 348
+    },
+    "soak_result": {
+      "status": "present",
+      "path": "docs/evidence/runs/mempool48pass1/soak_result.txt",
+      "sha256": "905ce1a4576265dfb7b229ed60772b4156947ba080e7817310be86847ebf51af",
+      "bytes": 754
+    }
+  },
+  "manifest_sha256": "3b0697278740c3f15680fe158222b98440a43e789764e22ecf94d861c84cc87a"
+}

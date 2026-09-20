@@ -1,0 +1,17 @@
+{
+  "kind": "mempool_validation_sidecar",
+  "honesty": [
+    "NOT 48h soak claim",
+    "NOT mainnet",
+    "NOT Hybrid pin"
+  ],
+  "cycles": 467,
+  "admit_ok": 303,
+  "admit_soft": 164,
+  "admit_fail": 0,
+  "refuse_ok": 467,
+  "refuse_soft": 0,
+  "refuse_fail": 0,
+  "ended_at": "2026-09-19T00:49:48.987477+00:00",
+  "passed": true
+}

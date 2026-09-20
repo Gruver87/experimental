@@ -1,0 +1,1403 @@
+2026-09-17 03:49:48 sidecar start http=http://127.0.0.1:18180 hours=48.0 interval=300s NOT 48h / NOT mainnet / NOT Hybrid
+2026-09-17 03:49:49 cycle=1 status mempool_size=0 store=rust demoted=False
+2026-09-17 03:49:50 OK refuse http_400
+2026-09-17 03:50:03 OK admit deploy tx=bc16d9b230f809ad... h=35188 c=0x1635a2c76cb8...
+2026-09-17 03:55:04 cycle=2 status mempool_size=0 store=rust demoted=False
+2026-09-17 03:55:04 OK refuse http_400
+2026-09-17 03:55:21 OK admit deploy tx=38e0e5bdd0f99fb9... h=35208 c=0xbbe197f458be...
+2026-09-17 04:00:21 cycle=3 status mempool_size=0 store=rust demoted=False
+2026-09-17 04:00:21 OK refuse http_400
+2026-09-17 04:00:36 OK admit deploy tx=9f56aa8454676710... h=35228 c=0x742b20f43f4f...
+2026-09-17 04:05:36 cycle=4 status mempool_size=0 store=rust demoted=False
+2026-09-17 04:05:38 OK refuse http_400
+2026-09-17 04:05:53 OK admit deploy tx=cf2492cff9128f5a... h=35248 c=0x400155088205...
+2026-09-17 04:10:53 cycle=5 status mempool_size=0 store=rust demoted=False
+2026-09-17 04:10:55 OK refuse http_400
+2026-09-17 04:11:10 OK admit deploy tx=3b8d09fe2d55ef51... h=35268 c=0x373fe1d704ff...
+2026-09-17 04:16:10 cycle=6 status mempool_size=0 store=rust demoted=False
+2026-09-17 04:16:10 OK refuse http_400
+2026-09-17 04:16:13 OK admit deploy tx=7a6754ed45af0097... h=35287 c=0x1df013a6bbf7...
+2026-09-17 04:21:13 cycle=7 status mempool_size=0 store=rust demoted=False
+2026-09-17 04:21:13 OK refuse http_400
+2026-09-17 04:21:28 OK admit deploy tx=5742f1035035a2e4... h=35307 c=0xe06ec8801be5...
+2026-09-17 04:26:29 cycle=8 status mempool_size=0 store=rust demoted=False
+2026-09-17 04:26:29 OK refuse http_400
+2026-09-17 04:26:44 OK admit deploy tx=bbb2470664cc8923... h=35327 c=0x12585b5e955b...
+2026-09-17 04:31:44 cycle=9 status mempool_size=0 store=rust demoted=False
+2026-09-17 04:31:44 OK refuse http_400
+2026-09-17 04:31:47 OK admit deploy tx=494da4a45df8f21f... h=35346 c=0xf6cf27f50371...
+2026-09-17 04:36:48 cycle=10 status mempool_size=0 store=rust demoted=False
+2026-09-17 04:36:49 OK refuse http_400
+2026-09-17 04:37:06 OK admit deploy tx=eaedc8165dd9db1d... h=35366 c=0xa9084fa73e96...
+2026-09-17 04:42:06 cycle=11 status mempool_size=0 store=rust demoted=False
+2026-09-17 04:42:07 OK refuse http_400
+2026-09-17 04:42:23 OK admit deploy tx=8db6105bc123c220... h=35386 c=0xcddef9dd4336...
+2026-09-17 04:47:23 cycle=12 status mempool_size=0 store=rust demoted=False
+2026-09-17 04:47:23 OK refuse http_400
+2026-09-17 04:47:38 OK admit deploy tx=02d56be15fdaa783... h=35406 c=0x1be739362114...
+2026-09-17 04:52:38 cycle=13 status mempool_size=0 store=rust demoted=False
+2026-09-17 04:52:38 OK refuse http_400
+2026-09-17 04:52:53 OK admit deploy tx=e00964e8421060ce... h=35426 c=0xcb0eded93829...
+2026-09-17 04:57:54 cycle=14 status mempool_size=0 store=rust demoted=False
+2026-09-17 04:57:56 OK refuse http_400
+2026-09-17 04:58:12 OK admit deploy tx=a19bf1c45229bf49... h=35446 c=0x769efd62215c...
+2026-09-17 05:03:12 cycle=15 status mempool_size=0 store=rust demoted=False
+2026-09-17 05:03:12 OK refuse http_400
+2026-09-17 05:03:27 OK admit deploy tx=add37e12fb5e5f79... h=35466 c=0xe88c1747a857...
+2026-09-17 05:08:27 cycle=16 status mempool_size=0 store=rust demoted=False
+2026-09-17 05:08:28 OK refuse http_400
+2026-09-17 05:08:45 OK admit deploy tx=6fe3299c0e7afdd2... h=35486 c=0x78c794b2ba09...
+2026-09-17 05:13:45 cycle=17 status mempool_size=0 store=rust demoted=False
+2026-09-17 05:13:47 OK refuse http_400
+2026-09-17 05:14:03 OK admit deploy tx=5310e41ceadf14ed... h=35506 c=0x5c752f3a918b...
+2026-09-17 05:19:04 cycle=18 status mempool_size=0 store=rust demoted=False
+2026-09-17 05:19:04 OK refuse http_400
+2026-09-17 05:19:20 OK admit deploy tx=abd91e40d97e1456... h=35526 c=0x8124c40a868b...
+2026-09-17 05:24:21 cycle=19 status mempool_size=0 store=rust demoted=False
+2026-09-17 05:24:22 OK refuse http_400
+2026-09-17 05:24:37 OK admit deploy tx=5d8ed1555ab47490... h=35546 c=0x4ddcf0526991...
+2026-09-17 05:29:37 cycle=20 status mempool_size=0 store=rust demoted=False
+2026-09-17 05:29:38 OK refuse http_400
+2026-09-17 05:29:41 OK admit deploy tx=f5abf34016e8de58... h=35565 c=0xa466ad049372...
+2026-09-17 05:34:42 cycle=21 status mempool_size=0 store=rust demoted=False
+2026-09-17 05:34:42 OK refuse http_400
+2026-09-17 05:34:58 OK admit deploy tx=d8f113e2f4473833... h=35585 c=0xfaabf810e9de...
+2026-09-17 05:39:58 cycle=22 status mempool_size=0 store=rust demoted=False
+2026-09-17 05:39:58 OK refuse http_400
+2026-09-17 05:40:14 OK admit deploy tx=6da221fdea268048... h=35605 c=0x9ce9b39e4db0...
+2026-09-17 05:45:15 cycle=23 status mempool_size=0 store=rust demoted=False
+2026-09-17 05:45:16 OK refuse http_400
+2026-09-17 05:45:31 OK admit deploy tx=416994f195e2116c... h=35625 c=0xb7a3e3bd5412...
+2026-09-17 05:50:31 cycle=24 status mempool_size=0 store=rust demoted=False
+2026-09-17 05:50:34 OK refuse http_400
+2026-09-17 05:50:49 OK admit deploy tx=bb35e92a6fad8224... h=35645 c=0x141bd3f780dd...
+2026-09-17 05:55:50 cycle=25 status mempool_size=0 store=rust demoted=False
+2026-09-17 05:55:51 OK refuse http_400
+2026-09-17 05:56:06 OK admit deploy tx=dbd5b9b7b91c4d5b... h=35665 c=0xfc6547cbe525...
+2026-09-17 06:01:07 cycle=26 status mempool_size=0 store=rust demoted=False
+2026-09-17 06:01:08 OK refuse http_400
+2026-09-17 06:01:23 OK admit deploy tx=07e0cf26fa221b0b... h=35685 c=0x8dc191457fd9...
+2026-09-17 06:06:23 cycle=27 status mempool_size=0 store=rust demoted=False
+2026-09-17 06:06:23 OK refuse http_400
+2026-09-17 06:06:42 OK admit deploy tx=dea71ebb7dc31740... h=35705 c=0x66bfea1cfa9b...
+2026-09-17 06:11:42 cycle=28 status mempool_size=0 store=rust demoted=False
+2026-09-17 06:11:42 OK refuse http_400
+2026-09-17 06:11:59 OK admit deploy tx=42575458bdfb2b47... h=35725 c=0xda712790c91d...
+2026-09-17 06:16:59 cycle=29 status mempool_size=0 store=rust demoted=False
+2026-09-17 06:17:00 OK refuse http_400
+2026-09-17 06:17:16 OK admit deploy tx=831d1db8b447828c... h=35745 c=0xf0668145d8c0...
+2026-09-17 06:22:16 cycle=30 status mempool_size=0 store=rust demoted=False
+2026-09-17 06:22:17 OK refuse http_400
+2026-09-17 06:22:33 OK admit deploy tx=dd767037722a2f1c... h=35765 c=0x8a2ac6c8462b...
+2026-09-17 06:27:33 cycle=31 status mempool_size=0 store=rust demoted=False
+2026-09-17 06:27:33 OK refuse http_400
+2026-09-17 06:27:36 OK admit deploy tx=2598ab5a2829cd7b... h=35784 c=0x965ef56e4a8a...
+2026-09-17 06:32:36 cycle=32 status mempool_size=0 store=rust demoted=False
+2026-09-17 06:32:36 OK refuse http_400
+2026-09-17 06:32:48 OK admit deploy tx=585c8c07099b7142... h=35804 c=0xda5b95e8748d...
+2026-09-17 06:37:48 cycle=33 status mempool_size=0 store=rust demoted=False
+2026-09-17 06:37:48 OK refuse http_400
+2026-09-17 06:38:05 OK admit deploy tx=254185c6e97e3f52... h=35824 c=0x749ff639cedc...
+2026-09-17 06:43:06 cycle=34 status mempool_size=0 store=rust demoted=False
+2026-09-17 06:43:06 OK refuse http_400
+2026-09-17 06:43:22 OK admit deploy tx=51e33cf8b19082c3... h=35844 c=0x31ee95fdd223...
+2026-09-17 06:48:23 cycle=35 status mempool_size=0 store=rust demoted=False
+2026-09-17 06:48:23 OK refuse http_400
+2026-09-17 06:48:37 OK admit deploy tx=6f63408549a22d07... h=35864 c=0x15ab86ff8ca4...
+2026-09-17 06:53:38 cycle=36 status mempool_size=0 store=rust demoted=False
+2026-09-17 06:53:39 OK refuse http_400
+2026-09-17 06:53:53 OK admit deploy tx=8fe18136b3e8a2fc... h=35884 c=0x0c5024e154f5...
+2026-09-17 06:58:54 cycle=37 status mempool_size=0 store=rust demoted=False
+2026-09-17 06:58:55 OK refuse http_400
+2026-09-17 06:59:11 OK admit deploy tx=9d8b5765cf801a8e... h=35904 c=0x1f5a540d7ba5...
+2026-09-17 07:04:11 cycle=38 status mempool_size=0 store=rust demoted=False
+2026-09-17 07:04:11 OK refuse http_400
+2026-09-17 07:04:25 OK admit deploy tx=66114770d4e212e8... h=35924 c=0xa1084a06914c...
+2026-09-17 07:09:26 cycle=39 status mempool_size=0 store=rust demoted=False
+2026-09-17 07:09:27 OK refuse http_400
+2026-09-17 07:09:43 OK admit deploy tx=de083f3debd0edff... h=35944 c=0x9c0c0559ab02...
+2026-09-17 07:14:43 cycle=40 status mempool_size=0 store=rust demoted=False
+2026-09-17 07:14:44 OK refuse http_400
+2026-09-17 07:15:00 OK admit deploy tx=4ead4fc2a49d1ac6... h=35964 c=0x97ac899da85c...
+2026-09-17 07:20:01 cycle=41 status mempool_size=0 store=rust demoted=False
+2026-09-17 07:20:02 OK refuse http_400
+2026-09-17 07:20:17 OK admit deploy tx=f4bea51ab44a48cd... h=35984 c=0x8c3f98f35584...
+2026-09-17 07:25:17 cycle=42 status mempool_size=0 store=rust demoted=False
+2026-09-17 07:25:17 OK refuse http_400
+2026-09-17 07:25:32 OK admit deploy tx=5f4c1d92b48b805f... h=36004 c=0x531c5326c326...
+2026-09-17 07:30:34 cycle=43 status mempool_size=0 store=rust demoted=False
+2026-09-17 07:30:34 OK refuse http_400
+2026-09-17 07:30:50 OK admit deploy tx=cac2fccd9a446f37... h=36024 c=0x3c55bf6d9277...
+2026-09-17 07:35:50 cycle=44 status mempool_size=0 store=rust demoted=False
+2026-09-17 07:35:50 OK refuse http_400
+2026-09-17 07:36:05 OK admit deploy tx=ee3c81f6aca7f475... h=36044 c=0x690ecb099191...
+2026-09-17 07:41:05 cycle=45 status mempool_size=0 store=rust demoted=False
+2026-09-17 07:41:07 OK refuse http_400
+2026-09-17 07:41:23 OK admit deploy tx=a55c4cca3663fdf1... h=36064 c=0xef0cb4113f22...
+2026-09-17 07:46:23 cycle=46 status mempool_size=0 store=rust demoted=False
+2026-09-17 07:46:23 OK refuse http_400
+2026-09-17 07:46:26 OK admit deploy tx=96f02d9a32ea5019... h=36083 c=0x9fbb83ffdc84...
+2026-09-17 07:51:27 cycle=47 status mempool_size=0 store=rust demoted=False
+2026-09-17 07:51:28 OK refuse http_400
+2026-09-17 07:51:43 OK admit deploy tx=c625aeb82fdc0688... h=36103 c=0x1e48dca179fe...
+2026-09-17 07:56:44 cycle=48 status mempool_size=0 store=rust demoted=False
+2026-09-17 07:56:45 OK refuse http_400
+2026-09-17 07:57:01 OK admit deploy tx=2f3eac1f10ac8f5f... h=36123 c=0x79d18603a919...
+2026-09-17 08:02:02 cycle=49 status mempool_size=0 store=rust demoted=False
+2026-09-17 08:02:02 OK refuse http_400
+2026-09-17 08:02:17 OK admit deploy tx=292df1e57cfe6e6a... h=36143 c=0xe6eae37d6a33...
+2026-09-17 08:07:18 cycle=50 status mempool_size=0 store=rust demoted=False
+2026-09-17 08:07:18 OK refuse http_400
+2026-09-17 08:07:34 OK admit deploy tx=b0f062e3de43ac9c... h=36163 c=0x74ad20d77d43...
+2026-09-17 08:12:34 cycle=51 status mempool_size=0 store=rust demoted=False
+2026-09-17 08:12:34 OK refuse http_400
+2026-09-17 08:12:50 OK admit deploy tx=5c3db9a8ef1de0bb... h=36183 c=0xa2cd16d3deaf...
+2026-09-17 08:17:50 cycle=52 status mempool_size=0 store=rust demoted=False
+2026-09-17 08:17:51 OK refuse http_400
+2026-09-17 08:17:54 OK admit deploy tx=d2d0fc8fd0719fab... h=36202 c=0xfa712c6ca657...
+2026-09-17 08:22:55 cycle=53 status mempool_size=0 store=rust demoted=False
+2026-09-17 08:22:55 OK refuse http_400
+2026-09-17 08:23:12 OK admit deploy tx=2df523f23b8b9020... h=36222 c=0x6891418c84b1...
+2026-09-17 08:28:12 cycle=54 status mempool_size=0 store=rust demoted=False
+2026-09-17 08:28:13 OK refuse http_400
+2026-09-17 08:28:29 OK admit deploy tx=06d87a074d4cb20d... h=36242 c=0x34ed9b63a9c5...
+2026-09-17 08:33:31 cycle=55 status mempool_size=0 store=rust demoted=False
+2026-09-17 08:33:31 OK refuse http_400
+2026-09-17 08:33:46 OK admit deploy tx=b9c9aa38fc8977b1... h=36262 c=0xf55c726df9cd...
+2026-09-17 08:38:46 cycle=56 status mempool_size=0 store=rust demoted=False
+2026-09-17 08:38:46 OK refuse http_400
+2026-09-17 08:38:50 OK admit deploy tx=a7f2e472fd3fa0ff... h=36281 c=0xe830874471c3...
+2026-09-17 08:43:50 cycle=57 status mempool_size=0 store=rust demoted=False
+2026-09-17 08:43:50 OK refuse http_400
+2026-09-17 08:44:05 OK admit deploy tx=566acd0a75573419... h=36301 c=0x7cce9fff72ee...
+2026-09-17 08:49:05 cycle=58 status mempool_size=0 store=rust demoted=False
+2026-09-17 08:49:05 OK refuse http_400
+2026-09-17 08:49:18 OK admit deploy tx=fdfda234cfa2c87f... h=36321 c=0x8e7ac76ea41c...
+2026-09-17 08:54:19 cycle=59 status mempool_size=0 store=rust demoted=False
+2026-09-17 08:54:19 OK refuse http_400
+2026-09-17 08:54:35 OK admit deploy tx=a59d7b57b52ff2d4... h=36341 c=0x1fca24105fc6...
+2026-09-17 08:59:35 cycle=60 status mempool_size=0 store=rust demoted=False
+2026-09-17 08:59:35 OK refuse http_400
+2026-09-17 08:59:39 OK admit deploy tx=3a313ca37f35c208... h=36360 c=0x7e643344f6c7...
+2026-09-17 09:04:40 cycle=61 status mempool_size=0 store=rust demoted=False
+2026-09-17 09:04:40 OK refuse http_400
+2026-09-17 09:04:56 OK admit deploy tx=5ab466338f13f24f... h=36380 c=0x50e759770a07...
+2026-09-17 09:09:56 cycle=62 status mempool_size=0 store=rust demoted=False
+2026-09-17 09:09:58 OK refuse http_400
+2026-09-17 09:10:14 OK admit deploy tx=901ac426c85833fa... h=36400 c=0x3d55efd3b6af...
+2026-09-17 09:15:14 cycle=63 status mempool_size=0 store=rust demoted=False
+2026-09-17 09:15:14 OK refuse http_400
+2026-09-17 09:15:19 OK admit deploy tx=97b7b5d287f95b38... h=36419 c=0xea32a08b633b...
+2026-09-17 09:20:19 cycle=64 status mempool_size=0 store=rust demoted=False
+2026-09-17 09:20:19 OK refuse http_400
+2026-09-17 09:20:23 OK admit deploy tx=427d44132c1c2df4... h=36438 c=0xf2afdbbfbbf4...
+2026-09-17 09:25:23 cycle=65 status mempool_size=0 store=rust demoted=False
+2026-09-17 09:25:24 OK refuse http_400
+2026-09-17 09:25:41 OK admit deploy tx=745c474c7535ec1b... h=36458 c=0x4653164c1e32...
+2026-09-17 09:30:41 cycle=66 status mempool_size=0 store=rust demoted=False
+2026-09-17 09:30:41 OK refuse http_400
+2026-09-17 09:30:46 OK admit deploy tx=0d78bc9fbbc3dbb4... h=36477 c=0x8734021f1f2c...
+2026-09-17 09:35:46 cycle=67 status mempool_size=0 store=rust demoted=False
+2026-09-17 09:35:46 OK refuse http_400
+2026-09-17 09:36:06 OK admit deploy tx=2a30e971eea9155f... h=36497 c=0xb3ff4da8d023...
+2026-09-17 09:41:07 cycle=68 status mempool_size=0 store=rust demoted=False
+2026-09-17 09:41:07 OK refuse http_400
+2026-09-17 09:41:24 OK admit deploy tx=d7b07b6cd37a3765... h=36517 c=0xe60d82f88141...
+2026-09-17 09:46:24 cycle=69 status mempool_size=0 store=rust demoted=False
+2026-09-17 09:46:24 OK refuse http_400
+2026-09-17 09:46:41 OK admit deploy tx=27149e0d2f5d6bcc... h=36537 c=0x9058edd6b153...
+2026-09-17 09:51:42 cycle=70 status mempool_size=0 store=rust demoted=False
+2026-09-17 09:51:42 OK refuse http_400
+2026-09-17 09:51:58 OK admit deploy tx=4048942fae33f747... h=36557 c=0x3e7eccd8bbba...
+2026-09-17 09:56:58 cycle=71 status mempool_size=0 store=rust demoted=False
+2026-09-17 09:56:58 OK refuse http_400
+2026-09-17 09:57:04 OK admit deploy tx=3d9044722bab16cb... h=36576 c=0xdfd597b68ee8...
+2026-09-17 10:02:04 cycle=72 status mempool_size=0 store=rust demoted=False
+2026-09-17 10:02:04 OK refuse http_400
+2026-09-17 10:02:20 OK admit deploy tx=b95937d4323291e8... h=36596 c=0x5478d7407d68...
+2026-09-17 10:07:20 cycle=73 status mempool_size=0 store=rust demoted=False
+2026-09-17 10:07:20 OK refuse http_400
+2026-09-17 10:07:26 OK admit deploy tx=703c39628e881b71... h=36615 c=0x8af290c502f0...
+2026-09-17 10:12:27 cycle=74 status mempool_size=0 store=rust demoted=False
+2026-09-17 10:12:28 OK refuse http_400
+2026-09-17 10:12:43 OK admit deploy tx=74fa567b875f4194... h=36635 c=0x12bb52e08c57...
+2026-09-17 10:17:43 cycle=75 status mempool_size=0 store=rust demoted=False
+2026-09-17 10:17:43 OK refuse http_400
+2026-09-17 10:17:48 OK admit deploy tx=72b1837256232508... h=36654 c=0xac6758edf288...
+2026-09-17 10:22:48 cycle=76 status mempool_size=0 store=rust demoted=False
+2026-09-17 10:22:48 OK refuse http_400
+2026-09-17 10:22:54 OK admit deploy tx=1390c56161864e40... h=36673 c=0x91e3a2ea9f40...
+2026-09-17 10:27:54 cycle=77 status mempool_size=0 store=rust demoted=False
+2026-09-17 10:27:54 OK refuse http_400
+2026-09-17 10:28:10 OK admit deploy tx=aeeacde7bd2dc769... h=36693 c=0xa8f04b117457...
+2026-09-17 10:33:10 cycle=78 status mempool_size=0 store=rust demoted=False
+2026-09-17 10:33:10 OK refuse http_400
+2026-09-17 10:33:17 OK admit deploy tx=1b68b559656639e1... h=36712 c=0xb92242fe12a6...
+2026-09-17 10:38:18 cycle=79 status mempool_size=0 store=rust demoted=False
+2026-09-17 10:38:19 OK refuse http_400
+2026-09-17 10:38:34 OK admit deploy tx=9183fcab3a107e7b... h=36732 c=0x35a246c47d89...
+2026-09-17 10:43:35 cycle=80 status mempool_size=0 store=rust demoted=False
+2026-09-17 10:43:36 OK refuse http_400
+2026-09-17 10:43:52 OK admit deploy tx=53371738c45082b2... h=36752 c=0x5ddfd311f5ac...
+2026-09-17 10:48:53 cycle=81 status mempool_size=0 store=rust demoted=False
+2026-09-17 10:48:53 OK refuse http_400
+2026-09-17 10:49:11 OK admit deploy tx=0fbfe448e137c868... h=36772 c=0x59c784cb8439...
+2026-09-17 10:54:11 cycle=82 status mempool_size=0 store=rust demoted=False
+2026-09-17 10:54:11 OK refuse http_400
+2026-09-17 10:54:27 OK admit deploy tx=9600e039d51dbcc8... h=36792 c=0x6fbb23ba24df...
+2026-09-17 10:59:27 cycle=83 status mempool_size=0 store=rust demoted=False
+2026-09-17 10:59:28 OK refuse http_400
+2026-09-17 10:59:45 OK admit deploy tx=8162856cf32f5b76... h=36812 c=0xb5e7fb1923d7...
+2026-09-17 11:04:45 cycle=84 status mempool_size=0 store=rust demoted=False
+2026-09-17 11:04:46 OK refuse http_400
+2026-09-17 11:05:03 OK admit deploy tx=ad259aaef7eddef7... h=36832 c=0x5067c9d460ef...
+2026-09-17 11:10:03 cycle=85 status mempool_size=0 store=rust demoted=False
+2026-09-17 11:10:03 OK refuse http_400
+2026-09-17 11:10:18 OK admit deploy tx=74980f3905671390... h=36852 c=0xd788293c2d82...
+2026-09-17 11:15:18 cycle=86 status mempool_size=0 store=rust demoted=False
+2026-09-17 11:15:18 OK refuse http_400
+2026-09-17 11:15:23 OK admit deploy tx=cf89cfb697718c5c... h=36871 c=0x52a7d6725d89...
+2026-09-17 11:20:23 cycle=87 status mempool_size=0 store=rust demoted=False
+2026-09-17 11:20:23 OK refuse http_400
+2026-09-17 11:20:28 OK admit deploy tx=5f638537b7a90a30... h=36890 c=0xd39679c59df7...
+2026-09-17 11:25:28 cycle=88 status mempool_size=0 store=rust demoted=False
+2026-09-17 11:25:28 OK refuse http_400
+2026-09-17 11:25:43 OK admit deploy tx=8ef855a1376bc889... h=36910 c=0xc264e4ed990e...
+2026-09-17 11:30:44 cycle=89 status mempool_size=0 store=rust demoted=False
+2026-09-17 11:30:46 OK refuse http_400
+2026-09-17 11:31:01 OK admit deploy tx=955e4e107a081d7f... h=36930 c=0x13f3a42d2b56...
+2026-09-17 11:36:03 cycle=90 status mempool_size=0 store=rust demoted=False
+2026-09-17 11:36:04 OK refuse http_400
+2026-09-17 11:36:20 OK admit deploy tx=86c5d3fc52131fec... h=36950 c=0x8bfd02ef268e...
+2026-09-17 11:41:21 cycle=91 status mempool_size=0 store=rust demoted=False
+2026-09-17 11:41:22 OK refuse http_400
+2026-09-17 11:41:37 OK admit deploy tx=7e60f94288a339a0... h=36970 c=0x0fb2c94e3931...
+2026-09-17 11:46:38 cycle=92 status mempool_size=0 store=rust demoted=False
+2026-09-17 11:46:38 OK refuse http_400
+2026-09-17 11:46:55 OK admit deploy tx=75f72c2d609f7cd6... h=36990 c=0x734b19d9e88c...
+2026-09-17 11:51:56 cycle=93 status mempool_size=0 store=rust demoted=False
+2026-09-17 11:51:57 OK refuse http_400
+2026-09-17 11:52:13 OK admit deploy tx=f8ecaa2b884adfa8... h=37010 c=0x0ef1326fa6a6...
+2026-09-17 11:57:13 cycle=94 status mempool_size=0 store=rust demoted=False
+2026-09-17 11:57:13 OK refuse http_400
+2026-09-17 11:57:29 OK admit deploy tx=99c6b3b8577404f2... h=37030 c=0x7ef3acdf53d3...
+2026-09-17 12:02:30 cycle=95 status mempool_size=0 store=rust demoted=False
+2026-09-17 12:02:31 OK refuse http_400
+2026-09-17 12:02:46 OK admit deploy tx=4781826b94e5cd3d... h=37050 c=0xdf69ad5b6d68...
+2026-09-17 12:07:48 cycle=96 status mempool_size=0 store=rust demoted=False
+2026-09-17 12:07:50 OK refuse http_400
+2026-09-17 12:08:05 OK admit deploy tx=1d5447eee8809488... h=37070 c=0x5cbbd01c78c5...
+2026-09-17 12:13:06 cycle=97 status mempool_size=0 store=rust demoted=False
+2026-09-17 12:13:07 OK refuse http_400
+2026-09-17 12:13:23 OK admit deploy tx=3d580c8869a4cec4... h=37090 c=0xb8aa9673abd7...
+2026-09-17 12:18:23 cycle=98 status mempool_size=0 store=rust demoted=False
+2026-09-17 12:18:23 OK refuse http_400
+2026-09-17 12:18:39 OK admit deploy tx=9ac7a70b461eec69... h=37110 c=0x66d7db6a4fe9...
+2026-09-17 12:23:39 cycle=99 status mempool_size=0 store=rust demoted=False
+2026-09-17 12:23:39 OK refuse http_400
+2026-09-17 12:23:43 OK admit deploy tx=a44fd3e7665553dd... h=37129 c=0x4c677fd60b2a...
+2026-09-17 12:28:43 cycle=100 status mempool_size=0 store=rust demoted=False
+2026-09-17 12:28:43 OK refuse http_400
+2026-09-17 12:28:49 OK admit deploy tx=6c35d245fc127948... h=37148 c=0x8a9dbe3b3cf1...
+2026-09-17 12:33:49 cycle=101 status mempool_size=0 store=rust demoted=False
+2026-09-17 12:33:49 OK refuse http_400
+2026-09-17 12:34:05 OK admit deploy tx=64f7a5da8a87b813... h=37168 c=0xd838a5827daa...
+2026-09-17 12:39:05 cycle=102 status mempool_size=0 store=rust demoted=False
+2026-09-17 12:39:05 OK refuse http_400
+2026-09-17 12:39:10 OK admit deploy tx=f62d1fd7617ac54d... h=37187 c=0x07b7d61a5bdf...
+2026-09-17 12:44:12 cycle=103 status mempool_size=0 store=rust demoted=False
+2026-09-17 12:44:12 OK refuse http_400
+2026-09-17 12:44:28 OK admit deploy tx=45ce6bfd3f6e7043... h=37207 c=0x35f1b570c7f6...
+2026-09-17 12:49:29 cycle=104 status mempool_size=0 store=rust demoted=False
+2026-09-17 12:49:30 OK refuse http_400
+2026-09-17 12:49:47 OK admit deploy tx=fe88b4cbe0064b4d... h=37227 c=0x6ae1e3678e81...
+2026-09-17 12:54:47 cycle=105 status mempool_size=0 store=rust demoted=False
+2026-09-17 12:54:48 OK refuse http_400
+2026-09-17 12:55:04 OK admit deploy tx=272eed9b8239392d... h=37247 c=0xe511fdf1fef6...
+2026-09-17 13:00:04 cycle=106 status mempool_size=0 store=rust demoted=False
+2026-09-17 13:00:04 OK refuse http_400
+2026-09-17 13:00:10 OK admit deploy tx=de214863100da65d... h=37266 c=0xb0fbfb1d8219...
+2026-09-17 13:05:10 cycle=107 status mempool_size=0 store=rust demoted=False
+2026-09-17 13:05:11 OK refuse http_400
+2026-09-17 13:05:28 OK admit deploy tx=6d0786f1f279129b... h=37286 c=0x26be517f0c8d...
+2026-09-17 13:10:29 cycle=108 status mempool_size=0 store=rust demoted=False
+2026-09-17 13:10:29 OK refuse http_400
+2026-09-17 13:10:46 OK admit deploy tx=f55e890e4cbfdab6... h=37306 c=0xa82c91c556ec...
+2026-09-17 13:15:46 cycle=109 status mempool_size=0 store=rust demoted=False
+2026-09-17 13:15:46 OK refuse http_400
+2026-09-17 13:16:03 OK admit deploy tx=1ca71d8784780ec1... h=37326 c=0x0a906585a724...
+2026-09-17 13:21:03 cycle=110 status mempool_size=0 store=rust demoted=False
+2026-09-17 13:21:03 OK refuse http_400
+2026-09-17 13:21:08 OK admit deploy tx=c0cdf311a85b90f7... h=37345 c=0xdc29f2bd5428...
+2026-09-17 13:26:09 cycle=111 status mempool_size=0 store=rust demoted=False
+2026-09-17 13:26:10 OK refuse http_400
+2026-09-17 13:26:27 OK admit deploy tx=a7b5fba5057fc165... h=37365 c=0xbe6782860436...
+2026-09-17 13:31:27 cycle=112 status mempool_size=0 store=rust demoted=False
+2026-09-17 13:31:27 OK refuse http_400
+2026-09-17 13:31:45 OK admit deploy tx=9eedafea1afe5660... h=37385 c=0x748b0b94b6bc...
+2026-09-17 13:36:45 cycle=113 status mempool_size=0 store=rust demoted=False
+2026-09-17 13:36:45 OK refuse http_400
+2026-09-17 13:37:02 OK admit deploy tx=ab2cbc3558cad729... h=37405 c=0xb9ad53854654...
+2026-09-17 13:42:02 cycle=114 status mempool_size=0 store=rust demoted=False
+2026-09-17 13:42:02 OK refuse http_400
+2026-09-17 13:42:18 OK admit deploy tx=75b8849b58d9835d... h=37425 c=0x324af0c97d19...
+2026-09-17 13:47:18 cycle=115 status mempool_size=0 store=rust demoted=False
+2026-09-17 13:47:18 OK refuse http_400
+2026-09-17 13:47:25 OK admit deploy tx=5e55d5b342908398... h=37444 c=0xbb2cffefbc96...
+2026-09-17 13:52:25 cycle=116 status mempool_size=0 store=rust demoted=False
+2026-09-17 13:52:26 OK refuse http_400
+2026-09-17 13:52:45 OK admit deploy tx=69c3c2d163cd3153... h=37464 c=0x68af90ed8c19...
+2026-09-17 13:57:45 cycle=117 status mempool_size=0 store=rust demoted=False
+2026-09-17 13:57:45 OK refuse http_400
+2026-09-17 13:57:50 OK admit deploy tx=22eb7f30ff3bc1b5... h=37483 c=0xa5385037edf9...
+2026-09-17 14:02:50 cycle=118 status mempool_size=0 store=rust demoted=False
+2026-09-17 14:02:50 OK refuse http_400
+2026-09-17 14:03:06 OK admit deploy tx=edb0c84d8dab7272... h=37503 c=0x886561ad138e...
+2026-09-17 14:08:07 cycle=119 status mempool_size=0 store=rust demoted=False
+2026-09-17 14:08:08 OK refuse http_400
+2026-09-17 14:08:27 OK admit deploy tx=306c47432f8088d8... h=37523 c=0x387312cbfc9a...
+2026-09-17 14:13:27 cycle=120 status mempool_size=0 store=rust demoted=False
+2026-09-17 14:13:27 OK refuse http_400
+2026-09-17 14:13:46 OK admit deploy tx=b376a3194fc33380... h=37543 c=0xd01d02338051...
+2026-09-17 14:18:47 cycle=121 status mempool_size=0 store=rust demoted=False
+2026-09-17 14:18:48 OK refuse http_400
+2026-09-17 14:19:06 OK admit deploy tx=ea70034cfc01c222... h=37563 c=0x25458e1792da...
+2026-09-17 14:24:07 cycle=122 status mempool_size=0 store=rust demoted=False
+2026-09-17 14:24:07 OK refuse http_400
+2026-09-17 14:24:26 OK admit deploy tx=bcf3315b85abb4a2... h=37583 c=0xf461a5c956ad...
+2026-09-17 14:29:26 cycle=123 status mempool_size=0 store=rust demoted=False
+2026-09-17 14:29:26 OK refuse http_400
+2026-09-17 14:29:46 OK admit deploy tx=ea7ccfd866613a9e... h=37603 c=0xbc671aa6533c...
+2026-09-17 14:34:46 cycle=124 status mempool_size=0 store=rust demoted=False
+2026-09-17 14:34:46 OK refuse http_400
+2026-09-17 14:34:51 OK admit deploy tx=ef928cdc15aba36b... h=37622 c=0x73d419e69140...
+2026-09-17 14:39:51 cycle=125 status mempool_size=0 store=rust demoted=False
+2026-09-17 14:39:51 OK refuse http_400
+2026-09-17 14:40:09 OK admit deploy tx=ff0a3341ff1ce96b... h=37642 c=0xb6a4fb80be43...
+2026-09-17 14:45:09 cycle=126 status mempool_size=0 store=rust demoted=False
+2026-09-17 14:45:11 OK refuse http_400
+2026-09-17 14:45:27 OK admit deploy tx=33ea9a058b2a227d... h=37662 c=0xf0c99efecfd6...
+2026-09-17 14:50:28 cycle=127 status mempool_size=0 store=rust demoted=False
+2026-09-17 14:50:28 OK refuse http_400
+2026-09-17 14:50:44 OK admit deploy tx=04c891c0ca2867b1... h=37682 c=0x3d7a40facd97...
+2026-09-17 14:55:45 cycle=128 status mempool_size=0 store=rust demoted=False
+2026-09-17 14:55:45 OK refuse http_400
+2026-09-17 14:56:03 OK admit deploy tx=de15d79ba76f959f... h=37702 c=0x46dacf02d051...
+2026-09-17 15:01:03 cycle=129 status mempool_size=0 store=rust demoted=False
+2026-09-17 15:01:03 OK refuse http_400
+2026-09-17 15:01:09 OK admit deploy tx=9b8f7f834fd64dac... h=37721 c=0xbed31ba3a192...
+2026-09-17 15:06:09 cycle=130 status mempool_size=0 store=rust demoted=False
+2026-09-17 15:06:09 OK refuse http_400
+2026-09-17 15:06:25 OK admit deploy tx=97706ecee4e0a1b5... h=37741 c=0x0710e25b7d0d...
+2026-09-17 15:11:25 cycle=131 status mempool_size=0 store=rust demoted=False
+2026-09-17 15:11:25 OK refuse http_400
+2026-09-17 15:11:41 OK admit deploy tx=76bbbf76fbdadf57... h=37761 c=0xe4739ae76018...
+2026-09-17 15:16:41 cycle=132 status mempool_size=0 store=rust demoted=False
+2026-09-17 15:16:41 OK refuse http_400
+2026-09-17 15:16:58 OK admit deploy tx=058e229b5b9720d3... h=37781 c=0x7fc6f9ce6941...
+2026-09-17 15:21:59 cycle=133 status mempool_size=0 store=rust demoted=False
+2026-09-17 15:21:59 OK refuse http_400
+2026-09-17 15:22:16 OK admit deploy tx=61ca15207f668145... h=37801 c=0xe2111ea44969...
+2026-09-17 15:27:16 cycle=134 status mempool_size=0 store=rust demoted=False
+2026-09-17 15:27:17 OK refuse http_400
+2026-09-17 15:27:35 OK admit deploy tx=f908a05bb1926fe1... h=37821 c=0x6e9980eb74fd...
+2026-09-17 15:32:35 cycle=135 status mempool_size=0 store=rust demoted=False
+2026-09-17 15:32:35 OK refuse http_400
+2026-09-17 15:32:42 OK admit deploy tx=12d0ba757befafb4... h=37840 c=0x6d63dffcd744...
+2026-09-17 15:37:43 cycle=136 status mempool_size=0 store=rust demoted=False
+2026-09-17 15:37:43 OK refuse http_400
+2026-09-17 15:38:01 OK admit deploy tx=d999c9c4d69482ed... h=37860 c=0x6e864d6b5c94...
+2026-09-17 15:43:02 cycle=137 status mempool_size=0 store=rust demoted=False
+2026-09-17 15:43:02 OK refuse http_400
+2026-09-17 15:43:20 OK admit deploy tx=23bd5f30a3ea1b45... h=37880 c=0x0b112c66dc77...
+2026-09-17 15:48:20 cycle=138 status mempool_size=0 store=rust demoted=False
+2026-09-17 15:48:20 OK refuse http_400
+2026-09-17 15:48:38 OK admit deploy tx=ef766769091ed8ba... h=37900 c=0x25e3dedb50c3...
+2026-09-17 15:53:38 cycle=139 status mempool_size=0 store=rust demoted=False
+2026-09-17 15:53:38 OK refuse http_400
+2026-09-17 15:53:54 OK admit deploy tx=cd016ff37a119d41... h=37920 c=0x37e2a85e36df...
+2026-09-17 15:58:55 cycle=140 status mempool_size=0 store=rust demoted=False
+2026-09-17 15:58:55 OK refuse http_400
+2026-09-17 15:59:13 OK admit deploy tx=aff3579c18dc8b8c... h=37940 c=0x8720076fc975...
+2026-09-17 16:04:14 cycle=141 status mempool_size=0 store=rust demoted=False
+2026-09-17 16:04:14 OK refuse http_400
+2026-09-17 16:04:31 OK admit deploy tx=3e51d4c663283a32... h=37960 c=0x30906aad38d4...
+2026-09-17 16:09:31 cycle=142 status mempool_size=0 store=rust demoted=False
+2026-09-17 16:09:31 OK refuse http_400
+2026-09-17 16:09:49 OK admit deploy tx=5e711c586cb9a024... h=37980 c=0xe6bdfe5955cd...
+2026-09-17 16:14:49 cycle=143 status mempool_size=0 store=rust demoted=False
+2026-09-17 16:14:49 OK refuse http_400
+2026-09-17 16:14:56 OK admit deploy tx=1289704f9ffa6751... h=37999 c=0x59402d67b21b...
+2026-09-17 16:19:57 cycle=144 status mempool_size=0 store=rust demoted=False
+2026-09-17 16:19:57 OK refuse http_400
+2026-09-17 16:20:17 OK admit deploy tx=e175d09911562f7d... h=38019 c=0xce414de2ff37...
+2026-09-17 16:25:17 cycle=145 status mempool_size=0 store=rust demoted=False
+2026-09-17 16:25:17 OK refuse http_400
+2026-09-17 16:25:33 OK admit deploy tx=60df8b41e2db2824... h=38039 c=0x738e85f9eff5...
+2026-09-17 16:30:33 cycle=146 status mempool_size=0 store=rust demoted=False
+2026-09-17 16:30:33 OK refuse http_400
+2026-09-17 16:30:52 OK admit deploy tx=75f2e83e04a654d9... h=38059 c=0x46d51c876bb4...
+2026-09-17 16:35:52 cycle=147 status mempool_size=0 store=rust demoted=False
+2026-09-17 16:35:52 OK refuse http_400
+2026-09-17 16:36:11 OK admit deploy tx=8b2f5a2ecf2100c4... h=38079 c=0xf1a35ced2e5c...
+2026-09-17 16:41:12 cycle=148 status mempool_size=0 store=rust demoted=False
+2026-09-17 16:41:13 OK refuse http_400
+2026-09-17 16:41:34 OK admit deploy tx=5369c7214e5342e5... h=38099 c=0xda2adf9cd81f...
+2026-09-17 16:46:34 cycle=149 status mempool_size=0 store=rust demoted=False
+2026-09-17 16:46:34 OK refuse http_400
+2026-09-17 16:46:43 OK admit deploy tx=f5bacf4ceae5c408... h=38118 c=0x47f0fdc74349...
+2026-09-17 16:51:43 cycle=150 status mempool_size=0 store=rust demoted=False
+2026-09-17 16:51:44 OK refuse http_400
+2026-09-17 16:52:03 OK admit deploy tx=961efd3eab53a54d... h=38138 c=0x652738856210...
+2026-09-17 16:57:04 cycle=151 status mempool_size=0 store=rust demoted=False
+2026-09-17 16:57:05 OK refuse http_400
+2026-09-17 16:57:27 OK admit deploy tx=f30410c7025b28a0... h=38158 c=0xf7cccb47b91c...
+2026-09-17 17:02:28 cycle=152 status mempool_size=0 store=rust demoted=False
+2026-09-17 17:02:29 OK refuse http_400
+2026-09-17 17:02:48 OK admit deploy tx=6e9c61fd00a53bb3... h=38178 c=0xd908cb5d0f91...
+2026-09-17 17:07:49 cycle=153 status mempool_size=0 store=rust demoted=False
+2026-09-17 17:07:49 OK refuse http_400
+2026-09-17 17:08:08 OK admit deploy tx=e630c7ef3e95f1c1... h=38198 c=0xabba87093be4...
+2026-09-17 17:13:08 cycle=154 status mempool_size=0 store=rust demoted=False
+2026-09-17 17:13:08 OK refuse http_400
+2026-09-17 17:13:17 OK admit deploy tx=907ca20fc6f17296... h=38217 c=0x8240e9031d01...
+2026-09-17 17:18:17 cycle=155 status mempool_size=0 store=rust demoted=False
+2026-09-17 17:18:17 OK refuse http_400
+2026-09-17 17:18:25 OK admit deploy tx=5fc0640a84c623f1... h=38236 c=0x1e0265273961...
+2026-09-17 17:23:25 cycle=156 status mempool_size=0 store=rust demoted=False
+2026-09-17 17:23:25 OK refuse http_400
+2026-09-17 17:23:36 OK admit deploy tx=a3f201e1479da6f2... h=38255 c=0x8035cdb595f5...
+2026-09-17 17:28:36 cycle=157 status mempool_size=0 store=rust demoted=False
+2026-09-17 17:28:36 OK refuse http_400
+2026-09-17 17:28:43 OK admit deploy tx=1e0785ccb9a7e013... h=38274 c=0x7c45af830491...
+2026-09-17 17:33:43 cycle=158 status mempool_size=0 store=rust demoted=False
+2026-09-17 17:33:44 OK refuse http_400
+2026-09-17 17:33:54 OK admit deploy tx=c0ffe6fc56608782... h=38293 c=0x67834a7456e1...
+2026-09-17 17:38:54 cycle=159 status mempool_size=0 store=rust demoted=False
+2026-09-17 17:38:54 OK refuse http_400
+2026-09-17 17:39:02 OK admit deploy tx=57684a2d4910f636... h=38312 c=0x8c5d6d3c8100...
+2026-09-17 17:44:02 cycle=160 status mempool_size=0 store=rust demoted=False
+2026-09-17 17:44:02 OK refuse http_400
+2026-09-17 17:44:12 OK admit deploy tx=6ddb684bf39d60b1... h=38331 c=0x228bad14218b...
+2026-09-17 17:49:12 cycle=161 status mempool_size=0 store=rust demoted=False
+2026-09-17 17:49:12 OK refuse http_400
+2026-09-17 17:49:19 OK admit deploy tx=b466d11dadc8f6ef... h=38350 c=0x2266844c819e...
+2026-09-17 17:54:19 cycle=162 status mempool_size=0 store=rust demoted=False
+2026-09-17 17:54:19 OK refuse http_400
+2026-09-17 17:54:32 OK admit deploy tx=b1d450eb39429ccb... h=38369 c=0xda727f20b052...
+2026-09-17 17:59:32 cycle=163 status mempool_size=0 store=rust demoted=False
+2026-09-17 17:59:32 OK refuse http_400
+2026-09-17 17:59:44 OK admit deploy tx=30f7739110f19e5c... h=38388 c=0xd7570db0b51a...
+2026-09-17 18:04:44 cycle=164 status mempool_size=0 store=rust demoted=False
+2026-09-17 18:04:44 OK refuse http_400
+2026-09-17 18:04:54 OK admit deploy tx=2c32d5a07173185f... h=38407 c=0xe01d039ab71f...
+2026-09-17 18:09:54 cycle=165 status mempool_size=0 store=rust demoted=False
+2026-09-17 18:09:54 OK refuse http_400
+2026-09-17 18:10:06 OK admit deploy tx=e8d0cb77e7bb75d4... h=38426 c=0x662e3729dd88...
+2026-09-17 18:15:06 cycle=166 status mempool_size=0 store=rust demoted=False
+2026-09-17 18:15:06 OK refuse http_400
+2026-09-17 18:15:19 OK admit deploy tx=44269952743689ce... h=38445 c=0x73105d2efc20...
+2026-09-17 18:20:19 cycle=167 status mempool_size=0 store=rust demoted=False
+2026-09-17 18:20:19 OK refuse http_400
+2026-09-17 18:20:31 OK admit deploy tx=d090a0d7bba88aab... h=38464 c=0xc9b74e1c1e87...
+2026-09-17 18:25:31 cycle=168 status mempool_size=0 store=rust demoted=False
+2026-09-17 18:25:31 OK refuse http_400
+2026-09-17 18:25:49 OK admit deploy tx=db5d1b03117c2bd1... h=38483 c=0xfc0f5f43252f...
+2026-09-17 18:30:49 cycle=169 status mempool_size=0 store=rust demoted=False
+2026-09-17 18:30:49 OK refuse http_400
+2026-09-17 18:30:58 OK admit deploy tx=19395d2169c35251... h=38502 c=0x76246efde81e...
+2026-09-17 18:35:58 cycle=170 status mempool_size=0 store=rust demoted=False
+2026-09-17 18:35:58 OK refuse http_400
+2026-09-17 18:36:15 OK admit deploy tx=3b1238811694ab9b... h=38521 c=0x5c0b5d845a37...
+2026-09-17 18:41:15 cycle=171 status mempool_size=0 store=rust demoted=False
+2026-09-17 18:41:15 OK refuse http_400
+2026-09-17 18:41:28 OK admit deploy tx=97a507df70d0b3c1... h=38540 c=0x21b2d7bea874...
+2026-09-17 18:46:28 cycle=172 status mempool_size=0 store=rust demoted=False
+2026-09-17 18:46:28 OK refuse http_400
+2026-09-17 18:46:46 OK admit deploy tx=956b37704356af0f... h=38559 c=0x783a1b0515a5...
+2026-09-17 18:51:46 cycle=173 status mempool_size=0 store=rust demoted=False
+2026-09-17 18:51:46 OK refuse http_400
+2026-09-17 18:52:00 OK admit deploy tx=8379e4549f59a922... h=38578 c=0xa502541c31a2...
+2026-09-17 18:57:00 cycle=174 status mempool_size=0 store=rust demoted=False
+2026-09-17 18:57:00 OK refuse http_400
+2026-09-17 18:57:18 OK admit deploy tx=103eaa8f299cb6e7... h=38597 c=0x0c5d4d9b1ded...
+2026-09-17 19:02:18 cycle=175 status mempool_size=0 store=rust demoted=False
+2026-09-17 19:02:18 OK refuse http_400
+2026-09-17 19:02:27 OK admit deploy tx=32a90836b790f36a... h=38614 c=0x11bc0ea730a9...
+2026-09-17 19:07:27 cycle=176 status mempool_size=0 store=rust demoted=False
+2026-09-17 19:07:27 OK refuse http_400
+2026-09-17 19:07:46 OK admit deploy tx=8001b9536e5986f8... h=38633 c=0x68532ddfe7a9...
+2026-09-17 19:12:46 cycle=177 status mempool_size=0 store=rust demoted=False
+2026-09-17 19:12:46 OK refuse http_400
+2026-09-17 19:13:03 OK admit deploy tx=361b6357c5b59ba6... h=38652 c=0x43fef4f1617e...
+2026-09-17 19:18:03 cycle=178 status mempool_size=0 store=rust demoted=False
+2026-09-17 19:18:05 OK refuse http_400
+2026-09-17 19:18:15 OK admit deploy tx=5ca0410330cbe33c... h=38671 c=0xc6fd617efd5b...
+2026-09-17 19:23:15 cycle=179 status mempool_size=0 store=rust demoted=False
+2026-09-17 19:23:15 OK refuse http_400
+2026-09-17 19:23:30 OK admit deploy tx=9e26a0a9d408f115... h=38690 c=0x6e371012da42...
+2026-09-17 19:28:30 cycle=180 status mempool_size=0 store=rust demoted=False
+2026-09-17 19:28:30 OK refuse http_400
+2026-09-17 19:28:44 OK admit deploy tx=238046e06083a741... h=38709 c=0x747dd006e528...
+2026-09-17 19:33:44 cycle=181 status mempool_size=0 store=rust demoted=False
+2026-09-17 19:33:44 OK refuse http_400
+2026-09-17 19:33:58 OK admit deploy tx=2982ddfff444b6f7... h=38728 c=0x5b8d609cad28...
+2026-09-17 19:38:58 cycle=182 status mempool_size=0 store=rust demoted=False
+2026-09-17 19:38:58 OK refuse http_400
+2026-09-17 19:39:12 OK admit deploy tx=a53c52d71cc907b8... h=38747 c=0x561a1cf473ac...
+2026-09-17 19:44:12 cycle=183 status mempool_size=0 store=rust demoted=False
+2026-09-17 19:44:12 OK refuse http_400
+2026-09-17 19:44:27 OK admit deploy tx=f42452fc829355f5... h=38766 c=0x01c9f977cc6a...
+2026-09-17 19:49:28 cycle=184 status mempool_size=0 store=rust demoted=False
+2026-09-17 19:49:28 OK refuse http_400
+2026-09-17 19:49:37 OK admit deploy tx=d2134cb8d296eba6... h=38785 c=0xe347f7e65760...
+2026-09-17 19:54:37 cycle=185 status mempool_size=0 store=rust demoted=False
+2026-09-17 19:54:37 OK refuse http_400
+2026-09-17 19:54:52 OK admit deploy tx=e4223e6e4e4e95ef... h=38804 c=0x8e58406b9013...
+2026-09-17 19:59:52 cycle=186 status mempool_size=0 store=rust demoted=False
+2026-09-17 19:59:52 OK refuse http_400
+2026-09-17 20:00:12 OK admit deploy tx=799c646510acfea5... h=38823 c=0xc81acdd6548a...
+2026-09-17 20:05:12 cycle=187 status mempool_size=0 store=rust demoted=False
+2026-09-17 20:05:12 OK refuse http_400
+2026-09-17 20:05:32 OK admit deploy tx=02d0af0d530f04fb... h=38842 c=0x3013321282ac...
+2026-09-17 20:10:32 cycle=188 status mempool_size=0 store=rust demoted=False
+2026-09-17 20:10:32 OK refuse http_400
+2026-09-17 20:10:52 OK admit deploy tx=252589eda27e09a0... h=38861 c=0xef6263e679e4...
+2026-09-17 20:15:52 cycle=189 status mempool_size=0 store=rust demoted=False
+2026-09-17 20:15:52 OK refuse http_400
+2026-09-17 20:16:12 OK admit deploy tx=dd50a3b4d5248898... h=38880 c=0xe026ed39f77d...
+2026-09-17 20:21:12 cycle=190 status mempool_size=0 store=rust demoted=False
+2026-09-17 20:21:12 OK refuse http_400
+2026-09-17 20:21:33 OK admit deploy tx=8cef280994a84d68... h=38899 c=0xb35a03ac98c7...
+2026-09-17 20:26:33 cycle=191 status mempool_size=0 store=rust demoted=False
+2026-09-17 20:26:33 OK refuse http_400
+2026-09-17 20:26:52 OK admit deploy tx=6fd537aaec238690... h=38918 c=0x160c5db848d8...
+2026-09-17 20:31:53 cycle=192 status mempool_size=0 store=rust demoted=False
+2026-09-17 20:31:53 OK refuse http_400
+2026-09-17 20:32:11 OK admit deploy tx=20eeda7cefd2edfd... h=38937 c=0x359b2e33774f...
+2026-09-17 20:37:11 cycle=193 status mempool_size=0 store=rust demoted=False
+2026-09-17 20:37:11 OK refuse http_400
+2026-09-17 20:37:26 OK admit deploy tx=924dd06e22d28680... h=38956 c=0x95a60010f301...
+2026-09-17 20:42:26 cycle=194 status mempool_size=0 store=rust demoted=False
+2026-09-17 20:42:26 OK refuse http_400
+2026-09-17 20:42:47 OK admit deploy tx=fa8fabd7615705a9... h=38975 c=0x2372fd3eca1b...
+2026-09-17 20:47:48 cycle=195 status mempool_size=0 store=rust demoted=False
+2026-09-17 20:47:49 OK refuse http_400
+2026-09-17 20:48:09 OK admit deploy tx=e2a2e1ef70d2d120... h=38994 c=0xd2eeeac3ac6b...
+2026-09-17 20:53:09 cycle=196 status mempool_size=0 store=rust demoted=False
+2026-09-17 20:53:09 OK refuse http_400
+2026-09-17 20:53:28 OK admit deploy tx=57d68b4e7826920a... h=39013 c=0x8aa9bbc6e61c...
+2026-09-17 20:58:28 cycle=197 status mempool_size=0 store=rust demoted=False
+2026-09-17 20:58:28 OK refuse http_400
+2026-09-17 20:58:48 OK admit deploy tx=865e995b94772df2... h=39032 c=0xa512ab6f7f4c...
+2026-09-17 21:03:48 cycle=198 status mempool_size=0 store=rust demoted=False
+2026-09-17 21:03:48 OK refuse http_400
+2026-09-17 21:04:16 OK admit deploy tx=e83dfa792f6e655c... h=39051 c=0x1f60147e0bf6...
+2026-09-17 21:09:17 cycle=199 status mempool_size=0 store=rust demoted=False
+2026-09-17 21:09:17 OK refuse http_400
+2026-09-17 21:09:38 OK admit deploy tx=13ed984224e26b2a... h=39070 c=0xcea07fd99fbd...
+2026-09-17 21:14:38 cycle=200 status mempool_size=0 store=rust demoted=False
+2026-09-17 21:14:38 OK refuse http_400
+2026-09-17 21:15:00 OK admit deploy tx=1ac5639b1ec7c259... h=39089 c=0x14155f5a67f9...
+2026-09-17 21:20:01 cycle=201 status mempool_size=0 store=rust demoted=False
+2026-09-17 21:20:01 OK refuse http_400
+2026-09-17 21:20:25 OK admit deploy tx=1126791cd9b04f8a... h=39106 c=0xd3dd79231e56...
+2026-09-17 21:25:25 cycle=202 status mempool_size=0 store=rust demoted=False
+2026-09-17 21:25:25 OK refuse http_400
+2026-09-17 21:25:54 OK admit deploy tx=8d653253d83a5c0b... h=39125 c=0x5b40afd64e17...
+2026-09-17 21:30:55 cycle=203 status mempool_size=0 store=rust demoted=False
+2026-09-17 21:30:55 OK refuse http_400
+2026-09-17 21:31:16 OK admit deploy tx=a508c7e55c0e5360... h=39144 c=0xc7d364794c83...
+2026-09-17 21:36:17 cycle=204 status mempool_size=0 store=rust demoted=False
+2026-09-17 21:36:17 OK refuse http_400
+2026-09-17 21:36:47 OK admit deploy tx=36c2cf2df28ab20a... h=39163 c=0x27d0b4257b9c...
+2026-09-17 21:41:47 cycle=205 status mempool_size=0 store=rust demoted=False
+2026-09-17 21:41:48 OK refuse http_400
+2026-09-17 21:42:10 OK admit deploy tx=0cfd9f40a6922b24... h=39182 c=0x744e21026baf...
+2026-09-17 21:47:11 cycle=206 status mempool_size=0 store=rust demoted=False
+2026-09-17 21:47:11 OK refuse http_400
+2026-09-17 21:47:37 OK admit deploy tx=ebed02d55963fd15... h=39201 c=0xd7cefd53bc3c...
+2026-09-17 21:52:39 cycle=207 status mempool_size=0 store=rust demoted=False
+2026-09-17 21:52:39 OK refuse http_400
+2026-09-17 21:52:51 OK admit deploy tx=95acfeed904414df... h=39219 c=0x3b433d3e770c...
+2026-09-17 21:57:51 cycle=208 status mempool_size=0 store=rust demoted=False
+2026-09-17 21:57:51 OK refuse http_400
+2026-09-17 21:58:13 OK admit deploy tx=937661474ddf2218... h=39238 c=0xd2e6648e43e2...
+2026-09-17 22:03:13 cycle=209 status mempool_size=0 store=rust demoted=False
+2026-09-17 22:03:13 OK refuse http_400
+2026-09-17 22:03:39 OK admit deploy tx=6f007767afa26358... h=39257 c=0x683053f3e5de...
+2026-09-17 22:08:40 cycle=210 status mempool_size=0 store=rust demoted=False
+2026-09-17 22:08:41 OK refuse http_400
+2026-09-17 22:09:05 OK admit deploy tx=f3394f2214b82b03... h=39276 c=0x6b8127d805de...
+2026-09-17 22:14:06 cycle=211 status mempool_size=0 store=rust demoted=False
+2026-09-17 22:14:08 OK refuse http_400
+2026-09-17 22:14:35 OK admit deploy tx=c0e7c3b7f9789552... h=39295 c=0xfe6cb2cfb4d6...
+2026-09-17 22:19:37 cycle=212 status mempool_size=0 store=rust demoted=False
+2026-09-17 22:19:39 OK refuse http_400
+2026-09-17 22:19:50 OK admit deploy tx=64dfc967ed5d48b4... h=39312 c=0xde3b66d35ac5...
+2026-09-17 22:24:51 cycle=213 status mempool_size=0 store=rust demoted=False
+2026-09-17 22:24:52 OK refuse http_400
+2026-09-17 22:25:15 OK admit deploy tx=104694d9733856d0... h=39331 c=0xf8113f9ca8aa...
+2026-09-17 22:30:15 cycle=214 status mempool_size=0 store=rust demoted=False
+2026-09-17 22:30:15 OK refuse http_400
+2026-09-17 22:30:28 OK admit deploy tx=20c3a8f0cabba80f... h=39349 c=0xec0703102ca9...
+2026-09-17 22:35:28 cycle=215 status mempool_size=0 store=rust demoted=False
+2026-09-17 22:35:28 OK refuse http_400
+2026-09-17 22:35:55 OK admit deploy tx=f62428425a855f17... h=39368 c=0x404ae93efc93...
+2026-09-17 22:40:56 cycle=216 status mempool_size=0 store=rust demoted=False
+2026-09-17 22:40:58 OK refuse http_400
+2026-09-17 22:41:10 OK admit deploy tx=9c3c1db8658e1c96... h=39386 c=0x2da746b472fe...
+2026-09-17 22:46:10 cycle=217 status mempool_size=0 store=rust demoted=False
+2026-09-17 22:46:10 OK refuse http_400
+2026-09-17 22:46:22 OK admit deploy tx=72f6eb83e3bb20f0... h=39404 c=0x76d6920f07ab...
+2026-09-17 22:51:22 cycle=218 status mempool_size=0 store=rust demoted=False
+2026-09-17 22:51:22 OK refuse http_400
+2026-09-17 22:51:35 OK admit deploy tx=66881768717724c8... h=39422 c=0x73d0f221cd40...
+2026-09-17 22:56:37 cycle=219 status mempool_size=0 store=rust demoted=False
+2026-09-17 22:56:37 OK refuse http_400
+2026-09-17 22:57:03 OK admit deploy tx=d8c9ec52da6c9036... h=39441 c=0x8eba3fada116...
+2026-09-17 23:02:03 cycle=220 status mempool_size=0 store=rust demoted=False
+2026-09-17 23:02:03 OK refuse http_400
+2026-09-17 23:02:15 OK admit deploy tx=5ec72d006a8fb077... h=39459 c=0x0311dd0ac617...
+2026-09-17 23:07:15 cycle=221 status mempool_size=0 store=rust demoted=False
+2026-09-17 23:07:15 OK refuse http_400
+2026-09-17 23:07:44 OK admit deploy tx=7f772c0386dad56a... h=39478 c=0xe4c533d38ebb...
+2026-09-17 23:12:46 cycle=222 status mempool_size=0 store=rust demoted=False
+2026-09-17 23:12:48 OK refuse http_400
+2026-09-17 23:13:22 OK admit deploy tx=4e68394809da0a33... h=39497 c=0x24f721423690...
+2026-09-17 23:18:22 cycle=223 status mempool_size=0 store=rust demoted=False
+2026-09-17 23:18:22 OK refuse http_400
+2026-09-17 23:18:33 OK admit deploy tx=73bd4ef0ab269046... h=39515 c=0x6f97e4caeacd...
+2026-09-17 23:23:33 cycle=224 status mempool_size=0 store=rust demoted=False
+2026-09-17 23:23:33 OK refuse http_400
+2026-09-17 23:23:46 OK admit deploy tx=36ff54abc891af36... h=39533 c=0x8a1eb2b907d7...
+2026-09-17 23:28:46 cycle=225 status mempool_size=0 store=rust demoted=False
+2026-09-17 23:28:46 OK refuse http_400
+2026-09-17 23:28:59 OK admit deploy tx=04592e016c368f63... h=39551 c=0x35fffd6f7d11...
+2026-09-17 23:33:59 cycle=226 status mempool_size=0 store=rust demoted=False
+2026-09-17 23:33:59 OK refuse http_400
+2026-09-17 23:34:12 OK admit deploy tx=92c576f448f43620... h=39569 c=0x7474a596c4b7...
+2026-09-17 23:39:12 cycle=227 status mempool_size=0 store=rust demoted=False
+2026-09-17 23:39:12 OK refuse http_400
+2026-09-17 23:39:31 OK admit deploy tx=5fd732f897b87c57... h=39587 c=0x97d1bc01f51d...
+2026-09-17 23:44:31 cycle=228 status mempool_size=0 store=rust demoted=False
+2026-09-17 23:44:31 OK refuse http_400
+2026-09-17 23:44:43 OK admit deploy tx=10d07f8308f7e962... h=39605 c=0x4413c08b5e49...
+2026-09-17 23:49:43 cycle=229 status mempool_size=0 store=rust demoted=False
+2026-09-17 23:49:43 OK refuse http_400
+2026-09-17 23:50:02 OK admit deploy tx=ae347dd9821d5990... h=39623 c=0xf65233a12d05...
+2026-09-17 23:55:02 cycle=230 status mempool_size=0 store=rust demoted=False
+2026-09-17 23:55:02 OK refuse http_400
+2026-09-17 23:55:15 OK admit deploy tx=0fe7a724b5b8507c... h=39641 c=0xc7c54a5f5825...
+2026-09-18 00:00:15 cycle=231 status mempool_size=0 store=rust demoted=False
+2026-09-18 00:00:15 OK refuse http_400
+2026-09-18 00:00:34 OK admit deploy tx=49722d611232c19c... h=39659 c=0x25f5addf3a85...
+2026-09-18 00:05:34 cycle=232 status mempool_size=0 store=rust demoted=False
+2026-09-18 00:05:34 OK refuse http_400
+2026-09-18 00:05:53 OK admit deploy tx=31b6074f212befb7... h=39677 c=0x082b2fff9830...
+2026-09-18 00:10:53 cycle=233 status mempool_size=0 store=rust demoted=False
+2026-09-18 00:10:53 OK refuse http_400
+2026-09-18 00:11:06 OK admit deploy tx=d275026eec9f6589... h=39695 c=0xe42f5894174e...
+2026-09-18 00:16:06 cycle=234 status mempool_size=0 store=rust demoted=False
+2026-09-18 00:16:06 OK refuse http_400
+2026-09-18 00:16:27 OK admit deploy tx=4a6464ea90a365cc... h=39713 c=0xa8ac05ebb90b...
+2026-09-18 00:21:27 cycle=235 status mempool_size=0 store=rust demoted=False
+2026-09-18 00:21:27 OK refuse http_400
+2026-09-18 00:21:47 OK admit deploy tx=8dc1e3dd3d375226... h=39731 c=0x333ea5903ea9...
+2026-09-18 00:26:47 cycle=236 status mempool_size=0 store=rust demoted=False
+2026-09-18 00:26:47 OK refuse http_400
+2026-09-18 00:27:06 OK admit deploy tx=b0f15e6f1312b204... h=39749 c=0x1ee035af35e9...
+2026-09-18 00:32:06 cycle=237 status mempool_size=0 store=rust demoted=False
+2026-09-18 00:32:06 OK refuse http_400
+2026-09-18 00:32:27 OK admit deploy tx=06420ac3c05160d7... h=39767 c=0x7425c2d9efe8...
+2026-09-18 00:37:27 cycle=238 status mempool_size=0 store=rust demoted=False
+2026-09-18 00:37:27 OK refuse http_400
+2026-09-18 00:37:47 OK admit deploy tx=965b225dce7c1595... h=39785 c=0x45663796c436...
+2026-09-18 00:42:47 cycle=239 status mempool_size=0 store=rust demoted=False
+2026-09-18 00:42:47 OK refuse http_400
+2026-09-18 00:43:08 OK admit deploy tx=2b636962f38c3d32... h=39803 c=0x2aa3812a0d74...
+2026-09-18 00:48:08 cycle=240 status mempool_size=0 store=rust demoted=False
+2026-09-18 00:48:08 OK refuse http_400
+2026-09-18 00:48:29 OK admit deploy tx=8e1a12ca5b41d126... h=39821 c=0xc1b0258bad82...
+2026-09-18 00:53:29 cycle=241 status mempool_size=0 store=rust demoted=False
+2026-09-18 00:53:29 OK refuse http_400
+2026-09-18 00:53:49 OK admit deploy tx=13c84979f449a5ad... h=39839 c=0x9a3209ce69a0...
+2026-09-18 00:58:49 cycle=242 status mempool_size=0 store=rust demoted=False
+2026-09-18 00:58:49 OK refuse http_400
+2026-09-18 00:59:10 OK admit deploy tx=790d0a4931282898... h=39857 c=0x8e1d2a88195e...
+2026-09-18 01:04:10 cycle=243 status mempool_size=0 store=rust demoted=False
+2026-09-18 01:04:10 OK refuse http_400
+2026-09-18 01:04:32 OK admit deploy tx=16397024693499df... h=39875 c=0xc27a4e39b6c7...
+2026-09-18 01:09:32 cycle=244 status mempool_size=0 store=rust demoted=False
+2026-09-18 01:09:32 OK refuse http_400
+2026-09-18 01:09:53 OK admit deploy tx=a4d40ab78d9aefca... h=39893 c=0xc318afc1de84...
+2026-09-18 01:14:54 cycle=245 status mempool_size=0 store=rust demoted=False
+2026-09-18 01:14:55 OK refuse http_400
+2026-09-18 01:15:17 OK admit deploy tx=34e0c0ab8ff6f432... h=39911 c=0xb718b1cc2f82...
+2026-09-18 01:20:17 cycle=246 status mempool_size=0 store=rust demoted=False
+2026-09-18 01:20:18 OK refuse http_400
+2026-09-18 01:20:39 OK admit deploy tx=14d344d3333a15ea... h=39929 c=0xf92087937b09...
+2026-09-18 01:25:39 cycle=247 status mempool_size=0 store=rust demoted=False
+2026-09-18 01:25:40 OK refuse http_400
+2026-09-18 01:26:02 OK admit deploy tx=0479054b687ee916... h=39947 c=0xef5cbe9ed693...
+2026-09-18 01:31:03 cycle=248 status mempool_size=0 store=rust demoted=False
+2026-09-18 01:31:03 OK refuse http_400
+2026-09-18 01:31:27 OK admit deploy tx=fce5676d481e02fa... h=39965 c=0x0590f8efdb82...
+2026-09-18 01:36:27 cycle=249 status mempool_size=0 store=rust demoted=False
+2026-09-18 01:36:28 OK refuse http_400
+2026-09-18 01:36:52 OK admit deploy tx=398ef3bf251aa2da... h=39983 c=0x521dd3a34187...
+2026-09-18 01:41:52 cycle=250 status mempool_size=0 store=rust demoted=False
+2026-09-18 01:41:52 OK refuse http_400
+2026-09-18 01:42:16 OK admit deploy tx=344d59996b060c29... h=40001 c=0x861593a89fcb...
+2026-09-18 01:47:17 cycle=251 status mempool_size=0 store=rust demoted=False
+2026-09-18 01:47:17 OK refuse http_400
+2026-09-18 01:47:42 OK admit deploy tx=8676abb33b0974af... h=40019 c=0x38538832da77...
+2026-09-18 01:52:43 cycle=252 status mempool_size=0 store=rust demoted=False
+2026-09-18 01:52:43 OK refuse http_400
+2026-09-18 01:53:07 OK admit deploy tx=e500d9076ab2e9bc... h=40037 c=0x3a800bb0ccf1...
+2026-09-18 01:58:08 cycle=253 status mempool_size=0 store=rust demoted=False
+2026-09-18 01:58:09 OK refuse http_400
+2026-09-18 01:58:33 OK admit deploy tx=11736b0a8c112aa1... h=40055 c=0x162593912368...
+2026-09-18 02:03:34 cycle=254 status mempool_size=0 store=rust demoted=False
+2026-09-18 02:03:34 OK refuse http_400
+2026-09-18 02:03:50 OK admit deploy tx=2762b214b64817dc... h=40072 c=0x0c5586c22250...
+2026-09-18 02:08:50 cycle=255 status mempool_size=0 store=rust demoted=False
+2026-09-18 02:08:50 OK refuse http_400
+2026-09-18 02:09:10 OK admit deploy tx=261891f7017f8630... h=40090 c=0x122f893fc0fe...
+2026-09-18 02:14:11 cycle=256 status mempool_size=0 store=rust demoted=False
+2026-09-18 02:14:11 OK refuse http_400
+2026-09-18 02:14:46 OK admit deploy tx=65177c0b9fa7d7fe... h=40108 c=0x1817ea9c62e9...
+2026-09-18 02:19:46 cycle=257 status mempool_size=0 store=rust demoted=False
+2026-09-18 02:19:46 OK refuse http_400
+2026-09-18 02:20:21 OK admit deploy tx=25754385cf0cfaae... h=40126 c=0x553c5406bb4e...
+2026-09-18 02:25:21 cycle=258 status mempool_size=0 store=rust demoted=False
+2026-09-18 02:25:21 OK refuse http_400
+2026-09-18 02:25:48 OK admit deploy tx=3e3ab905dbe33fca... h=40144 c=0x3206f6fe3773...
+2026-09-18 02:30:48 cycle=259 status mempool_size=0 store=rust demoted=False
+2026-09-18 02:30:48 OK refuse http_400
+2026-09-18 02:31:10 OK admit deploy tx=0aca762aaceb86e7... h=40161 c=0xed0a6b4357c4...
+2026-09-18 02:36:12 cycle=260 status mempool_size=0 store=rust demoted=False
+2026-09-18 02:36:12 OK refuse http_400
+2026-09-18 02:36:38 OK admit deploy tx=24ca9c71406069ba... h=40176 c=0xb3d38d074638...
+2026-09-18 02:41:40 cycle=261 status mempool_size=0 store=rust demoted=False
+2026-09-18 02:41:41 OK refuse http_400
+2026-09-18 02:42:07 OK admit deploy tx=76bce815153479ff... h=40194 c=0x3e1c17cb5cf2...
+2026-09-18 02:47:10 cycle=262 status mempool_size=0 store=rust demoted=False
+2026-09-18 02:47:10 OK refuse http_400
+2026-09-18 02:47:35 OK admit deploy tx=940180250ace9763... h=40212 c=0x2d48faf120c1...
+2026-09-18 02:52:36 cycle=263 status mempool_size=0 store=rust demoted=False
+2026-09-18 02:52:39 OK refuse http_400
+2026-09-18 02:53:04 OK admit deploy tx=20135de63adfd835... h=40230 c=0x4df55ebd2f24...
+2026-09-18 02:58:07 cycle=264 status mempool_size=0 store=rust demoted=False
+2026-09-18 02:58:10 OK refuse http_400
+2026-09-18 02:58:37 OK admit deploy tx=f971cefd881fb9ba... h=40248 c=0x845d95173759...
+2026-09-18 03:03:41 cycle=265 status mempool_size=0 store=rust demoted=False
+2026-09-18 03:03:41 OK refuse http_400
+2026-09-18 03:04:07 OK admit deploy tx=2f64811edf1c85c4... h=40266 c=0xd98c527e517d...
+2026-09-18 03:09:09 cycle=266 status mempool_size=0 store=rust demoted=False
+2026-09-18 03:09:12 OK refuse http_400
+2026-09-18 03:09:38 OK admit deploy tx=b9d81cecae6547b2... h=40284 c=0x9a73b58a448d...
+2026-09-18 03:14:43 cycle=267 status mempool_size=0 store=rust demoted=False
+2026-09-18 03:14:43 OK refuse http_400
+2026-09-18 03:15:11 OK admit deploy tx=f1f619b1911868e9... h=40302 c=0x4556ef4c3568...
+2026-09-18 03:20:15 cycle=268 status mempool_size=0 store=rust demoted=False
+2026-09-18 03:20:15 OK refuse http_400
+2026-09-18 03:20:42 OK admit deploy tx=0163864aef87afdb... h=40320 c=0xc3ab0c02036a...
+2026-09-18 03:25:43 cycle=269 status mempool_size=0 store=rust demoted=False
+2026-09-18 03:25:47 OK refuse http_400
+2026-09-18 03:26:13 OK admit deploy tx=2c31573e8db8e944... h=40338 c=0x4808a9e328dc...
+2026-09-18 03:31:19 cycle=270 status mempool_size=0 store=rust demoted=False
+2026-09-18 03:31:20 OK refuse http_400
+2026-09-18 03:31:47 OK admit deploy tx=9c5ac56a52c7ee88... h=40356 c=0x4d86723018bb...
+2026-09-18 03:36:52 cycle=271 status mempool_size=0 store=rust demoted=False
+2026-09-18 03:36:53 OK refuse http_400
+2026-09-18 03:37:20 OK admit deploy tx=431ec2c5caad8898... h=40374 c=0x2f431f76c8b4...
+2026-09-18 03:42:25 cycle=272 status mempool_size=0 store=rust demoted=False
+2026-09-18 03:42:25 OK refuse http_400
+2026-09-18 03:42:51 OK admit deploy tx=2ecd7deeff4f215b... h=40392 c=0x163f7c783643...
+2026-09-18 03:47:54 cycle=273 status mempool_size=0 store=rust demoted=False
+2026-09-18 03:47:58 OK refuse http_400
+2026-09-18 03:48:26 OK admit deploy tx=e8cc2fd357fb3bfa... h=40410 c=0x79b64396e4a5...
+2026-09-18 03:53:26 cycle=274 status mempool_size=0 store=rust demoted=False
+2026-09-18 03:53:26 OK refuse http_400
+2026-09-18 03:53:49 OK admit deploy tx=dcd967b203af4bb7... h=40427 c=0xd6e32ec331c6...
+2026-09-18 03:58:49 cycle=275 status mempool_size=0 store=rust demoted=False
+2026-09-18 03:58:49 OK refuse http_400
+2026-09-18 03:59:06 OK admit deploy tx=dfd2f989bef24b3a... h=40444 c=0x1f72037eaec7...
+2026-09-18 04:04:11 cycle=276 status mempool_size=0 store=rust demoted=False
+2026-09-18 04:04:12 OK refuse http_400
+2026-09-18 04:04:30 OK admit deploy tx=958c35636cf91630... h=40461 c=0x6fc9666fbc90...
+2026-09-18 04:09:30 cycle=277 status mempool_size=0 store=rust demoted=False
+2026-09-18 04:09:30 OK refuse http_400
+2026-09-18 04:09:58 WARN admit timeout:timed out
+2026-09-18 04:17:28 cycle=278 status mempool_size=0 store=rust demoted=False
+2026-09-18 04:17:28 OK refuse http_400
+2026-09-18 04:18:02 OK admit deploy tx=40987592f4d980cb... h=40504 c=0x44a987135c20...
+2026-09-18 04:23:08 cycle=279 status mempool_size=0 store=rust demoted=False
+2026-09-18 04:23:08 OK refuse http_400
+2026-09-18 04:23:27 OK admit deploy tx=a4743f371bf1d6de... h=40521 c=0x1ba90afd322f...
+2026-09-18 04:28:27 cycle=280 status mempool_size=0 store=rust demoted=False
+2026-09-18 04:28:27 OK refuse http_400
+2026-09-18 04:28:47 WARN admit timeout:timed out
+2026-09-18 04:36:19 cycle=281 status mempool_size=0 store=rust demoted=False
+2026-09-18 04:36:19 OK refuse http_400
+2026-09-18 04:36:35 OK admit deploy tx=44c51e405491d9a4... h=40563 c=0x8d6198c2921b...
+2026-09-18 04:41:36 cycle=282 status mempool_size=0 store=rust demoted=False
+2026-09-18 04:41:36 OK refuse http_400
+2026-09-18 04:42:06 WARN admit timeout:timed out
+2026-09-18 04:49:40 cycle=283 status mempool_size=0 store=rust demoted=False
+2026-09-18 04:49:40 OK refuse http_400
+2026-09-18 04:50:08 OK admit deploy tx=fca9b82968667c06... h=40606 c=0xa79f98e0998b...
+2026-09-18 04:55:08 cycle=284 status mempool_size=0 store=rust demoted=False
+2026-09-18 04:55:08 OK refuse http_400
+2026-09-18 04:55:33 OK admit deploy tx=61dabb28f1e6a8c7... h=40623 c=0x29a429053d64...
+2026-09-18 05:00:33 cycle=285 status mempool_size=0 store=rust demoted=False
+2026-09-18 05:00:33 OK refuse http_400
+2026-09-18 05:01:02 WARN admit timeout:timed out
+2026-09-18 05:08:32 cycle=286 status mempool_size=0 store=rust demoted=False
+2026-09-18 05:08:32 OK refuse http_400
+2026-09-18 05:08:58 OK admit deploy tx=9cbe74015def1220... h=40665 c=0x4619762488fa...
+2026-09-18 05:13:58 cycle=287 status mempool_size=0 store=rust demoted=False
+2026-09-18 05:13:58 OK refuse http_400
+2026-09-18 05:14:25 OK admit deploy tx=6d3cd50e66459f7b... h=40681 c=0x37823e9f276d...
+2026-09-18 05:19:25 cycle=288 status mempool_size=0 store=rust demoted=False
+2026-09-18 05:19:25 OK refuse http_400
+2026-09-18 05:19:50 OK admit deploy tx=30eea3efb7d8bb40... h=40698 c=0xc8d28b901c61...
+2026-09-18 05:24:50 cycle=289 status mempool_size=0 store=rust demoted=False
+2026-09-18 05:24:50 OK refuse http_400
+2026-09-18 05:25:09 OK admit deploy tx=f07d5b29923c82fa... h=40715 c=0x0fe0dd785e46...
+2026-09-18 05:30:09 cycle=290 status mempool_size=0 store=rust demoted=False
+2026-09-18 05:30:09 OK refuse http_400
+2026-09-18 05:30:29 WARN admit timeout:timed out
+2026-09-18 05:37:59 cycle=291 status mempool_size=0 store=rust demoted=False
+2026-09-18 05:37:59 OK refuse http_400
+2026-09-18 05:38:25 OK admit deploy tx=5e99dd70a6aae55a... h=40756 c=0x4c21ab25c70b...
+2026-09-18 05:43:25 cycle=292 status mempool_size=0 store=rust demoted=False
+2026-09-18 05:43:25 OK refuse http_400
+2026-09-18 05:43:52 OK admit deploy tx=543ba15d8ccfb785... h=40773 c=0x3ed3925a8baa...
+2026-09-18 05:48:52 cycle=293 status mempool_size=0 store=rust demoted=False
+2026-09-18 05:48:52 OK refuse http_400
+2026-09-18 05:49:29 OK admit deploy tx=7ad85ad741482c8e... h=40790 c=0x555bb4242f0a...
+2026-09-18 05:54:29 cycle=294 status mempool_size=0 store=rust demoted=False
+2026-09-18 05:54:29 OK refuse http_400
+2026-09-18 05:54:47 OK admit deploy tx=1ddc08bf67c944c7... h=40807 c=0x66b7fcff79c0...
+2026-09-18 05:59:47 cycle=295 status mempool_size=0 store=rust demoted=False
+2026-09-18 05:59:47 OK refuse http_400
+2026-09-18 06:00:13 OK admit deploy tx=e9004df11af3532d... h=40824 c=0x4aa3f8251354...
+2026-09-18 06:05:13 cycle=296 status mempool_size=0 store=rust demoted=False
+2026-09-18 06:05:13 OK refuse http_400
+2026-09-18 06:05:41 OK admit deploy tx=564250c312662d53... h=40841 c=0xedfa6aa2731d...
+2026-09-18 06:10:41 cycle=297 status mempool_size=0 store=rust demoted=False
+2026-09-18 06:10:41 OK refuse http_400
+2026-09-18 06:11:08 OK admit deploy tx=dc34d073a379a8dd... h=40858 c=0x01a690981c5f...
+2026-09-18 06:16:08 cycle=298 status mempool_size=0 store=rust demoted=False
+2026-09-18 06:16:08 OK refuse http_400
+2026-09-18 06:16:48 WARN admit timeout:timed out
+2026-09-18 06:24:18 cycle=299 status mempool_size=0 store=rust demoted=False
+2026-09-18 06:24:18 OK refuse http_400
+2026-09-18 06:24:38 WARN admit timeout:timed out
+2026-09-18 06:32:09 cycle=300 status mempool_size=0 store=rust demoted=False
+2026-09-18 06:32:09 OK refuse http_400
+2026-09-18 06:32:36 OK admit deploy tx=3c692174aaf9e180... h=40922 c=0xc2edaaf7ba0c...
+2026-09-18 06:37:36 cycle=301 status mempool_size=0 store=rust demoted=False
+2026-09-18 06:37:36 OK refuse http_400
+2026-09-18 06:38:06 OK admit deploy tx=dfbff59199a94930... h=40939 c=0x3fece6703e4a...
+2026-09-18 06:43:06 cycle=302 status mempool_size=0 store=rust demoted=False
+2026-09-18 06:43:06 OK refuse http_400
+2026-09-18 06:43:35 OK admit deploy tx=df0a88af6631dfa8... h=40956 c=0xf92139075cc1...
+2026-09-18 06:48:36 cycle=303 status mempool_size=0 store=rust demoted=False
+2026-09-18 06:48:36 OK refuse http_400
+2026-09-18 06:49:05 OK admit deploy tx=4c1e269875229e51... h=40973 c=0x747d87867c15...
+2026-09-18 06:54:05 cycle=304 status mempool_size=0 store=rust demoted=False
+2026-09-18 06:54:05 OK refuse http_400
+2026-09-18 06:54:26 WARN admit timeout:timed out
+2026-09-18 07:01:56 cycle=305 status mempool_size=0 store=rust demoted=False
+2026-09-18 07:01:56 OK refuse http_400
+2026-09-18 07:02:18 WARN admit timeout:timed out
+2026-09-18 07:09:48 cycle=306 status mempool_size=0 store=rust demoted=False
+2026-09-18 07:09:49 OK refuse http_400
+2026-09-18 07:10:09 OK admit deploy tx=fe7793d94288913d... h=41037 c=0x3c1ae5715a09...
+2026-09-18 07:15:10 cycle=307 status mempool_size=0 store=rust demoted=False
+2026-09-18 07:15:11 OK refuse http_400
+2026-09-18 07:15:50 OK admit deploy tx=275d3ba52f5065a6... h=41054 c=0x48b537367996...
+2026-09-18 07:20:50 cycle=308 status mempool_size=0 store=rust demoted=False
+2026-09-18 07:20:50 OK refuse http_400
+2026-09-18 07:21:12 OK admit deploy tx=40d12ff305a60bd7... h=41070 c=0x11dc44bf0f76...
+2026-09-18 07:26:12 cycle=309 status mempool_size=0 store=rust demoted=False
+2026-09-18 07:26:13 OK refuse http_400
+2026-09-18 07:26:34 WARN admit timeout:timed out
+2026-09-18 07:34:04 cycle=310 status mempool_size=0 store=rust demoted=False
+2026-09-18 07:34:04 OK refuse http_400
+2026-09-18 07:34:36 WARN admit timeout:timed out
+2026-09-18 07:42:06 cycle=311 status mempool_size=0 store=rust demoted=False
+2026-09-18 07:42:06 OK refuse http_400
+2026-09-18 07:42:26 OK admit deploy tx=c46031f5a2a262dd... h=41133 c=0xd6f076293b95...
+2026-09-18 07:47:26 cycle=312 status mempool_size=0 store=rust demoted=False
+2026-09-18 07:47:26 OK refuse http_400
+2026-09-18 07:47:47 OK admit deploy tx=27fbf01f522507db... h=41149 c=0x281a2781b0b0...
+2026-09-18 07:52:47 cycle=313 status mempool_size=0 store=rust demoted=False
+2026-09-18 07:52:47 OK refuse http_400
+2026-09-18 07:53:12 WARN admit timeout:timed out
+2026-09-18 08:00:42 cycle=314 status mempool_size=0 store=rust demoted=False
+2026-09-18 08:00:42 OK refuse http_400
+2026-09-18 08:01:14 WARN admit timeout:timed out
+2026-09-18 08:08:44 cycle=315 status mempool_size=0 store=rust demoted=False
+2026-09-18 08:08:44 OK refuse http_400
+2026-09-18 08:09:17 WARN admit timeout:timed out
+2026-09-18 08:16:47 cycle=316 status mempool_size=0 store=rust demoted=False
+2026-09-18 08:16:47 OK refuse http_400
+2026-09-18 08:17:07 OK admit deploy tx=727de9754450f650... h=41237 c=0x5037d039ef81...
+2026-09-18 08:22:07 cycle=317 status mempool_size=0 store=rust demoted=False
+2026-09-18 08:22:07 OK refuse http_400
+2026-09-18 08:22:29 WARN admit timeout:timed out
+2026-09-18 08:29:59 cycle=318 status mempool_size=0 store=rust demoted=False
+2026-09-18 08:29:59 OK refuse http_400
+2026-09-18 08:30:20 WARN admit timeout:timed out
+2026-09-18 08:37:51 cycle=319 status mempool_size=0 store=rust demoted=False
+2026-09-18 08:37:52 OK refuse http_400
+2026-09-18 08:38:36 WARN admit timeout:timed out
+2026-09-18 08:46:06 cycle=320 status mempool_size=0 store=rust demoted=False
+2026-09-18 08:46:06 OK refuse http_400
+2026-09-18 08:46:28 WARN admit timeout:timed out
+2026-09-18 08:53:58 cycle=321 status mempool_size=0 store=rust demoted=False
+2026-09-18 08:53:58 OK refuse http_400
+2026-09-18 08:54:20 WARN admit timeout:timed out
+2026-09-18 09:01:55 cycle=322 status mempool_size=0 store=rust demoted=False
+2026-09-18 09:01:55 OK refuse http_400
+2026-09-18 09:02:17 OK admit deploy tx=3a0b73957a2559ac... h=41370 c=0x67f294c6753f...
+2026-09-18 09:07:17 cycle=323 status mempool_size=0 store=rust demoted=False
+2026-09-18 09:07:17 OK refuse http_400
+2026-09-18 09:08:02 WARN admit timeout:timed out
+2026-09-18 09:15:33 cycle=324 status mempool_size=0 store=rust demoted=False
+2026-09-18 09:15:34 OK refuse http_400
+2026-09-18 09:16:07 WARN admit timeout:timed out
+2026-09-18 09:23:37 cycle=325 status mempool_size=0 store=rust demoted=False
+2026-09-18 09:23:37 OK refuse http_400
+2026-09-18 09:23:59 WARN admit timeout:timed out
+2026-09-18 09:31:37 cycle=326 status mempool_size=0 store=rust demoted=False
+2026-09-18 09:31:38 OK refuse http_400
+2026-09-18 09:31:48 WARN admit timeout:timed out
+2026-09-18 09:39:18 cycle=327 status mempool_size=0 store=rust demoted=False
+2026-09-18 09:39:18 OK refuse http_400
+2026-09-18 09:39:40 WARN admit timeout:timed out
+2026-09-18 09:47:16 cycle=328 status mempool_size=0 store=rust demoted=False
+2026-09-18 09:47:16 OK refuse http_400
+2026-09-18 09:47:27 WARN admit timeout:timed out
+2026-09-18 09:54:58 cycle=329 status mempool_size=0 store=rust demoted=False
+2026-09-18 09:54:59 OK refuse http_400
+2026-09-18 09:55:21 WARN admit timeout:timed out
+2026-09-18 10:02:55 cycle=330 status mempool_size=0 store=rust demoted=False
+2026-09-18 10:02:56 OK refuse http_400
+2026-09-18 10:03:06 WARN admit timeout:timed out
+2026-09-18 10:10:36 cycle=331 status mempool_size=0 store=rust demoted=False
+2026-09-18 10:10:36 OK refuse http_400
+2026-09-18 10:10:46 WARN admit timeout:timed out
+2026-09-18 10:18:16 cycle=332 status mempool_size=0 store=rust demoted=False
+2026-09-18 10:18:16 OK refuse http_400
+2026-09-18 10:18:49 WARN admit timeout:timed out
+2026-09-18 10:26:19 cycle=333 status mempool_size=0 store=rust demoted=False
+2026-09-18 10:26:19 OK refuse http_400
+2026-09-18 10:26:29 WARN admit timeout:timed out
+2026-09-18 10:33:59 cycle=334 status mempool_size=0 store=rust demoted=False
+2026-09-18 10:33:59 OK refuse http_400
+2026-09-18 10:34:09 WARN admit timeout:timed out
+2026-09-18 10:41:43 cycle=335 status mempool_size=0 store=rust demoted=False
+2026-09-18 10:41:48 OK refuse http_400
+2026-09-18 10:41:59 WARN admit timeout:timed out
+2026-09-18 10:49:29 cycle=336 status mempool_size=0 store=rust demoted=False
+2026-09-18 10:49:29 OK refuse http_400
+2026-09-18 10:49:39 WARN admit timeout:timed out
+2026-09-18 10:57:09 cycle=337 status mempool_size=0 store=rust demoted=False
+2026-09-18 10:57:09 OK refuse http_400
+2026-09-18 10:57:19 WARN admit timeout:timed out
+2026-09-18 11:04:49 cycle=338 status mempool_size=0 store=rust demoted=False
+2026-09-18 11:04:49 OK refuse http_400
+2026-09-18 11:04:59 WARN admit timeout:timed out
+2026-09-18 11:12:29 cycle=339 status mempool_size=0 store=rust demoted=False
+2026-09-18 11:12:29 OK refuse http_400
+2026-09-18 11:12:39 WARN admit timeout:timed out
+2026-09-18 11:20:09 cycle=340 status mempool_size=0 store=rust demoted=False
+2026-09-18 11:20:11 OK refuse http_400
+2026-09-18 11:20:21 WARN admit timeout:timed out
+2026-09-18 11:27:51 cycle=341 status mempool_size=0 store=rust demoted=False
+2026-09-18 11:27:51 OK refuse http_400
+2026-09-18 11:28:01 WARN admit timeout:timed out
+2026-09-18 11:35:31 cycle=342 status mempool_size=0 store=rust demoted=False
+2026-09-18 11:35:31 OK refuse http_400
+2026-09-18 11:35:41 WARN admit timeout:timed out
+2026-09-18 11:43:11 cycle=343 status mempool_size=0 store=rust demoted=False
+2026-09-18 11:43:12 OK refuse http_400
+2026-09-18 11:43:22 WARN admit timeout:timed out
+2026-09-18 11:50:52 cycle=344 status mempool_size=0 store=rust demoted=False
+2026-09-18 11:50:52 OK refuse http_400
+2026-09-18 11:51:02 WARN admit timeout:timed out
+2026-09-18 11:58:32 cycle=345 status mempool_size=0 store=rust demoted=False
+2026-09-18 11:58:32 OK refuse http_400
+2026-09-18 11:58:42 WARN admit timeout:timed out
+2026-09-18 12:06:12 cycle=346 status mempool_size=0 store=rust demoted=False
+2026-09-18 12:06:12 OK refuse http_400
+2026-09-18 12:06:22 WARN admit timeout:timed out
+2026-09-18 12:13:53 cycle=347 status mempool_size=0 store=rust demoted=False
+2026-09-18 12:13:53 OK refuse http_400
+2026-09-18 12:14:03 WARN admit timeout:timed out
+2026-09-18 12:21:33 cycle=348 status mempool_size=0 store=rust demoted=False
+2026-09-18 12:21:33 OK refuse http_400
+2026-09-18 12:21:43 WARN admit timeout:timed out
+2026-09-18 12:29:13 cycle=349 status mempool_size=0 store=rust demoted=False
+2026-09-18 12:29:13 OK refuse http_400
+2026-09-18 12:29:23 WARN admit timeout:timed out
+2026-09-18 12:36:53 cycle=350 status mempool_size=0 store=rust demoted=False
+2026-09-18 12:36:53 OK refuse http_400
+2026-09-18 12:37:03 WARN admit timeout:timed out
+2026-09-18 12:44:33 cycle=351 status mempool_size=0 store=rust demoted=False
+2026-09-18 12:44:33 OK refuse http_400
+2026-09-18 12:44:43 WARN admit timeout:timed out
+2026-09-18 12:52:14 cycle=352 status mempool_size=0 store=rust demoted=False
+2026-09-18 12:52:14 OK refuse http_400
+2026-09-18 12:52:24 WARN admit timeout:timed out
+2026-09-18 12:59:58 cycle=353 status mempool_size=0 store=rust demoted=False
+2026-09-18 12:59:58 OK refuse http_400
+2026-09-18 13:00:10 WARN admit timeout:timed out
+2026-09-18 13:07:44 cycle=354 status mempool_size=0 store=rust demoted=False
+2026-09-18 13:07:44 OK refuse http_400
+2026-09-18 13:07:56 WARN admit timeout:timed out
+2026-09-18 13:15:31 cycle=355 status mempool_size=0 store=rust demoted=False
+2026-09-18 13:15:31 OK refuse http_400
+2026-09-18 13:15:41 WARN admit timeout:timed out
+2026-09-18 13:23:15 cycle=356 status mempool_size=0 store=rust demoted=False
+2026-09-18 13:23:22 OK refuse http_400
+2026-09-18 13:23:33 WARN admit timeout:timed out
+2026-09-18 13:31:10 cycle=357 status mempool_size=0 store=rust demoted=False
+2026-09-18 13:31:11 OK refuse http_400
+2026-09-18 13:31:23 WARN admit timeout:timed out
+2026-09-18 13:38:54 cycle=358 status mempool_size=0 store=rust demoted=False
+2026-09-18 13:39:01 OK refuse http_400
+2026-09-18 13:39:12 WARN admit timeout:timed out
+2026-09-18 13:46:52 cycle=359 status mempool_size=0 store=rust demoted=False
+2026-09-18 13:46:52 OK refuse http_400
+2026-09-18 13:47:02 WARN admit timeout:timed out
+2026-09-18 13:54:32 cycle=360 status mempool_size=0 store=rust demoted=False
+2026-09-18 13:54:39 OK refuse http_400
+2026-09-18 13:54:55 WARN admit timeout:timed out
+2026-09-18 14:02:25 cycle=361 status mempool_size=0 store=rust demoted=False
+2026-09-18 14:02:25 OK refuse http_400
+2026-09-18 14:02:35 WARN admit timeout:timed out
+2026-09-18 14:10:05 cycle=362 status mempool_size=0 store=rust demoted=False
+2026-09-18 14:10:05 OK refuse http_400
+2026-09-18 14:10:15 WARN admit timeout:timed out
+2026-09-18 14:17:45 cycle=363 status mempool_size=0 store=rust demoted=False
+2026-09-18 14:17:45 OK refuse http_400
+2026-09-18 14:17:56 WARN admit timeout:timed out
+2026-09-18 14:25:26 cycle=364 status mempool_size=0 store=rust demoted=False
+2026-09-18 14:25:26 OK refuse http_400
+2026-09-18 14:25:36 WARN admit timeout:timed out
+2026-09-18 14:33:06 cycle=365 status mempool_size=0 store=rust demoted=False
+2026-09-18 14:33:06 OK refuse http_400
+2026-09-18 14:33:16 WARN admit timeout:timed out
+2026-09-18 14:40:49 cycle=366 status mempool_size=0 store=rust demoted=False
+2026-09-18 14:40:49 OK refuse http_400
+2026-09-18 14:41:00 WARN admit timeout:timed out
+2026-09-18 14:48:30 cycle=367 status mempool_size=0 store=rust demoted=False
+2026-09-18 14:48:30 OK refuse http_400
+2026-09-18 14:48:40 WARN admit timeout:timed out
+2026-09-18 14:56:12 cycle=368 status mempool_size=0 store=rust demoted=False
+2026-09-18 14:56:12 OK refuse http_400
+2026-09-18 14:56:22 WARN admit timeout:timed out
+2026-09-18 15:03:52 cycle=369 status mempool_size=0 store=rust demoted=False
+2026-09-18 15:03:52 OK refuse http_400
+2026-09-18 15:04:02 WARN admit timeout:timed out
+2026-09-18 15:11:33 cycle=370 status mempool_size=0 store=rust demoted=False
+2026-09-18 15:11:40 OK refuse http_400
+2026-09-18 15:11:50 WARN admit timeout:timed out
+2026-09-18 15:19:20 cycle=371 status mempool_size=0 store=rust demoted=False
+2026-09-18 15:19:20 OK refuse http_400
+2026-09-18 15:19:30 WARN admit timeout:timed out
+2026-09-18 15:27:09 cycle=372 status mempool_size=0 store=rust demoted=False
+2026-09-18 15:27:10 OK refuse http_400
+2026-09-18 15:27:20 WARN admit timeout:timed out
+2026-09-18 15:34:50 cycle=373 status mempool_size=0 store=rust demoted=False
+2026-09-18 15:34:50 OK refuse http_400
+2026-09-18 15:35:00 WARN admit timeout:timed out
+2026-09-18 15:42:31 cycle=374 status mempool_size=0 store=rust demoted=False
+2026-09-18 15:42:38 OK refuse http_400
+2026-09-18 15:42:48 WARN admit timeout:timed out
+2026-09-18 15:50:18 cycle=375 status mempool_size=0 store=rust demoted=False
+2026-09-18 15:50:18 OK refuse http_400
+2026-09-18 15:50:28 WARN admit timeout:timed out
+2026-09-18 15:57:58 cycle=376 status mempool_size=0 store=rust demoted=False
+2026-09-18 15:57:59 OK refuse http_400
+2026-09-18 15:58:09 WARN admit timeout:timed out
+2026-09-18 16:06:05 cycle=377 status mempool_size=None store=rust demoted=False
+2026-09-18 16:06:06 OK refuse http_400
+2026-09-18 16:06:18 WARN admit timeout:timed out
+2026-09-18 16:14:16 cycle=378 status mempool_size=None store=rust demoted=False
+2026-09-18 16:14:16 OK refuse http_400
+2026-09-18 16:14:27 WARN admit timeout:timed out
+2026-09-18 16:21:57 cycle=379 status mempool_size=0 store=rust demoted=False
+2026-09-18 16:21:57 OK refuse http_400
+2026-09-18 16:22:07 WARN admit timeout:timed out
+2026-09-18 16:29:37 cycle=380 status mempool_size=0 store=rust demoted=False
+2026-09-18 16:29:37 OK refuse http_400
+2026-09-18 16:29:47 WARN admit timeout:timed out
+2026-09-18 16:37:17 cycle=381 status mempool_size=0 store=rust demoted=False
+2026-09-18 16:37:17 OK refuse http_400
+2026-09-18 16:37:27 WARN admit timeout:timed out
+2026-09-18 16:44:57 cycle=382 status mempool_size=0 store=rust demoted=False
+2026-09-18 16:44:58 OK refuse http_400
+2026-09-18 16:45:08 WARN admit timeout:timed out
+2026-09-18 16:52:38 cycle=383 status mempool_size=0 store=rust demoted=False
+2026-09-18 16:52:38 OK refuse http_400
+2026-09-18 16:52:48 WARN admit timeout:timed out
+2026-09-18 17:00:18 cycle=384 status mempool_size=0 store=rust demoted=False
+2026-09-18 17:00:18 OK refuse http_400
+2026-09-18 17:00:28 WARN admit timeout:timed out
+2026-09-18 17:07:58 cycle=385 status mempool_size=0 store=rust demoted=False
+2026-09-18 17:07:58 OK refuse http_400
+2026-09-18 17:08:08 WARN admit timeout:timed out
+2026-09-18 17:15:38 cycle=386 status mempool_size=0 store=rust demoted=False
+2026-09-18 17:15:38 OK refuse http_400
+2026-09-18 17:15:48 WARN admit timeout:timed out
+2026-09-18 17:23:18 cycle=387 status mempool_size=0 store=rust demoted=False
+2026-09-18 17:23:18 OK refuse http_400
+2026-09-18 17:23:28 WARN admit timeout:timed out
+2026-09-18 17:30:59 cycle=388 status mempool_size=0 store=rust demoted=False
+2026-09-18 17:30:59 OK refuse http_400
+2026-09-18 17:31:09 WARN admit timeout:timed out
+2026-09-18 17:38:40 cycle=389 status mempool_size=0 store=rust demoted=False
+2026-09-18 17:38:41 OK refuse http_400
+2026-09-18 17:38:51 WARN admit timeout:timed out
+2026-09-18 17:46:21 cycle=390 status mempool_size=0 store=rust demoted=False
+2026-09-18 17:46:21 OK refuse http_400
+2026-09-18 17:46:31 WARN admit timeout:timed out
+2026-09-18 17:54:01 cycle=391 status mempool_size=0 store=rust demoted=False
+2026-09-18 17:54:01 OK refuse http_400
+2026-09-18 17:54:11 WARN admit timeout:timed out
+2026-09-18 18:01:41 cycle=392 status mempool_size=0 store=rust demoted=False
+2026-09-18 18:01:41 OK refuse http_400
+2026-09-18 18:01:51 WARN admit timeout:timed out
+2026-09-18 18:09:21 cycle=393 status mempool_size=0 store=rust demoted=False
+2026-09-18 18:09:21 OK refuse http_400
+2026-09-18 18:09:31 WARN admit timeout:timed out
+2026-09-18 18:17:01 cycle=394 status mempool_size=0 store=rust demoted=False
+2026-09-18 18:17:01 OK refuse http_400
+2026-09-18 18:17:11 WARN admit timeout:timed out
+2026-09-18 18:24:41 cycle=395 status mempool_size=0 store=rust demoted=False
+2026-09-18 18:24:41 OK refuse http_400
+2026-09-18 18:24:51 WARN admit timeout:timed out
+2026-09-18 18:32:21 cycle=396 status mempool_size=0 store=rust demoted=False
+2026-09-18 18:32:22 OK refuse http_400
+2026-09-18 18:32:32 WARN admit timeout:timed out
+2026-09-18 18:40:02 cycle=397 status mempool_size=0 store=rust demoted=False
+2026-09-18 18:40:02 OK refuse http_400
+2026-09-18 18:40:12 WARN admit timeout:timed out
+2026-09-18 18:47:42 cycle=398 status mempool_size=0 store=rust demoted=False
+2026-09-18 18:47:42 OK refuse http_400
+2026-09-18 18:47:52 WARN admit timeout:timed out
+2026-09-18 18:55:22 cycle=399 status mempool_size=0 store=rust demoted=False
+2026-09-18 18:55:22 OK refuse http_400
+2026-09-18 18:55:32 WARN admit timeout:timed out
+2026-09-18 19:03:02 cycle=400 status mempool_size=0 store=rust demoted=False
+2026-09-18 19:03:02 OK refuse http_400
+2026-09-18 19:03:12 WARN admit timeout:timed out
+2026-09-18 19:10:42 cycle=401 status mempool_size=0 store=rust demoted=False
+2026-09-18 19:10:42 OK refuse http_400
+2026-09-18 19:10:52 WARN admit timeout:timed out
+2026-09-18 19:18:25 cycle=402 status mempool_size=0 store=rust demoted=False
+2026-09-18 19:18:27 OK refuse http_400
+2026-09-18 19:18:37 WARN admit timeout:timed out
+2026-09-18 19:26:13 cycle=403 status mempool_size=0 store=rust demoted=False
+2026-09-18 19:26:13 OK refuse http_400
+2026-09-18 19:26:25 WARN admit timeout:timed out
+2026-09-18 19:34:00 cycle=404 status mempool_size=0 store=rust demoted=False
+2026-09-18 19:34:00 OK refuse http_400
+2026-09-18 19:34:10 WARN admit timeout:timed out
+2026-09-18 19:41:48 cycle=405 status mempool_size=0 store=rust demoted=False
+2026-09-18 19:41:48 OK refuse http_400
+2026-09-18 19:41:58 WARN admit timeout:timed out
+2026-09-18 19:49:35 cycle=406 status mempool_size=0 store=rust demoted=False
+2026-09-18 19:49:36 OK refuse http_400
+2026-09-18 19:49:46 WARN admit timeout:timed out
+2026-09-18 19:57:26 cycle=407 status mempool_size=0 store=rust demoted=False
+2026-09-18 19:57:26 OK refuse http_400
+2026-09-18 19:57:38 WARN admit timeout:timed out
+2026-09-18 20:05:09 cycle=408 status mempool_size=0 store=rust demoted=False
+2026-09-18 20:05:18 OK refuse http_400
+2026-09-18 20:05:30 WARN admit timeout:timed out
+2026-09-18 20:13:01 cycle=409 status mempool_size=0 store=rust demoted=False
+2026-09-18 20:13:10 OK refuse http_400
+2026-09-18 20:13:20 WARN admit timeout:timed out
+2026-09-18 20:21:02 cycle=410 status mempool_size=0 store=rust demoted=False
+2026-09-18 20:21:03 OK refuse http_400
+2026-09-18 20:21:14 WARN admit timeout:timed out
+2026-09-18 20:28:55 cycle=411 status mempool_size=0 store=rust demoted=False
+2026-09-18 20:28:56 OK refuse http_400
+2026-09-18 20:29:06 WARN admit timeout:timed out
+2026-09-18 20:37:07 cycle=412 status mempool_size=None store=rust demoted=False
+2026-09-18 20:37:08 OK refuse http_400
+2026-09-18 20:37:19 WARN admit timeout:timed out
+2026-09-18 20:44:52 cycle=413 status mempool_size=0 store=rust demoted=False
+2026-09-18 20:44:52 OK refuse http_400
+2026-09-18 20:45:03 WARN admit timeout:timed out
+2026-09-18 20:52:35 cycle=414 status mempool_size=0 store=rust demoted=False
+2026-09-18 20:52:45 OK refuse http_400
+2026-09-18 20:52:55 WARN admit timeout:timed out
+2026-09-18 21:00:25 cycle=415 status mempool_size=0 store=rust demoted=False
+2026-09-18 21:00:25 OK refuse http_400
+2026-09-18 21:00:35 WARN admit timeout:timed out
+2026-09-18 21:08:10 cycle=416 status mempool_size=0 store=rust demoted=False
+2026-09-18 21:08:21 OK refuse http_400
+2026-09-18 21:08:31 WARN admit timeout:timed out
+2026-09-18 21:16:01 cycle=417 status mempool_size=0 store=rust demoted=False
+2026-09-18 21:16:01 OK refuse http_400
+2026-09-18 21:16:11 WARN admit timeout:timed out
+2026-09-18 21:23:41 cycle=418 status mempool_size=0 store=rust demoted=False
+2026-09-18 21:23:41 OK refuse http_400
+2026-09-18 21:23:51 WARN admit timeout:timed out
+2026-09-18 21:31:37 cycle=419 status mempool_size=0 store=rust demoted=False
+2026-09-18 21:31:38 OK refuse http_400
+2026-09-18 21:31:48 WARN admit timeout:timed out
+2026-09-18 21:39:18 cycle=420 status mempool_size=0 store=rust demoted=False
+2026-09-18 21:39:18 OK refuse http_400
+2026-09-18 21:39:28 WARN admit timeout:timed out
+2026-09-18 21:47:09 cycle=421 status mempool_size=0 store=rust demoted=False
+2026-09-18 21:47:10 OK refuse http_400
+2026-09-18 21:47:21 WARN admit timeout:timed out
+2026-09-18 21:54:58 cycle=422 status mempool_size=0 store=rust demoted=False
+2026-09-18 21:55:07 OK refuse http_400
+2026-09-18 21:55:18 WARN admit timeout:timed out
+2026-09-18 22:02:48 cycle=423 status mempool_size=0 store=rust demoted=False
+2026-09-18 22:02:48 OK refuse http_400
+2026-09-18 22:02:58 WARN admit timeout:timed out
+2026-09-18 22:11:04 cycle=424 status mempool_size=None store=None demoted=None
+2026-09-18 22:11:05 OK refuse http_400
+2026-09-18 22:11:17 WARN admit timeout:timed out
+2026-09-18 22:18:53 cycle=425 status mempool_size=0 store=rust demoted=False
+2026-09-18 22:19:03 OK refuse http_400
+2026-09-18 22:19:13 WARN admit timeout:timed out
+2026-09-18 22:26:43 cycle=426 status mempool_size=0 store=rust demoted=False
+2026-09-18 22:26:43 OK refuse http_400
+2026-09-18 22:26:53 WARN admit timeout:timed out
+2026-09-18 22:34:24 cycle=427 status mempool_size=0 store=rust demoted=False
+2026-09-18 22:34:24 OK refuse http_400
+2026-09-18 22:34:34 WARN admit timeout:timed out
+2026-09-18 22:42:04 cycle=428 status mempool_size=0 store=rust demoted=False
+2026-09-18 22:42:04 OK refuse http_400
+2026-09-18 22:42:14 WARN admit timeout:timed out
+2026-09-18 22:50:20 cycle=429 status mempool_size=None store=None demoted=None
+2026-09-18 22:50:21 OK refuse http_400
+2026-09-18 22:50:32 WARN admit timeout:timed out
+2026-09-18 22:58:02 cycle=430 status mempool_size=0 store=rust demoted=False
+2026-09-18 22:58:02 OK refuse http_400
+2026-09-18 22:58:12 WARN admit timeout:timed out
+2026-09-18 23:06:00 cycle=431 status mempool_size=0 store=rust demoted=False
+2026-09-18 23:06:01 OK refuse http_400
+2026-09-18 23:06:11 WARN admit timeout:timed out
+2026-09-18 23:13:42 cycle=432 status mempool_size=0 store=rust demoted=False
+2026-09-18 23:13:43 OK refuse http_400
+2026-09-18 23:13:54 WARN admit timeout:timed out
+2026-09-18 23:21:24 cycle=433 status mempool_size=0 store=rust demoted=False
+2026-09-18 23:21:24 OK refuse http_400
+2026-09-18 23:21:34 WARN admit timeout:timed out
+2026-09-18 23:29:04 cycle=434 status mempool_size=0 store=rust demoted=False
+2026-09-18 23:29:04 OK refuse http_400
+2026-09-18 23:29:14 WARN admit timeout:timed out
+2026-09-18 23:36:44 cycle=435 status mempool_size=0 store=rust demoted=False
+2026-09-18 23:36:44 OK refuse http_400
+2026-09-18 23:36:54 WARN admit timeout:timed out
+2026-09-18 23:44:24 cycle=436 status mempool_size=0 store=rust demoted=False
+2026-09-18 23:44:24 OK refuse http_400
+2026-09-18 23:44:34 WARN admit timeout:timed out
+2026-09-18 23:52:04 cycle=437 status mempool_size=0 store=rust demoted=False
+2026-09-18 23:52:04 OK refuse http_400
+2026-09-18 23:52:14 WARN admit timeout:timed out
+2026-09-18 23:59:44 cycle=438 status mempool_size=0 store=rust demoted=False
+2026-09-18 23:59:44 OK refuse http_400
+2026-09-18 23:59:54 WARN admit timeout:timed out
+2026-09-19 00:07:24 cycle=439 status mempool_size=0 store=rust demoted=False
+2026-09-19 00:07:24 OK refuse http_400
+2026-09-19 00:07:34 WARN admit timeout:timed out
+2026-09-19 00:15:04 cycle=440 status mempool_size=0 store=rust demoted=False
+2026-09-19 00:15:04 OK refuse http_400
+2026-09-19 00:15:14 WARN admit timeout:timed out
+2026-09-19 00:22:44 cycle=441 status mempool_size=0 store=rust demoted=False
+2026-09-19 00:22:45 OK refuse http_400
+2026-09-19 00:22:55 WARN admit timeout:timed out
+2026-09-19 00:30:25 cycle=442 status mempool_size=0 store=rust demoted=False
+2026-09-19 00:30:25 OK refuse http_400
+2026-09-19 00:30:35 WARN admit timeout:timed out
+2026-09-19 00:38:05 cycle=443 status mempool_size=0 store=rust demoted=False
+2026-09-19 00:38:05 OK refuse http_400
+2026-09-19 00:38:15 WARN admit timeout:timed out
+2026-09-19 00:45:45 cycle=444 status mempool_size=0 store=rust demoted=False
+2026-09-19 00:45:45 OK refuse http_400
+2026-09-19 00:45:55 WARN admit timeout:timed out
+2026-09-19 00:53:25 cycle=445 status mempool_size=0 store=rust demoted=False
+2026-09-19 00:53:25 OK refuse http_400
+2026-09-19 00:53:35 WARN admit timeout:timed out
+2026-09-19 01:01:06 cycle=446 status mempool_size=0 store=rust demoted=False
+2026-09-19 01:01:06 OK refuse http_400
+2026-09-19 01:01:16 WARN admit timeout:timed out
+2026-09-19 01:08:46 cycle=447 status mempool_size=0 store=rust demoted=False
+2026-09-19 01:08:46 OK refuse http_400
+2026-09-19 01:08:56 WARN admit timeout:timed out
+2026-09-19 01:16:26 cycle=448 status mempool_size=0 store=rust demoted=False
+2026-09-19 01:16:26 OK refuse http_400
+2026-09-19 01:16:36 WARN admit timeout:timed out
+2026-09-19 01:24:06 cycle=449 status mempool_size=0 store=rust demoted=False
+2026-09-19 01:24:06 OK refuse http_400
+2026-09-19 01:24:16 WARN admit timeout:timed out
+2026-09-19 01:31:46 cycle=450 status mempool_size=0 store=rust demoted=False
+2026-09-19 01:31:46 OK refuse http_400
+2026-09-19 01:31:56 WARN admit timeout:timed out
+2026-09-19 01:39:26 cycle=451 status mempool_size=0 store=rust demoted=False
+2026-09-19 01:39:26 OK refuse http_400
+2026-09-19 01:39:36 WARN admit timeout:timed out
+2026-09-19 01:47:06 cycle=452 status mempool_size=0 store=rust demoted=False
+2026-09-19 01:47:06 OK refuse http_400
+2026-09-19 01:47:16 WARN admit timeout:timed out
+2026-09-19 01:54:46 cycle=453 status mempool_size=0 store=rust demoted=False
+2026-09-19 01:54:46 OK refuse http_400
+2026-09-19 01:54:56 WARN admit timeout:timed out
+2026-09-19 02:02:26 cycle=454 status mempool_size=0 store=rust demoted=False
+2026-09-19 02:02:26 OK refuse http_400
+2026-09-19 02:02:36 WARN admit timeout:timed out
+2026-09-19 02:10:07 cycle=455 status mempool_size=0 store=rust demoted=False
+2026-09-19 02:10:07 OK refuse http_400
+2026-09-19 02:10:17 WARN admit timeout:timed out
+2026-09-19 02:17:47 cycle=456 status mempool_size=0 store=rust demoted=False
+2026-09-19 02:17:47 OK refuse http_400
+2026-09-19 02:17:57 WARN admit timeout:timed out
+2026-09-19 02:25:27 cycle=457 status mempool_size=0 store=rust demoted=False
+2026-09-19 02:25:27 OK refuse http_400
+2026-09-19 02:25:37 WARN admit timeout:timed out
+2026-09-19 02:33:07 cycle=458 status mempool_size=0 store=rust demoted=False
+2026-09-19 02:33:07 OK refuse http_400
+2026-09-19 02:33:17 WARN admit timeout:timed out
+2026-09-19 02:40:47 cycle=459 status mempool_size=0 store=rust demoted=False
+2026-09-19 02:40:47 OK refuse http_400
+2026-09-19 02:40:57 WARN admit timeout:timed out
+2026-09-19 02:48:27 cycle=460 status mempool_size=0 store=rust demoted=False
+2026-09-19 02:48:27 OK refuse http_400
+2026-09-19 02:48:37 WARN admit timeout:timed out
+2026-09-19 02:56:08 cycle=461 status mempool_size=0 store=rust demoted=False
+2026-09-19 02:56:08 OK refuse http_400
+2026-09-19 02:56:20 WARN admit timeout:timed out
+2026-09-19 03:03:53 cycle=462 status mempool_size=0 store=rust demoted=False
+2026-09-19 03:03:53 OK refuse http_400
+2026-09-19 03:04:03 WARN admit timeout:timed out
+2026-09-19 03:11:41 cycle=463 status mempool_size=0 store=rust demoted=False
+2026-09-19 03:11:41 OK refuse http_400
+2026-09-19 03:11:52 WARN admit timeout:timed out
+2026-09-19 03:19:27 cycle=464 status mempool_size=0 store=rust demoted=False
+2026-09-19 03:19:27 OK refuse http_400
+2026-09-19 03:19:37 WARN admit timeout:timed out
+2026-09-19 03:27:12 cycle=465 status mempool_size=0 store=rust demoted=False
+2026-09-19 03:27:12 OK refuse http_400
+2026-09-19 03:27:22 WARN admit timeout:timed out
+2026-09-19 03:35:00 cycle=466 status mempool_size=0 store=rust demoted=False
+2026-09-19 03:35:00 OK refuse http_400
+2026-09-19 03:35:10 WARN admit timeout:timed out
+2026-09-19 03:42:47 cycle=467 status mempool_size=0 store=rust demoted=False
+2026-09-19 03:42:47 OK refuse http_400
+2026-09-19 03:42:57 WARN admit timeout:timed out
+2026-09-19 03:49:48 sidecar done passed=True report=C:\Users\vovun\Desktop\Absolute_Blockchain_Experimental\logs\mempool_validation_sidecar_report.json
