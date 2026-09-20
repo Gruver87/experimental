@@ -25,9 +25,13 @@ def test_consensus_stats_feature_flags():
         assert stats.get("lmd_ghost_enabled") is True
         assert stats.get("casper_ffg") is True
         assert stats.get("slashing_enabled") is True
-        assert stats.get("pbs_enabled") is True
+        # Sprouts default OFF: PBS follows feature_mev (fail-closed bare Config).
+        assert stats.get("pbs_enabled") is False
         assert stats.get("validator_registry") is True
         assert stats["systems"]["lmd_ghost"] is True
+        cfg.feature_mev = True
+        ca2 = ConsensusAdapter(cfg, db, None)
+        assert ca2.get_stats().get("pbs_enabled") is True
     finally:
         db.close()
         os.remove(path)

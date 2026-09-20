@@ -43,34 +43,35 @@ _PROD_CORE_TIERS = frozenset({"production"})
 
 @dataclass
 class FeatureFlags:
+    # Core EVM may stay on; sprouts default OFF (ADR 0016 / fail-closed).
     evm: bool = True
-    bridge: bool = True
-    nft: bool = True
-    zk: bool = True
-    sharding: bool = True
-    oracles: bool = True
-    wasm: bool = True
-    plasma: bool = True
-    lightning: bool = True
-    pq: bool = True
-    mev: bool = True
-    ai_agents: bool = True
+    bridge: bool = False
+    nft: bool = False
+    zk: bool = False
+    sharding: bool = False
+    oracles: bool = False
+    wasm: bool = False
+    plasma: bool = False
+    lightning: bool = False
+    pq: bool = False
+    mev: bool = False
+    ai_agents: bool = False
 
     @classmethod
     def from_config(cls, config) -> "FeatureFlags":
         return cls(
             evm=getattr(config, "evm_enabled", True),
-            bridge=getattr(config, "bridge_enabled", True),
-            nft=getattr(config, "feature_nft", True),
-            zk=getattr(config, "feature_zk", True),
-            sharding=getattr(config, "feature_sharding", True),
-            oracles=getattr(config, "feature_oracles", True),
-            wasm=getattr(config, "feature_wasm", True),
-            plasma=getattr(config, "feature_plasma", True),
-            lightning=getattr(config, "feature_lightning", True),
-            pq=getattr(config, "feature_pq", True),
-            mev=getattr(config, "feature_mev", True),
-            ai_agents=getattr(config, "feature_ai_agents", True),
+            bridge=getattr(config, "bridge_enabled", False),
+            nft=getattr(config, "feature_nft", False),
+            zk=getattr(config, "feature_zk", False),
+            sharding=getattr(config, "feature_sharding", False),
+            oracles=getattr(config, "feature_oracles", False),
+            wasm=getattr(config, "feature_wasm", False),
+            plasma=getattr(config, "feature_plasma", False),
+            lightning=getattr(config, "feature_lightning", False),
+            pq=getattr(config, "feature_pq", False),
+            mev=getattr(config, "feature_mev", False),
+            ai_agents=getattr(config, "feature_ai_agents", False),
         )
 
     def to_api_dict(self, instances: Optional[Dict[str, Any]] = None, config=None) -> Dict:

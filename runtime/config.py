@@ -206,23 +206,24 @@ class Config:
     evm_gas_limit: int = 8_000_000
     evm_create2_eip1014: bool = False   # prod: Ethereum CREATE2 (0xff++addr++salt++hash)
     evm_require_deploy_salt: bool = False  # prod: reject non-deterministic EVM deploy addresses
-    feature_nft: bool = True
-    feature_zk: bool = True
-    feature_minivm: bool = True
-    feature_sharding: bool = True
+    # Sprouts default OFF (ADR 0016). Prod JSON/overlay also forces OFF.
+    feature_nft: bool = False
+    feature_zk: bool = False
+    feature_minivm: bool = False
+    feature_sharding: bool = False
     num_shards: int = 4
     assigned_shard_id: int = -1          # distributed: 0..N-1; -1 = legacy routing coordinator
     shard_mode: str = "routing"          # routing | distributed
-    feature_oracles: bool = True
-    feature_wasm: bool = True
-    feature_plasma: bool = True
-    feature_lightning: bool = True
-    feature_pq: bool = True
-    feature_mev: bool = True
-    feature_ai_agents: bool = True
-    feature_ai_validator: bool = True
-    feature_smart_accounts: bool = True
-    feature_validator_selection: bool = True
+    feature_oracles: bool = False
+    feature_wasm: bool = False
+    feature_plasma: bool = False
+    feature_lightning: bool = False
+    feature_pq: bool = False
+    feature_mev: bool = False
+    feature_ai_agents: bool = False
+    feature_ai_validator: bool = False
+    feature_smart_accounts: bool = False
+    feature_validator_selection: bool = False
     # Experimental R&D (Profile F) — always default OFF; prod forces OFF.
     feature_libp2p: bool = False
     feature_long_range: bool = False

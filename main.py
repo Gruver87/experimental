@@ -900,8 +900,8 @@ class NodeOrchestrator:
             try:
                 self.pq_manager = PostQuantumManager()
                 print(
-                    "[Node] PostQuantumManager: educational suite loaded "
-                    "(Dilithium=hash-demo; Kyber/Falcon=NotImplemented — not prod-ready)"
+                    "[Node] PostQuantumManager: R&D suite loaded "
+                    "(Dilithium/SPHINCS/Kyber/Falcon=NotImplemented — not NIST prod backends)"
                 )
             except Exception as e:
                 self.pq_manager = None
