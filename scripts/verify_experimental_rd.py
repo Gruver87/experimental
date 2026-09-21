@@ -44,6 +44,13 @@ UNIT_TESTS = [
     "tests/unit/test_cargo_test_abs_native.py",
 ]
 
+# Require abs_native built with --features libp2p (no stub dial).
+LIBP2P_UNIT = {
+    "tests/unit/test_libp2p_adapter.py",
+    "tests/unit/test_libp2p_swarm_lab.py",
+    "tests/unit/test_dual_stack.py",
+}
+
 LABS = [
     "scripts/long_range_lab_2h_harness.py",
     "scripts/evm_precompile_lab.py",
@@ -69,6 +76,18 @@ LABS = [
     #   scripts/libp2p_rust_three_node_lab.py
     #   scripts/libp2p_rust_soak_lab.py
 ]
+
+LIBP2P_LABS = {
+    "scripts/libp2p_lab_smoke.py",
+    "scripts/libp2p_two_node_lab.py",
+    "scripts/libp2p_swarm_lab.py",
+    "scripts/libp2p_three_node_lab.py",
+    "scripts/libp2p_reqresp_lab.py",
+    "scripts/libp2p_relay_lab.py",
+    "scripts/libp2p_discovery_lab.py",
+    "scripts/libp2p_identify_lab.py",
+    "scripts/libp2p_mixed_dual_stack_lab.py",
+}
 
 
 def _run(cmd: list[str], *, label: str) -> tuple[bool, float, str]:
@@ -101,11 +120,30 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--unit-only", action="store_true", help="pytest suites only")
     ap.add_argument("--labs-only", action="store_true", help="lab scripts only")
+    ap.add_argument(
+        "--skip-libp2p",
+        action="store_true",
+        help="skip Python libp2p adapter units/labs (need abs_native --features libp2p)",
+    )
     ap.add_argument("-q", "--quiet", action="store_true", help="less pytest chatter")
     args = ap.parse_args()
     if args.unit_only and args.labs_only:
         print("FAIL: choose at most one of --unit-only / --labs-only")
         return 2
+
+    units = [u for u in UNIT_TESTS if not (args.skip_libp2p and u in LIBP2P_UNIT)]
+    labs = [lab for lab in LABS if not (args.skip_libp2p and lab in LIBP2P_LABS)]
+    # EVM RPC/precompile apply need keccak/native — skip with libp2p on CI fast lane.
+    if args.skip_libp2p:
+        units = [
+            u
+            for u in units
+            if u
+            not in {
+                "tests/unit/test_evm_rpc_compat.py",
+                "tests/unit/test_evm_precompile_apply.py",
+            }
+        ]
 
     py = sys.executable
     steps: list[tuple[str, list[str]]] = []
@@ -114,11 +152,11 @@ def main() -> int:
         steps.append(
             (
                 "unit tests (Profile F)",
-                [py, "-m", "pytest", *pytest_flags, *UNIT_TESTS],
+                [py, "-m", "pytest", *pytest_flags, *units],
             )
         )
     if not args.unit_only:
-        for lab in LABS:
+        for lab in labs:
             steps.append((lab, [py, str(ROOT / lab)]))
 
     _safe_print("Experimental R&D verify")

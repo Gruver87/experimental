@@ -62,26 +62,12 @@ jobs:
         run: python scripts/oracle_lab.py
       - name: Cross-shard lab
         run: python scripts/cross_shard_lab.py
-      - name: libp2p lab smoke
-        run: python scripts/libp2p_lab_smoke.py
-      - name: libp2p 2-node dual-stack lab
-        run: python scripts/libp2p_two_node_lab.py
-      - name: libp2p in-process swarm lab
-        run: python scripts/libp2p_swarm_lab.py
-      - name: libp2p 3-node swarm lab
-        run: python scripts/libp2p_three_node_lab.py
-      - name: libp2p request/response lab
-        run: python scripts/libp2p_reqresp_lab.py
-      - name: libp2p multi-hop relay lab
-        run: python scripts/libp2p_relay_lab.py
-      - name: libp2p discovery lab
-        run: python scripts/libp2p_discovery_lab.py
-      - name: libp2p identify lab
-        run: python scripts/libp2p_identify_lab.py
+      # Python libp2p adapter labs need abs_native --features libp2p (stub dial removed).
+      # Coverage: job rd-libp2p-rust + Hybrid Node Checks (test.yml).
       - name: EVM precompile lab
         run: python scripts/evm_precompile_lab.py
       - name: Local R&D verify aggregator
-        run: python scripts/verify_experimental_rd.py -q
+        run: python scripts/verify_experimental_rd.py -q --skip-libp2p
 
   rd-libp2p-rust:
     name: ADR 0019 rust-libp2p lab
