@@ -119,6 +119,7 @@ def test_mempool_solicit_armed_for_waiter():
     cfg = Config()
     cfg.require_native_crypto = False
     cfg.deployment_mode = "dev"
+    cfg.p2p_mempool_require_wire_satoshi = False
     cfg.bootstrap_peers = []
     node = P2PNode(cfg, MagicMock(), MagicMock())
 

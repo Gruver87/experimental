@@ -21,6 +21,7 @@ def _node(*, max_sig: int = 32) -> P2PNode:
     cfg.p2p_native_transport = False
     cfg.require_native_crypto = False
     cfg.deployment_mode = "dev"
+    cfg.p2p_mempool_require_wire_satoshi = False
     cfg.bootstrap_peers = []
     cfg.p2p_mempool_max_sig_refuse = True
     cfg.p2p_mempool_max_sig_bytes = max_sig

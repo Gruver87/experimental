@@ -79,8 +79,7 @@ def backup_chainstore(data_dir: str, dest_dir: str) -> Dict[str, Any]:
         store.initialize()
         try:
             manifest["chain_tip"] = int(store.get_chain_tip() or 0)
-            if not store.backup_to(out_chain):
-                raise RuntimeError("RocksDB checkpoint failed")
+            store.backup_to(out_chain)
         finally:
             store.close()
 
@@ -103,10 +102,8 @@ def backup_chainstore(data_dir: str, dest_dir: str) -> Dict[str, Any]:
         db.initialize()
         try:
             manifest["chain_tip"] = int(db.get_chain_tip() or 0)
-            if hasattr(db, "backup_to") and not db.backup_to(dst):
-                shutil.copy2(src, dst)
-            elif not os.path.isfile(dst):
-                shutil.copy2(src, dst)
+            # Fail-closed: online backup API only — never silent copy2 of a live DB.
+            db.backup_to(dst)
         finally:
             db.close()
         for suffix in ("-wal", "-shm"):

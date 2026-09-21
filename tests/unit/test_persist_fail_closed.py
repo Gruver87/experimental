@@ -110,6 +110,18 @@ def test_source_needles_no_soft_false_on_hot_persist():
         ("rocks persist_block_atomic", rocks, "def persist_block_atomic"),
         ("db save_block", db, "def save_block"),
         ("db persist_block_atomic", db, "def persist_block_atomic"),
+        ("rocks backup_to", rocks, "def backup_to"),
+        ("db backup_to", db, "def backup_to"),
     ):
         chunk = src.split(marker, 1)[1].split("\n    def ", 1)[0]
         assert "return False" not in chunk, f"{label} still soft-returns False"
+        if "backup_to" in label:
+            assert "raise PersistError" in chunk
+
+
+def test_chain_backup_no_silent_copy2_fallback():
+    backup = (ROOT / "storage" / "chain_backup.py").read_text(encoding="utf-8")
+    # Live SQLite must not fall back to copy2 when backup_to fails.
+    assert "never silent copy2 of a live DB" in backup
+    assert "if hasattr(db, \"backup_to\") and not db.backup_to" not in backup
+    assert "elif not os.path.isfile(dst):\n                shutil.copy2(src, dst)" not in backup

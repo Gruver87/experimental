@@ -157,6 +157,7 @@ def test_status_exposes_mempool_semantic_gate():
     cfg.p2p_tls_enabled = False
     cfg.require_native_crypto = False
     cfg.deployment_mode = "dev"
+    cfg.p2p_mempool_require_wire_satoshi = False
     cfg.bootstrap_peers = []
     node = P2PNode(cfg, MagicMock(), MagicMock())
     node._native_message_loop_shell = True

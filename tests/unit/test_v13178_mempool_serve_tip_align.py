@@ -46,6 +46,7 @@ def _node(*, local_h: int = 10) -> P2PNode:
     cfg.p2p_native_transport = False
     cfg.require_native_crypto = False
     cfg.deployment_mode = "dev"
+    cfg.p2p_mempool_require_wire_satoshi = False
     cfg.bootstrap_peers = []
     cfg.p2p_mempool_serve_tip_align = True
     cfg.p2p_mempool_serve_max_height_delta = 2

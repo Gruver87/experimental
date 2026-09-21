@@ -432,15 +432,21 @@ class RocksChainStore:
             logger.info(msg)
             print(msg)
 
-    def backup_to(self, dest_path: str) -> bool:
+    def backup_to(self, dest_path: str) -> None:
+        """RocksDB checkpoint backup. Raises PersistError on failure (fail-closed)."""
+        from storage.types import PersistError
+
         try:
             if os.path.isdir(dest_path):
                 shutil.rmtree(dest_path)
             self._engine.checkpoint(dest_path)
-            return True
+        except PersistError:
+            raise
         except Exception as exc:
-            print(f"[RocksDB] backup_to error: {exc}")
-            return False
+            logger.error("[RocksDB] backup_to error: %s", exc)
+            raise PersistError(
+                f"backup_to failed: {exc}", reason_code="backup_failed"
+            ) from exc
 
     # ── meta ──────────────────────────────────────────────────────────────
 

@@ -3,6 +3,7 @@
 ADR 0021 money cutover: ``fee_satoshi`` / ``amount_satoshi`` are canonical on
 wire. ABS ``fee`` / ``amount`` / ``value`` are display dual-write derived from
 satoshi integers — never the authority for sort / min-fee / mismatch checks.
+Float-only ingress is refused when ``require_satoshi=True`` (default on P2P).
 """
 from __future__ import annotations
 
@@ -16,6 +17,10 @@ class WireMoneyMismatch(ValueError):
     """Float ABS and explicit satoshi disagree on the same wire payload."""
 
 
+class WireMoneyMissing(ValueError):
+    """Required satoshi money key absent on wire (float-only refuse)."""
+
+
 def _sat_from_keys(data: Dict[str, Any], *keys: str) -> int | None:
     for key in keys:
         if key in data and data.get(key) is not None:
@@ -23,10 +28,16 @@ def _sat_from_keys(data: Dict[str, Any], *keys: str) -> int | None:
     return None
 
 
-def resolve_wire_amount_sat(data: Dict[str, Any]) -> Tuple[int, float]:
+def resolve_wire_amount_sat(
+    data: Dict[str, Any],
+    *,
+    require_satoshi: bool = True,
+) -> Tuple[int, float]:
     """Prefer ``amount_satoshi`` / ``value_satoshi``; else ABS → satoshi.
 
     When both satoshi and ABS float are present, refuse on mismatch.
+    When ``require_satoshi`` and no satoshi key is present, raise
+    ``WireMoneyMissing`` (``amount_satoshi_required``).
     Returns ``(amount_satoshi, amount_abs_display)``.
     """
     from runtime.amount import from_satoshi_float, parse_p2p_wire_abs, to_satoshi
@@ -48,6 +59,9 @@ def resolve_wire_amount_sat(data: Dict[str, Any]) -> Tuple[int, float]:
                 )
         return int(sat), from_satoshi_float(int(sat))
 
+    if require_satoshi:
+        raise WireMoneyMissing("amount_satoshi_required")
+
     if raw_abs is None:
         raw_abs = 0
     value = parse_p2p_wire_abs(raw_abs, field="value")
@@ -59,10 +73,13 @@ def resolve_wire_fee_sat(
     data: Dict[str, Any],
     *,
     planned_fee_sat: int | None = None,
+    require_satoshi: bool = True,
 ) -> Tuple[int, float]:
     """Prefer ``fee_satoshi``; else ABS ``fee``; else optional planned satoshi.
 
     When both ``fee_satoshi`` and ``fee`` are present, refuse on mismatch.
+    When ``require_satoshi`` and ``fee_satoshi`` is absent, raise
+    ``WireMoneyMissing`` (``fee_satoshi_required``) — no float / planned invent.
     Returns ``(fee_satoshi, fee_abs_display)``.
     """
     from runtime.amount import from_satoshi_float, parse_p2p_wire_abs, to_satoshi
@@ -79,6 +96,9 @@ def resolve_wire_fee_sat(
                     f"fee_satoshi_mismatch sat={sat} abs_sat={abs_sat}"
                 )
         return int(sat), from_satoshi_float(int(sat))
+
+    if require_satoshi:
+        raise WireMoneyMissing("fee_satoshi_required")
 
     if raw_fee is not None:
         fee = parse_p2p_wire_abs(raw_fee, field="fee")

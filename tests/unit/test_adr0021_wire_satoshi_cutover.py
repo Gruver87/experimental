@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
 from blockchain.mempool import MempoolTransaction
 from blockchain.mempool_wire import (
     WireMoneyMismatch,
+    WireMoneyMissing,
     mempool_tx_to_wire,
     resolve_wire_amount_sat,
     resolve_wire_fee_sat,
@@ -23,7 +24,7 @@ from runtime.amount import from_satoshi_float, to_satoshi
 from runtime.config import Config
 
 
-def _node() -> P2PNode:
+def _node(*, require_wire_satoshi: bool = True) -> P2PNode:
     cfg = Config()
     cfg.p2p_native_transport = False
     cfg.require_native_crypto = False
@@ -34,6 +35,7 @@ def _node() -> P2PNode:
     cfg.p2p_mempool_max_calldata_refuse = False
     cfg.p2p_mempool_negative_value_refuse = True
     cfg.p2p_mempool_negative_fee_refuse = True
+    cfg.p2p_mempool_require_wire_satoshi = require_wire_satoshi
     chain = MagicMock()
     chain.get_height.return_value = 1
     chain.get_state_root.return_value = "ee" * 32
@@ -118,6 +120,26 @@ def test_resolve_mismatch_amount_raises():
         assert "value_satoshi_mismatch" in str(exc)
 
 
+def test_resolve_float_only_raises_when_required():
+    try:
+        resolve_wire_amount_sat({"value": 1.0}, require_satoshi=True)
+        assert False, "expected WireMoneyMissing"
+    except WireMoneyMissing as exc:
+        assert "amount_satoshi_required" in str(exc)
+    try:
+        resolve_wire_fee_sat({"fee": 0.01}, require_satoshi=True)
+        assert False, "expected WireMoneyMissing"
+    except WireMoneyMissing as exc:
+        assert "fee_satoshi_required" in str(exc)
+
+
+def test_resolve_float_only_ok_when_not_required():
+    a_sat, _ = resolve_wire_amount_sat({"value": 1.25}, require_satoshi=False)
+    assert a_sat == int(to_satoshi(1.25))
+    f_sat, _ = resolve_wire_fee_sat({"fee": 0.002}, require_satoshi=False)
+    assert f_sat == int(to_satoshi(0.002))
+
+
 def test_ingest_prefers_fee_satoshi():
     node = _node()
     fee_sat = int(to_satoshi(0.05))
@@ -150,6 +172,7 @@ def test_ingest_mismatch_fee_refuses():
         "from": "0x" + "11" * 20,
         "to": "0x" + "22" * 20,
         "value": 1.0,
+        "amount_satoshi": int(to_satoshi(1.0)),
         "fee": from_satoshi_float(fee_sat + 7),
         "fee_satoshi": fee_sat,
         "nonce": 0,
@@ -174,6 +197,7 @@ def test_ingest_mismatch_value_refuses():
         "value": 2.0,
         "amount_satoshi": amount_sat,
         "fee": 0.01,
+        "fee_satoshi": int(to_satoshi(0.01)),
         "nonce": 0,
         "gas": 21_000,
         "signature": "sig",
@@ -187,9 +211,30 @@ def test_ingest_mismatch_value_refuses():
     node.blockchain.validate_transaction.assert_not_called()
 
 
-def test_legacy_float_only_still_ingests():
-    """Mixed-mesh compat: float-only wire still admitted, quantized to satoshi."""
-    node = _node()
+def test_legacy_float_only_refused_by_default():
+    """ADR 0021 complete: float-only wire refused (require_wire_satoshi=True)."""
+    node = _node(require_wire_satoshi=True)
+    payload = {
+        "from": "0x" + "11" * 20,
+        "to": "0x" + "22" * 20,
+        "value": 1.25,
+        "fee": 0.002,
+        "nonce": 0,
+        "gas": 21_000,
+        "signature": "sig",
+        "public_key": "pk",
+        "hash": "11" * 32,
+        "data": "",
+    }
+    out = _build(node, payload)
+    assert out is None
+    assert node._last_tx_wire_reject == "amount_satoshi_required"
+    node.blockchain.validate_transaction.assert_not_called()
+
+
+def test_legacy_float_only_still_ingests_when_flag_off():
+    """Lab escape hatch: require_wire_satoshi=False keeps mixed-mesh float admit."""
+    node = _node(require_wire_satoshi=False)
     payload = {
         "from": "0x" + "11" * 20,
         "to": "0x" + "22" * 20,

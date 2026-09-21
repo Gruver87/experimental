@@ -68,6 +68,7 @@ def test_dup_hash_refuses_before_validate():
     cfg = Config()
     cfg.require_native_crypto = False
     cfg.deployment_mode = "dev"
+    cfg.p2p_mempool_require_wire_satoshi = False
     cfg.require_signatures = False
     chain = MagicMock()
     chain.validate_transaction = MagicMock(

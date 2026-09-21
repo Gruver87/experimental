@@ -21,6 +21,7 @@ def _node(*, min_fee: float = 0.001) -> P2PNode:
     cfg.p2p_native_transport = False
     cfg.require_native_crypto = False
     cfg.deployment_mode = "dev"
+    cfg.p2p_mempool_require_wire_satoshi = False
     cfg.bootstrap_peers = []
     cfg.p2p_mempool_min_fee_refuse = True
     chain = MagicMock()

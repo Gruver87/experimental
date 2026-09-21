@@ -295,8 +295,8 @@ class HybridDatabase:
         self._core.close()
         self._aux.close()
 
-    def backup_to(self, dest_path: str) -> bool:
-        return self._core.backup_to(dest_path)
+    def backup_to(self, dest_path: str) -> None:
+        self._core.backup_to(dest_path)
 
     @contextmanager
     def atomic(self):

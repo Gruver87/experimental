@@ -161,6 +161,8 @@ class Config:
     p2p_mempool_max_pubkey_bytes: int = 2048        # v1.3.192: max wire public_key bytes
     p2p_mempool_nonfinite_value_refuse: bool = True # v1.3.193: refuse NaN/Inf value before validate_transaction
     p2p_mempool_nonfinite_fee_refuse: bool = True   # v1.3.194: refuse NaN/Inf fee before validate_transaction
+    # ADR 0021: refuse float-only wire; require fee_satoshi + amount/value_satoshi.
+    p2p_mempool_require_wire_satoshi: bool = True
     p2p_get_blocks_future_refuse: bool = True     # v1.3.180: refuse GET_BLOCKS when from_height > local tip
     p2p_get_block_future_refuse: bool = True      # v1.3.181: refuse GET_BLOCK when height > local tip
     p2p_get_blocks_past_tip_clamp: bool = True    # v1.3.182: clamp GET_BLOCKS end to local tip (no DB past tip)
@@ -639,6 +641,10 @@ class Config:
         self.p2p_mempool_nonfinite_fee_refuse = env_bool(
             "P2P_MEMPOOL_NONFINITE_FEE_REFUSE",
             self.p2p_mempool_nonfinite_fee_refuse,
+        )
+        self.p2p_mempool_require_wire_satoshi = env_bool(
+            "P2P_MEMPOOL_REQUIRE_WIRE_SATOSHI",
+            self.p2p_mempool_require_wire_satoshi,
         )
         self.p2p_get_blocks_future_refuse = env_bool(
             "P2P_GET_BLOCKS_FUTURE_REFUSE", self.p2p_get_blocks_future_refuse

@@ -30,6 +30,17 @@ Commit: `7a4ffc9`.
 
 **Not claimed:** mesh probe / 48h re-soak for this cutover. Float display dual-write remains on purpose.
 
+## MED polish closed (2026-09-21)
+
+| Fix | Why |
+|-----|-----|
+| `p2p_mempool_require_wire_satoshi` (default True) | Refuse float-only ingress (`amount_satoshi_required` / `fee_satoshi_required`); escape hatch False for lab mixed-mesh |
+| `WireMoneyMissing` | Typed refuse when satoshi keys absent under require |
+| `rocks_store` / `database` `backup_to` | Raise `PersistError` — no soft `False` |
+| `chain_backup` | No silent `copy2` after failed live SQLite `backup_to` (aux/restore copy2 unchanged) |
+
+**Not claimed:** mesh probe / 48h re-soak.
+
 ## Persist fail-closed (2026-09-20 follow-up)
 
 | Fix | Why |
@@ -44,7 +55,7 @@ Commit: `7a4ffc9`.
 Honesty landmines from the stub/fail-open pass that are **already closed** above: Config/FeatureFlags defaults, industrial JSON, PQ boot string, **wire fee/amount satoshi cutover**.
 
 Still **open CRITICAL/HIGH**: *(none from 2026-09-20 HIGH pack)*. Follow-up P0 **ledger/slash** closed 2026-09-21: engine proposer eject on slash; ATXV/ATXR v2 satoshi; MempoolStore `amount_satoshi` + refuse fee×1e6. Soft persist False (#8–10) **closed** via `PersistError`. Native f64/unwrap (#6–7, #28) **closed** (amount + writeback). Residual float on apply/display edges (#15–17 subset) is dual-write display — not wire authority. Prod mesh libp2p+TLS-off (#13) is **intentional ADR 0020** — document only, do not “fix” to Hybrid TCP+TLS.
-Legacy float-only wire admit and soft backup/`copy2` remain MED polish — not reopened as CRITICAL.
+Legacy float-only wire admit and soft backup/`copy2` **closed 2026-09-21** (MED polish) — not reopened as CRITICAL.
 
 
 ## Industrial HIGH honesty (2026-09-21 follow-up)
@@ -62,7 +73,7 @@ Operator: `.\scripts\verify_industrial_high_honesty.ps1`. **Not** mesh probe / *
 
 | Gap | Class | Note |
 |-----|-------|------|
-| Soft `return False` on persist (`rocks_store` / SQLite / chain_storage) | **Closed 2026-09-20** | Hot writes raise `PersistError`; ops `backup_to` still soft-bool |
+| Soft `return False` on persist (`rocks_store` / SQLite / chain_storage) | **Closed 2026-09-20** | Hot writes raise `PersistError`; ops `backup_to` **also** raises (2026-09-21 MED) |
 | Rust `amount.rs` / EVM writeback `f64` + some `.unwrap()` | **Closed 2026-09-20** | Decimal fee plan; refuse float `*_satoshi`; writeback via `from_satoshi_float_inner`; map get → typed refuse |
 | Long-Range **prod** / BLS / tip-proof | **Park** | Lab 48h only; `feature_long_range=false` on 778888 |
 | Bridge L1 enable | **Park** | Stay OFF until audited contracts |
@@ -78,4 +89,4 @@ Experimental `docker/node.prod.mesh*.json`: `feature_libp2p=true`, `feature_long
 
 1. Optional tip-safety-enforce soak claim (or keep docs: gate/lab only)
 2. Phase 6 audit only when scheduled
-3. Residual MED / org items only — HIGH honesty pack closed 2026-09-21
+3. Residual org items only — HIGH + MED polish packs closed 2026-09-21

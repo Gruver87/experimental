@@ -5014,6 +5014,25 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             src = (ROOT / rel).read_text(encoding="utf-8", errors="replace")
             if "raise PersistError" not in src:
                 errors.append(f"{label} must raise PersistError on hot persist failure")
+        backup_rocks = (ROOT / "storage" / "rocks_store.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        backup_db = (ROOT / "storage" / "database.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        for label, src in (("rocks_store.backup_to", backup_rocks), ("database.backup_to", backup_db)):
+            chunk = src.split("def backup_to", 1)[1].split("\n    def ", 1)[0]
+            if "raise PersistError" not in chunk:
+                errors.append(f"{label} must raise PersistError (fail-closed backup)")
+            if "return False" in chunk:
+                errors.append(f"{label} must not soft-return False")
+        chain_bak = (ROOT / "storage" / "chain_backup.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "never silent copy2 of a live DB" not in chain_bak:
+            errors.append("chain_backup must refuse silent copy2 fallback for live SQLite")
+        if "if hasattr(db, \"backup_to\") and not db.backup_to" in chain_bak:
+            errors.append("chain_backup must not soft-fallback copy2 after backup_to False")
         wire_py = (ROOT / "blockchain" / "mempool_wire.py").read_text(
             encoding="utf-8", errors="replace"
         )
@@ -5037,6 +5056,14 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "p2p_node must refuse fee/value satoshi mismatch (ADR 0021 cutover)"
             )
+        if "amount_satoshi_required" not in p2p_py or "fee_satoshi_required" not in p2p_py:
+            errors.append(
+                "p2p_node must refuse float-only wire (amount/fee_satoshi_required)"
+            )
+        if "p2p_mempool_require_wire_satoshi" not in p2p_py:
+            errors.append("p2p_node must honor p2p_mempool_require_wire_satoshi")
+        if "WireMoneyMissing" not in wire_py:
+            errors.append("mempool_wire must define WireMoneyMissing (float-only refuse)")
         if "fee_sat > max_fee_sat" not in p2p_py:
             errors.append("p2p_node max-fee refuse must compare satoshi (Wave A)")
         if 'value_unparseable' not in p2p_py:

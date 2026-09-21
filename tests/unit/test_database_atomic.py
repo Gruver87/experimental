@@ -80,8 +80,26 @@ def test_sqlite_total_burned_display_follows_satoshi(db):
 
 def test_backup_to_creates_file(db, tmp_path):
     dest = str(tmp_path / "backups" / "copy.db")
-    assert db.backup_to(dest)
+    db.backup_to(dest)
     assert os.path.isfile(dest)
     restored = Database(dest)
     assert restored.get_chain_tip() == db.get_chain_tip()
     restored.close()
+
+
+def test_backup_to_raises_persist_error(db, tmp_path, monkeypatch):
+    import sqlite3
+
+    from storage.types import PersistError
+
+    dest = str(tmp_path / "backups" / "fail.db")
+    real_connect = sqlite3.connect
+
+    def _boom(path, *args, **kwargs):
+        if os.path.abspath(str(path)) == os.path.abspath(dest):
+            raise RuntimeError("backup boom")
+        return real_connect(path, *args, **kwargs)
+
+    monkeypatch.setattr(sqlite3, "connect", _boom)
+    with pytest.raises(PersistError, match="backup_to failed"):
+        db.backup_to(dest)

@@ -3031,8 +3031,13 @@ class Database:
 
     # ── Утилиты ──────────────────────────────────────────────────────────────
 
-    def backup_to(self, dest_path: str) -> bool:
-        """Online-бэкап SQLite через встроенный backup API."""
+    def backup_to(self, dest_path: str) -> None:
+        """Online SQLite backup via the built-in backup API.
+
+        Raises PersistError on failure — never soft ``False`` / silent ``copy2``.
+        """
+        from storage.types import PersistError
+
         with self.lock:
             dest_dir = os.path.dirname(dest_path)
             if dest_dir:
@@ -3041,10 +3046,13 @@ class Database:
                 dest = sqlite3.connect(dest_path)
                 self.conn.backup(dest)
                 dest.close()
-                return True
+            except PersistError:
+                raise
             except Exception as e:
-                print(f"[DB] backup_to error: {e}")
-                return False
+                logger.error("[DB] backup_to error: %s", e)
+                raise PersistError(
+                    f"backup_to failed: {e}", reason_code="backup_failed"
+                ) from e
 
     def close(self):
         with self.lock:
