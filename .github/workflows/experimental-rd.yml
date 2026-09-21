@@ -25,25 +25,24 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          # Keccak for eth_format / RPC bloom without full maturin (Hybrid Node Checks builds abs_native).
+          pip install "pycryptodome>=3.20.0"
       - name: R&D unit tests
         run: |
+            # Fast lane: no abs_native/libp2p wheel here.
+            # Native+libp2p coverage: job rd-libp2p-rust + workflow test.yml Hybrid Node Checks.
             pytest -q \
-            tests/unit/test_evm_rpc_compat.py \
             tests/unit/test_evm_nested_returndata.py \
             tests/unit/test_evm_nested_staticcall.py \
             tests/unit/test_evm_nested_oog.py \
             tests/unit/test_evm_precompiles.py \
             tests/unit/test_evm_runtime.py \
-            tests/unit/test_evm_precompile_apply.py \
             tests/unit/test_long_range_ws.py \
             tests/unit/test_long_range_wave2.py \
             tests/unit/test_long_range_wave3.py \
             tests/unit/test_long_range_runtime.py \
             tests/unit/test_long_range_gossip.py \
-            tests/unit/test_libp2p_adapter.py \
             tests/unit/test_libp2p_wire_bridge.py \
-            tests/unit/test_libp2p_swarm_lab.py \
-            tests/unit/test_dual_stack.py \
             tests/unit/test_prod_mesh_feature_freeze.py \
             tests/unit/test_wave39_oracle_bridge.py \
             tests/unit/test_distributed_sharding.py \
