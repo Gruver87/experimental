@@ -159,15 +159,25 @@ def _check_compose_isolation() -> int:
 def _run_long_range_unit_smoke() -> int:
     py = sys.executable
     proc = subprocess.run(
-        [py, "-m", "pytest", "tests/unit", "-k", "long_range", "-q"],
+        [
+            py,
+            "-m",
+            "pytest",
+            "tests/unit/test_long_range_ws.py",
+            "tests/unit/test_long_range_wave2.py",
+            "tests/unit/test_long_range_wave3.py",
+            "tests/unit/test_long_range_runtime.py",
+            "tests/unit/test_long_range_gossip.py",
+            "-q",
+        ],
         cwd=str(ROOT),
         text=True,
         encoding="utf-8",
         errors="replace",
     )
     if proc.returncode != 0:
-        return _fail(f"pytest -k long_range exit {proc.returncode}")
-    print("OK: pytest -k long_range")
+        return _fail(f"pytest long_range units exit {proc.returncode}")
+    print("OK: pytest long_range units")
     return 0
 
 
