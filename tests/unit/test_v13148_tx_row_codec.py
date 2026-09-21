@@ -63,6 +63,8 @@ def test_pack_unpack_roundtrip():
     assert int(back["block_height"]) == 42
     assert int(back["status"]) == 1
     assert int(back["nonce"]) == 9
+    assert "value_satoshi" in back
+    assert int(back["value_satoshi"]) == 3_500_000
 
 
 def test_dual_read_legacy_json():

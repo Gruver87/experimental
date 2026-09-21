@@ -65,7 +65,7 @@ Full map: [ARCHITECTURE § R&D execution chain](ARCHITECTURE.md#rd-execution-cha
 
 ## Next click
 
-- **Execution order (what when):** [EXECUTION_ORDER.md](EXECUTION_ORDER.md) — Phases 1–4 closed; Phase 5 re-verified; wire satoshi + persist fail-closed + native f64 hygiene + industrial HIGH honesty (#18/#19–20/#22/#24) landed; remaining: Phase 6 / optional tip-safety soak ([INDUSTRIAL_MAX_SCAN_2026-09-20.md](INDUSTRIAL_MAX_SCAN_2026-09-20.md))
+- **Execution order (what when):** [EXECUTION_ORDER.md](EXECUTION_ORDER.md) — Phases 1–4 closed; Phase 5 re-verified; wire/persist/native + HIGH honesty + P0 slash/ATXV-ATXR/mempool satoshi landed; remaining: Phase 6 org / optional tip-safety soak / MED backup+float-only wire ([INDUSTRIAL_MAX_SCAN_2026-09-20.md](INDUSTRIAL_MAX_SCAN_2026-09-20.md))
 - Hybrid pin (do not break): [Ultimate Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid)
 - Contribute: [CONTRIBUTING](../CONTRIBUTING.md)
 - GitHub About: [REPO_PROFILE](../.github/REPO_PROFILE.md)

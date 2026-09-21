@@ -18,6 +18,7 @@ struct TxEntry {
     from_addr: String,
     to_addr: String,
     amount: f64,
+    amount_satoshi: i64,
     fee: f64,
     fee_satoshi: i64,
     nonce: i64,
@@ -119,6 +120,7 @@ fn entry_to_dict(py: Python<'_>, e: &TxEntry) -> PyResult<PyObject> {
     d.set_item("from_addr", &e.from_addr)?;
     d.set_item("to_addr", &e.to_addr)?;
     d.set_item("amount", e.amount)?;
+    d.set_item("amount_satoshi", e.amount_satoshi)?;
     d.set_item("fee", e.fee)?;
     d.set_item("fee_satoshi", e.fee_satoshi)?;
     d.set_item("nonce", e.nonce)?;
@@ -151,22 +153,36 @@ fn dict_to_entry(dict: &Bound<'_, PyDict>) -> PyResult<TxEntry> {
         .map(|v| v.extract())
         .transpose()?
         .unwrap_or(0.0);
+    let amount_satoshi: i64 = match dict.get_item("amount_satoshi")? {
+        Some(v) => {
+            let s: i64 = v.extract()?;
+            if s < 0 {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "negative_amount_satoshi",
+                ));
+            }
+            s
+        }
+        None => {
+            if !amount.is_finite() || amount < 0.0 {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "missing_field:amount_satoshi",
+                ));
+            }
+            crate::amount::to_satoshi_inner(&amount.to_string())?
+        }
+    };
     let fee: f64 = dict
         .get_item("fee")?
         .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("missing_field:fee"))?
         .extract()?;
-    // Prefer explicit fee_satoshi from Python (Decimal path). Fallback only if
-    // missing: refuse silent float→int via IEEE — require non-negative round.
+    // Require explicit fee_satoshi — no IEEE ×1e6 bridge.
     let fee_satoshi: i64 = match dict.get_item("fee_satoshi")? {
         Some(v) => v.extract()?,
         None => {
-            if !fee.is_finite() || fee < 0.0 {
-                return Err(pyo3::exceptions::PyValueError::new_err(
-                    "missing_field:fee_satoshi",
-                ));
-            }
-            // Last-resort bridge for old callers; Python dual-write should always set.
-            (fee * 1_000_000.0).round() as i64
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "missing_field:fee_satoshi",
+            ));
         }
     };
     if fee_satoshi < 0 {
@@ -207,6 +223,7 @@ fn dict_to_entry(dict: &Bound<'_, PyDict>) -> PyResult<TxEntry> {
         from_addr,
         to_addr,
         amount,
+        amount_satoshi,
         fee,
         fee_satoshi,
         nonce,
@@ -334,6 +351,7 @@ mod tests {
             from_addr: "0xa".into(),
             to_addr: "0xb".into(),
             amount: 1.0,
+            amount_satoshi: 1_000_000,
             fee: (fee_satoshi as f64) / 1_000_000.0,
             fee_satoshi,
             nonce: 0,

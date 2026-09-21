@@ -50,6 +50,14 @@ class ConsensusEngine:
     def get_total_stake(self) -> int:
         return sum(int(v.stake) for v in self.validators.values() if v.is_active)
 
+    def slash_validator(self, address: str) -> bool:
+        """Deactivate validator for proposer/attest selection (fail-closed eject)."""
+        validator = self.validators.get(str(address or "").strip())
+        if validator is None:
+            return False
+        validator.is_active = False
+        return True
+
     def select_proposer(self) -> Optional[Validator]:
         """Deterministic stake-weighted proposer for current slot (network-safe)."""
         payload = [
@@ -61,7 +69,10 @@ class ConsensusEngine:
         )
         if not address:
             return None
-        return self.validators.get(address)
+        out = self.validators.get(address)
+        if out is None or not out.is_active:
+            return None
+        return out
 
     def get_committee(self, slot: int) -> List[Validator]:
         """Deterministic attestation committee for slot."""

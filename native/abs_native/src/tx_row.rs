@@ -7,7 +7,9 @@ use pyo3::prelude::*;
 use serde_json::{Map, Number, Value};
 
 pub const TX_ROW_MAGIC: &[u8; 4] = b"ATXV";
-pub const TX_ROW_VERSION: u8 = 1;
+/// v2: value/fee/burned stored as i64 satoshi (canonical). v1 dual-read kept.
+pub const TX_ROW_VERSION: u8 = 2;
+pub const TX_ROW_VERSION_V1: u8 = 1;
 /// flags bit 0: gas_used was not observed (do not invent 21000 / copy gas limit).
 const FLAG_GAS_USED_UNOBSERVED: u8 = 0x01;
 
@@ -62,8 +64,91 @@ fn write_u32(out: &mut Vec<u8>, v: u32) {
 fn write_u64(out: &mut Vec<u8>, v: u64) {
     out.extend_from_slice(&v.to_le_bytes());
 }
-fn write_f64(out: &mut Vec<u8>, v: f64) {
+fn write_i64(out: &mut Vec<u8>, v: i64) {
     out.extend_from_slice(&v.to_le_bytes());
+}
+
+fn read_i64(buf: &[u8], off: &mut usize) -> Option<i64> {
+    let end = off.checked_add(8)?;
+    let v = i64::from_le_bytes(buf.get(*off..end)?.try_into().ok()?);
+    *off = end;
+    Some(v)
+}
+
+fn json_i64_satoshi(obj: &Map<String, Value>, keys: &[&str]) -> Result<Option<i64>, String> {
+    for k in keys {
+        if let Some(v) = obj.get(*k) {
+            match v {
+                Value::Number(n) => {
+                    if let Some(i) = n.as_i64() {
+                        return Ok(Some(i.max(0)));
+                    }
+                    if let Some(u) = n.as_u64() {
+                        return Ok(Some(i64::try_from(u).unwrap_or(i64::MAX).max(0)));
+                    }
+                    if n.as_f64().is_some() {
+                        return Err(format!("refuse float {k} (require integer satoshi)"));
+                    }
+                }
+                Value::String(s) => {
+                    if let Ok(i) = s.trim().parse::<i64>() {
+                        return Ok(Some(i.max(0)));
+                    }
+                    return Err(format!("invalid integer {k}"));
+                }
+                Value::Null => {}
+                _ => return Err(format!("invalid {k} type")),
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Resolve ledger money as satoshi: prefer *_satoshi ints, else ABS via Decimal.
+fn resolve_money_satoshi(
+    obj: &Map<String, Value>,
+    sat_keys: &[&str],
+    abs_keys: &[&str],
+) -> Result<i64, String> {
+    if let Some(s) = json_i64_satoshi(obj, sat_keys)? {
+        return Ok(s);
+    }
+    let abs = json_f64(obj, abs_keys, 0.0)?;
+    if !abs.is_finite() || abs < 0.0 {
+        return Err("tx money abs not finite".to_string());
+    }
+    crate::amount::to_satoshi_inner(&abs.to_string())
+        .map_err(|e| format!("tx money satoshi: {e}"))
+}
+
+fn insert_money_fields(map: &mut Map<String, Value>, value_s: i64, fee_s: i64, burned_s: i64) {
+    let value_f = crate::amount::from_satoshi_float_inner(value_s).unwrap_or(0.0);
+    let fee_f = crate::amount::from_satoshi_float_inner(fee_s).unwrap_or(0.0);
+    let burned_f = crate::amount::from_satoshi_float_inner(burned_s).unwrap_or(0.0);
+    map.insert("value_satoshi".into(), Value::Number(Number::from(value_s)));
+    map.insert("fee_satoshi".into(), Value::Number(Number::from(fee_s)));
+    map.insert(
+        "burned_satoshi".into(),
+        Value::Number(Number::from(burned_s)),
+    );
+    map.insert(
+        "value".into(),
+        Number::from_f64(value_f)
+            .map(Value::Number)
+            .unwrap_or(Value::Number(Number::from(0))),
+    );
+    map.insert(
+        "fee".into(),
+        Number::from_f64(fee_f)
+            .map(Value::Number)
+            .unwrap_or(Value::Number(Number::from(0))),
+    );
+    map.insert(
+        "burned".into(),
+        Number::from_f64(burned_f)
+            .map(Value::Number)
+            .unwrap_or(Value::Number(Number::from(0))),
+    );
 }
 
 fn json_string(obj: &Map<String, Value>, keys: &[&str]) -> String {
@@ -205,7 +290,7 @@ fn read_len_str(buf: &[u8], off: &mut usize, max_u16: bool) -> Result<String, St
         .map_err(|_| "tx_row_bad_utf8".to_string())
 }
 
-/// Pack a JSON-shaped tx object into ATXV binary.
+/// Pack a JSON-shaped tx object into ATXV binary (v2 satoshi money).
 pub fn pack_tx_row_value(tx: &Value) -> Result<Vec<u8>, String> {
     let obj = tx
         .as_object()
@@ -221,7 +306,11 @@ pub fn pack_tx_row_value(tx: &Value) -> Result<Vec<u8>, String> {
     let to_addr = json_string(obj, &["to_addr", "to"])
         .trim()
         .to_ascii_lowercase();
-    let value = json_f64(obj, &["value", "amount"], 0.0)?;
+    let value_sat = resolve_money_satoshi(
+        obj,
+        &["value_satoshi", "amount_satoshi"],
+        &["value", "amount"],
+    )?;
     let gas = json_u64(obj, &["gas"], 21_000);
     let gas_used_observed = json_present_non_null(obj, "gas_used");
     let gas_used = if gas_used_observed {
@@ -233,8 +322,8 @@ pub fn pack_tx_row_value(tx: &Value) -> Result<Vec<u8>, String> {
     if !gas_used_observed {
         flags |= FLAG_GAS_USED_UNOBSERVED;
     }
-    let fee = json_f64(obj, &["fee"], 0.0)?;
-    let burned = json_f64(obj, &["burned"], 0.0)?;
+    let fee_sat = resolve_money_satoshi(obj, &["fee_satoshi"], &["fee"])?;
+    let burned_sat = resolve_money_satoshi(obj, &["burned_satoshi"], &["burned"])?;
     let nonce = json_u64(obj, &["nonce"], 0);
     let tx_data = json_string(obj, &["tx_data", "data"]);
     let status = normalize_status(obj);
@@ -249,11 +338,11 @@ pub fn pack_tx_row_value(tx: &Value) -> Result<Vec<u8>, String> {
     write_u64(&mut out, block_height);
     write_len_str(&mut out, &from_addr, true)?;
     write_len_str(&mut out, &to_addr, true)?;
-    write_f64(&mut out, value);
+    write_i64(&mut out, value_sat);
     write_u64(&mut out, gas);
     write_u64(&mut out, gas_used);
-    write_f64(&mut out, fee);
-    write_f64(&mut out, burned);
+    write_i64(&mut out, fee_sat);
+    write_i64(&mut out, burned_sat);
     write_u64(&mut out, nonce);
     write_len_str(&mut out, &tx_data, false)?;
     out.push(status);
@@ -272,7 +361,7 @@ pub fn unpack_tx_row_bytes(blob: &[u8]) -> Result<Value, String> {
     let mut off = 4usize;
     let ver = *blob.get(off).ok_or("tx_row_truncated")?;
     off += 1;
-    if ver != TX_ROW_VERSION {
+    if ver != TX_ROW_VERSION && ver != TX_ROW_VERSION_V1 {
         return Err(format!("tx_row_bad_version:{ver}"));
     }
     let _flags = *blob.get(off).ok_or("tx_row_truncated")?;
@@ -283,19 +372,65 @@ pub fn unpack_tx_row_bytes(blob: &[u8]) -> Result<Value, String> {
     let block_height = read_u64(blob, &mut off).ok_or("tx_row_truncated")?;
     let from_addr = read_len_str(blob, &mut off, true)?;
     let to_addr = read_len_str(blob, &mut off, true)?;
-    let value = read_f64(blob, &mut off).ok_or("tx_row_truncated")?;
+
+    if ver == TX_ROW_VERSION_V1 {
+        let value = read_f64(blob, &mut off).ok_or("tx_row_truncated")?;
+        let gas = read_u64(blob, &mut off).ok_or("tx_row_truncated")?;
+        let gas_used = read_u64(blob, &mut off).ok_or("tx_row_truncated")?;
+        let fee = read_f64(blob, &mut off).ok_or("tx_row_truncated")?;
+        let burned = read_f64(blob, &mut off).ok_or("tx_row_truncated")?;
+        let nonce = read_u64(blob, &mut off).ok_or("tx_row_truncated")?;
+        let tx_data = read_len_str(blob, &mut off, false)?;
+        let status = *blob.get(off).ok_or("tx_row_truncated")?;
+        off += 1;
+        let timestamp = read_u64(blob, &mut off).ok_or("tx_row_truncated")?;
+        if !value.is_finite() || !fee.is_finite() || !burned.is_finite() {
+            return Err("tx_row_non_finite".to_string());
+        }
+        let value_sat = crate::amount::to_satoshi_inner(&value.to_string())
+            .map_err(|e| format!("tx_row_v1_value:{e}"))?;
+        let fee_sat = crate::amount::to_satoshi_inner(&fee.to_string())
+            .map_err(|e| format!("tx_row_v1_fee:{e}"))?;
+        let burned_sat = crate::amount::to_satoshi_inner(&burned.to_string())
+            .map_err(|e| format!("tx_row_v1_burned:{e}"))?;
+
+        let mut map = Map::new();
+        map.insert("hash".into(), Value::String(hash));
+        map.insert(
+            "block_height".into(),
+            Value::Number(Number::from(block_height)),
+        );
+        map.insert("from_addr".into(), Value::String(from_addr));
+        map.insert("to_addr".into(), Value::String(to_addr));
+        insert_money_fields(&mut map, value_sat, fee_sat, burned_sat);
+        map.insert("gas".into(), Value::Number(Number::from(gas)));
+        if gas_used_unobserved {
+            map.insert("gas_used".into(), Value::Null);
+        } else {
+            map.insert("gas_used".into(), Value::Number(Number::from(gas_used)));
+        }
+        map.insert("nonce".into(), Value::Number(Number::from(nonce)));
+        map.insert("tx_data".into(), Value::String(tx_data));
+        map.insert(
+            "status".into(),
+            Value::Number(Number::from(u64::from(status.min(1)))),
+        );
+        map.insert("timestamp".into(), Value::Number(Number::from(timestamp)));
+        return Ok(Value::Object(map));
+    }
+
+    let value_sat = read_i64(blob, &mut off).ok_or("tx_row_truncated")?;
     let gas = read_u64(blob, &mut off).ok_or("tx_row_truncated")?;
     let gas_used = read_u64(blob, &mut off).ok_or("tx_row_truncated")?;
-    let fee = read_f64(blob, &mut off).ok_or("tx_row_truncated")?;
-    let burned = read_f64(blob, &mut off).ok_or("tx_row_truncated")?;
+    let fee_sat = read_i64(blob, &mut off).ok_or("tx_row_truncated")?;
+    let burned_sat = read_i64(blob, &mut off).ok_or("tx_row_truncated")?;
     let nonce = read_u64(blob, &mut off).ok_or("tx_row_truncated")?;
     let tx_data = read_len_str(blob, &mut off, false)?;
     let status = *blob.get(off).ok_or("tx_row_truncated")?;
     off += 1;
     let timestamp = read_u64(blob, &mut off).ok_or("tx_row_truncated")?;
-
-    if !value.is_finite() || !fee.is_finite() || !burned.is_finite() {
-        return Err("tx_row_non_finite".to_string());
+    if value_sat < 0 || fee_sat < 0 || burned_sat < 0 {
+        return Err("tx_row_negative_satoshi".to_string());
     }
 
     let mut map = Map::new();
@@ -306,30 +441,13 @@ pub fn unpack_tx_row_bytes(blob: &[u8]) -> Result<Value, String> {
     );
     map.insert("from_addr".into(), Value::String(from_addr));
     map.insert("to_addr".into(), Value::String(to_addr));
-    map.insert(
-        "value".into(),
-        Number::from_f64(value)
-            .map(Value::Number)
-            .ok_or_else(|| "tx value is not finite".to_string())?,
-    );
+    insert_money_fields(&mut map, value_sat, fee_sat, burned_sat);
     map.insert("gas".into(), Value::Number(Number::from(gas)));
     if gas_used_unobserved {
         map.insert("gas_used".into(), Value::Null);
     } else {
         map.insert("gas_used".into(), Value::Number(Number::from(gas_used)));
     }
-    map.insert(
-        "fee".into(),
-        Number::from_f64(fee)
-            .map(Value::Number)
-            .ok_or_else(|| "tx fee is not finite".to_string())?,
-    );
-    map.insert(
-        "burned".into(),
-        Number::from_f64(burned)
-            .map(Value::Number)
-            .ok_or_else(|| "tx burned is not finite".to_string())?,
-    );
     map.insert("nonce".into(), Value::Number(Number::from(nonce)));
     map.insert("tx_data".into(), Value::String(tx_data));
     map.insert(
@@ -427,6 +545,8 @@ mod tests {
         assert_eq!(back["from_addr"], "0xaaa");
         assert_eq!(back["block_height"], 12);
         assert_eq!(back["status"], 1);
+        assert_eq!(back["value_satoshi"], 1_500_000);
+        assert_eq!(blob[4], TX_ROW_VERSION);
     }
 
     #[test]

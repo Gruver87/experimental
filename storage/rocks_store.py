@@ -1227,12 +1227,13 @@ class RocksChainStore:
     # ── transactions ──────────────────────────────────────────────────────
 
     def _insert_transaction(self, tx: Dict) -> None:
-        from runtime.amount import tx_money_abs
+        from runtime.amount import tx_money_abs, tx_money_satoshi
 
         tx_hash = tx.get("hash", tx.get("tx_hash", "")) or ""
         if not tx_hash:
             return
         money = tx_money_abs(tx)
+        sat = tx_money_satoshi(tx)
         gas = observed_optional_int(tx, "gas", "gas_limit")
         gas_used = observed_optional_int(tx, "gas_used")
         row = {
@@ -1243,6 +1244,9 @@ class RocksChainStore:
             "value": money["value"],
             "fee": money["fee"],
             "burned": money["burned"],
+            "value_satoshi": sat["value_satoshi"],
+            "fee_satoshi": sat["fee_satoshi"],
+            "burned_satoshi": sat["burned_satoshi"],
             "nonce": tx.get("nonce", 0),
             "tx_data": tx.get("data", tx.get("tx_data", "")),
             # Omit / None / unknown → fail-closed 0 (never invent success).
@@ -1468,12 +1472,13 @@ class RocksChainStore:
         return out
 
     def _insert_tx_receipt(self, tx: Dict, block_hash: str, block_height: int) -> None:
-        from runtime.amount import tx_money_abs
+        from runtime.amount import tx_money_abs, tx_money_satoshi
 
         tx_hash = tx.get("hash", tx.get("tx_hash", "")) or ""
         if not tx_hash:
             return
         money = tx_money_abs(tx)
+        sat = tx_money_satoshi(tx)
         receipt = {
             "tx_hash": tx_hash,
             "block_height": int(block_height),
@@ -1483,6 +1488,9 @@ class RocksChainStore:
             "value": money["value"],
             "fee": money["fee"],
             "burned": money["burned"],
+            "value_satoshi": sat["value_satoshi"],
+            "fee_satoshi": sat["fee_satoshi"],
+            "burned_satoshi": sat["burned_satoshi"],
             "status": SqliteDatabase._normalize_tx_status(tx.get("status")),
             "created_at": int(time.time()),
         }

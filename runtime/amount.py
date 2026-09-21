@@ -204,12 +204,39 @@ def money_abs(raw: Any, *, field: str = "amount") -> float:
 
 def tx_money_abs(row: Optional[Mapping[str, Any]]) -> Dict[str, float]:
     """Satoshi-quantize tx ``value`` / ``fee`` / ``burned`` for persist and display."""
-    src = dict(row) if row else {}
-    raw_value = src.get("value", src.get("amount", 0.0))
+    sat = tx_money_satoshi(row)
     return {
-        "value": money_abs(raw_value, field="value"),
-        "fee": money_abs(src.get("fee", 0.0), field="fee"),
-        "burned": money_abs(src.get("burned", 0.0), field="burned"),
+        "value": from_satoshi_float(sat["value_satoshi"]),
+        "fee": from_satoshi_float(sat["fee_satoshi"]),
+        "burned": from_satoshi_float(sat["burned_satoshi"]),
+    }
+
+
+def tx_money_satoshi(row: Optional[Mapping[str, Any]]) -> Dict[str, int]:
+    """Canonical integer satoshi for tx ledger fields (prefer explicit *_satoshi)."""
+    src = dict(row) if row else {}
+
+    def _one(sat_keys: tuple, abs_keys: tuple) -> int:
+        for k in sat_keys:
+            if src.get(k) is not None:
+                try:
+                    return max(0, int(src[k]))
+                except (TypeError, ValueError):
+                    pass
+        raw = 0.0
+        for k in abs_keys:
+            if k in src and src.get(k) is not None:
+                raw = src.get(k)
+                break
+        return max(0, int(to_satoshi(raw)))
+
+    return {
+        "value_satoshi": _one(
+            ("value_satoshi", "amount_satoshi"),
+            ("value", "amount"),
+        ),
+        "fee_satoshi": _one(("fee_satoshi",), ("fee",)),
+        "burned_satoshi": _one(("burned_satoshi",), ("burned",)),
     }
 
 

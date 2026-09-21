@@ -207,6 +207,12 @@ class ConsensusAdapter:
         self, address: str, reason: str, slot: int, penalty: int
     ) -> None:
         persist_err: Optional[BaseException] = None
+        # Fail-closed: eject from live proposer/attest set before persist.
+        try:
+            self.engine.slash_validator(address)
+        except Exception as e:
+            persist_err = e
+            print(f"[Consensus] FAIL: engine slash for {address[:16]}...: {e}")
         try:
             self.db.slash_validator(address)
         except Exception as e:

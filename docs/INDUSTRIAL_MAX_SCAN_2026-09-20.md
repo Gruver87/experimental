@@ -43,7 +43,9 @@ Commit: `7a4ffc9`.
 
 Honesty landmines from the stub/fail-open pass that are **already closed** above: Config/FeatureFlags defaults, industrial JSON, PQ boot string, **wire fee/amount satoshi cutover**.
 
-Still **open CRITICAL/HIGH**: *(none from this scan — HIGH #18/#19–20/#22/#24 closed 2026-09-21)*. Soft persist False (#8–10) **closed** via `PersistError`. Native f64/unwrap (#6–7, #28) **closed** (amount + writeback). Residual float on apply/display edges (#15–17 subset) is dual-write display — not wire authority. Prod mesh libp2p+TLS-off (#13) is **intentional ADR 0020** — document only, do not “fix” to Hybrid TCP+TLS.
+Still **open CRITICAL/HIGH**: *(none from 2026-09-20 HIGH pack)*. Follow-up P0 **ledger/slash** closed 2026-09-21: engine proposer eject on slash; ATXV/ATXR v2 satoshi; MempoolStore `amount_satoshi` + refuse fee×1e6. Soft persist False (#8–10) **closed** via `PersistError`. Native f64/unwrap (#6–7, #28) **closed** (amount + writeback). Residual float on apply/display edges (#15–17 subset) is dual-write display — not wire authority. Prod mesh libp2p+TLS-off (#13) is **intentional ADR 0020** — document only, do not “fix” to Hybrid TCP+TLS.
+Legacy float-only wire admit and soft backup/`copy2` remain MED polish — not reopened as CRITICAL.
+
 
 ## Industrial HIGH honesty (2026-09-21 follow-up)
 

@@ -102,7 +102,8 @@ class AdapterValidatorRegistry:
                         validator_id=vid,
                         stake=getattr(v, "stake", 0) or 0,
                         active=bool(getattr(v, "is_active", True)),
-                        slashed=False,
+                        # Engine is_active=False means slashed/ejected (Wave P0).
+                        slashed=not bool(getattr(v, "is_active", True)),
                     )
                 )
         return out
