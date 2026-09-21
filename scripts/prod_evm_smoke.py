@@ -154,58 +154,24 @@ def _storage_ok(storage_hex: str) -> bool:
 
 
 def _wait_mesh_aligned(http_urls: list[str], timeout_sec: int = 300) -> None:
-    """Wait for equal tip. Prefer natural P2P; nudge lagging nodes with sync+reconcile."""
-    from verify_p2p_ci import _restore_p2p_mesh
+    """Wait for equal tip head+root via aggressive catch-up (BehindOpen tip+1 safe)."""
+    from verify_p2p_ci import (
+        _force_prod_mesh_catchup,
+        _mesh_tip_snapshot,
+    )
 
-    deadline = time.time() + timeout_sec
-    last: tuple[list[int], list[str], list[str]] = ([], [], [])
-    attempt = 0
-    while time.time() < deadline:
-        heights: list[int] = []
-        roots: list[str] = []
-        heads: list[str] = []
-        for url in http_urls:
-            status = _api(f"{url}/status")
-            heights.append(int(status.get("height", 0) or 0))
-            roots.append(str(status.get("state_root") or "").lower())
-            heads.append(str(status.get("head_hash") or "").lower())
-        last = (heights, roots, heads)
-        if (
-            heights
-            and max(heights) - min(heights) <= 1
-            and len(set(roots)) == 1
-            and (not any(heads) or len(set(heads)) == 1)
-        ):
-            return
-        tip = max(heights) if heights else 0
-        # Give natural catch-up ~45s before aggressive nudges (CI tip can race).
-        if attempt >= 15 and attempt % 3 == 0:
-            try:
-                _restore_p2p_mesh(http_urls, expected_peers=max(1, len(http_urls) - 1))
-            except Exception:
-                pass
-            for url, h in zip(http_urls, heights):
-                if tip - h <= 0:
-                    continue
-                try:
-                    _admin_token(url)
-                    _post_json(
-                        url,
-                        "/sync/fast-sync",
-                        {"timeout": 90, "target_block": tip},
-                        timeout=120,
-                    )
-                    _post_json(url, "/sync/reconcile", {"timeout": 45}, timeout=60)
-                except Exception:
-                    pass
-        if attempt % 10 == 0:
-            print(
-                f"  mesh align wait heights={heights} "
-                f"roots={[r[:12] for r in roots]} attempt={attempt}"
-            )
-        attempt += 1
-        time.sleep(3)
-    heights, roots, _heads = last
+    budget = max(30.0, float(timeout_sec))
+    if _force_prod_mesh_catchup(
+        http_urls,
+        budget_sec=budget,
+        expected_peers=max(1, len(http_urls) - 1),
+        label="evm-align",
+    ):
+        return
+    try:
+        heights, _heads, roots = _mesh_tip_snapshot(http_urls)
+    except Exception:
+        heights, roots = [], []
     raise RuntimeError(
         "mesh not aligned (heights/roots); wait for P2P sync or rebuild prod mesh "
         f"(heights={heights} roots={[r[:16] for r in roots]})"

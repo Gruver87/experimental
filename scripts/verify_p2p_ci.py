@@ -677,6 +677,139 @@ def _pull_peer_mempools(peer_urls: list[str]) -> None:
             pass
 
 
+def _mesh_tip_snapshot(urls: list[str]) -> tuple[list[int], list[str], list[str]]:
+    """Return (heights, heads, state_roots) for the given HTTP URLs."""
+    heights: list[int] = []
+    heads: list[str] = []
+    roots: list[str] = []
+    for url in urls:
+        status = _api(f"{url}/status")
+        heights.append(int(status.get("height", 0) or 0))
+        heads.append(str(status.get("head_hash") or "").lower())
+        roots.append(str(status.get("state_root") or "").lower())
+    return heights, heads, roots
+
+
+def _mesh_tips_aligned(
+    heights: list[int], heads: list[str], roots: list[str], *, max_spread: int = 0
+) -> bool:
+    """True when tip height/head/root agree (ADR 0003-ish mesh catch-up gate)."""
+    if not heights or min(heights) < 1:
+        return False
+    if max(heights) - min(heights) > int(max_spread):
+        return False
+    if not heads[0] or len(set(heads)) != 1:
+        return False
+    if not roots[0] or len(set(roots)) != 1:
+        return False
+    return True
+
+
+def _force_prod_mesh_catchup(
+    urls: list[str],
+    *,
+    budget_sec: float = 120.0,
+    expected_peers: int = 2,
+    label: str = "catchup",
+) -> bool:
+    """Aggressively heal tip+1 / BehindOpen stalls (equal head+root).
+
+    Industrial trap: leader forges tip+1 while followers sit at tip → ConsistencyService
+    BehindOpen and natural gossip never closes the gap. Peers may look healthy while
+    heights stay [N+1, N, N]. Force fast-sync + reconcile + consistency repair from
+    attempt 0 (do not wait ~45s like passive align loops).
+    """
+    if len(urls) < 2:
+        return True
+    deadline = time.time() + max(15.0, float(budget_sec))
+    attempt = 0
+    last_heights: list[int] = []
+    while time.time() < deadline:
+        try:
+            heights, heads, roots = _mesh_tip_snapshot(urls)
+            last_heights = heights
+            if _mesh_tips_aligned(heights, heads, roots, max_spread=0):
+                print(
+                    f"OK: {label} mesh tip aligned heights={heights} "
+                    f"head={(heads[0] or '')[:16]}",
+                    flush=True,
+                )
+                return True
+            tip_h = max(heights)
+            # Peer restore is slow (multi-sleep). Do it once up front + sparsely.
+            if attempt == 0 or attempt % 6 == 0:
+                try:
+                    _restore_p2p_mesh(urls, expected_peers=expected_peers)
+                except Exception as exc:
+                    print(f"WARN: {label} restore peers: {exc}", flush=True)
+            if attempt == 0 or attempt % 2 == 0:
+                for url, h in zip(urls, heights):
+                    try:
+                        _admin_token(url)
+                    except Exception:
+                        pass
+                    # Tip holder: re-probe consistency; laggers: pull tip.
+                    try:
+                        repair = _post_json(
+                            url, "/chain/consistency/repair", {}, timeout=45
+                        )
+                        if attempt == 0 or not bool(repair.get("success", True)):
+                            print(
+                                f"  {label} repair {url}: "
+                                f"ok={repair.get('success')} "
+                                f"skipped={repair.get('skipped')}",
+                                flush=True,
+                            )
+                    except Exception as exc:
+                        if attempt == 0:
+                            print(f"  {label} repair {url}: {exc}", flush=True)
+                    if tip_h - h <= 0:
+                        continue
+                    try:
+                        sync_resp = _post_json(
+                            url,
+                            "/sync/fast-sync",
+                            {"timeout": 90, "target_block": tip_h},
+                            timeout=120,
+                        )
+                        print(
+                            f"  {label} fast-sync {url}: {h}->{tip_h} "
+                            f"ok={sync_resp.get('success')} "
+                            f"msg={sync_resp.get('message')} "
+                            f"local={sync_resp.get('local_height')}",
+                            flush=True,
+                        )
+                    except Exception as exc:
+                        print(f"  {label} fast-sync {url}: {exc}", flush=True)
+                    try:
+                        rec = _post_json(
+                            url, "/sync/reconcile", {"timeout": 60}, timeout=75
+                        )
+                        print(
+                            f"  {label} reconcile {url}: ok={rec.get('success')}",
+                            flush=True,
+                        )
+                    except Exception as exc:
+                        print(f"  {label} reconcile {url}: {exc}", flush=True)
+            if attempt % 5 == 0:
+                print(
+                    f"  {label} wait heights={heights} "
+                    f"heads={[h[:12] for h in heads]} "
+                    f"roots={[r[:12] for r in roots]} attempt={attempt}",
+                    flush=True,
+                )
+        except Exception as exc:
+            print(f"WARN: {label} snapshot: {exc}", flush=True)
+        attempt += 1
+        time.sleep(3)
+    print(
+        f"WARN: {label} mesh tip not aligned within {int(budget_sec)}s "
+        f"(last_heights={last_heights})",
+        flush=True,
+    )
+    return False
+
+
 def _restore_p2p_mesh(urls: list[str], expected_peers: int = 2) -> None:
     """Best-effort cleanup after recovery drills so live devnet remains peered."""
     if len(urls) < 2:
@@ -3380,9 +3513,15 @@ def _run_prod_mesh3_evidence(
         print(f"FAIL: prod-mesh3 evidence signed-tx exit={proc.returncode}")
         return proc.returncode
 
-    # After signed-tx tip can race — freeze once, catch up, thaw for EVM deploy.
-    if not _realign("post-signed-tx", pause_mining=True, resume_mining=True):
+    # After signed-tx: soft realign only. Rocks freeze/thaw before EVM is flaky on
+    # CI and leaves followers in tip+1 / BehindOpen ([7,6,6]) where gossip peers
+    # look healthy but import never closes — see Actions 009c50a EVM exit=1.
+    if not _realign("post-signed-tx", pause_mining=False):
         return 1
+    # Extra aggressive catch-up before deploy so mempool block can replicate.
+    _force_prod_mesh_catchup(
+        urls, budget_sec=90.0, expected_peers=2, label="pre-evm"
+    )
 
     # --- EVM (post-deploy gate lets parent freeze mining mid-smoke) ---
     # Child arms the gate ONLY after mesh-align + mempool deploy. Align alone can
@@ -3438,51 +3577,32 @@ def _run_prod_mesh3_evidence(
     )
 
     def _release_post_deploy_gate() -> bool:
-        """Unblock child via .resume immediately; soft realign is best-effort.
+        """Unblock child via .resume, then force tip catch-up (no Rocks freeze).
 
-        Do **not** call freeze_mining() here. Primary Rocks restart is flaky on CI
-        (health wait up to 300s × 3) and starves the child's 300s .resume wait —
-        see Actions log: gate armed → 300s silence → child FAIL → parent still
-        hung in restart until the 70m job timeout. Child runs its own
-        _wait_mesh_aligned after resume; parent only nudges peers.
+        Prior failure modes:
+        1) freeze_mining starved .resume (300s×3 health) → child timeout + 70m job kill
+        2) no-freeze resume alone left BehindOpen [7,6,6] → mesh align FAIL exit=1
+
+        Always write .resume first. Then `_force_prod_mesh_catchup` from attempt 0
+        so followers pull the deploy block before storage checks.
         """
         print(
-            "EVIDENCE: EVM post-deploy gate — release .resume (no Rocks freeze)",
+            "EVIDENCE: EVM post-deploy gate — release .resume + force catch-up",
             flush=True,
         )
         resume_path.write_text("ok-nofreeze", encoding="utf-8")
         print("EVIDENCE: post-deploy gate released (mining_frozen=False)", flush=True)
-        for attempt in range(10):
-            try:
-                statuses = [_api(f"{u}/status") for u in urls]
-                heights = [int(s.get("height", 0) or 0) for s in statuses]
-                heads = [(s.get("head_hash") or "").lower() for s in statuses]
-                if (
-                    min(heights) >= 1
-                    and max(heights) - min(heights) <= 1
-                    and heads[0]
-                    and len(set(heads)) == 1
-                ):
-                    break
-                tip_h = max(heights)
-                if attempt % 2 == 0:
-                    _restore_p2p_mesh(urls, expected_peers=2)
-                    for url, h in zip(urls, heights):
-                        if tip_h - h <= 0:
-                            continue
-                        try:
-                            _admin_token(url)
-                            _post_json(
-                                url,
-                                "/sync/fast-sync",
-                                {"timeout": 45, "target_block": tip_h},
-                                timeout=60,
-                            )
-                        except Exception:
-                            pass
-            except Exception:
-                pass
-            time.sleep(2)
+        aligned = _force_prod_mesh_catchup(
+            urls,
+            budget_sec=120.0,
+            expected_peers=2,
+            label="post-deploy",
+        )
+        if not aligned:
+            print(
+                "WARN: post-deploy catch-up incomplete — child align may still heal",
+                flush=True,
+            )
         return False
 
     gate_deadline = time.time() + gate_wait_sec
