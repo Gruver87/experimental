@@ -186,7 +186,9 @@ fn dict_to_entry(dict: &Bound<'_, PyDict>) -> PyResult<TxEntry> {
         }
     };
     if fee_satoshi < 0 {
-        return Err(pyo3::exceptions::PyValueError::new_err("negative_fee_satoshi"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "negative_fee_satoshi",
+        ));
     }
     let nonce: i64 = dict
         .get_item("nonce")?
@@ -254,34 +256,30 @@ impl MempoolStore {
     /// Insert validated tx dict. Returns true if newly accepted.
     fn insert(&self, tx: Bound<'_, PyDict>) -> PyResult<bool> {
         let entry = dict_to_entry(&tx)?;
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("mempool_store_lock_poisoned"))?;
+        let mut guard = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("mempool_store_lock_poisoned")
+        })?;
         Ok(guard.insert(entry))
     }
 
     fn remove(&self, tx_hash: &str) -> PyResult<bool> {
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("mempool_store_lock_poisoned"))?;
+        let mut guard = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("mempool_store_lock_poisoned")
+        })?;
         Ok(guard.remove(tx_hash))
     }
 
     fn contains(&self, tx_hash: &str) -> PyResult<bool> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("mempool_store_lock_poisoned"))?;
+        let guard = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("mempool_store_lock_poisoned")
+        })?;
         Ok(guard.contains(tx_hash))
     }
 
     fn get(&self, py: Python<'_>, tx_hash: &str) -> PyResult<PyObject> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("mempool_store_lock_poisoned"))?;
+        let guard = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("mempool_store_lock_poisoned")
+        })?;
         match guard.get(tx_hash) {
             Some(e) => entry_to_dict(py, &e),
             None => Ok(py.None()),
@@ -290,10 +288,9 @@ impl MempoolStore {
 
     #[pyo3(signature = (limit=100, min_fee_satoshi=0))]
     fn get_sorted(&self, py: Python<'_>, limit: usize, min_fee_satoshi: i64) -> PyResult<PyObject> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("mempool_store_lock_poisoned"))?;
+        let guard = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("mempool_store_lock_poisoned")
+        })?;
         let list = PyList::empty_bound(py);
         let floor = min_fee_satoshi.max(0);
         for e in guard
@@ -308,10 +305,9 @@ impl MempoolStore {
     }
 
     fn hashes(&self, py: Python<'_>) -> PyResult<PyObject> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("mempool_store_lock_poisoned"))?;
+        let guard = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("mempool_store_lock_poisoned")
+        })?;
         let list = PyList::empty_bound(py);
         for h in guard.txs.keys() {
             list.append(h)?;
@@ -320,18 +316,16 @@ impl MempoolStore {
     }
 
     fn size(&self) -> PyResult<usize> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("mempool_store_lock_poisoned"))?;
+        let guard = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("mempool_store_lock_poisoned")
+        })?;
         Ok(guard.size())
     }
 
     fn fee_stats(&self) -> PyResult<(f64, f64)> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("mempool_store_lock_poisoned"))?;
+        let guard = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("mempool_store_lock_poisoned")
+        })?;
         Ok(guard.fee_stats())
     }
 }
@@ -378,7 +372,11 @@ mod tests {
         assert!(s.insert(entry("low", 1_000_000)));
         assert!(s.insert(entry("high", 9_000_000)));
         assert!(s.insert(entry("mid", 5_000_000)));
-        let ordered: Vec<&str> = s.sorted_by_fee_desc().iter().map(|e| e.tx_hash.as_str()).collect();
+        let ordered: Vec<&str> = s
+            .sorted_by_fee_desc()
+            .iter()
+            .map(|e| e.tx_hash.as_str())
+            .collect();
         assert_eq!(ordered, vec!["high", "mid", "low"]);
     }
 

@@ -49,7 +49,7 @@ jobs:
             tests/unit/test_distributed_sharding.py \
             tests/unit/test_mempool_port.py \
             tests/unit/test_cargo_test_abs_native.py
-      - name: Long-Range lab 2h harness (preflight: labs + prod flags)
+      - name: "Long-Range lab 2h harness (preflight: labs + prod flags)"
         run: python scripts/long_range_lab_2h_harness.py
       - name: EVM RPC lab
         run: python scripts/evm_rpc_lab.py

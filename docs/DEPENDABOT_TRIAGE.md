@@ -1,7 +1,15 @@
 # Dependabot triage (industrial harden)
 
-**Updated:** 2026-08-08  
+**Updated:** 2026-09-21  
 **Rule:** no kitchen-sink merges — only bumps that keep CI green and reduce risk.
+
+## Closed on Experimental (2026-09-21)
+
+| Item | Action |
+|------|--------|
+| `RUSTSEC-2026-0285` rustls TLS1.3 handshake | Bumped `rustls` **0.23.42 → 0.23.45** in `native/abs_native` (`Cargo.toml` pin + lock) |
+| rustfmt Hybrid Node Checks | `cargo fmt` on `mempool_store` / `amount` / `tx_row` / `receipt_row` |
+| experimental-rd.yml | Quoted step name with `:` (YAML parse fail → 0s red badge) |
 
 ## Hold (do not merge until migration PR is green)
 

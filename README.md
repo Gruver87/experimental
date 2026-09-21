@@ -16,7 +16,7 @@ Canonical docs language is **English**. If GitHub shows a translation, open **Vi
 > **Industrial pin lives next door:** [`Absolute_Blockchain_Ultimate_Hybrid`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · tag [`v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial)  
 > **This repo:** Profile F labs. Do not port these kernels onto the Hybrid pin.
 
-**Skimmer (60s):** [AT_A_GLANCE](docs/AT_A_GLANCE.md) · **What runs when:** [EXECUTION_ORDER](docs/EXECUTION_ORDER.md) · **Evidence:** [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md)  
+**Skimmer (60s):** [AT_A_GLANCE](docs/AT_A_GLANCE.md) · **Funds / diligence:** [FUND_READINESS](docs/FUND_READINESS.md) · **What runs when:** [EXECUTION_ORDER](docs/EXECUTION_ORDER.md) · **Evidence:** [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md)  
 **Project vision (Hybrid pin, honest scope):** [VISION](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/VISION.md)
 
 ---
@@ -26,7 +26,7 @@ Canonical docs language is **English**. If GitHub shows a translation, open **Vi
 | Audience | Start here |
 |----------|------------|
 | **Architects / principals** | [AT_A_GLANCE](docs/AT_A_GLANCE.md) → [ARCHITECTURE](docs/ARCHITECTURE.md) → ADR [0017](docs/adr/0017-long-range-research.md) / [0019](docs/adr/0019-rust-libp2p-industrial.md) / [0020](docs/adr/0020-libp2p-industrial-mesh.md) |
-| **Grant officers / diligence** | Hybrid [VISION](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/VISION.md) · Proven-vs-not below · [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) · [EXECUTION_ORDER](docs/EXECUTION_ORDER.md) (B1/B2/P3/P4 **closed** · mempool STRICT [`mempool48pass1`](docs/evidence/runs/mempool48pass1/); next Phase 6 / HIGH honesty if ordered) |
+| **Grant officers / diligence** | [FUND_READINESS](docs/FUND_READINESS.md) · Hybrid [VISION](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/VISION.md) · [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) · [EXECUTION_ORDER](docs/EXECUTION_ORDER.md) (Phases 1–4 + mempool STRICT closed; next Phase 6 org / operator soak) |
 | **Operators** | [Start in 60 seconds](#start-in-60-seconds) · `python scripts/verify_experimental_rd.py` · optional `python scripts/verify_parallel_rd_batch.py` |
 | **Auditors (this tree)** | R&D sandbox only — firm engagement package lives on the [Hybrid pin](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/AUDIT_ENGAGEMENT_BRIEF.md) |
 
@@ -195,6 +195,7 @@ Default Hybrid CI / prod mesh builds **without** the `libp2p` feature.
 |------|------|
 | Vision (Hybrid pin) | [VISION](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/VISION.md) |
 | One-screen card | [AT_A_GLANCE](docs/AT_A_GLANCE.md) |
+| Funds / diligence (honest) | [FUND_READINESS](docs/FUND_READINESS.md) |
 | Execution order (blockers) | [EXECUTION_ORDER](docs/EXECUTION_ORDER.md) |
 | Evidence ledger | [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) |
 | Sandbox rules | [EXPERIMENTAL_SANDBOX.md](EXPERIMENTAL_SANDBOX.md) |

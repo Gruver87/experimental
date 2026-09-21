@@ -38,9 +38,8 @@ pub(crate) fn apply_delta_satoshi_inner(current_sat: i64, delta_abs: &str) -> Py
 
 pub(crate) fn from_satoshi_float_inner(satoshi: i64) -> PyResult<f64> {
     let d = Decimal::from(satoshi) / Decimal::from(SATOSHI_MULTIPLIER);
-    d.to_f64().ok_or_else(|| {
-        pyo3::exceptions::PyValueError::new_err("satoshi_to_float_failed")
-    })
+    d.to_f64()
+        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("satoshi_to_float_failed"))
 }
 
 /// Parse integer satoshi JSON; refuse IEEE float satoshi fields (fail-closed).
@@ -64,13 +63,9 @@ fn json_satoshi_int(v: &Value, field: &str) -> PyResult<i64> {
                     "{field} must be integer satoshi string"
                 )));
             }
-            t.parse::<i64>()
-                .map(|i| i.max(0))
-                .map_err(|_| {
-                    pyo3::exceptions::PyValueError::new_err(format!(
-                        "{field} must be integer satoshi"
-                    ))
-                })
+            t.parse::<i64>().map(|i| i.max(0)).map_err(|_| {
+                pyo3::exceptions::PyValueError::new_err(format!("{field} must be integer satoshi"))
+            })
         }
         Value::Null => Ok(0),
         _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
@@ -115,9 +110,9 @@ fn empty_account() -> Value {
 }
 
 fn set_account_balance(acc: &mut Value, balance: i64, nonce: i64) -> PyResult<()> {
-    let obj = acc.as_object_mut().ok_or_else(|| {
-        pyo3::exceptions::PyValueError::new_err("account row must be object")
-    })?;
+    let obj = acc
+        .as_object_mut()
+        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("account row must be object"))?;
     let bal = balance.max(0);
     obj.insert("balance_satoshi".to_string(), Value::Number(bal.into()));
     // StateEngine legacy field: satoshi integer (not ABS float).
@@ -146,9 +141,7 @@ fn tx_amount_sat(tx: &Value) -> PyResult<i64> {
                 to_satoshi_inner(&u.to_string())
             } else if let Some(f) = n.as_f64() {
                 if !f.is_finite() {
-                    return Err(pyo3::exceptions::PyValueError::new_err(
-                        "non_finite_amount",
-                    ));
+                    return Err(pyo3::exceptions::PyValueError::new_err("non_finite_amount"));
                 }
                 to_satoshi_inner(&format!("{f}"))
             } else {
@@ -349,9 +342,9 @@ fn plan_transfer_fees_satoshi_inner(
     }
     let fee_scaled = (fee_abs * Decimal::from(SATOSHI_MULTIPLIER))
         .round_dp_with_strategy(0, RoundingStrategy::ToZero);
-    let fee_sat = fee_scaled.to_i64().ok_or_else(|| {
-        pyo3::exceptions::PyValueError::new_err("fee_satoshi out of i64 range")
-    })?;
+    let fee_sat = fee_scaled
+        .to_i64()
+        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("fee_satoshi out of i64 range"))?;
     let rate = if br > Decimal::ONE {
         Decimal::ONE
     } else if br.is_sign_negative() {
@@ -359,8 +352,8 @@ fn plan_transfer_fees_satoshi_inner(
     } else {
         br
     };
-    let burned_dec = (Decimal::from(fee_sat) * rate)
-        .round_dp_with_strategy(0, RoundingStrategy::ToZero);
+    let burned_dec =
+        (Decimal::from(fee_sat) * rate).round_dp_with_strategy(0, RoundingStrategy::ToZero);
     let burned_sat = burned_dec.to_i64().ok_or_else(|| {
         pyo3::exceptions::PyValueError::new_err("burned_satoshi out of i64 range")
     })?;
@@ -481,9 +474,7 @@ fn apply_simple_transfer_with_fees(
                 u.to_string()
             } else if let Some(f) = n.as_f64() {
                 if !f.is_finite() {
-                    return Err(pyo3::exceptions::PyValueError::new_err(
-                        "non_finite_value",
-                    ));
+                    return Err(pyo3::exceptions::PyValueError::new_err("non_finite_value"));
                 }
                 format!("{f}")
             } else {
@@ -618,9 +609,7 @@ fn apply_host_fee_effect(
                     u.to_string()
                 } else if let Some(f) = n.as_f64() {
                     if !f.is_finite() {
-                        return Err(pyo3::exceptions::PyValueError::new_err(
-                            "non_finite_value",
-                        ));
+                        return Err(pyo3::exceptions::PyValueError::new_err("non_finite_value"));
                     }
                     format!("{f}")
                 } else {

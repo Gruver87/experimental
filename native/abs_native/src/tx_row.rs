@@ -117,8 +117,7 @@ fn resolve_money_satoshi(
     if !abs.is_finite() || abs < 0.0 {
         return Err("tx money abs not finite".to_string());
     }
-    crate::amount::to_satoshi_inner(&abs.to_string())
-        .map_err(|e| format!("tx money satoshi: {e}"))
+    crate::amount::to_satoshi_inner(&abs.to_string()).map_err(|e| format!("tx money satoshi: {e}"))
 }
 
 fn insert_money_fields(map: &mut Map<String, Value>, value_s: i64, fee_s: i64, burned_s: i64) {

@@ -395,10 +395,7 @@ pub fn unpack_receipt_row_bytes(blob: &[u8]) -> Result<Value, String> {
         "status".into(),
         Value::Number(Number::from(u64::from(status.min(1)))),
     );
-    map.insert(
-        "created_at".into(),
-        Value::Number(Number::from(created_at)),
-    );
+    map.insert("created_at".into(), Value::Number(Number::from(created_at)));
     Ok(Value::Object(map))
 }
 
