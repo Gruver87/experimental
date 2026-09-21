@@ -24,7 +24,7 @@ Commit: `7a4ffc9`.
 | Fix | Why |
 |-----|-----|
 | `mempool_wire.py` | Emit `fee_satoshi` / `amount_satoshi` as canonical; ABS floats derived; `WireMoneyMismatch` on dual-write disagree |
-| `network/p2p_node.py` ingest | Prefer satoshi; refuse `fee_satoshi_mismatch` / `value_satoshi_mismatch`; legacy float-only still admitted (mixed mesh) |
+| `network/p2p_node.py` ingest | Prefer satoshi; refuse `fee_satoshi_mismatch` / `value_satoshi_mismatch`; **MED:** float-only refused unless `p2p_mempool_require_wire_satoshi=false` (lab escape) |
 | `MempoolTransaction.amount_satoshi` | Dual-write on store round-trip |
 | Unit + gate needles | `tests/unit/test_adr0021_wire_satoshi_cutover.py` + industrial_gate |
 
@@ -85,8 +85,20 @@ Operator: `.\scripts\verify_industrial_high_honesty.ps1`. **Not** mesh probe / *
 
 Experimental `docker/node.prod.mesh*.json`: `feature_libp2p=true`, `feature_long_range/oracles/sharding=false`, bridge off. Transport is **ADR 0020 libp2p**, not Hybrid TCP+TLS pin.
 
+## verify_hard_all / pytest restore (2026-09-21)
+
+| Fix | Why |
+|-----|-----|
+| Waves needle 1.3.115 | Match `api/http.py` docstring `native TCP+TLS uses ``_native_listener``` |
+| `backup_db_drill.py` | Catch fail-closed `PersistError` from `backup_to` (no soft `False`) |
+| `test_adr0021_phase2_store` / `test_industrial_high_honesty` | After `reset_for_tests()`, always `bootstrap_native_capabilities()` in `finally` — demote tests must not leave `_module=None` for the process |
+| Honesty/needle tests | PBS off (`feature_mev`), Wave M satoshi stakes, PQ NotImplemented, `/status` `kernels_deferred`, Wave J/K → `mempool_wire` |
+
+**Host evidence:** industrial waves PASS (542 needles); full `pytest tests/` 2734 passed / 11 skipped. **Not** mesh probe / **not** 48h soak (operator-ordered only).
+
 ## Next ordered polish (if operator continues)
 
-1. Optional tip-safety-enforce soak claim (or keep docs: gate/lab only)
-2. Phase 6 audit only when scheduled
-3. Residual org items only — HIGH + MED polish packs closed 2026-09-21
+1. Mesh rebuild + `probe_prod_mesh` on tip that includes MED + monitor HOL + this restore (soak only if explicitly ordered)
+2. Ceremony dry-run pack (`ceremony_evidence_suite` / cutover Phase 1–3 without public launch)
+3. Optional tip-safety-enforce soak claim (or keep docs: gate/lab only)
+4. Phase 6 external audit when scheduled — residual org items only

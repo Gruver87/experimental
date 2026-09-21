@@ -9,12 +9,14 @@ import pytest
 
 
 def test_p2p_value_gates_use_satoshi():
-    src = (Path(__file__).resolve().parents[2] / "network" / "p2p_node.py").read_text(
-        encoding="utf-8"
-    )
-    assert "float(value) < 0.0" not in src
-    assert "float(value) > max_value" not in src
-    assert "to_satoshi(value)" in src
+    root = Path(__file__).resolve().parents[2]
+    p2p = (root / "network" / "p2p_node.py").read_text(encoding="utf-8")
+    wire = (root / "blockchain" / "mempool_wire.py").read_text(encoding="utf-8")
+    assert "float(value) < 0.0" not in p2p
+    assert "float(value) > max_value" not in p2p
+    # ADR 0021: value→satoshi resolve in mempool_wire; gates compare amount_sat.
+    assert "to_satoshi(value)" in wire
+    assert "amount_sat" in p2p or "value_sat" in p2p or "int(amount_sat)" in p2p
 
 
 def test_plasma_unsigned_refused():

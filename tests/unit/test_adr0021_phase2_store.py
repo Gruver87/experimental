@@ -90,35 +90,44 @@ def test_duplicate_and_min_fee_refuse() -> None:
 
 def test_store_fault_demotes_to_python() -> None:
     """Rust store exception must demote — not crash admit path (soak hard_fail)."""
-    from runtime.native_capabilities import NativeFamily, get_registry
+    from runtime.native_capabilities import (
+        NativeFamily,
+        bootstrap_native_capabilities,
+        get_registry,
+    )
 
     reg = get_registry()
+    # reset_for_tests clears _module; must re-bootstrap so later tests still see abs_native.
     reg.reset_for_tests()
-    reg._bootstrapped = True
-    reg._mode = "auto"
-    reg._backends[NativeFamily.MEMPOOL_STORE] = "rust"
+    try:
+        bootstrap_native_capabilities()
+        reg._mode = "auto"
+        reg._backends[NativeFamily.MEMPOOL_STORE] = "rust"
 
-    pool = Mempool(max_size=16, min_fee=0.0)
-    assert pool.add(_mk_tx("keep", 3.0), signature_preverified=True)
+        pool = Mempool(max_size=16, min_fee=0.0)
+        assert pool.add(_mk_tx("keep", 3.0), signature_preverified=True)
 
-    class _Boom:
-        def insert(self, *_a, **_k):
-            raise RuntimeError("mempool_store_lock_poisoned")
+        class _Boom:
+            def insert(self, *_a, **_k):
+                raise RuntimeError("mempool_store_lock_poisoned")
 
-        def get_sorted(self, *_a, **_k):
-            raise RuntimeError("mempool_store_lock_poisoned")
+            def get_sorted(self, *_a, **_k):
+                raise RuntimeError("mempool_store_lock_poisoned")
 
-        def hashes(self):
-            raise RuntimeError("mempool_store_lock_poisoned")
+            def hashes(self):
+                raise RuntimeError("mempool_store_lock_poisoned")
 
-    pool._native_store = _Boom()
-    pool._store_backend = "rust"
-    # insert path demotes and accepts via python
-    assert pool.add(_mk_tx("after", 5.0), signature_preverified=True)
-    assert pool._native_store is None
-    assert pool.get_stats().get("store_backend") == "python"
-    assert pool.get_stats().get("store_demoted") is True
-    assert int(pool.get_stats().get("demote_count") or 0) >= 1
-    assert pool.has_transaction("after")
-    # prior tx may be lost if migrate failed on boom get_sorted — after must survive
-    assert pool.get_size() >= 1
+        pool._native_store = _Boom()
+        pool._store_backend = "rust"
+        # insert path demotes and accepts via python
+        assert pool.add(_mk_tx("after", 5.0), signature_preverified=True)
+        assert pool._native_store is None
+        assert pool.get_stats().get("store_backend") == "python"
+        assert pool.get_stats().get("store_demoted") is True
+        assert int(pool.get_stats().get("demote_count") or 0) >= 1
+        assert pool.has_transaction("after")
+        # prior tx may be lost if migrate failed on boom get_sorted — after must survive
+        assert pool.get_size() >= 1
+    finally:
+        reg.reset_for_tests()
+        bootstrap_native_capabilities()

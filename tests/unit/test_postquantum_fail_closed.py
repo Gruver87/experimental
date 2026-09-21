@@ -49,8 +49,8 @@ def test_sphincs_and_falcon_verify_fail_closed_without_backend():
             public_key_hash="fake",
             message_hash="fake",
         )
-        assert pqm.verify(signature, message, b"public") is False
-        assert signature.verified is False
+        with pytest.raises(NotImplementedError):
+            pqm.verify(signature, message, b"public")
 
 
 def test_kyber_kem_fails_closed_without_backend():
@@ -88,9 +88,7 @@ def test_hybrid_crypto_fails_closed_without_backend():
 
 
 def test_dilithium_commitment_path_still_verifies_and_rejects_tamper():
+    """Educational hash-demo removed — Dilithium must fail-closed without NIST ML-DSA."""
     pqm = PostQuantumManager()
-    keypair = pqm.generate_keypair(PQAlgorithm.DILITHIUM)
-    signature = pqm.sign(b"absolute-chain", keypair)
-
-    assert pqm.verify(signature, b"absolute-chain", keypair.public_key) is True
-    assert pqm.verify(signature, b"tampered", keypair.public_key) is False
+    with pytest.raises(NotImplementedError):
+        pqm.generate_keypair(PQAlgorithm.DILITHIUM)

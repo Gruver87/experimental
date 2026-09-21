@@ -1079,7 +1079,7 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
     (
         "1.3.115",
         "api/http.py",
-        ["_native_listener", "native TCP/TLS path uses _native_listener"],
+        ["_native_listener", "native TCP+TLS uses ``_native_listener``"],
     ),
     (
         "1.3.115",

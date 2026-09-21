@@ -28,7 +28,7 @@ def test_ready_requires_wire_probe_with_peers():
     assert "Match eth_syncing: peers without a completed wire probe" in http_py
     assert "getattr(p2p, \"_server\", None) is not None" in http_py
     assert "getattr(p2p, \"_native_listener\", None) is not None" in http_py
-    assert "native TCP/TLS path uses _native_listener" in http_py
+    assert "native TCP+TLS uses ``_native_listener``" in http_py
 
 
 def test_status_degraded_when_peers_inconsistent():

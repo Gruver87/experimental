@@ -45,9 +45,12 @@ def test_eth_call_missing_adapter_errors():
 
 def test_p2p_negative_fee_uses_to_satoshi_not_float_compare():
     root = Path(__file__).resolve().parents[2]
-    src = (root / "network" / "p2p_node.py").read_text(encoding="utf-8")
-    assert "to_satoshi(fee))" in src or "to_satoshi(fee)" in src
-    assert "float(fee) < 0.0" not in src
+    p2p = (root / "network" / "p2p_node.py").read_text(encoding="utf-8")
+    wire = (root / "blockchain" / "mempool_wire.py").read_text(encoding="utf-8")
+    # ADR 0021: fee resolve lives in mempool_wire; negative gate compares fee_sat.
+    assert "to_satoshi(fee)" in wire
+    assert "int(fee_sat) < 0" in p2p
+    assert "float(fee) < 0.0" not in p2p
 
 
 def test_smart_account_create_refuses_without_executor():

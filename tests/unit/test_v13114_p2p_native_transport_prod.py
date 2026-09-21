@@ -45,7 +45,7 @@ def test_needles_v13114():
     assert "P2P_NATIVE_TRANSPORT" in smoke
     http_py = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
     assert 'getattr(p2p, "_native_listener", None) is not None' in http_py
-    assert "native TCP/TLS path uses _native_listener" in http_py
+    assert "native TCP+TLS uses ``_native_listener``" in http_py
 
 
 def test_prod_config_defaults_native_transport():

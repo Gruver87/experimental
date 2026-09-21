@@ -62,11 +62,11 @@ def test_fake_registry_snapshot_and_slash():
     assert isinstance(reg, ValidatorRegistryPort)
     snap = reg.snapshot()
     assert isinstance(snap, ValidatorSetSnapshot)
-    assert snap.total_active_stake() == 150.0
+    assert snap.total_active_stake() == 150_000_000  # Wave M: satoshi, not float ABS
     assert snap.is_active("v1")
     reg.mark_slashed("v1", "double_vote")
     assert not reg.is_active("v1")
-    assert reg.total_active_stake() == 50.0
+    assert reg.total_active_stake() == 50_000_000
 
 
 def test_fake_evidence_and_lockdown_ports():

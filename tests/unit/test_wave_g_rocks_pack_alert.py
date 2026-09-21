@@ -17,8 +17,8 @@ def test_http_ready_exposes_honesty_fields():
     src = (root / "api" / "http.py").read_text(encoding="utf-8")
     assert 'payload["mempool_store"]' in src
     assert 'payload["rocks_native_pack_fallbacks"]' in src
-    # Must remain informational (not added to checks dict as hard gate).
-    assert "Wave G: informational honesty only" in src
+    # Wave G/I: honesty fields on payload; demote only hard-gates under prod+require.
+    assert "Wave G/I: mempool_store honesty" in src
 
 
 def test_health_watch_soft_warns_demote():

@@ -270,7 +270,9 @@ def test_status_has_health_links(api_server):
     assert isinstance(data["status_handler_ms"], (int, float))
     assert data["status_handler_ms"] >= 0
     assert "native_crypto" in data
-    assert "secp256k1_verify" in data["native_crypto"]["kernels"]
+    # /status uses slim cached snapshot (kernels on GET /native/crypto).
+    assert data["native_crypto"].get("kernels_deferred") is True
+    assert "capabilities" in data["native_crypto"]
     assert "rust_bridge" in data
     assert "ok" in data["rust_bridge"]
 

@@ -56,10 +56,10 @@ def test_adapter_deploy_and_storage(evm_db):
 
 
 def test_pq_sign_verify_roundtrip():
+    """PQ Dilithium has no NIST backend — fail-closed, not a demo roundtrip."""
     from features.postquantum import PostQuantumManager, PQAlgorithm
+    import pytest
+
     pqm = PostQuantumManager()
-    kp = pqm.generate_keypair(PQAlgorithm.DILITHIUM)
-    msg = b"absolute-chain"
-    sig = pqm.sign(msg, kp)
-    assert pqm.verify(sig, msg, kp.public_key)
-    assert not pqm.verify(sig, b"tampered", kp.public_key)
+    with pytest.raises(NotImplementedError):
+        pqm.generate_keypair(PQAlgorithm.DILITHIUM)

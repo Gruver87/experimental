@@ -52,7 +52,8 @@ def test_pq_capability_matrix():
     assert "nist_ml_dsa" in text
     assert "production_ready" in text
     main = Path("main.py").read_text(encoding="utf-8")
-    assert "not prod-ready" in main
+    # Honesty: PQ interfaces exist but backends are NotImplemented (not NIST prod).
+    assert "not NIST prod backends" in main or "signing backend required" in main
 
 
 def test_multisig_honesty_labels():

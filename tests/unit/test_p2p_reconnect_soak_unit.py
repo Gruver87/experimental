@@ -40,6 +40,7 @@ async def test_bootstrap_retry_uses_schedule_connect(monkeypatch):
     node.config = SimpleNamespace(bootstrap_peers=["10.0.0.2:15001"])
     node._bootstrap_redial_total = 0
     node._peer_connect_task_fail = 0
+    node.peer_manager = SimpleNamespace(peers={})
     scheduled = []
 
     def _sched(host, port):

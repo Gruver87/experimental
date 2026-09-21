@@ -41,8 +41,11 @@ def run_backup_drill(source: str | None = None) -> int:
     try:
         tip_before = int(src_db.get_chain_tip() or 0)
         genesis_before = src_db.get_block(0)
-        if not src_db.backup_to(backup_path):
-            print("FAIL: backup_to returned false", file=sys.stderr)
+        try:
+            src_db.backup_to(backup_path)
+        except Exception as exc:
+            # Fail-closed PersistError (or any backup failure) — never soft False.
+            print(f"FAIL: backup_to raised: {exc}", file=sys.stderr)
             return 1
     finally:
         src_db.close()

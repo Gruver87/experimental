@@ -46,60 +46,70 @@ def test_mark_slashed_ok_via_adapter():
 
 def test_mempool_demote_refused_under_require():
     from blockchain.mempool import Mempool
+    from runtime.native_capabilities import bootstrap_native_capabilities
 
     reg = get_registry()
     reg.reset_for_tests()
-    reg._bootstrapped = True
-    reg._mode = "require"
-    reg._backends[NativeFamily.MEMPOOL_STORE] = "rust"
+    try:
+        bootstrap_native_capabilities()
+        reg._mode = "require"
+        reg._backends[NativeFamily.MEMPOOL_STORE] = "rust"
 
-    pool = Mempool(max_size=16, min_fee=0.0)
-    boom_store = SimpleNamespace(
-        insert=lambda *_a, **_k: (_ for _ in ()).throw(
-            RuntimeError("mempool_store_lock_poisoned")
-        ),
-        get_sorted=lambda *_a, **_k: [],
-        size=lambda: 0,
-        contains=lambda *_a, **_k: False,
-    )
-    pool._native_store = boom_store
-    pool._store_backend = "rust"
+        pool = Mempool(max_size=16, min_fee=0.0)
+        boom_store = SimpleNamespace(
+            insert=lambda *_a, **_k: (_ for _ in ()).throw(
+                RuntimeError("mempool_store_lock_poisoned")
+            ),
+            get_sorted=lambda *_a, **_k: [],
+            size=lambda: 0,
+            contains=lambda *_a, **_k: False,
+        )
+        pool._native_store = boom_store
+        pool._store_backend = "rust"
 
-    with pytest.raises(RuntimeError, match="forbids demote"):
-        pool.add(_mk_tx("after", 5.0), signature_preverified=True)
+        with pytest.raises(RuntimeError, match="forbids demote"):
+            pool.add(_mk_tx("after", 5.0), signature_preverified=True)
 
-    assert pool._native_store is boom_store
-    assert pool._store_backend == "rust"
-    assert pool._store_demoted is False
+        assert pool._native_store is boom_store
+        assert pool._store_backend == "rust"
+        assert pool._store_demoted is False
+    finally:
+        reg.reset_for_tests()
+        bootstrap_native_capabilities()
 
 
 def test_mempool_demote_allowed_in_auto():
     from blockchain.mempool import Mempool
+    from runtime.native_capabilities import bootstrap_native_capabilities
 
     reg = get_registry()
     reg.reset_for_tests()
-    reg._bootstrapped = True
-    reg._mode = "auto"
-    reg._backends[NativeFamily.MEMPOOL_STORE] = "rust"
+    try:
+        bootstrap_native_capabilities()
+        reg._mode = "auto"
+        reg._backends[NativeFamily.MEMPOOL_STORE] = "rust"
 
-    pool = Mempool(max_size=16, min_fee=0.0)
-    assert pool.add(_mk_tx("keep", 3.0), signature_preverified=True)
+        pool = Mempool(max_size=16, min_fee=0.0)
+        assert pool.add(_mk_tx("keep", 3.0), signature_preverified=True)
 
-    class _Boom:
-        def insert(self, *_a, **_k):
-            raise RuntimeError("mempool_store_lock_poisoned")
+        class _Boom:
+            def insert(self, *_a, **_k):
+                raise RuntimeError("mempool_store_lock_poisoned")
 
-        def get_sorted(self, *_a, **_k):
-            raise RuntimeError("mempool_store_lock_poisoned")
+            def get_sorted(self, *_a, **_k):
+                raise RuntimeError("mempool_store_lock_poisoned")
 
-        def hashes(self):
-            raise RuntimeError("mempool_store_lock_poisoned")
+            def hashes(self):
+                raise RuntimeError("mempool_store_lock_poisoned")
 
-    pool._native_store = _Boom()
-    pool._store_backend = "rust"
-    assert pool.add(_mk_tx("after", 5.0), signature_preverified=True)
-    assert pool._native_store is None
-    assert pool.get_stats().get("store_demoted") is True
+        pool._native_store = _Boom()
+        pool._store_backend = "rust"
+        assert pool.add(_mk_tx("after", 5.0), signature_preverified=True)
+        assert pool._native_store is None
+        assert pool.get_stats().get("store_demoted") is True
+    finally:
+        reg.reset_for_tests()
+        bootstrap_native_capabilities()
 
 
 def test_bridge_reject_emit_failure_is_visible():

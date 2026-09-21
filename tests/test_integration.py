@@ -208,8 +208,10 @@ class TestSystemC_Consensus:
         assert consensus.validator_registry is not None
 
     def test_pbs_market_enabled(self, consensus):
-        """PBS market is active."""
-        assert consensus.pbs_market is not None
+        """PBS is opt-in via feature_mev (off by default — honesty)."""
+        assert consensus.pbs_market is None
+        stats = consensus.get_stats()
+        assert stats.get("pbs_enabled") is False
 
     def test_add_validator(self, consensus):
         """Can register a new validator."""
@@ -234,15 +236,13 @@ class TestSystemC_Consensus:
         assert head is None or isinstance(head, str)
 
     def test_pbs_auction(self, consensus):
-        """PBS auction runs with pending transactions."""
+        """Without feature_mev, PBS auction is a no-op (returns None)."""
         txs = [
             {"hash": "tx1", "gas_price": 10, "from": "alice", "to": "bob", "value": 1},
             {"hash": "tx2", "gas_price": 5, "from": "bob", "to": "carol", "value": 2},
         ]
         result = consensus.run_pbs_auction(txs)
-        assert result is not None
-        assert "builder" in result
-        assert result["tx_count"] == 2
+        assert result is None
 
     def test_stats_structure(self, consensus):
         """Consensus stats include all expected fields."""
@@ -250,7 +250,7 @@ class TestSystemC_Consensus:
         assert "lmd_ghost_enabled" in stats
         assert "pbs_enabled" in stats
         assert stats["lmd_ghost_enabled"] is True
-        assert stats["pbs_enabled"] is True
+        assert stats["pbs_enabled"] is False
 
 
 class TestSystemC_ValidatorRegistry:
@@ -428,8 +428,9 @@ class TestMiddleware:
         assert valid is True
 
     def test_validate_amount_zero(self):
+        # min_amount default 0 → zero is valid (contract/calldata txs may be 0-value).
         valid, err = validate_amount(0)
-        assert valid is False
+        assert valid is True
 
     def test_validate_amount_negative(self):
         valid, err = validate_amount(-10)
@@ -522,11 +523,11 @@ class TestFullNodeIntegration:
         # System B (shared)
         assert node.bus is not None
         
-        # System C consensus
+        # System C consensus (PBS opt-in via feature_mev — off by default)
         assert node.consensus is not None
         assert node.consensus.slashing_engine is not None
         assert node.consensus.validator_registry is not None
-        assert node.consensus.pbs_market is not None
+        assert node.consensus.pbs_market is None
         
         # System C execution
         assert node.blockchain.state_engine is not None
@@ -536,9 +537,9 @@ class TestFullNodeIntegration:
         assert node.p2p is not None
         assert node.p2p.sync_engine is not None
         
-        # Features
-        assert node.nft is not None
-        assert node.zk is not None
+        # Features — NFT/ZK off by default (feature flags); EVM on.
+        assert node.nft is None
+        assert node.zk is None
         assert node.evm is not None
         
         # Cleanup
