@@ -3411,7 +3411,8 @@ def _run_prod_mesh3_evidence(
     }
     print(
         "Prod-mesh3 evidence: evm ... "
-        f"(post-deploy gate wait≤{gate_wait_sec}s align={align_timeout_sec}s)"
+        f"(post-deploy gate wait≤{gate_wait_sec}s align={align_timeout_sec}s)",
+        flush=True,
     )
     evm_proc = subprocess.Popen(
         [
@@ -3437,17 +3438,21 @@ def _run_prod_mesh3_evidence(
     )
 
     def _release_post_deploy_gate() -> bool:
-        """Freeze/realign then write .resume so child can continue storage checks."""
-        print("EVIDENCE: EVM post-deploy gate — freeze mining + realign")
-        freeze_ok = True
-        if freeze_mining is not None:
-            try:
-                freeze_mining()
-            except Exception as exc:
-                freeze_ok = False
-                print(f"WARN: post-deploy freeze: {exc} — align without freeze")
-        # Catch-up while tip is frozen (no empty-block race).
-        for attempt in range(40):
+        """Unblock child via .resume immediately; soft realign is best-effort.
+
+        Do **not** call freeze_mining() here. Primary Rocks restart is flaky on CI
+        (health wait up to 300s × 3) and starves the child's 300s .resume wait —
+        see Actions log: gate armed → 300s silence → child FAIL → parent still
+        hung in restart until the 70m job timeout. Child runs its own
+        _wait_mesh_aligned after resume; parent only nudges peers.
+        """
+        print(
+            "EVIDENCE: EVM post-deploy gate — release .resume (no Rocks freeze)",
+            flush=True,
+        )
+        resume_path.write_text("ok-nofreeze", encoding="utf-8")
+        print("EVIDENCE: post-deploy gate released (mining_frozen=False)", flush=True)
+        for attempt in range(10):
             try:
                 statuses = [_api(f"{u}/status") for u in urls]
                 heights = [int(s.get("height", 0) or 0) for s in statuses]
@@ -3470,26 +3475,15 @@ def _run_prod_mesh3_evidence(
                             _post_json(
                                 url,
                                 "/sync/fast-sync",
-                                {"timeout": 90, "target_block": tip_h},
-                                timeout=120,
-                            )
-                            _post_json(
-                                url, "/sync/reconcile", {"timeout": 45}, timeout=60
+                                {"timeout": 45, "target_block": tip_h},
+                                timeout=60,
                             )
                         except Exception:
                             pass
             except Exception:
                 pass
-            time.sleep(3)
-        # Keep mining frozen through storage verify when freeze succeeded.
-        resume_path.write_text(
-            "ok" if freeze_ok else "ok-nofreeze", encoding="utf-8"
-        )
-        print(
-            "EVIDENCE: post-deploy gate released "
-            f"(mining_frozen={freeze_ok})"
-        )
-        return freeze_ok
+            time.sleep(2)
+        return False
 
     gate_deadline = time.time() + gate_wait_sec
     gated = False
@@ -3508,12 +3502,13 @@ def _run_prod_mesh3_evidence(
         and gate_path.is_file()
     ):
         gated = True
-        print("WARN: post-deploy gate armed after wait budget — releasing late")
+        print("WARN: post-deploy gate armed after wait budget — releasing late", flush=True)
         _release_post_deploy_gate()
     if not gated and evm_proc.poll() is None:
         print(
             "FAIL: prod-mesh3 evidence evm post-deploy gate never armed "
-            f"within {gate_wait_sec}s (child still running) — terminating"
+            f"within {gate_wait_sec}s (child still running) — terminating",
+            flush=True,
         )
         _safe_terminate(evm_proc, wait_sec=15)
         evm_rc = 1
@@ -3526,15 +3521,11 @@ def _run_prod_mesh3_evidence(
                 # returncode 0 must not become 1 via `or` — classic Python footgun.
                 evm_rc = 1 if evm_proc.returncode is None else int(evm_proc.returncode)
         except subprocess.TimeoutExpired:
-            print("FAIL: prod-mesh3 evidence evm timed out after gate")
+            print("FAIL: prod-mesh3 evidence evm timed out after gate", flush=True)
             _safe_terminate(evm_proc, wait_sec=15)
             evm_rc = 1
-    if thaw_mining is not None:
-        try:
-            thaw_mining()
-        except Exception as exc:
-            print(f"WARN: post-evm thaw mining: {exc}")
-        _restore_p2p_mesh(urls, expected_peers=2)
+    # No thaw here: post-deploy path no longer freezes (Rocks restart starved .resume).
+    # post-signed-tx already thawed mining before EVM Popen.
     for p in (gate_path, resume_path):
         try:
             p.unlink()
