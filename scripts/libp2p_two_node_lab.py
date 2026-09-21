@@ -49,11 +49,14 @@ def main() -> int:
                     pass
             phase_note = "rust_fail_closed_without_listener"
         else:
-            d1 = l1.dial(PeerEndpoint(host="127.0.0.1", port=4002, peer_id="lab-2"))
-            d2 = l2.dial(PeerEndpoint(host="127.0.0.1", port=4001, peer_id="lab-1"))
-            assert d1["kind"] == "libp2p" and d2["kind"] == "libp2p"
-            assert d1["handle"]["phase"] == 1
-            phase_note = "stub_phase1"
+            for dialer in (l1, l2):
+                try:
+                    dialer.dial(PeerEndpoint(host="127.0.0.1", port=4002, peer_id="lab"))
+                    print("FAIL: dial without rust libp2p must refuse (no stub handle)")
+                    return 1
+                except TransportCapabilityError:
+                    pass
+            phase_note = "no_rust_refuse"
     finally:
         l1.libp2p.close()
         l2.libp2p.close()

@@ -481,16 +481,10 @@ class Libp2pTransportAdapter:
                 "note": "ADR0019_rust_libp2p",
             }
 
-        return {
-            "transport": "libp2p",
-            "peer": f"{host}:{port}",
-            "peer_id": peer_id,
-            "multiaddr": ma_str,
-            "phase": 1,
-            "connected": False,
-            "backend": "stub",
-            "note": "stub_handle_pending_rust_libp2p_swarm",
-        }
+        raise TransportCapabilityError(
+            "FEATURE_LIBP2P dial requires abs_native built with --features libp2p "
+            "(phase-1 stub dial removed; no fake handle)"
+        )
 
     def send_wire(self, peer_id: str, data: bytes) -> bytes:
         """Send Absolute lab wire bytes over `/abs/wire/1.0.0` (rust backend)."""

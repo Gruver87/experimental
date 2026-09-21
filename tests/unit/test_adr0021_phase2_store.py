@@ -90,6 +90,14 @@ def test_duplicate_and_min_fee_refuse() -> None:
 
 def test_store_fault_demotes_to_python() -> None:
     """Rust store exception must demote — not crash admit path (soak hard_fail)."""
+    from runtime.native_capabilities import NativeFamily, get_registry
+
+    reg = get_registry()
+    reg.reset_for_tests()
+    reg._bootstrapped = True
+    reg._mode = "auto"
+    reg._backends[NativeFamily.MEMPOOL_STORE] = "rust"
+
     pool = Mempool(max_size=16, min_fee=0.0)
     assert pool.add(_mk_tx("keep", 3.0), signature_preverified=True)
 

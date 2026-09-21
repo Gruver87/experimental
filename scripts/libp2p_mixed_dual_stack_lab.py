@@ -38,12 +38,17 @@ def main() -> int:
     assert n_handle["kind"] == "native_tcp_tls"
 
     if not lib.libp2p.rust_backend:
-        # Stub path still proves selector coexistence
-        d = lib.dial(PeerEndpoint(host="127.0.0.1", port=4002, peer_id="lab-lib"))
-        assert d["kind"] == "libp2p"
-        print("OK: libp2p_mixed_dual_stack_lab PASS (stub libp2p)")
+        from network.transport.errors import TransportCapabilityError
+
+        try:
+            lib.dial(PeerEndpoint(host="127.0.0.1", port=4002, peer_id="lab-lib"))
+            print("FAIL: dial without rust libp2p must refuse (no stub handle)")
+            return 1
+        except TransportCapabilityError:
+            pass
+        print("OK: libp2p_mixed_dual_stack_lab PASS (libp2p dial refuse without rust)")
         print("  native: tcp+tls selector")
-        print("  libp2p: phase-1 stub (rebuild with --features libp2p for wire)")
+        print("  libp2p: refuse without --features libp2p (no stub handle)")
         print("  honesty: not prod mesh; docker_prod_3node unchanged")
         return 0
 

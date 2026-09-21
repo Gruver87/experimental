@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, Optional, Union
 
 from bridge.ports import (
@@ -15,6 +16,8 @@ from bridge.ports import (
 from bridge.state_machine import inbound_status_from_claim
 from bridge.store_adapter import BridgeStoreAdapter
 from bridge.validators import InboundMessageValidator, PassthroughInboundValidator
+
+logger = logging.getLogger("abs.bridge")
 
 
 class LiveL1Rpc:
@@ -108,6 +111,7 @@ class RustBridgeAdapter:
         envelope = self._coerce_envelope(*args, **kwargs)
         vr = self.validator.validate(envelope)
         if not vr.ok:
+            emit_failed = ""
             if self.bus:
                 try:
                     self.bus.emit(
@@ -119,17 +123,24 @@ class RustBridgeAdapter:
                             "from_chain": envelope.from_chain,
                         },
                     )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    # Reject still returned to caller; never silent-swallow audit emit.
+                    emit_failed = str(exc)
+                    logger.exception(
+                        "bridge.inbound_rejected bus emit failed: %s", exc
+                    )
+            detail = {
+                "confirmed": False,
+                "error": vr.reason,
+                "reason": vr.reason,
+                "replay_key": vr.replay_key,
+            }
+            if emit_failed:
+                detail["event_bus_emit_failed"] = emit_failed
             return BridgeOpResult(
                 ok=False,
                 status=InboundStatus.REJECTED.value,
-                detail={
-                    "confirmed": False,
-                    "error": vr.reason,
-                    "reason": vr.reason,
-                    "replay_key": vr.replay_key,
-                },
+                detail=detail,
             )
 
         abs_tx = envelope.abs_tx_hash or envelope.event_tx_hash

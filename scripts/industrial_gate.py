@@ -5254,6 +5254,21 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         nat_src = (ROOT / "runtime" / "native_capabilities.py").read_text(encoding="utf-8")
         if "forbids demote" not in nat_src:
             errors.append("native demote must refuse under ABS_NATIVE_MODE=require (Wave H)")
+        if not (ROOT / "scripts" / "verify_industrial_high_honesty.ps1").is_file():
+            errors.append("verify_industrial_high_honesty.ps1 missing (HIGH #18/#19-20/#22/#24)")
+        mp_src = (ROOT / "blockchain" / "mempool.py").read_text(encoding="utf-8")
+        if "Fail closed first: registry.demote" not in mp_src:
+            errors.append("mempool demote must refuse under require before mutate (HIGH #19-20)")
+        reg_src = (ROOT / "consensus" / "registry_adapter.py").read_text(encoding="utf-8")
+        if "mark_slashed failed" not in reg_src:
+            errors.append("mark_slashed must raise fail-closed (HIGH #18)")
+        if "event_bus_emit_failed" not in br_ad:
+            errors.append("bridge reject must surface bus emit failure (HIGH #24)")
+        lp_src = (
+            ROOT / "network" / "transport" / "libp2p_adapter" / "adapter.py"
+        ).read_text(encoding="utf-8")
+        if "stub dial removed" not in lp_src:
+            errors.append("libp2p stub dial must be removed (HIGH #22)")
         sph_src = (ROOT / "crypto" / "sphincs_plus.py").read_text(encoding="utf-8")
         if "verify backend not available" not in sph_src:
             errors.append("SPHINCS verify must NotImplemented (Wave H)")

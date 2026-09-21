@@ -43,7 +43,18 @@ Commit: `7a4ffc9`.
 
 Honesty landmines from the stub/fail-open pass that are **already closed** above: Config/FeatureFlags defaults, industrial JSON, PQ boot string, **wire fee/amount satoshi cutover**.
 
-Still **open CRITICAL/HIGH**: slash best-effort (#18), native demote fallback under require (#19–20), bridge reject swallow (#24), libp2p dial stub honesty (#22). Soft persist False (#8–10) **closed** via `PersistError`. Native f64/unwrap (#6–7, #28) **closed** (amount + writeback). Residual float on apply/display edges (#15–17 subset) is dual-write display — not wire authority. Prod mesh libp2p+TLS-off (#13) is **intentional ADR 0020** — document only, do not “fix” to Hybrid TCP+TLS.
+Still **open CRITICAL/HIGH**: *(none from this scan — HIGH #18/#19–20/#22/#24 closed 2026-09-21)*. Soft persist False (#8–10) **closed** via `PersistError`. Native f64/unwrap (#6–7, #28) **closed** (amount + writeback). Residual float on apply/display edges (#15–17 subset) is dual-write display — not wire authority. Prod mesh libp2p+TLS-off (#13) is **intentional ADR 0020** — document only, do not “fix” to Hybrid TCP+TLS.
+
+## Industrial HIGH honesty (2026-09-21 follow-up)
+
+| Fix | Why | Stub-scan IDs |
+|-----|-----|---------------|
+| `AdapterValidatorRegistry.mark_slashed` | Raise if adapter+registry slash both fail; RoundSM re-raises | #18 |
+| `Mempool._demote_store` | Call `registry.demote` **before** local python mutate (require refuses) | #19–20 |
+| `RustBridgeAdapter` reject path | Surface `event_bus_emit_failed` + log.exception (no silent `pass`) | #24 |
+| libp2p `connect` without rust | `TransportCapabilityError` — phase-1 stub dial removed | #22 |
+
+Operator: `.\scripts\verify_industrial_high_honesty.ps1`. **Not** mesh probe / **not** 48h soak.
 
 ## Do **not** claim fixed (deferred / larger)
 
@@ -65,4 +76,4 @@ Experimental `docker/node.prod.mesh*.json`: `feature_libp2p=true`, `feature_long
 
 1. Optional tip-safety-enforce soak claim (or keep docs: gate/lab only)
 2. Phase 6 audit only when scheduled
-3. Remaining HIGH honesty: slash best-effort / demote-under-require / bridge reject swallow / libp2p dial stub
+3. Residual MED / org items only — HIGH honesty pack closed 2026-09-21

@@ -3,7 +3,7 @@
 
 Verifies TCP+TLS remains the default and libp2p adapter only activates behind
 FEATURE_LIBP2P. With rust backend: fail-closed dial without listener.
-Without: phase-1 stub handle.
+Without rust: dial refuses (no phase-1 stub handle).
 
 Usage:
   python scripts/libp2p_lab_smoke.py
@@ -51,13 +51,15 @@ def main() -> int:
                 pass
             backend = "rust_libp2p_fail_closed"
         else:
-            handle = on.connect(
-                PeerEndpoint(host="127.0.0.1", port=4001, peer_id="lab-peer")
-            )
-            assert handle["transport"] == "libp2p"
-            assert handle["phase"] == 1
-            assert on.capability_status()["dial_count"] == 1
-            backend = "stub_phase1"
+            try:
+                on.connect(
+                    PeerEndpoint(host="127.0.0.1", port=4001, peer_id="lab-peer")
+                )
+                print("FAIL: dial without rust libp2p must refuse (no stub handle)")
+                return 1
+            except TransportCapabilityError:
+                pass
+            backend = "no_rust_refuse"
     finally:
         on.close()
 

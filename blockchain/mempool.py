@@ -311,10 +311,19 @@ class Mempool:
             )
 
     def _demote_store(self, reason: str) -> None:
-        """Drop Rust store; migrate pending txs into Python dict. Caller holds lock."""
+        """Drop Rust store; migrate pending txs into Python dict. Caller holds lock.
+
+        Under ``ABS_NATIVE_MODE=require``, refuse demote before mutating the
+        store (Wave H registry fuse alone is not enough — local python fallback
+        must not paint green while registry demote is forbidden).
+        """
         store = self._native_store
         if store is None and self._store_backend == "python":
             return
+        from runtime.native_capabilities import NativeFamily, get_registry
+
+        # Fail closed first: registry.demote raises under require — no local mutate.
+        get_registry().demote(NativeFamily.MEMPOOL_STORE, str(reason or "demoted"))
         logger.warning("mempool demote rust store → python (%s)", reason)
         self._demote_count = int(getattr(self, "_demote_count", 0) or 0) + 1
         self._demote_reason = str(reason or "demoted")
@@ -332,13 +341,9 @@ class Mempool:
                 logger.error("mempool store migrate on demote failed: %s", exc)
         self._native_store = None
         self._store_backend = "python"
-        try:
-            from runtime.native_capabilities import NativeFamily, get_registry
-
-            get_registry().demote(NativeFamily.MEMPOOL_STORE, str(reason or "demoted"))
-        except Exception as exc:
-            logger.warning("mempool store registry demote failed: %s", exc)
-        logger.warning("mempool store demoted; migrated=%s pending=%s", migrated, len(self._py_txs))
+        logger.warning(
+            "mempool store demoted; migrated=%s pending=%s", migrated, len(self._py_txs)
+        )
 
     def _store_put(self, tx: MempoolTransaction) -> bool:
         if self._native_store is not None:
