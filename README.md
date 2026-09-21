@@ -26,7 +26,7 @@ Canonical docs language is **English**. If GitHub shows a translation, open **Vi
 | Audience | Start here |
 |----------|------------|
 | **Architects / principals** | [AT_A_GLANCE](docs/AT_A_GLANCE.md) → [ARCHITECTURE](docs/ARCHITECTURE.md) → ADR [0017](docs/adr/0017-long-range-research.md) / [0019](docs/adr/0019-rust-libp2p-industrial.md) / [0020](docs/adr/0020-libp2p-industrial-mesh.md) |
-| **Grant officers / diligence** | [FUND_READINESS](docs/FUND_READINESS.md) · Hybrid [VISION](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/VISION.md) · [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) · [EXECUTION_ORDER](docs/EXECUTION_ORDER.md) (Phases 1–4 + mempool STRICT closed; next Phase 6 org / operator soak) |
+| **Grant officers / diligence** | [FUND_READINESS](docs/FUND_READINESS.md) · Hybrid [VISION](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/VISION.md) · [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) · [EXECUTION_ORDER](docs/EXECUTION_ORDER.md) (Phases 1–5 polish closed; next Phase 6 org / tip soak if ordered) |
 | **Operators** | [Start in 60 seconds](#start-in-60-seconds) · `python scripts/verify_experimental_rd.py` · optional `python scripts/verify_parallel_rd_batch.py` |
 | **Auditors (this tree)** | R&D sandbox only — firm engagement package lives on the [Hybrid pin](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/AUDIT_ENGAGEMENT_BRIEF.md) |
 
@@ -70,7 +70,10 @@ Explorer (solo): http://localhost:8080
 | Phase 3 post-EVM-prep mesh 48h | **PASS** | 2026-09-11→13 [`evm48pass1`](docs/evidence/runs/evm48pass1/) · tip ~10125→~19197 · **not** EVM-only 48h |
 | Mempool + validation STRICT 48h | **PASS** | [`mempool48pass1`](docs/evidence/runs/mempool48pass1/) · ADR 0021 path · **not** mainnet |
 | Wire fee/amount satoshi cutover | **Landed** | `verify_adr0021_wire_satoshi.ps1` · dual-write + mismatch refuse |
+| Float-only wire refuse (MED) | **Landed** | `p2p_mempool_require_wire_satoshi=true` · lab escape hatch |
 | Hot persist PersistError + native f64 refuse | **Landed** | `verify_persist_fail_closed.ps1` · `verify_native_f64_hygiene.ps1` |
+| Industrial HIGH honesty + host verify restore | **Landed** | `verify_industrial_high_honesty.ps1` · waves+pytest 2734 · mesh probe tip ~44442 |
+| Fund / diligence card | **Landed** | [FUND_READINESS](docs/FUND_READINESS.md) |
 | EVM / oracle / shard labs | **Lab + mesh soak** | waves + `evm_pre_48h_harness.py` · prod sprout flags **off** |
 | Hybrid 48h soak / firm audit / public mainnet | **No — other repo** | [Hybrid pin](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) |
 
@@ -90,8 +93,9 @@ What is closed vs open on **this** tree. Columns = execution order ([EXECUTION_O
 | **2c** | Long-Range lab 48h | **DONE** (B2 closed) | [`lr48pass1`](docs/evidence/runs/lr48pass1/) · prior FAIL [`lr48fail1`](docs/evidence/runs/lr48fail1/) · intensify [`lr2hintensify`](docs/evidence/runs/lr2hintensify/) |
 | **3** | EVM mesh regression + post-prep 48h | **DONE** | [`evm48pass1`](docs/evidence/runs/evm48pass1/) · preflight `evm_pre_48h_harness.py` |
 | **4** | Mempool / validation → Rust | **DONE** (phases 0–3 + mesh bake + global audit + STRICT 48h) | [`adr0021gaudit1`](docs/evidence/runs/adr0021gaudit1/) · [`mempool48pass1`](docs/evidence/runs/mempool48pass1/) · [ADR 0021](docs/adr/0021-mempool-validation-rust-phases.md) |
-| **5** | Industrial polish (wire satoshi · persist · native f64) | **DONE** (operator verify scripts) | [INDUSTRIAL_MAX_SCAN](docs/INDUSTRIAL_MAX_SCAN_2026-09-20.md) · not a 48h soak claim |
-| **6+** | Oracles / shard / council / HIGH honesty | **Lab parallel** | flags **off** on prod JSON |
+| **5** | Industrial polish (wire satoshi · persist · native f64 · HIGH · MED · verify restore) | **DONE** | [INDUSTRIAL_MAX_SCAN](docs/INDUSTRIAL_MAX_SCAN_2026-09-20.md) · [FUND_READINESS](docs/FUND_READINESS.md) · not a new 48h soak |
+| **6** | External audit / ceremony live / tip 48h on current bake | **Org / operator-ordered** | [MAINNET_GAP_ANALYSIS](docs/MAINNET_GAP_ANALYSIS.md) · soak only if ordered |
+| **6+** | Oracles / shard / council (lab) | **Lab parallel** | flags **off** on prod JSON |
 | — | Hybrid audit pin / public mainnet | **Other repo** | never claimed here |
 
 ```mermaid
@@ -224,4 +228,4 @@ MIT — [LICENSE](LICENSE)
 ---
 
 *Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87) · Default branch: `main`*  
-*Last surface update: **2026-09-20** — B1 `3c801b87` · B2 `lr48pass1` · Phase 3 `evm48pass1` · Phase 4 `adr0021gaudit1` + STRICT `mempool48pass1` · industrial P0 (wire/persist/native) **landed**. Not BLS / not public mainnet / not Hybrid pin.*
+*Last surface update: **2026-09-21** — B1–B4 closed · industrial P0/HIGH/MED · fund card · mesh probe + pre-soak PASS tip ~44442 · CI rustls/rustfmt/RD fast-lane. Tip `918a44c`. Not BLS / not public mainnet / not Hybrid pin / **not** a new 48h soak.*

@@ -65,7 +65,7 @@ Full map: [ARCHITECTURE § R&D execution chain](ARCHITECTURE.md#rd-execution-cha
 
 ## Next click
 
-- **Next click** → [FUND_READINESS.md](FUND_READINESS.md) for grant/diligence card; [EXECUTION_ORDER.md](EXECUTION_ORDER.md) — Phases 1–4 closed; Phase 5 re-verified; wire/persist/native + HIGH + P0 + MED + verify_hard_all/pytest restore landed; next: tip 48h only if ordered, Phase 6 org ([INDUSTRIAL_MAX_SCAN_2026-09-20.md](INDUSTRIAL_MAX_SCAN_2026-09-20.md))
+- **Next click** → [FUND_READINESS.md](FUND_READINESS.md) for grant/diligence; [EXECUTION_ORDER.md](EXECUTION_ORDER.md) — Phases 1–5 industrial polish closed (P0/HIGH/MED + verify restore + mesh probe 2026-09-21); next Phase 6 org / tip soak **only if ordered** ([INDUSTRIAL_MAX_SCAN_2026-09-20.md](INDUSTRIAL_MAX_SCAN_2026-09-20.md))
 - Hybrid pin (do not break): [Ultimate Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid)
 - Contribute: [CONTRIBUTING](../CONTRIBUTING.md)
 - GitHub About: [REPO_PROFILE](../.github/REPO_PROFILE.md)

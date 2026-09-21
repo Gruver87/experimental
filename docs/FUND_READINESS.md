@@ -56,7 +56,8 @@ ADRs: 0001 tip-safety · 0009 hybrid · 0016 profiles · 0017 Long-Range (lab) �
 | Host pytest + waves green | Done 2026-09-21 |
 | Mesh probe + pre-soak (no soak start) | Done 2026-09-21 |
 | Ceremony dry-run status | `ceremony_status` ready=True (≠ mainnet) |
-| Fresh tip 48h soak | **Operator-ordered only** |
+| CI badges green (Security / Tests / Experimental R&D) | Tip `918a44c` — Security+Docker green; Tests/RD in progress (block diligence decks while red) |
+| Fresh tip 48h soak after current bake | **Operator-ordered only** — not started |
 | External audit / secrets rotate / validator ceremony live | Org Phase 6 |
 
 ## CI badges (must be green for diligence)
