@@ -1690,7 +1690,7 @@ fn identity_trustee_is_world(trustee: &str) -> bool {
 #[cfg(windows)]
 fn identity_ace_flags_inherit_only(flags: &str) -> bool {
     let u = flags.trim().to_ascii_uppercase();
-    if u.len() % 2 != 0 {
+    if !u.len().is_multiple_of(2) {
         return false;
     }
     u.as_bytes().chunks(2).any(|c| c == b"IO")

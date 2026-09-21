@@ -52,7 +52,7 @@ fn parse_bytecode_hex(raw: &str) -> Result<Vec<u8>, &'static str> {
     if s.is_empty() {
         return Err("empty_bytecode");
     }
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         return Err("invalid_hex_length");
     }
     let mut out = Vec::with_capacity(s.len() / 2);
