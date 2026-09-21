@@ -5335,6 +5335,11 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("ORACLE_LAB_PROFILE.md missing")
         if "Get-StatusProbeUri" not in hw_core or "status?probe=1" not in hw_core:
             errors.append("health_watch must poll GET /status?probe=1 (not full /status HOL)")
+        monitor_py = (ROOT / "monitor.py").read_text(encoding="utf-8", errors="replace")
+        if "/status?probe=1" not in monitor_py:
+            errors.append("monitor.py must poll /status?probe=1 (not full /status HOL)")
+        if 'requests.get(f"{self.api_url}/status", timeout=' in monitor_py:
+            errors.append("monitor.py must not poll full GET /status (HOL under mesh load)")
         if "_build_status_probe_payload" not in http_py:
             errors.append("GET /status?probe=1 slim handler missing (48h soak SLO)")
         if "totalReadyOnlyFails" not in hw_ps1:

@@ -16,20 +16,55 @@ class BlockchainMonitor:
         self.metrics = {}
         self.is_running = True
         self._peer_warn_count = 0
+        self._last_critical_key = ""
+        self._last_critical_at = 0.0
+        self._busy = False
         self._start_monitoring()
         print(f"[Monitor] Blockchain Monitor initialized ({self.node_id} -> {self.api_url})")
-    
+
     def _get_stats(self):
+        """Slim probe only — full GET /status HOL under mesh load (30–60s+).
+
+        Same contract as 48h health_watch: ``/status?probe=1``.
+        """
         try:
-            r = requests.get(f"{self.api_url}/status", timeout=30)
-            return r.json() if r.status_code == 200 else {}
+            r = requests.get(f"{self.api_url}/status?probe=1", timeout=5)
+            if r.status_code == 200:
+                data = r.json()
+                return data if isinstance(data, dict) else {}
         except Exception:
-            return {}
+            pass
+        for path in ("/health/ready", "/health/live"):
+            try:
+                r = requests.get(f"{self.api_url}{path}", timeout=3)
+                if r.status_code == 200:
+                    body = {}
+                    try:
+                        body = r.json() if r.content else {}
+                    except Exception:
+                        body = {}
+                    if not isinstance(body, dict):
+                        body = {}
+                    return {
+                        "status": "running",
+                        "height": int(
+                            body.get("height") or body.get("local_height") or 0
+                        ),
+                        "mempool_size": 0,
+                        "validator_count": 0,
+                        "node_version": str(body.get("node_version") or ""),
+                        "deployment_mode": str(body.get("deployment_mode") or ""),
+                        "peers": int(body.get("peers") or body.get("peer_count") or 0),
+                        "probe_fallback": path,
+                    }
+            except Exception:
+                continue
+        return {}
 
     def _get_peers(self):
         for path in ("/peers", "/network/peers"):
             try:
-                r = requests.get(f"{self.api_url}{path}", timeout=5)
+                r = requests.get(f"{self.api_url}{path}", timeout=3)
                 if r.status_code == 200:
                     data = r.json()
                     peers = data.get("peers", data if isinstance(data, list) else [])
@@ -37,26 +72,43 @@ class BlockchainMonitor:
             except Exception:
                 continue
         return []
-    
+
     def _check_health(self):
         stats = self._get_stats()
-        peers = self._get_peers()
-        
+        peer_count = 0
+        if stats:
+            try:
+                peer_count = int(stats.get("peers") or stats.get("peer_count") or 0)
+            except (TypeError, ValueError):
+                peer_count = 0
+        # Only hit /peers when probe did not already report peer_count.
+        if peer_count <= 0 and stats:
+            peers = self._get_peers()
+            peer_count = len(peers) if peers else 0
+        elif not stats:
+            peers = self._get_peers()
+            peer_count = len(peers) if peers else 0
+
         self.metrics = {
             "timestamp": int(time.time()),
             "blocks": stats.get("height", stats.get("blocks", 0)),
             "pending": stats.get("mempool_size", stats.get("pending_transactions", 0)),
             "validators": stats.get("validator_count", 0),
             "node_version": stats.get("node_version", ""),
-            "peers_count": len(peers),
+            "peers_count": int(peer_count or 0),
             "api_status": "online" if stats else "offline",
+            "probe": bool(stats.get("probe")) if stats else False,
         }
-        
+
         if not stats:
-            self._add_alert('CRITICAL', f'API сервер не отвечает ({self.api_url})')
-        elif self.metrics['pending'] > 100:
-            self._add_alert('WARNING', f'Большая очередь: {self.metrics["pending"]}')
-        elif self.metrics['peers_count'] == 0:
+            self._add_alert(
+                "CRITICAL",
+                f"API not responding ({self.api_url}/status?probe=1)",
+                debounce_s=120.0,
+            )
+        elif self.metrics["pending"] > 100:
+            self._add_alert("WARNING", f"Large mempool queue: {self.metrics['pending']}")
+        elif self.metrics["peers_count"] == 0:
             bootstrap = os.getenv("BOOTSTRAP_PEERS", "").strip()
             mode = stats.get("deployment_mode", os.getenv("DEPLOYMENT_MODE", "dev"))
             # Intentional solo (no bootstrap peers): do not spam WARNING every cycle,
@@ -64,24 +116,41 @@ class BlockchainMonitor:
             if bootstrap:
                 self._peer_warn_count += 1
                 if self._peer_warn_count >= 2:
-                    self._add_alert('WARNING', 'Нет подключённых пиров')
+                    self._add_alert("WARNING", "No connected peers")
             elif self._peer_warn_count == 0:
                 self._peer_warn_count = 1
                 label = "prod-profile" if mode in ("prod", "staging") else "local dev"
-                print(f"[Monitor] Solo node (0 peers) — OK for {label}; set BOOTSTRAP_PEERS to expect mesh")
-    
-    def _add_alert(self, level, message):
-        alert = {'level': level, 'message': message, 'timestamp': int(time.time())}
+                print(
+                    f"[Monitor] Solo node (0 peers) — OK for {label}; "
+                    "set BOOTSTRAP_PEERS to expect mesh"
+                )
+
+    def _add_alert(self, level, message, *, debounce_s: float = 0.0):
+        now = time.time()
+        key = f"{level}:{message}"
+        if debounce_s > 0 and key == self._last_critical_key:
+            if (now - float(self._last_critical_at or 0.0)) < float(debounce_s):
+                return
+        if level == "CRITICAL":
+            self._last_critical_key = key
+            self._last_critical_at = now
+        alert = {"level": level, "message": message, "timestamp": int(now)}
         self.alerts.append(alert)
         if len(self.alerts) > 100:
             self.alerts = self.alerts[-100:]
         print(f"[{level}] {message}")
-    
+
     def _start_monitoring(self):
         def monitor():
             while self.is_running:
-                self._check_health()
+                if not self._busy:
+                    self._busy = True
+                    try:
+                        self._check_health()
+                    finally:
+                        self._busy = False
                 time.sleep(30)
+
         threading.Thread(target=monitor, daemon=True).start()
     
     def get_metrics(self):
