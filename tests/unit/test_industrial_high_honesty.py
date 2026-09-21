@@ -147,10 +147,10 @@ def test_bridge_reject_emit_failure_is_visible():
 
 
 def test_libp2p_dial_refuses_without_rust():
+    """Stub dial must refuse even when the wheel has libp2p (force no-native)."""
     on = Libp2pTransportAdapter(enabled=True)
     try:
-        if on.rust_backend:
-            pytest.skip("rust libp2p present — stub-refuse path N/A")
+        on._native_capable = False
         with pytest.raises(
             TransportCapabilityError, match="stub dial removed|requires abs_native"
         ):
