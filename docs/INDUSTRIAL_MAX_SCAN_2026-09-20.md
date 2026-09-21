@@ -94,7 +94,7 @@ Experimental `docker/node.prod.mesh*.json`: `feature_libp2p=true`, `feature_long
 | `test_adr0021_phase2_store` / `test_industrial_high_honesty` | After `reset_for_tests()`, always `bootstrap_native_capabilities()` in `finally` — demote tests must not leave `_module=None` for the process |
 | Honesty/needle tests | PBS off (`feature_mev`), Wave M satoshi stakes, PQ NotImplemented, `/status` `kernels_deferred`, Wave J/K → `mempool_wire` |
 
-**Host evidence:** industrial waves PASS (542 needles); full `pytest tests/` 2734 passed / 11 skipped. **Not** mesh probe / **not** 48h soak (operator-ordered only).
+**Host evidence:** industrial waves PASS (542 needles); full `pytest tests/` 2734 passed / 11 skipped. **Mesh:** `probe_prod_mesh -Quick` PASS tip ~44442; `verify_pre_soak -SkipPrepare` PASS. **Not** 48h soak (operator-ordered only).
 
 ## Next ordered polish (if operator continues)
 

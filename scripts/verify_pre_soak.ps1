@@ -144,7 +144,7 @@ if ($fail -gt 0) {
 }
 if ($SkipMesh) {
     # Wave K: static unit pack is not pre-soak readiness.
-    Write-Host "RESULT: PASS static-only (SkipMesh — NOT pre-soak ready)" -ForegroundColor Yellow
+    Write-Host "RESULT: PASS static-only (SkipMesh - NOT pre-soak ready)" -ForegroundColor Yellow
     Write-Host "  Re-run without -SkipMesh before ordering soak" -ForegroundColor DarkGray
     exit 0
 }
