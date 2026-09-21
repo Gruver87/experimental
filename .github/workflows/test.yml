@@ -274,7 +274,8 @@ jobs:
 
     - name: Prod mesh3 spawn + CI recovery drill (ceremony 3-validator)
       if: runner.os == 'Linux' && matrix.python-version == '3.12'
-      timeout-minutes: 55
+      # Spawn + recovery + signed-tx + EVM (post-deploy gate wait ≤ align+360s).
+      timeout-minutes: 70
       env:
         PYTHONUTF8: "1"
       run: |

@@ -3385,6 +3385,18 @@ def _run_prod_mesh3_evidence(
         return 1
 
     # --- EVM (post-deploy gate lets parent freeze mining mid-smoke) ---
+    # Child arms the gate ONLY after mesh-align + mempool deploy. Align alone can
+    # take ABS_EVM_ALIGN_TIMEOUT_SEC (300s), so parent must wait longer than that
+    # or the resume file is never written and child times out (CI 55m flake).
+    align_timeout_sec = 300
+    try:
+        align_timeout_sec = max(
+            60, int(os.environ.get("ABS_EVM_ALIGN_TIMEOUT_SEC", "300") or "300")
+        )
+    except ValueError:
+        align_timeout_sec = 300
+    # align + deploy + parent freeze/realign margin
+    gate_wait_sec = align_timeout_sec + 360
     gate_path = Path(tempfile.gettempdir()) / f"abs_evm_gate_{os.getpid()}.json"
     resume_path = Path(str(gate_path) + ".resume")
     for p in (gate_path, resume_path):
@@ -3394,10 +3406,13 @@ def _run_prod_mesh3_evidence(
             pass
     evm_env = {
         **smoke_env,
-        "ABS_EVM_ALIGN_TIMEOUT_SEC": "300",
+        "ABS_EVM_ALIGN_TIMEOUT_SEC": str(align_timeout_sec),
         "ABS_EVM_POST_DEPLOY_GATE": str(gate_path),
     }
-    print("Prod-mesh3 evidence: evm ...")
+    print(
+        "Prod-mesh3 evidence: evm ... "
+        f"(post-deploy gate wait≤{gate_wait_sec}s align={align_timeout_sec}s)"
+    )
     evm_proc = subprocess.Popen(
         [
             sys.executable,
@@ -3420,75 +3435,100 @@ def _run_prod_mesh3_evidence(
         cwd=ROOT,
         env=evm_env,
     )
-    gate_deadline = time.time() + 420
+
+    def _release_post_deploy_gate() -> bool:
+        """Freeze/realign then write .resume so child can continue storage checks."""
+        print("EVIDENCE: EVM post-deploy gate — freeze mining + realign")
+        freeze_ok = True
+        if freeze_mining is not None:
+            try:
+                freeze_mining()
+            except Exception as exc:
+                freeze_ok = False
+                print(f"WARN: post-deploy freeze: {exc} — align without freeze")
+        # Catch-up while tip is frozen (no empty-block race).
+        for attempt in range(40):
+            try:
+                statuses = [_api(f"{u}/status") for u in urls]
+                heights = [int(s.get("height", 0) or 0) for s in statuses]
+                heads = [(s.get("head_hash") or "").lower() for s in statuses]
+                if (
+                    min(heights) >= 1
+                    and max(heights) - min(heights) <= 1
+                    and heads[0]
+                    and len(set(heads)) == 1
+                ):
+                    break
+                tip_h = max(heights)
+                if attempt % 2 == 0:
+                    _restore_p2p_mesh(urls, expected_peers=2)
+                    for url, h in zip(urls, heights):
+                        if tip_h - h <= 0:
+                            continue
+                        try:
+                            _admin_token(url)
+                            _post_json(
+                                url,
+                                "/sync/fast-sync",
+                                {"timeout": 90, "target_block": tip_h},
+                                timeout=120,
+                            )
+                            _post_json(
+                                url, "/sync/reconcile", {"timeout": 45}, timeout=60
+                            )
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            time.sleep(3)
+        # Keep mining frozen through storage verify when freeze succeeded.
+        resume_path.write_text(
+            "ok" if freeze_ok else "ok-nofreeze", encoding="utf-8"
+        )
+        print(
+            "EVIDENCE: post-deploy gate released "
+            f"(mining_frozen={freeze_ok})"
+        )
+        return freeze_ok
+
+    gate_deadline = time.time() + gate_wait_sec
     gated = False
     while time.time() < gate_deadline:
         if evm_proc.poll() is not None:
             break
         if gate_path.is_file() and not gated:
             gated = True
-            print("EVIDENCE: EVM post-deploy gate — freeze mining + realign")
-            freeze_ok = True
-            if freeze_mining is not None:
-                try:
-                    freeze_mining()
-                except Exception as exc:
-                    freeze_ok = False
-                    print(f"WARN: post-deploy freeze: {exc} — align without freeze")
-            # Catch-up while tip is frozen (no empty-block race).
-            for attempt in range(40):
-                try:
-                    statuses = [_api(f"{u}/status") for u in urls]
-                    heights = [int(s.get("height", 0) or 0) for s in statuses]
-                    heads = [(s.get("head_hash") or "").lower() for s in statuses]
-                    if (
-                        min(heights) >= 1
-                        and max(heights) - min(heights) <= 1
-                        and heads[0]
-                        and len(set(heads)) == 1
-                    ):
-                        break
-                    tip_h = max(heights)
-                    if attempt % 2 == 0:
-                        _restore_p2p_mesh(urls, expected_peers=2)
-                        for url, h in zip(urls, heights):
-                            if tip_h - h <= 0:
-                                continue
-                            try:
-                                _admin_token(url)
-                                _post_json(
-                                    url,
-                                    "/sync/fast-sync",
-                                    {"timeout": 90, "target_block": tip_h},
-                                    timeout=120,
-                                )
-                                _post_json(
-                                    url, "/sync/reconcile", {"timeout": 45}, timeout=60
-                                )
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
-                time.sleep(3)
-            # Keep mining frozen through storage verify when freeze succeeded.
-            resume_path.write_text(
-                "ok" if freeze_ok else "ok-nofreeze", encoding="utf-8"
-            )
-            print(
-                "EVIDENCE: post-deploy gate released "
-                f"(mining_frozen={freeze_ok})"
-            )
+            _release_post_deploy_gate()
+            break
         time.sleep(1)
-    try:
-        if evm_proc.poll() is None:
-            evm_rc = evm_proc.wait(timeout=600)
-        else:
-            # returncode 0 must not become 1 via `or` — classic Python footgun.
-            evm_rc = 1 if evm_proc.returncode is None else int(evm_proc.returncode)
-    except subprocess.TimeoutExpired:
-        print("FAIL: prod-mesh3 evidence evm timed out")
+    # Late arm: deploy finished after the wait budget — still release if marker exists.
+    if (
+        not gated
+        and evm_proc.poll() is None
+        and gate_path.is_file()
+    ):
+        gated = True
+        print("WARN: post-deploy gate armed after wait budget — releasing late")
+        _release_post_deploy_gate()
+    if not gated and evm_proc.poll() is None:
+        print(
+            "FAIL: prod-mesh3 evidence evm post-deploy gate never armed "
+            f"within {gate_wait_sec}s (child still running) — terminating"
+        )
         _safe_terminate(evm_proc, wait_sec=15)
         evm_rc = 1
+    else:
+        try:
+            if evm_proc.poll() is None:
+                # After resume: storage wait ≤ align/2 + margin; keep parent ceiling honest.
+                evm_rc = evm_proc.wait(timeout=max(300, align_timeout_sec + 120))
+            else:
+                # returncode 0 must not become 1 via `or` — classic Python footgun.
+                evm_rc = 1 if evm_proc.returncode is None else int(evm_proc.returncode)
+        except subprocess.TimeoutExpired:
+            print("FAIL: prod-mesh3 evidence evm timed out after gate")
+            _safe_terminate(evm_proc, wait_sec=15)
+            evm_rc = 1
     if thaw_mining is not None:
         try:
             thaw_mining()
