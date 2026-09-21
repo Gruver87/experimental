@@ -4,13 +4,27 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def _powershell() -> str | None:
+    """Windows CI/dev hosts; Linux Hybrid Node Checks have no powershell.exe."""
+    if sys.platform.startswith("win"):
+        return shutil.which("powershell.exe") or shutil.which("powershell")
+    return shutil.which("pwsh")
+
+
+@pytest.mark.skipif(
+    _powershell() is None,
+    reason="soak_monitor.ps1 rescore requires PowerShell (Windows host / pwsh)",
+)
 def test_soak_rescore_ready_only_fail_passes(tmp_path):
     log = tmp_path / "soak.log"
     lines = [
@@ -29,9 +43,11 @@ def test_soak_rescore_ready_only_fail_passes(tmp_path):
     log.write_text("\n".join(lines) + "\n", encoding="utf-8")
     report = tmp_path / "report.json"
     ps1 = ROOT / "scripts" / "soak_monitor.ps1"
+    ps = _powershell()
+    assert ps is not None
     proc = subprocess.run(
         [
-            "powershell.exe",
+            ps,
             "-NoProfile",
             "-ExecutionPolicy",
             "Bypass",
