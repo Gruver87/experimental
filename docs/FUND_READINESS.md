@@ -1,7 +1,7 @@
 # Fund / diligence readiness — Experimental (honest)
 
 **Audience:** grant officers, technical diligence, advisors.  
-**Date:** 2026-09-21 · Repo: [`Gruver87/experimental`](https://github.com/Gruver87/experimental) · branch `main`  
+**Date:** 2026-09-23 · Repo: [`Gruver87/experimental`](https://github.com/Gruver87/experimental) · branch `main`  
 **Not:** public audited mainnet · not Hybrid audit-freeze pin · not listed ABS.
 
 One-screen status: [AT_A_GLANCE.md](AT_A_GLANCE.md) · Evidence ledger: [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md) · Gaps: [MAINNET_GAP_ANALYSIS.md](MAINNET_GAP_ANALYSIS.md) · Vision (Hybrid): [VISION](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/VISION.md).
@@ -21,9 +21,9 @@ Industrial **R&D / private-testnet** hybrid L1 (Python orchestration + Rust hot 
 | Post-EVM prep mesh 48h | [`evm48pass1`](evidence/runs/evm48pass1/) |
 | Mempool+validation STRICT 48h | [`mempool48pass1`](evidence/runs/mempool48pass1/) |
 | ADR 0021 global R&D audit | [`adr0021gaudit1`](evidence/runs/adr0021gaudit1/) 13/13 |
-| Wire satoshi cutover + float-only refuse | Units + industrial waves; MED 2026-09-21 |
+| Wire satoshi cutover + float-only refuse | Units + industrial waves; **mesh 48h** [`ind48pass1`](evidence/runs/ind48pass1/) |
 | Host verify restore | Waves 542 needles + pytest **2734 passed** (2026-09-21) |
-| Live mesh probe (same day) | `probe_prod_mesh` OK tip ~44442; `verify_pre_soak` PASS — **not** a new 48h |
+| Industrial polish tip 48h (`719deb4`) | [`ind48pass1`](evidence/runs/ind48pass1/) `hard_fails=0` tip ~46099→~56972 |
 
 ## What we do **not** claim
 
@@ -54,10 +54,10 @@ ADRs: 0001 tip-safety · 0009 hybrid · 0016 profiles · 0017 Long-Range (lab) �
 | Persist / backup fail-closed | Done |
 | Industrial HIGH honesty pack | Done |
 | Host pytest + waves green | Done 2026-09-21 |
-| Mesh probe + pre-soak (no soak start) | Done 2026-09-21 |
+| Mesh probe + pre-soak | Done 2026-09-21 → led to soak |
 | Ceremony dry-run status | `ceremony_status` ready=True (≠ mainnet) |
-| CI badges green (Security / Tests / Experimental R&D) | Tip `918a44c` — Security+Docker green; Tests/RD in progress (block diligence decks while red) |
-| Fresh tip 48h soak after current bake | **Operator-ordered only** — not started |
+| CI badges green (Security / Tests / Experimental R&D) | Tip `719deb4` — all four workflows green |
+| Tip 48h soak after industrial polish (`719deb4`) | **PASS** [`ind48pass1`](evidence/runs/ind48pass1/) |
 | External audit / secrets rotate / validator ceremony live | Org Phase 6 |
 
 ## CI badges (must be green for diligence)

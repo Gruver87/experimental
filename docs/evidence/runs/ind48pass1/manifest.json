@@ -1,0 +1,62 @@
+{
+  "schema": "abs.mesh_evidence.v1",
+  "run_id": "ind48pass1",
+  "result": "PASS",
+  "created_unix": 1790181217,
+  "commit_host": "719deb4bfc2b7ddb650c58b636ec0a3261d21200",
+  "image_id": "sha256:23a4a8fa555af30cd423f11c58e6f3e94e0da493c3bfe80cc54f4d996b0b49ca",
+  "honesty": "Experimental ADR 0020 libp2p Noise 3-node prod-profile mesh 48h PASS after industrial polish (ADR 0021 wire satoshi + require_wire_satoshi MED + PersistError/native f64 + HIGH honesty + tip+1 CI heal). tip_skew soft OK only (aligned=True); mesh_warn=0 hard_fails=0 warn_lines=0. Not STRICT mempool sidecar soak (see mempool48pass1). Not EVM-only 48h. Not Long-Range. Not BLS. Not public mainnet. Not Hybrid 375d14f. Distinct from 3c801b87 / evm48pass1 (different bake/window/tip).",
+  "claims": {
+    "transport": "libp2p Noise (feature_libp2p=true, feature_long_range=false)",
+    "48h_soak": "passed=true hard_fails=0 ready_only=0 mesh_warn=0 warn_lines=0 hours_elapsed=48.0004 health_watch_exit=0 mesh_ok=575",
+    "window": "2026-09-21T18:33:36+02:00 -> 2026-09-23T18:33:37+02:00",
+    "height_start_approx": 46099,
+    "height_end_approx": 56972,
+    "phase": "Phase 5 industrial polish tip re-soak (ADR 0021 wire path on live mesh)",
+    "adr0021": "wire fee/amount satoshi + p2p_mempool_require_wire_satoshi default refuse float-only proven under 48h mesh load"
+  },
+  "files": {
+    "soak_report": {
+      "status": "present",
+      "path": "docs/evidence/runs/ind48pass1/soak_report_48h_experimental.json",
+      "sha256": "ce25bc7ea2bd06c88cd2372689a2e873510b36df6dd7feb7060d10d17116e525",
+      "bytes": 973
+    },
+    "soak_log": {
+      "status": "present",
+      "path": "docs/evidence/runs/ind48pass1/soak_48h_experimental.log",
+      "sha256": "a5891b726bc22665c90c21d1836ba5e234463842ddab05322c043dbd5bf39549",
+      "bytes": 216467
+    },
+    "soak_prep": {
+      "status": "present",
+      "path": "docs/evidence/runs/ind48pass1/soak_48h_prep.json",
+      "sha256": "4648f3221fc6bb459e73c34591c4f3f5c5eefebf66f125a1a8541e720c948f44",
+      "bytes": 499
+    },
+    "soak_preflight": {
+      "status": "present",
+      "path": "docs/evidence/runs/ind48pass1/soak_preflight.json",
+      "sha256": "2ff22dbc666f373b4ee938744d9a51d55365b163a10989a0f64826e41b41fa70",
+      "bytes": 2560
+    },
+    "prod_mesh_probe": {
+      "status": "present",
+      "path": "docs/evidence/runs/ind48pass1/prod_mesh_probe.json",
+      "sha256": "7ecf5c96749594e175fc3e3cde7d7fe97003a830ccd2acae5e5460730c2e21e2",
+      "bytes": 1091
+    },
+    "soak_start": {
+      "status": "present",
+      "path": "docs/evidence/runs/ind48pass1/soak_start_719deb4.log",
+      "sha256": "40b3e6d7f8e107f7ad621b8c3c34711e27f9aeaf8e12fe5430c4ffff3ff3f943",
+      "bytes": 8804
+    },
+    "soak_result": {
+      "status": "present",
+      "path": "docs/evidence/runs/ind48pass1/soak_result.txt",
+      "sha256": "0d3127573a8aac6102010859e2b48c1c568d69d2b3fb94a0fbb60c8a75b20527",
+      "bytes": 1052
+    }
+  }
+}

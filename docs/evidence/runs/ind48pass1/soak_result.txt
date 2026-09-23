@@ -1,0 +1,11 @@
+FINISHED_PASS Experimental prod mesh 48h (Phase 5 industrial polish / ADR 0021 wire path)
+window: 2026-09-21T18:33:36+02:00 -> 2026-09-23T18:33:37+02:00
+passed=true hours_elapsed=48.0004 hard_fails=0 mesh_warn=0 ready_only=0 warn_lines=0
+mesh_ok_cycles=575 health_watch_exit=0
+tip: ~46099 -> ~56972 (ports 18180-18182)
+image: sha256:23a4a8fa555af30cd423f11c58e6f3e94e0da493c3bfe80cc54f4d996b0b49ca
+git_sha_at_start: 719deb4bfc2b7ddb650c58b636ec0a3261d21200 (host dirty bak.log only; image bake 23a4a8fa)
+first: 2026-09-21 18:33:38 OK mesh aligned 18180:h46099/p2 18181:h46099/p2 18182:h46099/p2
+last: 2026-09-23 18:33:37 OK mesh aligned 18180:h56972/p2 18181:h56972/p2 18182:h56972/p2
+soft: tip_skew labels on OK lines only (aligned=True); transient_delta=1 accepted under default 48h scoring
+honesty: Post ADR 0021 wire satoshi + require_wire_satoshi + industrial HIGH/MED + tip+1 CI heal. Not STRICT mempool sidecar (mempool48pass1). Not EVM-only. Not Long-Range. Not BLS. Not public mainnet. Not Hybrid 375d14f. Distinct from 3c801b87 / evm48pass1.

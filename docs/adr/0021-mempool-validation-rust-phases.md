@@ -1,7 +1,7 @@
 # ADR 0021 — Mempool / validation Rust phases (planned)
 
 - **Status:** Accepted — Phase 0+1+2+3 landed
-- **Date:** 2026-08-28 (phase-1/2/3 refresh 2026-09-13)
+- **Date:** 2026-08-28 (phase-1/2/3 refresh 2026-09-13; wire+mesh 48h refresh 2026-09-23)
 - **Deciders:** Absolute Blockchain experimental maintainers
 - **Execution order:** [EXECUTION_ORDER.md](../EXECUTION_ORDER.md)
 
@@ -119,7 +119,7 @@ Pytest alone is **not** acceptance for mempool/P2P changes.
 - Phase 0–3 completion ≠ mainnet readiness.
 - Cross-node EVM evidence remains `prod_evm_smoke.py` on live mesh.
 - Ultimate Hybrid audit pin is updated only via explicit merge policy — not by this ADR alone.
-- **Wire satoshi cutover (2026-09-20):** gossip emits/prefers `fee_satoshi`/`amount_satoshi`; ABS float dual-write retained for display. **MED 2026-09-21:** float-only ingress refused by default (`p2p_mempool_require_wire_satoshi`); lab escape hatch `false` for mixed-mesh. Unit + waves evidence — mesh probe / 48h re-soak operator-ordered only.
+- **Wire satoshi cutover (2026-09-20):** gossip emits/prefers `fee_satoshi`/`amount_satoshi`; ABS float dual-write retained for display. **MED 2026-09-21:** float-only ingress refused by default (`p2p_mempool_require_wire_satoshi`); lab escape hatch `false` for mixed-mesh. **Mesh 48h PASS 2026-09-21→23:** [`ind48pass1`](../evidence/runs/ind48pass1/) (`passed=true`, `hard_fails=0`, `mesh_warn=0`, tip ~46099→~56972) on tip `719deb4` — proves wire path under live mesh load. Distinct from STRICT sidecar pack [`mempool48pass1`](../evidence/runs/mempool48pass1/).
 
 ## Consequences
 
