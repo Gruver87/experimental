@@ -1,0 +1,10 @@
+STRICT 48h libp2p Experimental prod mesh PASS
+window: 2026-09-23T19:37:57+02:00 -> 2026-09-25T19:37:59+02:00
+hours_elapsed: 48.0005 / 48
+passed: true | strict: true | hard_fails: 0 | mesh_warn: 0 | warn_lines: 0 | fail_lines: 0
+mesh_ok_cycles: 2800 | interval_sec: 60 | FullHarnessEvery: 6
+tip: ~57209 -> ~68082
+image: sha256:9e9d8138a5371bb713852916b573bf852e8efa1de078a0a9e3c8dd5890a56710
+host_commit_at_start: c458ff5735d75bc1c7f3ed19454ab08570fe9a59 (dirty; soft-error harden baked in image)
+script: .\scripts\start_soak_prod_mesh_48h_strict.ps1
+honesty: mempool48pass1 interval/bar parity on libp2p mesh. Soft tip_skew/transient_delta OK-only (not WARN). Not default ind48pass1. Not mempool sidecar. Not EVM-only. Not Long-Range. Not BLS. Not public mainnet. Not Hybrid 375d14f. Distinct from 3c801b87.

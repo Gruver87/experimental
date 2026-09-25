@@ -4,6 +4,7 @@
 #   .\scripts\start_soak_long_range_lab.ps1
 #   .\scripts\start_soak_long_range_lab.ps1 -Intensify   # 2h stress preflight (not 48h proof)
 #   .\scripts\start_soak_long_range_lab.ps1 -Hours 48
+#   .\scripts\start_soak_long_range_lab.ps1 -Hours 48 -Strict   # mempool48pass1 parity bar
 param(
     [int]$Hours = 2,
     [int]$IntervalSec = 0,
@@ -16,6 +17,9 @@ param(
     # 2h stress: denser probes, tip-stagnant 5m, BLOCK_TIME=5, follower bounce chaos.
     # Surfaces reconnect/ban/mesh_min races faster. Does NOT prove 48h durability.
     [switch]$Intensify,
+    # Strict bar (fail=0 mesh_warn=0). For Hours>=48 uses IntervalSec=60 + long-STRICT
+    # FullHarnessEvery=6. Distinct evidence from default LR 48h (lr48pass1).
+    [switch]$Strict,
     [string]$LogFile = "",
     [string]$ReportFile = "",
     # Tip-dead hard-FAIL (lab honesty). Default: 1h for Hours>=48, 30m for shorter.
@@ -42,11 +46,15 @@ foreach ($p in $Ports) {
         throw "REFUSE: Long-Range soak must not use prod mesh ports 18180-18182"
     }
 }
-# 48h: prefer 300s intervals (HOL-safe). Intensify: dense 15s. Else 60s for 2h.
+# 48h default: 300s (HOL-safe). STRICT 48h: 60s (mempool parity). Intensify: 15s. Else 60s for 2h.
 if ($IntervalSec -le 0) {
     if ($Intensify) { $IntervalSec = 15 }
+    elseif ($Strict -and $Hours -ge 48) { $IntervalSec = 60 }
     elseif ($Hours -ge 48) { $IntervalSec = 300 }
     else { $IntervalSec = 60 }
+}
+if ($Strict -and $Intensify) {
+    throw "REFUSE: -Strict and -Intensify are mutually exclusive (different bars)."
 }
 if ($TipStagnantFailAfterSec -le 0) {
     if ($Intensify) { $TipStagnantFailAfterSec = 300 }
@@ -129,12 +137,14 @@ $active = @{
     interval_sec = $IntervalSec
     tip_stagnant_fail_after_sec = $TipStagnantFailAfterSec
     ports = @($Ports)
-    strict = $false
+    strict = [bool]$Strict
     intensify = [bool]$Intensify
     started_at = (Get-Date -Format "o")
     git_sha = $gitSha
     note = $(if ($Intensify) {
         "ADR 0017 Long-Range LAB INTENSIFY 2h - not 48h proof - not prod 778888 - not BLS"
+    } elseif ($Strict) {
+        "ADR 0017 Long-Range LAB STRICT soak - fail=0 mesh_warn=0 - not prod 778888 - not BLS"
     } else {
         "ADR 0017 Long-Range LAB mesh soak - not prod 778888 - not BLS - not libp2p 3c801b87"
     })
@@ -153,6 +163,9 @@ if ($Intensify) {
     # Dense full harness without Strict delta=0 (5s tip ticks make delta=1 normal).
     $soakArgs.AlwaysFullHarness = $true
 }
+if ($Strict) {
+    $soakArgs.Strict = $true
+}
 
 if ($Foreground) {
     if ($Intensify) {
@@ -165,9 +178,10 @@ if ($Foreground) {
 
 $portsCsv = ($Ports -join ",")
 $alwaysFullFlag = if ($Intensify) { " -AlwaysFullHarness" } else { "" }
+$strictFlag = if ($Strict) { " -Strict" } else { "" }
 $cmdLine = @(
     "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden",
-    "-Command `"& '$ScriptDir\soak_monitor.ps1' -Hours $Hours -IntervalSec $IntervalSec -Ports $portsCsv -LogFile '$LogFile' -ReportFile '$ReportFile' -TipStagnantFailAfterSec $TipStagnantFailAfterSec$alwaysFullFlag`""
+    "-Command `"& '$ScriptDir\soak_monitor.ps1' -Hours $Hours -IntervalSec $IntervalSec -Ports $portsCsv -LogFile '$LogFile' -ReportFile '$ReportFile' -TipStagnantFailAfterSec $TipStagnantFailAfterSec$alwaysFullFlag$strictFlag`""
 ) -join " "
 $created = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
     CommandLine      = $cmdLine

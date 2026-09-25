@@ -16,7 +16,7 @@ Last updated: 2026-09-21.
 | ~~B3~~ | **Mempool/validation Rust** phases 0–3 + mesh bake + global audit + STRICT dual-report 48h | ADR 0021 · [`adr0021gaudit1`](evidence/runs/adr0021gaudit1/) · **48h PASS** [`mempool48pass1`](evidence/runs/mempool48pass1/) (2026-09-17→19) | **Closed.** |
 | — | **Phase 5 labs** oracles / cross-shard / bridge OFF | [`oraclelab1`](evidence/runs/oraclelab1/) · [`shardlab1`](evidence/runs/shardlab1/) · [`bridgeoff1`](evidence/runs/bridgeoff1/) | Re-verify host labs; prod flags stay false; docker shard mesh optional |
 
-**Not blockers:** EVM depth lab waves 8–10 (done for now); TCP+TLS 48h PASS (`0a7932c4`); **libp2p 48h PASS (`3c801b87`)**; **Long-Range lab 48h PASS (`lr48pass1`)**; **Phase 3 post-EVM-prep mesh 48h PASS (`evm48pass1`)**; **mempool+validation STRICT 48h PASS (`mempool48pass1`)**.
+**Not blockers:** EVM depth lab waves 8–10 (done for now); TCP+TLS 48h PASS (`0a7932c4`); **libp2p 48h PASS (`3c801b87`)**; **libp2p STRICT 48h PASS (`lp2pstrict1`)**; **Long-Range lab 48h PASS (`lr48pass1`)**; **Phase 3 post-EVM-prep mesh 48h PASS (`evm48pass1`)**; **mempool+validation STRICT 48h PASS (`mempool48pass1`)**.
 
 ---
 
@@ -114,6 +114,8 @@ Phase 6   External audit / mainnet gap (out of repo scope until scheduled)
 **4.soak status:** **PASS** dual-report STRICT 48h 2026-09-17→19 — [`mempool48pass1`](evidence/runs/mempool48pass1/)
 
 **Wire path mesh proof (post-cutover):** industrial tip 48h **PASS** 2026-09-21→23 — [`ind48pass1`](evidence/runs/ind48pass1/) (`hard_fails=0`, `mesh_warn=0`, tip ~46099→~56972, git `719deb4`). Distinct from STRICT sidecar pack.
+
+**Libp2p STRICT mesh (mempool-parity bar):** **PASS** 2026-09-23→25 — [`lp2pstrict1`](evidence/runs/lp2pstrict1/) (`strict=true`, `warn_lines=0`, tip ~57209→~68082). Not mempool sidecar / not default ind48pass1.
 (`hard_fails=0`, `mesh_warn=0`, sidecar admit/refuse fail=0, store=rust demoted=False).
 Prior FAIL 2026-09-13→15 (35) stays on record. **Not** mainnet / **not** Hybrid.
 

@@ -1,0 +1,56 @@
+{
+  "schema": "abs.mesh_evidence.v1",
+  "run_id": "lp2pstrict1",
+  "result": "PASS",
+  "created_unix": 1790358457,
+  "commit_host": "c458ff5735d75bc1c7f3ed19454ab08570fe9a59",
+  "image_id": "sha256:9e9d8138a5371bb713852916b573bf852e8efa1de078a0a9e3c8dd5890a56710",
+  "honesty": "Experimental ADR 0020 libp2p Noise 3-node STRICT 48h PASS (IntervalSec=60, fail=0 mesh_warn=0 warn_lines=0, FullHarnessEvery=6). Soft tip_skew/transient_delta scored OK-only. Soft-error harden: peer_probe 3x, under_mesh reconnect, soft-only harness never Strict FAIL. Parity bar with mempool48pass1 (no sidecar). Not default ind48pass1. Not EVM-only. Not Long-Range. Not BLS. Not public mainnet. Not Hybrid 375d14f. Distinct from 3c801b87.",
+  "claims": {
+    "transport": "libp2p Noise (feature_libp2p=true, feature_long_range=false)",
+    "48h_soak": "passed=true strict=true hard_fails=0 ready_only=0 mesh_warn=0 warn_lines=0 hours_elapsed=48.0005 health_watch_exit=0 mesh_ok=2800",
+    "window": "2026-09-23T19:37:57+02:00 -> 2026-09-25T19:37:59+02:00",
+    "height_start_approx": 57209,
+    "height_end_approx": 68082,
+    "phase": "STRICT libp2p mesh soak (mempool-parity interval/bar)",
+    "script": "scripts/start_soak_prod_mesh_48h_strict.ps1"
+  },
+  "files": {
+    "soak_report": {
+      "status": "present",
+      "path": "docs/evidence/runs/lp2pstrict1/soak_report_48h_libp2p_strict.json",
+      "sha256": "aa5b1afb06f17a0e5d8be9caa18ba454ea929140aeac992cbfd91bfe7d2c1df1",
+      "bytes": 1013
+    },
+    "soak_log": {
+      "status": "present",
+      "path": "docs/evidence/runs/lp2pstrict1/soak_48h_libp2p_strict.log",
+      "sha256": "79cb07790aabf9353e0869a6942c553c03365e974d16a46195511b889e042dd2",
+      "bytes": 1059889
+    },
+    "soak_prep": {
+      "status": "present",
+      "path": "docs/evidence/runs/lp2pstrict1/soak_48h_prep.json",
+      "sha256": "876c55342b38f0178239cdbe1338305c68d9854118b8eca6d001110b33c263d6",
+      "bytes": 497
+    },
+    "soak_preflight": {
+      "status": "present",
+      "path": "docs/evidence/runs/lp2pstrict1/soak_preflight.json",
+      "sha256": "41773b2f5a270aee0b5e0997c58c5683378f57c1db50f94a0bae32b2495f2f52",
+      "bytes": 2553
+    },
+    "prod_mesh_probe": {
+      "status": "present",
+      "path": "docs/evidence/runs/lp2pstrict1/prod_mesh_probe.json",
+      "sha256": "61f52c7393844157c59de48fb8f2cbee808144e06c562522c3cdd7be67a708bc",
+      "bytes": 1091
+    },
+    "soak_result": {
+      "status": "present",
+      "path": "docs/evidence/runs/lp2pstrict1/soak_result.txt",
+      "sha256": "e49fd415bd2be28ccab10dc201acd1e1e07bf41a23a38f9579aa42f9924660a4",
+      "bytes": 818
+    }
+  }
+}

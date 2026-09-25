@@ -26,6 +26,7 @@ python scripts/package_mesh_evidence.py \
 | Path | Claim |
 |------|--------|
 | [`runs/3c801b87/`](runs/3c801b87/) | **libp2p 48h PASS** (ADR 0020 Experimental mesh) — B1 closed |
+| [`runs/lp2pstrict1/`](runs/lp2pstrict1/) | **libp2p STRICT 48h PASS** (IntervalSec=60, warn_lines=0) — distinct from default `ind48pass1` / `3c801b87` |
 | [`runs/lr48pass1/`](runs/lr48pass1/) | **Long-Range lab 48h PASS** (ADR 0017) — B2 closed; not BLS / not prod |
 | [`runs/lr2hintensify/`](runs/lr2hintensify/) | Long-Range lab intensify 2h PASS (preflight before `lr48pass1`) |
 | [`runs/lr48fail1/`](runs/lr48fail1/) | Long-Range lab 48h FAIL (historical; superseded by `lr48pass1`) |

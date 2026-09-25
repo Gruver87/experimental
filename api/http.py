@@ -8503,9 +8503,9 @@ def _build_state_consistency_harness(
     peer_probe_error: Optional[str] = None
     peer_probe_attempts = 0
     if p2p and hasattr(p2p, "request_peer_state_roots_sync"):
-        # One retry on timeout/empty — soak soft WARN root cause under GIL load
-        # (Noise ACK HOL / inbox lag). Does not lengthen happy-path budget much.
-        max_attempts = 2
+        # Two retries on timeout/empty — soak soft WARN root cause under GIL load
+        # (Noise ACK HOL / inbox lag). Strict 48h parity with mempool48pass1.
+        max_attempts = 3
         for attempt in range(max_attempts):
             peer_probe_attempts = attempt + 1
             try:

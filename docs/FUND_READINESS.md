@@ -24,6 +24,7 @@ Industrial **R&D / private-testnet** hybrid L1 (Python orchestration + Rust hot 
 | Wire satoshi cutover + float-only refuse | Units + industrial waves; **mesh 48h** [`ind48pass1`](evidence/runs/ind48pass1/) |
 | Host verify restore | Waves 542 needles + pytest **2734 passed** (2026-09-21) |
 | Industrial polish tip 48h (`719deb4`) | [`ind48pass1`](evidence/runs/ind48pass1/) `hard_fails=0` tip ~46099→~56972 |
+| Libp2p STRICT 48h (mempool-parity bar) | [`lp2pstrict1`](evidence/runs/lp2pstrict1/) `strict=true` `warn_lines=0` tip ~57209→~68082 |
 
 ## What we do **not** claim
 
@@ -58,6 +59,7 @@ ADRs: 0001 tip-safety · 0009 hybrid · 0016 profiles · 0017 Long-Range (lab) �
 | Ceremony dry-run status | `ceremony_status` ready=True (≠ mainnet) |
 | CI badges green (Security / Tests / Experimental R&D) | Tip `719deb4` — all four workflows green |
 | Tip 48h soak after industrial polish (`719deb4`) | **PASS** [`ind48pass1`](evidence/runs/ind48pass1/) |
+| Libp2p STRICT 48h (`start_soak_prod_mesh_48h_strict.ps1`) | **PASS** [`lp2pstrict1`](evidence/runs/lp2pstrict1/) |
 | External audit / secrets rotate / validator ceremony live | Org Phase 6 |
 
 ## CI badges (must be green for diligence)

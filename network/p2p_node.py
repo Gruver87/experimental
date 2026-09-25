@@ -7745,7 +7745,17 @@ class P2PNode:
                     if peer.height > our_height:
                         self._schedule_sync(peer)
                 target_peers = max(1, int(getattr(self.config, "testnet_expected_peers", 1) or 1))
-                if len(self.peers) < target_peers:
+                mesh_min = int(getattr(self.config, "mesh_min_peers_before_mine", 0) or 0)
+                mode = str(getattr(self.config, "deployment_mode", "dev") or "dev").lower()
+                need = max(target_peers, mesh_min if mode in ("prod", "production", "staging") else 0)
+                if len(self.peers) < need:
+                    # under_mesh soak WARN (evm48pass1 peers=1): re-dial bootstrap
+                    # aggressively, not only known_addrs drip.
+                    try:
+                        await self.reconnect_known_peers()
+                    except Exception as exc:
+                        self._peer_connect_task_fail += 1
+                        logger.warning("[P2P] catch-up reconnect_known_peers: %s", exc)
                     for addr in list(self._known_addrs):
                         parts = addr.rsplit(":", 1)
                         if len(parts) == 2:

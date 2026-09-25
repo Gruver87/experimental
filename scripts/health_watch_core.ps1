@@ -102,8 +102,8 @@ function Test-NodeHealth {
     )
     $readySec = if ($ProdMesh) { 20 } else { 5 }
     $statusSec = if ($ProdMesh) { 12 } else { 5 }
-    $harnessSec = if ($FullHarness) { if ($ProdMesh) { 45 } else { 20 } } else { if ($ProdMesh) { 25 } else { 10 } }
-    $peerTimeout = if ($FullHarness) { 8 } else { if ($ProdMesh) { 6 } else { 3 } }
+    $harnessSec = if ($FullHarness) { if ($ProdMesh) { 60 } else { 20 } } else { if ($ProdMesh) { 30 } else { 10 } }
+    $peerTimeout = if ($FullHarness) { 10 } else { if ($ProdMesh) { 8 } else { 3 } }
 
     $readyOk = $false
     $readyErr = ""

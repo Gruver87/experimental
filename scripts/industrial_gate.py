@@ -640,8 +640,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         rocks_wave_c = (ROOT / "storage" / "rocks_store.py").read_text(encoding="utf-8")
         if "_native_pack_fallbacks" not in rocks_wave_c or "_pack_row_native_or_json" not in rocks_wave_c:
             errors.append("rocks_store must count native pack→JSON fallbacks (Wave C)")
-        if "peer_probe_attempts" not in http_py or "max_attempts = 2" not in http_py:
-            errors.append("harness must retry peer probe and expose peer_probe_attempts (Wave C)")
+        if "peer_probe_attempts" not in http_py or "max_attempts = 3" not in http_py:
+            errors.append(
+                "harness must retry peer probe 3x and expose peer_probe_attempts (STRICT soft flake)"
+            )
         if "abs_rocksdb_native_pack_fallbacks" not in (
             ROOT / "observability" / "metrics.py"
         ).read_text(encoding="utf-8"):
@@ -4711,6 +4713,27 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("48h start script must pass -FullHarness (not Strict)")
         if "-Strict" in start48:
             errors.append("48h start script must not pass -Strict (that is the 5h bar)")
+        if not (ROOT / "scripts" / "start_soak_prod_mesh_48h_strict.ps1").is_file():
+            errors.append(
+                "scripts/start_soak_prod_mesh_48h_strict.ps1 missing (mempool-parity STRICT)"
+            )
+        start48s = (ROOT / "scripts" / "start_soak_prod_mesh_48h_strict.ps1").read_text(
+            encoding="utf-8"
+        )
+        if "-Strict" not in start48s or "IntervalSec = 60" not in start48s:
+            errors.append(
+                "48h STRICT start must default IntervalSec=60 and pass -Strict"
+            )
+        if not (ROOT / "scripts" / "start_soak_evm_mesh_48h_strict.ps1").is_file():
+            errors.append(
+                "scripts/start_soak_evm_mesh_48h_strict.ps1 missing (post-EVM STRICT)"
+            )
+        if not (ROOT / "docs" / "sprouts" / "STRICT_SOAK_PARITY.md").is_file():
+            errors.append("docs/sprouts/STRICT_SOAK_PARITY.md missing (soft vs hard triage)")
+        if "under_mesh soak WARN" not in p2p_py:
+            errors.append(
+                "p2p catch-up must reconnect_known_peers when under mesh_min (evm48 soft)"
+            )
         bc_py = (ROOT / "core" / "blockchain.py").read_text(encoding="utf-8")
         if "Last committed canonical root" not in bc_py:
             errors.append(
@@ -4888,6 +4911,14 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         if "-Intensify" not in start_lr:
             errors.append(
                 "start_soak_long_range_lab.ps1 must expose -Intensify (2h stress preflight)"
+            )
+        if "[switch]$Strict" not in start_lr:
+            errors.append(
+                "start_soak_long_range_lab.ps1 must expose -Strict (mempool-parity STRICT)"
+            )
+        if "Strict and -Intensify are mutually exclusive" not in start_lr:
+            errors.append(
+                "LR soak start must refuse -Strict with -Intensify (different bars)"
             )
         if not (ROOT / "scripts" / "long_range_lab_chaos_pulse.ps1").is_file():
             errors.append("long_range_lab_chaos_pulse.ps1 missing (intensify bounce)")

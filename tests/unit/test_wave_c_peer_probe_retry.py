@@ -24,6 +24,7 @@ def test_peer_probe_retries_once_on_timeout() -> None:
     p2p._state_consistent = True
     p2p.request_peer_state_roots_sync.side_effect = [
         None,
+        None,
         [{"peer_id": "p1", "height": 10, "state_root": "aa" * 32}],
     ]
     cfg = MagicMock()
@@ -31,12 +32,12 @@ def test_peer_probe_retries_once_on_timeout() -> None:
     cfg.chain_id = 1
     out = _build_state_consistency_harness(p2p, bc, cfg, peer_timeout=1.0)
     assert out["peer_probe_error"] is None
-    assert int(out["peer_probe_attempts"]) == 2
-    assert p2p.request_peer_state_roots_sync.call_count == 2
+    assert int(out["peer_probe_attempts"]) == 3
+    assert p2p.request_peer_state_roots_sync.call_count == 3
     assert "peer_probe_ok" not in (out.get("failed_checks") or [])
 
 
 def test_source_has_peer_probe_retry_needle() -> None:
     http = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
     assert "peer_probe_attempts" in http
-    assert "max_attempts = 2" in http
+    assert "max_attempts = 3" in http
