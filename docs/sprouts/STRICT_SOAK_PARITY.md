@@ -19,22 +19,27 @@ Scripts:
 
 | Signal | Packs | Nature | Scoring |
 |--------|-------|--------|---------|
-| `p2p=tip_skew` + `aligned=True` | `ind48pass1` (×47) | tip-v2 mine-window ±1–2 | OK line (not WARN) |
-| `transient_delta=1` | `ind48pass1` (×15) | sequential/parallel poll skew | OK after resnapshot |
-| `failed=peer_probe_ok` | `mempool48pass1`, `3c801b87` | Noise ACK / wire solicit timeout under load | Soft WARN; `mesh_warn` counts only `WARN mesh misaligned` |
-| `failed=harness_timeout` + `aligned=True` | `mempool48pass1` | HTTP harness timeout under load | Soft WARN (`SoftHarnessChecks`) |
-| `failed=ready_flap` | `mempool48pass1` | `/health/ready` 503 brief | Soft WARN; long STRICT tolerates |
+| `p2p=tip_skew` + `aligned=True` | `ind48pass1`, `lp2pstrict1` | tip-v2 mine-window ±1–2 | OK line (not WARN) |
+| `transient_delta` / `strict_confirm` | `ind48pass1`, `lp2pstrict1`, `lr48pass1` | poll skew healed | OK after resnapshot |
+| `failed=peer_probe_ok` | `mempool48pass1`, `3c801b87`, `lr48pass1` | Noise ACK / wire solicit timeout | Soft WARN; `mesh_warn` = only `WARN mesh misaligned` |
+| `failed=harness_timeout` + sticky aligned | `mempool48pass1`, `lr48pass1` ×16 | HTTP harness timeout under load | Soft WARN (`SoftHarnessChecks`); soft-only never Strict FAIL |
+| `failed=ready_flap` / dual ready+status HOL | `mempool48pass1`, **`lr48pass1` ×13 FAIL** | `/health/ready` + `/status` timeout (lab used **5s** timeouts) | Soft ready_flap + **HeavyProbe** (prod timeouts when ports≥2) + dual_timeout live recover |
+| `WARN mesh partial aligned` | `lr48pass1` ×13 | tip row excluded under HOL | WARN only (not Strict fail_line) |
 | `p2p=under_mesh` peers=1 | `evm48pass1` (×8) | peer drop | WARN label; reconnect hardened 2026-09-23 |
+| `WARN tip stagnant` (under limit) | `lr48pass1` | tip-growth watch before hard limit | WARN; hard-FAIL only after TipStagnantFailAfterSec |
 
 ## Hard / STRICT killers (fixed or still watch)
 
 | Signal | Packs | Fix |
 |--------|-------|-----|
 | Soft-only harness + sticky `aligned=False` → Strict FAIL | LR / mempool edge | `health_watch.ps1`: soft-only never hard-FAIL |
-| `peer_probe` empty/timeout | mempool / 3c801b87 | harness retries **3×** (`api/http.py`) |
+| Lab mesh 5s HTTP timeouts → ready FAIL lines | **`lr48pass1` ×13** | `HeavyProbe` when `Ports.Count>=2` (prod-grade ready/status/harness) |
+| Dual ready+status timeout → `Ok=false` FAIL | `lr48pass1` | live + status retry → soft `ready_flap` |
+| Strict `FAIL mesh probe` (Partial) | would kill STRICT | Partial stays **WARN** (skew still FAIL) |
+| `peer_probe` empty/timeout | mempool / 3c801b87 / LR | harness retries **3×** (`api/http.py`) |
 | `under_mesh` peers&lt;mesh_min | `evm48pass1` | catch-up calls `reconnect_known_peers` |
-| tip stagnant FAIL (LR) | `lr48pass1` WARNs | lab tip-stagnant gate; keep TipStagnantFailAfterSec |
-| `WARN mesh misaligned` | FAIL packs | Strict confirm 4×3s already; persistent skew = FAIL |
+| tip stagnant FAIL (LR) | lab tip-dead | keep TipStagnantFailAfterSec (48h default 3600s) |
+| `WARN mesh misaligned` | `lr48fail1` ×28 | Strict confirm 4×3s; persistent skew = FAIL |
 
 ## Evidence
 

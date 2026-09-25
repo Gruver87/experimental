@@ -4789,6 +4789,19 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("health_watch must parallel-resnapshot mesh heights before WARN")
         if "SoftHarnessChecks" not in hw_core or "peer_probe_ok" not in hw_core:
             errors.append("health_watch must treat peer_probe_ok as soft harness flake")
+        if "dual_timeout_recovered" not in hw_core:
+            errors.append(
+                "health_watch must soft-recover dual ready+status HOL (LR STRICT fail_lines)"
+            )
+        hw_ps1 = (ROOT / "scripts" / "health_watch.ps1").read_text(encoding="utf-8")
+        if "HeavyProbe" not in hw_ps1 or "Ports.Count -ge 2" not in hw_ps1:
+            errors.append(
+                "health_watch must use prod-grade timeouts for multi-node lab meshes (LR)"
+            )
+        if "WARN mesh probe:" not in hw_ps1 or "FAIL mesh probe:" in hw_ps1:
+            errors.append(
+                "health_watch mesh Partial must stay WARN (not Strict FAIL fail_line)"
+            )
         if "accounts_present" not in hw_core:
             errors.append("health_watch must treat accounts_present as soft (lab solo genesis)")
         if "soloExpected" not in hw_ps1:

@@ -169,9 +169,34 @@ function Test-NodeHealth {
             $recovered.FullHarness = $FullHarness
             return $recovered
         }
+        # Dual ready+status HOL (lr48pass1 ×13 FAIL under 5s lab timeouts): if
+        # /health/live is up, soft ready_flap — never Strict fail_line for GIL stall.
         try {
             $live = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health/live" -TimeoutSec 8
             if ($live -and $live.status -eq "alive") {
+                Start-Sleep -Seconds 3
+                $stRetry = $null
+                $retrySec = if ($ProdMesh) { 18 } else { 12 }
+                try {
+                    $stRetry = Invoke-RestMethod -Uri (Get-StatusProbeUri -Port $Port) -TimeoutSec $retrySec
+                } catch { }
+                if ($null -ne $stRetry) {
+                    return @{
+                        Ok = $true
+                        Port = $Port
+                        Height = [int]$stRetry.height
+                        Head = $stRetry.head_hash
+                        Peers = [int]$stRetry.peers
+                        P2P = $stRetry.p2p_sync_status
+                        MempoolDemoted = (Get-MempoolDemotedFlag -Probe $stRetry -ReadyBody $readyBody)
+                        Aligned = $true
+                        HarnessHealthy = $false
+                        Failed = @("ready_flap")
+                        FullHarness = $FullHarness
+                        ReadyFlap = $true
+                        ReadyError = "$readyErr; status: $statusErr; dual_timeout_recovered"
+                    }
+                }
                 $h = 0
                 $peers = 0
                 if ($null -ne $readyBody) {
@@ -191,7 +216,7 @@ function Test-NodeHealth {
                     Failed = @("ready_flap")
                     FullHarness = $FullHarness
                     ReadyFlap = $true
-                    ReadyError = $readyErr
+                    ReadyError = "$readyErr; status: $statusErr; live_only"
                     StatusError = $statusErr
                 }
             }
@@ -212,7 +237,9 @@ function Test-NodeHealth {
         }
     }
     if ($null -eq $st) {
-        if (-not $Strict -and $null -ne $readyBody) {
+        # ready OK + status HOL: soft status_slow (SoftHarnessChecks) even under
+        # Strict — matches long-STRICT ready_flap contract (lr48pass1 noise).
+        if ($null -ne $readyBody) {
             return @{
                 Ok = $true
                 Port = $Port
