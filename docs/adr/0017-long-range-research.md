@@ -59,6 +59,19 @@ Lab WS certificates MAY carry an **Ed25519 multi-sig committee** (threshold 2/3 
 configured pubkeys) over the digest payload. Verify before gossip adopt; tip-import
 still goes through TipSafety + WS anchor. Prod mesh keeps `feature_long_range=false`.
 
+### Decision addendum — autonomous lab roll-forward (2026-09-26)
+
+Lab mesh MAY roll the WS floor forward mid-soak (`consensus/long_range/roll_forward.py`):
+
+- Miner-only issuance (`mining_enabled`); followers adopt via gossip.
+- Pin a **confirmed** ancestor (`ABS_WS_ROLL_CONFIRM`, default 16), not the live tip.
+- Defer adopt when cert height is above the local tip (`ahead_of_tip`) so lagging
+  nodes cannot brick catch-up under `tip_safety_enforce`.
+- Refuse same-height / different-digest as `equivocation`.
+- `deployment_mode` `prod` **and** `staging` hard-off (env cannot arm).
+
+This is **lab autonomy**, not a live BLS checkpoint quorum and not mainnet proof.
+
 ### BLS / aggregate (design-only — not implemented)
 
 BLS12-381 aggregate checkpoints remain **design-only**. Do **not** implement or arm

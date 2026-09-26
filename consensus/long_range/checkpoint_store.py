@@ -97,11 +97,27 @@ def bind_persisted_ws(
     Empty store and empty env → service with no anchor (tip-import must refuse).
     An existing file with no usable certificate must not re-seed from leftover
     env (wiping ``items`` must not lower the checkpoint).
+
+    When ``ABS_WS_COMMITTEE_REQUIRED`` is set, a digest-valid but
+    committee-invalid latest cert is refused (fail-closed empty anchor).
     """
     svc = WeakSubjectivityService()
     persist = Path(path) if path and str(path).strip() else None
     store = CheckpointStore.load_or_empty(persist)
-    if store.apply_latest(svc):
+    latest = store.latest()
+    if latest is not None:
+        try:
+            from consensus.long_range.committee import CommitteeConfig, committee_required
+
+            committee = CommitteeConfig.from_env()
+            if committee is not None or committee_required():
+                if not latest.verify_committee(committee):
+                    # Do not arm a floor peers cannot gossip / verify.
+                    return svc
+        except ValueError:
+            # Broken local committee mount → empty (fail-closed), not forged arm.
+            return svc
+        svc.set_anchor(latest.anchor)
         return svc
     if persist is not None and persist.is_file():
         return svc
@@ -112,6 +128,16 @@ def bind_persisted_ws(
     cert = CheckpointCertificate.issue(
         height=int(h_raw), block_hash=hash_raw, issuer="env"
     )
+    # Env seed without committee is allowed only when committee is not required.
+    try:
+        from consensus.long_range.committee import CommitteeConfig, committee_required
+
+        committee = CommitteeConfig.from_env()
+        if committee is not None or committee_required():
+            if not cert.verify_committee(committee):
+                return svc
+    except ValueError:
+        return svc
     store.push(cert)
     svc.set_anchor(cert.anchor)
     if persist is not None:

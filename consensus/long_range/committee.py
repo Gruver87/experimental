@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Iterable, List, Mapping, Optional, Sequence
 
 from cryptography.exceptions import InvalidSignature
@@ -108,7 +109,12 @@ class CommitteeConfig:
         pubs = tuple(_norm_hex(str(p)) for p in (data.get("pubkeys") or []))
         if not pubs:
             raise ValueError("committee pubkeys empty")
+        for p in pubs:
+            if len(p) != 64:
+                raise ValueError(f"invalid committee pubkey length: {p[:16]}...")
         thr = int(data.get("threshold") or threshold_for(len(pubs)))
+        if thr < 1 or thr > len(pubs):
+            raise ValueError("committee threshold out of range")
         return CommitteeConfig(pubkeys=pubs, threshold=thr)
 
     def to_dict(self) -> dict[str, Any]:
@@ -195,5 +201,13 @@ def committee_required() -> bool:
 
 
 def load_committee_manifest(path: str) -> CommitteeConfig:
-    data = json.loads(open(path, encoding="utf-8").read())
+    """Load committee pubkeys JSON. OS/IO errors become ValueError (fail-closed)."""
+    try:
+        raw = Path(path).read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ValueError(f"committee pubkeys unreadable: {path}: {exc}") from exc
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"committee pubkeys JSON invalid: {path}: {exc}") from exc
     return CommitteeConfig.from_mapping(data)

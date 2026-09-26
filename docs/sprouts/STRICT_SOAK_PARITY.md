@@ -60,6 +60,35 @@ Cascade observed at ~24h (`fail_lines=2`, tip plateaus h17150/h17253/h18549 ×30
 
 Fixes (2026-09-26): under-mesh reconnect in mining loop; `wire_soft_fail` STATUS-unanimous forge (lab only); no sticky `force_inconsistent` on probe exception outside prod; wire sticky empty max 5; health_watch sibling re-probe + longer live recovery.
 
+## LR protocol self-heal (2026-09-26 deep scan + hard re-audit)
+
+ADR 0017 lab tasks that must stay green mid-soak without operator seed:
+
+| Task | Autonomous path |
+|------|-----------------|
+| WS floor within ancestry reach | Miner `maybe_roll_ws_checkpoint` (confirmed tip−16) when tip−anchor ≥ `ABS_WS_ROLL_GAP` (512) |
+| TipSafety reload after roll | `tip_safety_shadow.sync_from_chain` after issue |
+| Contiguous import cost | light `_advance_after_import` (no O(gap) Rocks walk per block) |
+| Peer lost persist (`ws_no_anchor`) | Periodic WS republish + push on connect **only if peer tip ≥ anchor** |
+| Adopt future floor | Deferred (`ahead_of_tip`) — never persist above local tip |
+| Same-height conflict | `equivocation` refuse (not last-write-wins) |
+| Under-mesh on lab (dev mode) | catch-up `need` includes `mesh_min` when Long-Range armed; mining reconnect ≥8s |
+
+## Residual risk hardening (2026-09-26 re-audit)
+
+| Residual | Fix |
+|----------|-----|
+| staging could arm LR via env | `long_range_feature_armed` + Config hard-off staging |
+| WS gossip unmetered | class rate `p2p_ws_checkpoint_messages_per_sec=8` |
+| 1 Hz wire solicit HOL | 3s wire-roots cache at same height |
+| unsigned disk floor under committee_required | `bind_persisted_ws` refuses invalid committee |
+| committee manifest weak validation | pubkey length + threshold range |
+| maintenance loop latch-off | re-check armed each tick |
+
+Left intentional (lab): committee `secrets.json` RO on all lab nodes — issuance still miner-only via `mining_enabled`.
+
+Not soak evidence. Re-soak on command only.
+
 ## Honesty
 
 - Default 48h [`ind48pass1`](../evidence/runs/ind48pass1/) ≠ STRICT libp2p [`lp2pstrict1`](../evidence/runs/lp2pstrict1/).

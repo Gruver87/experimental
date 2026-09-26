@@ -180,6 +180,19 @@ class TipSafetyService:
         )
         return decision
 
+    def bind_imported_tip(self, head: BlockRef) -> None:
+        """Advance tip+ancestry after a successful legacy import (no re-eval).
+
+        Used by the shadow observer to avoid O(tip−anchor) ancestry rebuilds on
+        every contiguous block under FEATURE_LONG_RANGE.
+        """
+        if not isinstance(head, BlockRef):
+            raise TipValidationError(
+                f"head must be BlockRef, got {type(head).__name__}"
+            )
+        self._state = self._state.with_head(head)
+        self._ancestry.record(head)
+
     def choose_and_apply(self, candidates: Sequence[BlockRef]) -> ApplyDecision:
         """Pick the best candidate via fork-choice, then apply it.
 

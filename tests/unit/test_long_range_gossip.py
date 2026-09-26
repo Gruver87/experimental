@@ -14,7 +14,9 @@ from consensus.long_range.checkpoint import CheckpointCertificate
 from consensus.long_range.checkpoint_store import CheckpointStore
 from consensus.long_range.gossip import (
     OUTCOME_ADOPTED,
+    OUTCOME_AHEAD_OF_TIP,
     OUTCOME_DUPLICATE,
+    OUTCOME_EQUIVOCATION,
     OUTCOME_PARSE_ERROR,
     OUTCOME_STALE_HEIGHT,
     adopt_peer_certificate,
@@ -25,8 +27,10 @@ from network import p2p_node as pn
 from network.p2p_dispatch.constants import DISPATCHABLE_TYPES, MSG_WS_CHECKPOINT
 
 
-def _cert(h: int) -> CheckpointCertificate:
-    return CheckpointCertificate.issue(height=h, block_hash=f"{h:064x}")
+def _cert(h: int, *, issuer: str = "lab") -> CheckpointCertificate:
+    return CheckpointCertificate.issue(
+        height=h, block_hash=f"{h:064x}", issuer=issuer
+    )
 
 
 def test_validate_ws_checkpoint_payload_ok() -> None:
@@ -51,6 +55,24 @@ def test_adopt_peer_certificate_stale_and_duplicate() -> None:
     assert adopt_peer_certificate(store, c20) == OUTCOME_ADOPTED
     assert adopt_peer_certificate(store, _cert(5)) == OUTCOME_STALE_HEIGHT
     assert adopt_peer_certificate(store, c20) == OUTCOME_DUPLICATE
+
+
+def test_adopt_refuses_ahead_of_local_tip() -> None:
+    store = CheckpointStore()
+    assert (
+        adopt_peer_certificate(store, _cert(100), local_tip_height=50)
+        == OUTCOME_AHEAD_OF_TIP
+    )
+    assert adopt_peer_certificate(store, _cert(40), local_tip_height=50) == OUTCOME_ADOPTED
+
+
+def test_adopt_refuses_same_height_equivocation() -> None:
+    store = CheckpointStore()
+    a = _cert(10, issuer="seed_a")
+    b = _cert(10, issuer="seed_b")
+    assert a.digest != b.digest
+    assert adopt_peer_certificate(store, a) == OUTCOME_ADOPTED
+    assert adopt_peer_certificate(store, b) == OUTCOME_EQUIVOCATION
 
 
 def test_merge_peer_certificate_dict_parse_error() -> None:

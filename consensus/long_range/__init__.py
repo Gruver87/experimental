@@ -18,6 +18,10 @@ from consensus.long_range.committee import (
     verify_committee_quorum,
 )
 from consensus.long_range.ports import WeakSubjectivityPort, StaleForkDecision
+from consensus.long_range.roll_forward import (
+    maybe_roll_ws_checkpoint,
+    roll_forward_gap_threshold,
+)
 from consensus.long_range.runtime import (
     build_ws_service,
     long_range_feature_armed,
@@ -43,6 +47,8 @@ __all__ = [
     "merge_peer_certificate_dict",
     "ingest_peer_ws_checkpoint",
     "latest_ws_checkpoint_payload",
+    "maybe_roll_ws_checkpoint",
+    "roll_forward_gap_threshold",
     "CommitteeConfig",
     "CommitteeSignature",
     "generate_keypair",

@@ -4858,6 +4858,18 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("ADR 0017 long_range_p2p_lab.py missing (wave-13 P2P import)")
         if not (ROOT / "consensus" / "long_range" / "gossip.py").is_file():
             errors.append("ADR 0017 long_range gossip.py missing (wave-14 checkpoint gossip)")
+        if not (ROOT / "consensus" / "long_range" / "roll_forward.py").is_file():
+            errors.append(
+                "ADR 0017 roll_forward.py missing (lab WS autonomous roll-forward)"
+            )
+        elif "maybe_roll_ws_checkpoint" not in (
+            ROOT / "consensus" / "long_range" / "roll_forward.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("roll_forward.py must expose maybe_roll_ws_checkpoint")
+        if "_ws_lab_maintenance_loop" not in p2p_py:
+            errors.append(
+                "P2P must run _ws_lab_maintenance_loop for LR WS roll/republish"
+            )
         if not (ROOT / "scripts" / "long_range_gossip_lab.py").is_file():
             errors.append("ADR 0017 long_range_gossip_lab.py missing (wave-14 gossip lab)")
         if "MSG_WS_CHECKPOINT" not in p2p_py or '"ws_checkpoint"' not in p2p_py:

@@ -105,6 +105,7 @@ class Config:
     p2p_attest_messages_per_sec: int = 80         # class cap: attestation flood (0=off)
     p2p_tx_messages_per_sec: int = 120            # class cap: new_tx gossip flood (0=off)
     p2p_block_announce_messages_per_sec: int = 40 # class cap: new_block announce flood (0=off)
+    p2p_ws_checkpoint_messages_per_sec: int = 8   # class cap: ws_checkpoint gossip (0=off)
     p2p_max_sync_inflight: int = 2                # global concurrent peer sync tasks
     p2p_send_queue_max: int = 256                 # per-peer outbound message queue
     p2p_drain_timeout_sec: float = 5.0            # writer.drain timeout per send
@@ -432,6 +433,10 @@ class Config:
         self.p2p_block_announce_messages_per_sec = env_int(
             "P2P_BLOCK_ANNOUNCE_MESSAGES_PER_SEC",
             self.p2p_block_announce_messages_per_sec,
+        )
+        self.p2p_ws_checkpoint_messages_per_sec = env_int(
+            "P2P_WS_CHECKPOINT_MESSAGES_PER_SEC",
+            self.p2p_ws_checkpoint_messages_per_sec,
         )
         self.p2p_max_sync_inflight = env_int(
             "P2P_MAX_SYNC_INFLIGHT", self.p2p_max_sync_inflight
@@ -934,7 +939,7 @@ class Config:
             self.feature_validator_selection = env_bool(
                 "FEATURE_VALIDATOR_SELECTION", False
             )
-            # Profile F: Long-Range stays hard-off in prod (env cannot enable).
+            # Profile F: Long-Range stays hard-off in prod/staging (env cannot enable).
             # ADR 0020: feature_libp2p may be enabled on Experimental mesh JSON/env.
             self.feature_long_range = False
             # Fail-closed: env cannot weaken these for prod (break-glass forbidden).
@@ -954,6 +959,10 @@ class Config:
                 self.rate_limit_rpm = 120
             if self.cors_origins == ["*"]:
                 self.cors_origins = env_list("CORS_ORIGINS", [])
+
+        # Staging: same Long-Range hard-off as prod (ADR 0017 lab/dev only).
+        if self.deployment_mode == "staging":
+            self.feature_long_range = False
 
         return self
 

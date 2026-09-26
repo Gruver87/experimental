@@ -52,3 +52,7 @@ def test_lr_compose_bind_and_tip_safety():
     assert '"18180:' not in text
     assert "lr1:" in text
     assert "ABS_WS_COMMITTEE" in text
+    assert "ABS_WS_COMMITTEE_SECRETS_FILE" in text
+    assert "ABS_WS_ROLL_GAP" in text
+    assert "TIP_ANCESTRY_WINDOW_MAX" in text
+    assert (ROOT / "consensus" / "long_range" / "roll_forward.py").is_file()

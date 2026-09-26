@@ -15,9 +15,17 @@ def shares_ancestor_with_anchor(
     *,
     candidate_hash: str,
     anchor_hash: str,
-    max_walk: int = 4096,
+    max_walk: int | None = None,
 ) -> bool:
     """Walk candidate parents inside ``window`` looking for ``anchor_hash``."""
+    if max_walk is None:
+        try:
+            import os
+
+            max_walk = int(os.environ.get("TIP_ANCESTRY_WINDOW_MAX", "4096") or 4096)
+        except (TypeError, ValueError):
+            max_walk = 4096
+        max_walk = max(int(window.max_blocks), int(max_walk))
     try:
         target = normalize_block_hash(anchor_hash)
         cur = normalize_block_hash(candidate_hash)

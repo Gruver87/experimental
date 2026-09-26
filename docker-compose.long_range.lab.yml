@@ -17,6 +17,12 @@ x-lr-env: &lr-env
   TIP_SAFETY_ENFORCE: "true"
   TIP_SAFETY_SHADOW: "true"
   ABS_WS_COMMITTEE_REQUIRED: "true"
+  # Sibling of pubkeys on the RO committee mount (miner roll-forward signs here).
+  ABS_WS_COMMITTEE_SECRETS_FILE: /app/data/long_range_lab_committee/secrets.json
+  # Keep tip−anchor small so ancestry backfill / walks stay cheap mid-soak.
+  ABS_WS_ROLL_GAP: "512"
+  ABS_WS_ROLL_CONFIRM: "16"
+  ABS_WS_ROLL_INTERVAL_SEC: "120"
   # 48h tip growth (~15s/block) exceeds default AncestryWindow=256 (~1h).
   # Keep tip→WS walks possible; contiguous tip+1 also inherits past-anchor.
   TIP_ANCESTRY_WINDOW_MAX: "16384"

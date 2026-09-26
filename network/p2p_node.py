@@ -15,6 +15,7 @@ P2P Network — TCP-сеть для синхронизации блоков и �
 import asyncio
 import json
 import math
+import os
 import time
 import threading
 import logging
@@ -176,6 +177,7 @@ RATE_LIMIT_EXEMPT_TYPES = frozenset({
 RATE_LIMIT_CLASS_ATTEST = "attest"
 RATE_LIMIT_CLASS_TX = "tx"
 RATE_LIMIT_CLASS_BLOCK = "block_announce"
+RATE_LIMIT_CLASS_WS = "ws_checkpoint"
 
 
 def _housekeeping_payload_ok(msg_type: str, data: Any) -> bool:
@@ -2469,6 +2471,7 @@ class P2PNode:
         asyncio.create_task(self._maintenance_loop())
         asyncio.create_task(self._solo_node_hint())
         asyncio.create_task(self._catch_up_loop())
+        asyncio.create_task(self._ws_lab_maintenance_loop())
 
         if self._use_libp2p_transport:
             await self._libp2p_inbox_loop()
@@ -2895,6 +2898,7 @@ class P2PNode:
         print(f"[P2P] Connected: {peer}")
         self._bind_bootstraps_for_peer(peer)
         self._schedule_sync(peer)
+        await self._push_ws_checkpoint_to_peer(peer)
         await self._message_loop(peer)
 
     # ── Исходящие соединения ─────────────────────────────────────────────────
@@ -3071,6 +3075,7 @@ class P2PNode:
 
             # Синхронизация если отстаём
             self._schedule_sync(peer)
+            await self._push_ws_checkpoint_to_peer(peer)
             if self._use_libp2p_transport:
                 peer._libp2p_message_loop = True
             asyncio.create_task(self._message_loop(peer))
@@ -3653,6 +3658,12 @@ class P2PNode:
                     or 0
                 ),
             )
+        if kind == MSG_WS_CHECKPOINT:
+            # Soft cap: unmetered WS gossip amplifies disk+ancestry work.
+            return (
+                RATE_LIMIT_CLASS_WS,
+                int(getattr(self.config, "p2p_ws_checkpoint_messages_per_sec", 8) or 8),
+            )
         return ("", 0)
 
     def _class_rate_ok(self, peer_id: str, msg_type: Optional[str] = None) -> bool:
@@ -3823,9 +3834,22 @@ class P2PNode:
                     self._strike_peer_sync(peer, "bad_shard_migration")
                     return
             elif msg_type == MSG_WS_CHECKPOINT:
-                from consensus.long_range.gossip import validate_ws_checkpoint_payload
+                from consensus.long_range.gossip import (
+                    OUTCOME_LOCAL_CONFIG,
+                    validate_ws_checkpoint_payload,
+                )
 
-                if validate_ws_checkpoint_payload(data) is None:
+                try:
+                    if validate_ws_checkpoint_payload(data) is None:
+                        self._strike_peer_sync(peer, "bad_ws_checkpoint")
+                        return
+                except RuntimeError as exc:
+                    if str(exc) == OUTCOME_LOCAL_CONFIG:
+                        self.bump_counter("ws_checkpoint_local_config_total")
+                        logger.warning(
+                            "[P2P] ws_checkpoint precheck: local committee config error"
+                        )
+                        return
                     self._strike_peer_sync(peer, "bad_ws_checkpoint")
                     return
             elif msg_type in (MSG_GET_MEMPOOL, MSG_GET_PEERS, MSG_PING, MSG_PONG):
@@ -6697,6 +6721,39 @@ class P2PNode:
                 if not ok_send:
                     self._peer_status_send_fail = int(self._peer_status_send_fail or 0) + 1
                     logger.warning("[P2P] status refresh to %s failed", addr)
+                else:
+                    # Heal LR peers that lost WS persist (no_anchor refuse).
+                    # Skip peers still below our anchor (would brick catch-up).
+                    try:
+                        from consensus.long_range.runtime import long_range_feature_armed
+
+                        if long_range_feature_armed(self.config):
+                            from consensus.long_range.gossip import (
+                                latest_ws_checkpoint_payload,
+                                validate_ws_checkpoint_payload,
+                            )
+
+                            ws_payload = latest_ws_checkpoint_payload(self.config)
+                            if isinstance(ws_payload, dict):
+                                try:
+                                    valid = validate_ws_checkpoint_payload(ws_payload)
+                                except RuntimeError:
+                                    valid = None
+                                if valid is not None:
+                                    peer_h = int(
+                                        getattr(already_peer, "height", -1) or -1
+                                    )
+                                    anchor_h = int(ws_payload.get("height", -1))
+                                    if peer_h < 0 or anchor_h < 0 or peer_h >= anchor_h:
+                                        await already_peer.send(
+                                            MSG_WS_CHECKPOINT, ws_payload, wait=False
+                                        )
+                    except Exception as ws_exc:
+                        logger.debug(
+                            "[P2P] ws checkpoint refresh to %s failed: %s",
+                            addr,
+                            ws_exc,
+                        )
                 attempts.append({
                     "address": addr,
                     "ok": bool(ok_send),
@@ -7274,16 +7331,60 @@ class P2PNode:
     async def _handle_ws_checkpoint(self, peer: PeerConnection, data: Dict):
         """Merge peer WS checkpoint when Long-Range lab flag is armed (ADR 0017)."""
         from consensus.long_range.gossip import (
+            OUTCOME_AHEAD_OF_TIP,
             OUTCOME_DIGEST_INVALID,
+            OUTCOME_EQUIVOCATION,
+            OUTCOME_LOCAL_CONFIG,
             OUTCOME_PARSE_ERROR,
             OUTCOME_UNARMED,
             ingest_peer_ws_checkpoint,
         )
 
-        result = ingest_peer_ws_checkpoint(config=self.config, data=data)
+        local_tip_h = -1
+        local_hash_at_anchor = None
+        try:
+            local_tip_h = int(self.blockchain.get_height() or 0)
+        except Exception:
+            local_tip_h = -1
+        if isinstance(data, dict) and local_tip_h >= 0 and hasattr(
+            self.blockchain, "get_block"
+        ):
+            try:
+                ah = int(data.get("height", -1))
+            except (TypeError, ValueError):
+                ah = -1
+            if 0 <= ah <= local_tip_h:
+                try:
+                    blk = self.blockchain.get_block(ah)
+                    if isinstance(blk, dict):
+                        local_hash_at_anchor = str(
+                            blk.get("hash") or blk.get("block_hash") or ""
+                        )
+                except Exception:
+                    local_hash_at_anchor = None
+
+        result = ingest_peer_ws_checkpoint(
+            config=self.config,
+            data=data,
+            local_tip_height=local_tip_h if local_tip_h >= 0 else None,
+            local_block_hash_at_anchor=local_hash_at_anchor,
+        )
         outcome = str(result.get("outcome") or "")
         if outcome == OUTCOME_UNARMED:
             self._strike_peer_sync(peer, "ws_checkpoint_unarmed")
+            return
+        # Local mount/config failure — do not strike the peer.
+        if outcome == OUTCOME_LOCAL_CONFIG:
+            self.bump_counter("ws_checkpoint_local_config_total")
+            logger.warning("[P2P] ws_checkpoint ignored: local committee config error")
+            return
+        # Deferred adopt (peer ahead of our tip) — soft ignore, retry later.
+        if outcome == OUTCOME_AHEAD_OF_TIP:
+            self.bump_counter("ws_checkpoint_ahead_defer_total")
+            return
+        if outcome == OUTCOME_EQUIVOCATION:
+            self.bump_counter("ws_checkpoint_equivocation_total")
+            self._strike_peer_sync(peer, "ws_checkpoint_equivocation")
             return
         if outcome in (OUTCOME_PARSE_ERROR, OUTCOME_DIGEST_INVALID, "committee_invalid"):
             self._strike_peer_sync(peer, "bad_ws_checkpoint")
@@ -7321,7 +7422,11 @@ class P2PNode:
         )
         if not isinstance(data, dict):
             return
-        if validate_ws_checkpoint_payload(data) is None:
+        try:
+            if validate_ws_checkpoint_payload(data) is None:
+                self.bump_counter("ws_checkpoint_outbound_refuse_total")
+                return
+        except RuntimeError:
             self.bump_counter("ws_checkpoint_outbound_refuse_total")
             return
         tasks = [peer.send(MSG_WS_CHECKPOINT, data) for peer in self.peers.values()]
@@ -7329,6 +7434,46 @@ class P2PNode:
             results = await asyncio.gather(*tasks, return_exceptions=True)
             self._record_broadcast_results(results, kind="ws_checkpoint")
             self.bump_counter("ws_checkpoint_outbound_total")
+
+    async def _push_ws_checkpoint_to_peer(self, peer: PeerConnection) -> None:
+        """Best-effort WS floor share after a peer joins (heal no_anchor).
+
+        Skips when the peer tip is below our anchor — adopting a future floor
+        would brick catch-up under tip-safety enforce (ws_below_ws_anchor).
+        """
+        from consensus.long_range.gossip import (
+            latest_ws_checkpoint_payload,
+            validate_ws_checkpoint_payload,
+        )
+        from consensus.long_range.runtime import long_range_feature_armed
+
+        if not long_range_feature_armed(self.config):
+            return
+        try:
+            data = latest_ws_checkpoint_payload(self.config)
+        except Exception as exc:
+            logger.debug("[P2P] ws checkpoint payload load failed: %s", exc)
+            return
+        if not isinstance(data, dict):
+            return
+        try:
+            if validate_ws_checkpoint_payload(data) is None:
+                return
+        except RuntimeError:
+            return
+        try:
+            peer_h = int(getattr(peer, "height", -1) or -1)
+            anchor_h = int(data.get("height", -1))
+            if peer_h >= 0 and anchor_h >= 0 and peer_h < anchor_h:
+                self.bump_counter("ws_checkpoint_push_skip_behind_total")
+                return
+        except (TypeError, ValueError):
+            pass
+        try:
+            await peer.send(MSG_WS_CHECKPOINT, data, wait=False)
+            self.bump_counter("ws_checkpoint_peer_push_total")
+        except Exception as exc:
+            logger.debug("[P2P] ws checkpoint peer push failed: %s", exc)
 
     async def broadcast_shard_migration(self, payload: Dict):
         if not isinstance(payload, dict):
@@ -7747,7 +7892,17 @@ class P2PNode:
                 target_peers = max(1, int(getattr(self.config, "testnet_expected_peers", 1) or 1))
                 mesh_min = int(getattr(self.config, "mesh_min_peers_before_mine", 0) or 0)
                 mode = str(getattr(self.config, "deployment_mode", "dev") or "dev").lower()
-                need = max(target_peers, mesh_min if mode in ("prod", "production", "staging") else 0)
+                # LR lab is deployment_mode=dev but still needs mesh_min heal
+                # (tip plateaus when peers=1 under mesh_min=2).
+                lr_armed = False
+                try:
+                    from consensus.long_range.runtime import long_range_feature_armed
+
+                    lr_armed = bool(long_range_feature_armed(self.config))
+                except Exception:
+                    lr_armed = False
+                use_mesh_min = mode in ("prod", "production", "staging") or lr_armed
+                need = max(target_peers, mesh_min if use_mesh_min else 0)
                 if len(self.peers) < need:
                     # under_mesh soak WARN (evm48pass1 peers=1): re-dial bootstrap
                     # aggressively, not only known_addrs drip.
@@ -7771,6 +7926,113 @@ class P2PNode:
             except Exception as exc:
                 self._catch_up_loop_fail = int(self._catch_up_loop_fail or 0) + 1
                 logger.warning("[P2P] catch_up_loop: %s", exc)
+
+    async def _ws_lab_maintenance_loop(self):
+        """ADR 0017 lab: roll WS floor + periodic checkpoint republish.
+
+        Keeps tip−anchor inside ancestry reach and heals peers that lost persist
+        (no_anchor refuse). Idle when Long-Range is not armed (re-checks each tick).
+        """
+        from consensus.long_range.runtime import long_range_feature_armed
+
+        try:
+            interval = float(os.environ.get("ABS_WS_ROLL_INTERVAL_SEC", "120") or 120)
+        except (TypeError, ValueError):
+            interval = 120.0
+        interval = max(30.0, interval)
+        republish_every = 3
+        tick = 0
+        while self._running:
+            await asyncio.sleep(interval)
+            if not self._running:
+                continue
+            if not long_range_feature_armed(self.config):
+                continue
+            tick += 1
+            try:
+                await self._ws_lab_tick(republish=(tick % republish_every == 0))
+            except Exception as exc:
+                self.bump_counter("ws_lab_maintenance_fail_total")
+                logger.warning("[P2P] ws_lab_maintenance: %s", exc)
+
+    async def _ws_lab_tick(self, *, republish: bool = False) -> None:
+        """One maintenance tick: optional roll-forward, then optional gossip."""
+        from consensus.long_range.roll_forward import maybe_roll_ws_checkpoint
+        from consensus.long_range.runtime import long_range_feature_armed
+
+        if not long_range_feature_armed(self.config):
+            return
+        tip_h = -1
+        confirm_h = -1
+        confirm_hash = ""
+        try:
+            tip_h = int(self.blockchain.get_height() or 0)
+            try:
+                conf = int(os.environ.get("ABS_WS_ROLL_CONFIRM", "16") or 16)
+            except (TypeError, ValueError):
+                conf = 16
+            conf = max(0, conf)
+            confirm_h = tip_h - conf
+            if confirm_h < 0:
+                confirm_h = tip_h
+                conf = 0
+            # Atomic height↔hash: always read the block at the pin height.
+            if hasattr(self.blockchain, "get_block"):
+                blk = self.blockchain.get_block(confirm_h)
+                if isinstance(blk, dict):
+                    confirm_hash = str(
+                        blk.get("hash") or blk.get("block_hash") or ""
+                    ).strip()
+            if not confirm_hash:
+                confirm_hash = str(self.head() or "").strip()
+                confirm_h = tip_h
+                conf = 0
+        except Exception as exc:
+            logger.debug("[P2P] ws_lab tip read failed: %s", exc)
+            tip_h, confirm_h, confirm_hash = -1, -1, ""
+            conf = 0
+
+        if tip_h >= 0 and confirm_hash:
+            result = maybe_roll_ws_checkpoint(
+                config=self.config,
+                tip_height=tip_h,
+                tip_hash=confirm_hash,
+                mining_enabled=bool(getattr(self.config, "mining_enabled", False)),
+                confirm_depth=conf if tip_h >= 0 else 0,
+            )
+            outcome = str(result.get("outcome") or "")
+            if result.get("issued"):
+                self.bump_counter("ws_roll_forward_total")
+                issued_payload = result.get("payload")
+                shadow = getattr(self, "tip_safety_shadow", None)
+                if shadow is not None and hasattr(shadow, "sync_from_chain"):
+                    try:
+                        shadow.sync_from_chain(self.blockchain)
+                    except Exception as exc:
+                        logger.warning(
+                            "[P2P] ws roll-forward shadow resync failed: %s", exc
+                        )
+                try:
+                    await self.broadcast_ws_checkpoint(
+                        issued_payload if isinstance(issued_payload, dict) else None
+                    )
+                except Exception as exc:
+                    logger.debug("[P2P] ws roll-forward gossip: %s", exc)
+                return
+            if outcome not in ("not_due", "not_miner", "unarmed", ""):
+                self.bump_counter("ws_roll_forward_skip_total")
+                if outcome in ("committee_unsigned", "bad_tip", "persist_error", "no_seed"):
+                    logger.warning(
+                        "[P2P] ws roll-forward skipped outcome=%s detail=%s",
+                        outcome,
+                        {k: result.get(k) for k in ("error", "anchor_height", "tip_height", "gap")},
+                    )
+
+        if republish:
+            try:
+                await self.broadcast_ws_checkpoint()
+            except Exception as exc:
+                logger.debug("[P2P] ws checkpoint republish: %s", exc)
 
     async def _solo_node_hint(self):
         """One-time hint when running without peers (normal for solo dev)."""

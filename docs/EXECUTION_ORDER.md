@@ -80,6 +80,30 @@ Phase 6   External audit / mainnet gap (out of repo scope until scheduled)
 
 **Solo 2h evidence (2026-09-03):** [`docs/evidence/runs/lr2h9f3a/`](evidence/runs/lr2h9f3a/). **Intensify 2h:** [`lr2hintensify`](evidence/runs/lr2hintensify/).
 
+### Phase 2b — LR STRICT re-soak prep (2026-09-26, code landed / soak pending)
+
+**Why:** mid-STRICT run stopped ~24h (`fail_lines=2`, tip plateaus). Root cascade + protocol gaps fixed on `main` (see CHANGELOG / [`STRICT_SOAK_PARITY.md`](sprouts/STRICT_SOAK_PARITY.md)).
+
+**What landed (not yet soak-proven):**
+
+| Area | Change |
+|------|--------|
+| Tip plateau | under-mesh reconnect, `wire_soft_fail`, sticky empty max 5, HeavyProbe sibling |
+| WS autonomy | miner `roll_forward` (gap 512, confirm 16), gossip republish, tip-safe adopt |
+| Catch-up brick | refuse `ahead_of_tip` adopt; no WS push to behind peers |
+| HOL cost | light ancestry advance; wire-roots 3s cache; WS class rate-limit |
+| Profile fence | staging+prod hard-off `feature_long_range` |
+
+**Operator next (on command only):**
+
+```powershell
+.\scripts\start_soak_long_range_lab.ps1 -Hours 48 -Strict
+```
+
+Pass bar: same STRICT as [`lp2pstrict1`](evidence/runs/lp2pstrict1/) / mempool48 — `fail=0`, `mesh_warn=0`, IntervalSec=60, FullHarnessEvery=6. Prior `lr48pass1` is **default** lab 48h, not this STRICT pack.
+
+**Honesty:** code+unit+gate only until STRICT pack is on disk. Not prod `778888`. Not BLS. Not Hybrid pin.
+
 ---
 
 ## Phase 3 — EVM mesh regression (**DONE**)

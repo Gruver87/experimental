@@ -30,8 +30,23 @@ def test_prod_never_arms(monkeypatch) -> None:
     assert _optional_ws_service(cfg) is None
 
 
+def test_staging_never_arms(monkeypatch) -> None:
+    monkeypatch.setenv("FEATURE_LONG_RANGE", "true")
+    cfg = Config()
+    cfg.deployment_mode = "staging"
+    cfg.feature_long_range = True
+    assert long_range_feature_armed(cfg) is False
+    assert build_ws_service(cfg) is None
+    snap = weak_subjectivity_honesty_snapshot(cfg)
+    assert snap["long_range_defense"] is False
+    assert "staging_profile" in str(snap.get("detail") or "")
+
+
 def test_dev_config_flag_arms_without_env(monkeypatch, tmp_path) -> None:
     monkeypatch.delenv("FEATURE_LONG_RANGE", raising=False)
+    monkeypatch.delenv("ABS_WS_COMMITTEE_REQUIRED", raising=False)
+    monkeypatch.delenv("ABS_WS_COMMITTEE_PUBKEYS", raising=False)
+    monkeypatch.delenv("ABS_WS_COMMITTEE_PUBKEYS_FILE", raising=False)
     path = tmp_path / "ws.json"
     monkeypatch.setenv("ABS_WS_CHECKPOINT_PATH", str(path))
     monkeypatch.setenv("ABS_WS_ANCHOR_HEIGHT", "7")
@@ -68,6 +83,9 @@ def test_honesty_prod_always_off() -> None:
 
 def test_honesty_dev_armed_with_anchor(monkeypatch, tmp_path) -> None:
     monkeypatch.delenv("FEATURE_LONG_RANGE", raising=False)
+    monkeypatch.delenv("ABS_WS_COMMITTEE_REQUIRED", raising=False)
+    monkeypatch.delenv("ABS_WS_COMMITTEE_PUBKEYS", raising=False)
+    monkeypatch.delenv("ABS_WS_COMMITTEE_PUBKEYS_FILE", raising=False)
     path = tmp_path / "ws.json"
     monkeypatch.setenv("ABS_WS_CHECKPOINT_PATH", str(path))
     monkeypatch.setenv("ABS_WS_ANCHOR_HEIGHT", "12")

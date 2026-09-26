@@ -450,7 +450,9 @@ class TipSafetyShadowObserver:
                         bool(chain_hash) and chain_hash != tip_hash
                     )
                 if need_sync:
-                    self.sync_from_chain(blockchain)
+                    # Prefer light contiguous advance over full O(gap) rebuild.
+                    if not self._advance_after_import(blockchain):
+                        self.sync_from_chain(blockchain)
             if self._service is None:
                 with self._lock:
                     self.observe_errors += 1
@@ -544,11 +546,51 @@ class TipSafetyShadowObserver:
                             "shadow diverge: policy accept but import failed"
                         )
             if imported_ok:
-                self.sync_from_chain(blockchain)
+                # Contiguous tip+1: light advance (no O(gap) RocksDB walk).
+                # Full rebuild only on jumps / first bind / WS floor change.
+                if not self._advance_after_import(blockchain):
+                    self.sync_from_chain(blockchain)
         except Exception as exc:
             with self._lock:
                 self.observe_errors += 1
             _LOG.warning("tip_safety note_import_result failed: %s", exc)
+
+    def _advance_after_import(self, blockchain: Any) -> bool:
+        """Try contiguous tip advance without full ancestry backfill.
+
+        Returns:
+            True when light advance applied; False when caller must full-sync.
+        """
+        if self._service is None:
+            return False
+        try:
+            new_state = tip_state_from_chain(blockchain)
+        except Exception:
+            return False
+        with self._lock:
+            if self._service is None:
+                return False
+            try:
+                old = self._service.state.snapshot().head
+            except Exception:
+                return False
+            new = new_state.head
+            if int(new.height) == int(old.height) and str(new.block_hash) == str(
+                old.block_hash
+            ):
+                return True
+            parent_ok = (
+                int(new.height) == int(old.height) + 1
+                and str(new.parent_hash or "") == str(old.block_hash or "")
+            )
+            if not parent_ok:
+                return False
+            try:
+                self._service.bind_imported_tip(new)
+            except Exception as exc:
+                _LOG.debug("tip_safety light advance failed: %s", exc)
+                return False
+            return True
 
     def merge_into_status(self, target: MutableMapping[str, Any]) -> None:
         """Merge counters into a security-status mapping."""

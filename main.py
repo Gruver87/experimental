@@ -1915,14 +1915,19 @@ class NodeOrchestrator:
                 if _min_mesh_peers > 0 and connected < _min_mesh_peers:
                     # Under-mesh: heal before skip (LR STRICT tip plateaus when
                     # peers=1 for tens of minutes under mesh_min=2).
-                    try:
-                        recon = getattr(self.p2p, "reconnect_known_peers", None)
-                        if recon is not None:
-                            await recon()
-                    except Exception as _recon_err:
-                        _node_log.warning(
-                            "[Mining] under-mesh reconnect_known_peers: %s", _recon_err
-                        )
+                    # Rate-limit dials — 1 Hz reconnect storm amplifies HOL.
+                    now_m = time.time()
+                    last_m = float(getattr(self, "_under_mesh_reconnect_ts", 0.0) or 0.0)
+                    if now_m - last_m >= 8.0:
+                        self._under_mesh_reconnect_ts = now_m
+                        try:
+                            recon = getattr(self.p2p, "reconnect_known_peers", None)
+                            if recon is not None:
+                                await recon()
+                        except Exception as _recon_err:
+                            _node_log.warning(
+                                "[Mining] under-mesh reconnect_known_peers: %s", _recon_err
+                            )
                     continue
                 if connected == 0:
                     continue
@@ -1971,12 +1976,33 @@ class NodeOrchestrator:
                     try:
                         # Skip fresh wire solicit while in soft-fail backoff — the
                         # prior sync_state already timed out; another 70s piles HOL.
+                        # When consistent, reuse a short cache so 1 Hz mine ticks
+                        # do not pile 60s solicits on the event loop.
                         if not wire_soft_fail:
-                            wire_roots = await self.p2p.request_peer_state_roots()
+                            now_w = time.time()
+                            cache = getattr(self, "_wire_roots_cache", None)
+                            cache_ts = float(
+                                getattr(self, "_wire_roots_cache_ts", 0.0) or 0.0
+                            )
+                            cache_h = int(
+                                getattr(self, "_wire_roots_cache_height", -1) or -1
+                            )
+                            if (
+                                isinstance(cache, list)
+                                and cache_h == int(local_h)
+                                and (now_w - cache_ts) < 3.0
+                            ):
+                                wire_roots = cache
+                            else:
+                                wire_roots = await self.p2p.request_peer_state_roots()
+                                self._wire_roots_cache = list(wire_roots)
+                                self._wire_roots_cache_ts = now_w
+                                self._wire_roots_cache_height = int(local_h)
                     except Exception as exc:
                         print(f"[Mining] request_peer_state_roots failed: {exc}")
                         wire_roots = []
                         wire_soft_fail = True
+                        self._wire_roots_cache = None
                         if bool(getattr(self.config, "is_production", False)):
                             if hasattr(self.p2p, "force_inconsistent"):
                                 self.p2p.force_inconsistent("mining_wire_roots_failed")

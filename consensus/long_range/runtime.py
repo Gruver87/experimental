@@ -15,10 +15,14 @@ def _env_flag_true(name: str) -> bool:
 
 
 def long_range_feature_armed(config: Any | None = None) -> bool:
-    """True when ADR 0017 WS gate may attach (never on prod deployment)."""
+    """True when ADR 0017 WS gate may attach (lab/dev only).
+
+    Hard-off for ``prod`` and ``staging`` — Long-Range is not an industrial
+    profile flag (ADR 0017). Env alone cannot arm those modes.
+    """
     if config is not None:
         mode = str(getattr(config, "deployment_mode", "") or "").strip().lower()
-        if mode == "prod":
+        if mode in ("prod", "staging"):
             return False
         if bool(getattr(config, "feature_long_range", False)):
             return True
@@ -61,14 +65,16 @@ def ws_anchor_snapshot(config: Any | None = None) -> Dict[str, Any]:
 
 
 def weak_subjectivity_honesty_snapshot(config: Any | None = None) -> Dict[str, Any]:
-    """Honesty surface for consensus status (prod always reports defense off)."""
+    """Honesty surface for consensus status (prod/staging always report defense off)."""
     mode = str(getattr(config, "deployment_mode", "") or "").strip().lower() if config else ""
     armed = long_range_feature_armed(config)
     snap = ws_anchor_snapshot(config) if armed else {}
     has_anchor = bool(snap.get("has_anchor"))
-    long_range_defense = armed and has_anchor and mode != "prod"
+    long_range_defense = armed and has_anchor and mode not in ("prod", "staging")
     if mode == "prod":
         detail = "prod_profile: feature_long_range hard-off (ADR 0017 lab-only)"
+    elif mode == "staging":
+        detail = "staging_profile: feature_long_range hard-off (ADR 0017 lab-only)"
     elif not armed:
         detail = "long_range_off: bounded AncestryWindow only (ADR 0001 stage-1.5)"
     elif not has_anchor:
@@ -81,7 +87,7 @@ def weak_subjectivity_honesty_snapshot(config: Any | None = None) -> Dict[str, A
     return {
         "long_range_defense": bool(long_range_defense),
         "weak_subjectivity_checkpoints": bool(long_range_defense),
-        "long_range_armed": bool(armed and mode != "prod"),
+        "long_range_armed": bool(armed and mode not in ("prod", "staging")),
         "ws_anchor_height": int(snap.get("height") or 0) if has_anchor else 0,
         "ws_anchor_hash": str(snap.get("block_hash") or "") if has_anchor else "",
         "tip_ancestry_window": True,
