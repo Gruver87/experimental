@@ -100,20 +100,38 @@ def main() -> int:
             print("FAIL: persisted store must show h=25")
             return 1
 
-        # P2P handler: armed node adopts peer cert.
+        # P2P handler: armed node adopts peer cert at/below local tip.
         chain = MagicMock()
-        chain.get_height = MagicMock(return_value=25)
+        # Tip must be >= cert height — adopt above tip is deferred (ahead_of_tip).
+        chain.get_height = MagicMock(return_value=30)
+        chain.get_block = MagicMock(
+            return_value={"hash": _hash(30), "height": 30, "parent_hash": _hash(29)}
+        )
         node = P2PNode(cfg, chain, MagicMock())
         node.tip_safety_shadow = MagicMock()
         node.tip_safety_shadow.sync_from_chain = MagicMock(return_value=True)
 
         peer_cert = _cert(30, issuer="peer-1")
         asyncio.run(node.handle_ws_checkpoint(_FakePeer(), dict(peer_cert.to_dict())))
-        if int(getattr(node, "_ws_checkpoint_adopt_total", 0)) < 1:
-            print("FAIL: P2P ws_checkpoint adopt counter")
+        adopt_n = int(getattr(node, "_ws_checkpoint_adopt_total", 0) or 0)
+        if adopt_n < 1:
+            print(f"FAIL: P2P ws_checkpoint adopt counter (adopt_total={adopt_n})")
             return 1
         if not node.tip_safety_shadow.sync_from_chain.called:
             print("FAIL: shadow must resync after adopt")
+            return 1
+
+        # Ahead-of-tip cert must defer (not brick catch-up).
+        ahead = _cert(40, issuer="peer-ahead")
+        before_defer = int(getattr(node, "_ws_checkpoint_ahead_defer_total", 0) or 0)
+        asyncio.run(node.handle_ws_checkpoint(_FakePeer(), dict(ahead.to_dict())))
+        after_defer = int(getattr(node, "_ws_checkpoint_ahead_defer_total", 0) or 0)
+        latest = CheckpointStore.load(path).latest()
+        if latest is None or int(latest.anchor.height) >= 40:
+            print("FAIL: ahead_of_tip must not persist future anchor")
+            return 1
+        if after_defer < before_defer + 1:
+            print("FAIL: ahead_of_tip counter not bumped")
             return 1
 
         # Unarmed prod refuses gossip at merge layer.
