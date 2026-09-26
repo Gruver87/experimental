@@ -83,6 +83,46 @@ def test_mesh_ready_peer_heights_require_state_consistent():
     )
 
 
+def test_mesh_ready_wire_soft_fail_allows_unanimous_status():
+    """Wire solicit timeout + unanimous STATUS tip may forge (LR tip plateau heal)."""
+    assert mesh_ready_for_mining(
+        min_mesh_peers=2,
+        connected_peers=2,
+        wire_roots=[],
+        local_height=2,
+        local_root="ab" * 32,
+        state_consistent=False,
+        peer_heights=[2, 2],
+        wire_soft_fail=True,
+    )
+
+
+def test_mesh_ready_wire_soft_fail_still_refuses_behind_peer():
+    assert not mesh_ready_for_mining(
+        min_mesh_peers=2,
+        connected_peers=2,
+        wire_roots=[],
+        local_height=10,
+        local_root="ab" * 32,
+        state_consistent=False,
+        peer_heights=[10, 8],
+        wire_soft_fail=True,
+    )
+
+
+def test_mesh_ready_wire_soft_fail_refuses_mismatch_wire():
+    assert not mesh_ready_for_mining(
+        min_mesh_peers=2,
+        connected_peers=2,
+        wire_roots=[{"height": 2, "state_root": "cc" * 32}],
+        local_height=2,
+        local_root="ab" * 32,
+        state_consistent=False,
+        peer_heights=[2, 2],
+        wire_soft_fail=True,
+    )
+
+
 def test_mesh_ready_peer_heights_when_consistent():
     """Hub may forge when STATUS heights align and sync consistency is already True."""
     assert mesh_ready_for_mining(

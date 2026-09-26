@@ -1,4 +1,4 @@
-﻿# sync/sync_engine.py
+# sync/sync_engine.py
 """
 Sync Engine — fast catch-up for late-joining nodes
 - Peer head resolution
@@ -35,8 +35,10 @@ class SyncEngine:
         self._solo_log_interval_sec = 300.0  # intentional solo: avoid per-block spam
         self._wire_probe_fail_ts = 0.0
         self._wire_probe_backoff_sec = 8.0
+        # Empty/timeout wire: keep sticky green this many times before lockdown.
+        # LR STRICT tip plateaus when sticky expired under HOL (was 3).
         self._wire_sticky_empty_streak = 0
-        self._wire_sticky_empty_max = 3
+        self._wire_sticky_empty_max = 5
         self._last_wire_probe_ok = None
         self._sync_fail = 0
         self._last_sync_error = ""

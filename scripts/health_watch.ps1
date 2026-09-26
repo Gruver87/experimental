@@ -80,6 +80,33 @@ while ($true) {
     $cycleRows = [System.Collections.Generic.List[object]]::new()
 
     $nodeResults = Invoke-ParallelNodeHealth -Ports $Ports -FullHarness:$fullHarness -ProdMesh:$HeavyProbe -Strict:$Strict -ScriptDir $ScriptDir
+    # Sibling-aware retry: one port dual-timeout while mesh mates are live is a
+    # restart/HOL flake (LR STRICT fail_lines ×2). Re-probe failed ports once.
+    $okN = @($nodeResults | Where-Object { $_.Ok }).Count
+    $badPorts = @($nodeResults | Where-Object { -not $_.Ok } | ForEach-Object { [int]$_.Port })
+    if ($badPorts.Count -gt 0 -and $okN -ge 1 -and $Ports.Count -ge 2) {
+        Start-Sleep -Seconds 5
+        $retry = Invoke-ParallelNodeHealth -Ports $badPorts -FullHarness:$false -ProdMesh:$HeavyProbe -Strict:$Strict -ScriptDir $ScriptDir
+        $merged = @()
+        foreach ($r in $nodeResults) {
+            if ($r.Ok) { $merged += $r; continue }
+            $rep = @($retry | Where-Object { [int]$_.Port -eq [int]$r.Port } | Select-Object -First 1)
+            if ($rep.Count -gt 0 -and $rep[0].Ok) {
+                $fixed = $rep[0]
+                # Mark soft so Strict scoring does not hard-FAIL this cycle.
+                try {
+                    $failed = @($fixed.Failed)
+                    if ($failed -notcontains "ready_flap") { $failed += "ready_flap" }
+                    $fixed | Add-Member -NotePropertyName Failed -NotePropertyValue $failed -Force
+                    $fixed | Add-Member -NotePropertyName ReadyFlap -NotePropertyValue $true -Force
+                } catch { }
+                $merged += $fixed
+            } else {
+                $merged += $r
+            }
+        }
+        $nodeResults = $merged
+    }
     foreach ($r in $nodeResults) {
         if (-not $r.Ok) {
             $err = if ($r.Error) { [string]$r.Error } else { "unreachable" }

@@ -15,6 +15,7 @@ def mesh_ready_for_mining(
     local_root: str,
     state_consistent: bool = False,
     peer_heights: List[int] | None = None,
+    wire_soft_fail: bool = False,
 ) -> bool:
     """
     Return True when hub may forge the next block.
@@ -23,6 +24,11 @@ def mesh_ready_for_mining(
     responses than links (slow peer); STATUS height alignment is allowed only
     when `state_consistent` is already True (fail-closed). Wire tip matches
     alone may prove alignment without relying on the cached flag.
+
+    ``wire_soft_fail``: recent wire solicit timeout/empty (not a root mismatch).
+    Unanimous STATUS tip heights may then forge so tip growth does not die for
+    tens of minutes under HOL (LR STRICT plateaus h17150/h18549). Real root
+    mismatch still refuses via the wire_roots check above.
     """
     if min_mesh_peers <= 0:
         return True
@@ -53,6 +59,11 @@ def mesh_ready_for_mining(
         if any(h < local_height for h in peer_heights):
             return False
         if all(h == local_height for h in peer_heights):
-            return bool(state_consistent)
+            if state_consistent:
+                return True
+            # Soft: unanimous tip + wire solicit timeout (not mismatch).
+            if wire_soft_fail and not wire_roots:
+                return True
+            return False
 
     return False

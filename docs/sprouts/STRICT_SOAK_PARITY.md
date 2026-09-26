@@ -46,7 +46,19 @@ Scripts:
 | Pack | Result |
 |------|--------|
 | Libp2p STRICT [`lp2pstrict1`](../evidence/runs/lp2pstrict1/) | **48h PASS** 2026-09-23→25 (`warn_lines=0`, tip ~57209→~68082) |
-| LR STRICT / EVM STRICT | Not run yet |
+| LR STRICT mid-run (stopped) | **NOT PASS** — fail_lines=2 at ~24h; tip plateaus; root cascade fixed 2026-09-26 (see below). Re-soak on command only. |
+
+
+## Root cause (LR STRICT mid-soak 2026-09-25→26)
+
+Cascade observed at ~24h (`fail_lines=2`, tip plateaus h17150/h17253/h18549 ×30+ cycles):
+
+1. Peer flap → `peers=1` / sticky `state_consistent=False` (wire solicit HOL timeout)
+2. `mesh_min_peers_before_mine=2` + hard mining skip while inconsistent → **tip dead**
+3. Catch-up + 70s wire probes pile GIL → `/health/ready`+`/status` dual-timeout → STRICT FAIL
+4. Soft `ready_flap` recovered 4×; live also HOL twice → hard fail_lines
+
+Fixes (2026-09-26): under-mesh reconnect in mining loop; `wire_soft_fail` STATUS-unanimous forge (lab only); no sticky `force_inconsistent` on probe exception outside prod; wire sticky empty max 5; health_watch sibling re-probe + longer live recovery.
 
 ## Honesty
 

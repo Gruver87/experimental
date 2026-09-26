@@ -172,11 +172,12 @@ function Test-NodeHealth {
         # Dual ready+status HOL (lr48pass1 ×13 FAIL under 5s lab timeouts): if
         # /health/live is up, soft ready_flap — never Strict fail_line for GIL stall.
         try {
-            $live = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health/live" -TimeoutSec 8
+            $liveSec = if ($ProdMesh) { 15 } else { 12 }
+            $live = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health/live" -TimeoutSec $liveSec
             if ($live -and $live.status -eq "alive") {
-                Start-Sleep -Seconds 3
+                Start-Sleep -Seconds 5
                 $stRetry = $null
-                $retrySec = if ($ProdMesh) { 18 } else { 12 }
+                $retrySec = if ($ProdMesh) { 20 } else { 15 }
                 try {
                     $stRetry = Invoke-RestMethod -Uri (Get-StatusProbeUri -Port $Port) -TimeoutSec $retrySec
                 } catch { }

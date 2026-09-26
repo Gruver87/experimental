@@ -47,7 +47,10 @@ def test_eth_mining_peers_require_consistent_even_if_mesh_min_zero():
 def test_mining_loop_peers_consistency_gate():
     main_py = Path("main.py").read_text(encoding="utf-8")
     assert "Peers present require consistency even when mesh_min_peers_before_mine=0" in main_py
-    assert "if connected > 0 and not getattr(self.p2p, \"_state_consistent\", False)" in main_py
+    # mesh_min>0 uses mesh_ready(+wire_soft_fail); mesh_min=0 keeps fail-closed skip.
+    assert "wire_soft_fail" in main_py
+    assert 'mesh_min=0 path: keep prior fail-closed skip when inconsistent' in main_py
+    assert "under-mesh reconnect_known_peers" in main_py
 
 
 def test_rocks_scan_and_reorg_bump_decode_failures():

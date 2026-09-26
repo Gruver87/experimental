@@ -1239,10 +1239,20 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         errors.append(f"fail-loud sync_engine inspect failed: {exc}")
     try:
         mesh_py = (ROOT / "runtime" / "mesh_mining.py").read_text(encoding="utf-8")
-        if "return bool(state_consistent)" not in mesh_py:
+        if "if state_consistent:" not in mesh_py:
             errors.append("mesh_ready_for_mining peer_heights path must gate on state_consistent")
         if "state_consistent: bool = False" not in mesh_py:
             errors.append("mesh_ready_for_mining state_consistent default must be False")
+        if "wire_soft_fail: bool = False" not in mesh_py:
+            errors.append(
+                "mesh_ready_for_mining must accept wire_soft_fail (LR tip plateau heal)"
+            )
+        if "Sibling-aware retry" not in (
+            ROOT / "scripts" / "health_watch.ps1"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "health_watch must sibling-retry unreachable ports (LR STRICT fail_lines)"
+            )
     except Exception as exc:
         errors.append(f"fail-loud mesh_mining inspect failed: {exc}")
     try:
@@ -1255,6 +1265,12 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         main_py = (ROOT / "main.py").read_text(encoding="utf-8")
         if "never echo first allowlist entry" not in main_py:
             errors.append("RPC CORS proxy must never echo first allowlist entry on miss")
+        if "under-mesh reconnect_known_peers" not in main_py:
+            errors.append(
+                "mining loop must reconnect when under mesh_min (LR tip plateaus)"
+            )
+        if "wire_soft_fail" not in main_py:
+            errors.append("mining loop must pass wire_soft_fail into mesh_ready (lab tip heal)")
         if "Production mode requires SyncEngine" not in main_py:
             errors.append("main.py must hard-fail SyncEngine init in production")
         if "Production mode requires StateEngine" not in main_py:
